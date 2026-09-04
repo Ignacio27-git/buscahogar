@@ -1,0 +1,10 @@
+{
+  // Config de compilación: solo src. El tsconfig.json principal incluye además
+  // test/ y vitest.config.ts para que se typecheen, pero no deben emitirse a dist.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src"
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "test", "vitest.config.ts"]
+}

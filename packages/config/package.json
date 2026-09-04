@@ -1,0 +1,23 @@
+{
+  "name": "@buscahogar/config",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Configuración compartida: TypeScript, ESLint, Prettier",
+  "files": [
+    "tsconfig.base.json",
+    "eslint.config.mjs",
+    ".prettierrc.json"
+  ],
+  "dependencies": {
+    "typescript-eslint": "8.69.0"
+  },
+  "devDependencies": {
+    "eslint": "10.9.1",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}

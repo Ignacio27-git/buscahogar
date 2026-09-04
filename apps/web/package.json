@@ -1,0 +1,40 @@
+{
+  "name": "@buscahogar/web",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Agregador inmobiliario — interfaz Next.js con App Router",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@buscahogar/core": "workspace:*",
+    "@buscahogar/db": "workspace:*",
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@buscahogar/config": "workspace:*",
+    "@next/eslint-plugin-next": "16.3.4",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "22.20.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "eslint": "10.9.1",
+    "eslint-config-next": "16.3.4",
+    "prettier": "3.9.6",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.69.0",
+    "vitest": "5.0.0"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}

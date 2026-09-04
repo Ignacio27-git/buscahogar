@@ -1,3 +1,20 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+
+# Scripts de instalación permitidos (pnpm bloquea los postinstall por defecto).
+# esbuild: binario nativo que usan vite/vitest. unrs-resolver: resolver nativo de
+# eslint-config-next.
 allowBuilds:
-  sharp: false
-  unrs-resolver: false
+  esbuild: true
+  unrs-resolver: true
+
+# pnpm rechaza por política los paquetes publicados hace menos de X tiempo
+# (minimumReleaseAge). Estas versiones se fijaron el mismo día de su publicación
+# y quedarían bloqueadas. Al subir cualquiera de ellas, revisar si la entrada
+# sigue siendo necesaria: pasado el plazo, sobra.
+minimumReleaseAgeExclude:
+  - '@types/react-dom@19.2.7'
+  - '@vitest/mocker@5.0.0'
+  - '@vitest/spy@5.0.0'
+  - vitest@5.0.0

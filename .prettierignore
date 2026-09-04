@@ -1,0 +1,16 @@
+# Artefactos y dependencias
+node_modules/
+dist/
+.next/
+out/
+build/
+coverage/
+pnpm-lock.yaml
+
+# Generados por herramientas
+apps/web/next-env.d.ts
+.atl/
+.claude/
+
+# Gestionado a mano; no reformatear
+CLAUDE.md

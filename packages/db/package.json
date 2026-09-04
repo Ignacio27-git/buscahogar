@@ -1,0 +1,34 @@
+{
+  "name": "@buscahogar/db",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Esquema de base de datos, cliente ORM y migraciones",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "migrate": "echo \"Sin migraciones todavía: el esquema se define en el paso 1.3 de docs/ROADMAP.md\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@buscahogar/core": "workspace:*",
+    "drizzle-orm": "0.45.2",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@buscahogar/config": "workspace:*",
+    "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.10",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}

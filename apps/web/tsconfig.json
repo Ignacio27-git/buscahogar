@@ -1,0 +1,21 @@
+{
+  "extends": "@buscahogar/config/tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./.next",
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "incremental": true,
+    "jsx": "preserve",
+    "jsxImportSource": "react",
+    // El único workspace que necesita tipos del DOM.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "plugins": [{ "name": "next" }],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "src", "test", "vitest.config.ts", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}

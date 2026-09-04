@@ -1,0 +1,29 @@
+{
+  "name": "@buscahogar/core",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Modelo de dominio, tipos e interfaces — sin dependencias de Next ni ORM",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@buscahogar/config": "workspace:*",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}
