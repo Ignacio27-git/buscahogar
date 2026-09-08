@@ -30,6 +30,125 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-08 — Verificación independiente del 1.2 y corrección de sus hallazgos
+
+**Tipo de tarea:** verificación
+**Forma de especificación:** comando del ciclo SDD, sin prosa adicional
+**Resultado:** con retoques
+
+**Prompts:**
+
+> /gentle-sdd-verify docker-compose-postgis
+
+> ya he modificado el .env con los valores correctos y he eliminado los dos archivos de la
+> carpeta docs/ que no debían estar ahí
+
+> Ejecuta la primera solución
+
+**Observación:** el dato interesante de este paso no es que la verificación pasara, sino que
+**no** pasó: devolvió `FAIL` con un hallazgo crítico y cuatro avisos sobre un trabajo que las
+fases anteriores habían dado por bueno. Los dos hallazgos con consecuencias reales eran
+invisibles para las comprobaciones del propio plan de tareas:
+
+1. `DATABASE_URL` conservaba los marcadores del `.env.example`. Compose nunca lee esa
+   variable, así que las cinco tareas de la fase 3 podían pasar en verde con la
+   configuración rota. Habría fallado en el paso 1.3 con un error de autenticación que
+   parecería un problema de Drizzle.
+2. Dos binarios ajenos en `docs/` (577 MB), no ignorados por git, que un `git add -A`
+   habría metido en el historial —y el `.exe` supera el límite de 100 MB de GitHub, así que
+   el `push` habría fallado _después_ del commit.
+
+El crítico era de trazabilidad, no funcional: un requisito cumplido en la cabecera del
+fichero en vez de en el sitio que la spec nombraba. Se corrigió el comentario en lugar de
+relajar el escenario. Detalle de ambos en `AI-NOTES.md`.
+
+Lectura para la memoria: una fase de verificación que solo confirma lo ya informado no
+aporta nada. Esta encontró cosas porque volvió a ejecutarlo todo por su cuenta y porque
+comprobó los escenarios negativos provocándolos, en lugar de darlos por supuestos.
+
+### 2026-09-08 — Ejecución de la fase 3 del 1.2, ya con el entorno operativo
+
+**Tipo de tarea:** configuración
+**Forma de especificación:** prosa mínima (aviso de entorno listo)
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> ya reinicié y ya funciona
+
+**Observación:** el prompt más corto del proyecto hasta ahora, y suficiente: el plan de
+tareas SDD ya decía exactamente qué ejecutar y con qué criterio de aceptación, así que no
+hizo falta reespecificar nada. Las cinco tareas de la fase 3 pasaron sin tocar una sola línea
+de `docker-compose.yml`, escrito el día anterior sin haber podido ejecutarlo nunca. Eso es un
+dato a favor del enfoque: la especificación previa aguantó el contacto con la ejecución real.
+
+Lo que **no** aguantó fue un criterio de aceptación. La tarea 3.4 daba por probada la
+persistencia de datos comparando la versión de PostGIS antes y después del `down`, y esa
+comprobación devuelve el mismo resultado tanto si el volumen sobrevive como si se destruye.
+Se reforzó con una tabla marcador. Detalle en `AI-NOTES.md`; el criterio corregido quedó
+también en el plan de tareas.
+
+Tres bloqueos de entorno encadenados separaron la escritura del código de su verificación
+—Docker dado por ausente siendo falso, WSL sin instalar, y el componente «Plataforma de
+máquina virtual» de Windows—, ninguno atribuible al código ni a la especificación.
+
+### 2026-09-07 — Desbloqueo de la verificación del 1.2: Docker y `.env`
+
+**Tipo de tarea:** configuración
+**Forma de especificación:** prosa breve, correctiva
+**Resultado:** con retoques
+
+**Prompts:**
+
+> docker ya está instalado y el archivo .env quiero que lo crees tú
+
+> ya he creado yo el archivo .env, pero los valores que hay son los del .example
+
+**Observación:** el primer prompt corrigió una afirmación falsa del turno anterior — Docker
+sí estaba instalado, en la ruta por usuario, invisible para el PATH heredado por la sesión
+(ver `AI-NOTES.md`). El encargo de crear `.env` no pudo atenderse: una regla de permisos de
+ámbito global bloquea lectura y escritura sobre `.env*`, en cualquier herramienta. Se
+entregó el contenido para que lo creara el usuario, que es lo que hizo.
+
+Con `.env` en su sitio, la fase 2 del plan de tareas (2.1–2.3) se ejecutó y pasó. La fase 3
+sigue bloqueada por WSL. Interesa para la memoria que `docker compose config` es una orden
+puramente de cliente: valida el YAML e interpola el `.env` sin necesidad de demonio, así que
+buena parte de la verificación se pudo adelantar aunque el motor no arrancara. Los valores
+del `.env` son los del `.example`, lo que basta para una base local — Postgres acepta
+cualquier usuario en la primera inicialización — pero conviene cambiar la contraseña antes
+de publicar el puerto fuera de `localhost`.
+
+### 2026-09-07 — Docker Compose con PostgreSQL y PostGIS (1.2)
+
+**Tipo de tarea:** configuración
+**Forma de especificación:** prosa
+**Resultado:** con retoques
+
+**Prompt:**
+
+> Crea el docker-compose.yml con el servicio de PostgreSQL con la extensión PostGIS
+> habilitada, con volumen persistente y las variables leídas del .env. Añade también
+> los servicios de web e ingestion, pero deja claro en comentarios que durante el
+> desarrollo se ejecutan en local y solo la base de datos se levanta con Docker.
+>
+> Incluye en el README los comandos para levantar, parar y resetear la base de datos.
+
+**Observación:** ciclo SDD completo (explore → propose → spec → design → tasks → apply).
+`docker-compose.yml` y la documentación (README, `DECISIONS.md`, `ROADMAP.md`) se
+completaron según el diseño aprobado, pero la verificación real quedó bloqueada: el motor
+Linux de Docker Desktop no arranca sin WSL, así que la comprobación que prueba el propio
+objetivo del paso — que PostGIS queda _creado_, no solo instalado — no pudo ejecutarse.
+El paso 1.2 se marca `[~]` en lugar de `[x]` precisamente por esto: la nota de
+«Revisar» del propio prompt del ROADMAP («que la extensión PostGIS queda realmente
+habilitada al crear la base de datos, no solo la imagen instalada») fue la que determinó qué
+evidencia había que producir, y esa evidencia sigue sin producirse.
+
+Un dato adicional del propio ciclo SDD: la fase de diseño detectó por su cuenta que Prettier
+(`singleQuote: true`) se aplica también a YAML en este repo, así que la forma idiomática de
+Docker Compose (comillas dobles) habría roto `pnpm format:check`. El fichero se escribió
+desde el principio con comillas simples por ese motivo, sin necesidad de una ronda de
+corrección posterior sobre este punto concreto.
+
 ### 2026-09-04 — Revisión completa del esqueleto y corrección de hallazgos (1.1)
 
 **Tipo de tarea:** configuración

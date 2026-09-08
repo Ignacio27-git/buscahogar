@@ -150,7 +150,7 @@ no hay imports cruzados porque los paquetes solo exportan una constante de versi
 
 ---
 
-## [ ] 1.2 · Docker Compose con PostgreSQL y PostGIS
+## [x] 1.2 · Docker Compose con PostgreSQL y PostGIS
 
 **Objetivo.** Base de datos levantada y accesible antes de definir el esquema.
 
@@ -167,6 +167,90 @@ Incluye en el README los comandos para levantar, parar y resetear la base de dat
 no solo la imagen instalada.
 
 **Notas:**
+
+Ciclo SDD (2026-09-07): creado `docker-compose.yml` en la raíz con imagen fijada
+`postgis/postgis:17-3.5`, `db` con `restart: unless-stopped`, healthcheck `pg_isready` y
+volumen nombrado `buscahogar_postgres_data`. `web` e `ingestion` declarados bajo
+`profiles: ['app']`, así que quedan fuera de un `docker compose up -d` por defecto.
+
+Las variables de entorno que consume el servicio `db` — tomadas del propio
+`docker-compose.yml` escrito en esta tarea, no de `.env`, que una regla de permisos impide
+leer — son `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (con guarda `:?`, sin valor
+por defecto) y `POSTGRES_PORT` (con valor por defecto `5432`). No ha sido posible
+contrastarlas contra `.env.example`, pero `docker compose config -q` resuelve sin error
+contra el `.env` real: eso prueba que las tres con guarda existen y no están vacías, aunque
+no que sus valores sean los deseados.
+
+**Verificación estructural (fase 2): superada.** Con Docker Desktop 29.7.2 / Compose v5.5.1
+y el `.env` ya creado:
+
+- 2.1 `docker compose config -q` → código 0, sin aviso de `version` obsoleta.
+- 2.2 `docker compose config --services` → `db`.
+- 2.3 `docker compose --profile app config --services` → `db`, `ingestion`, `web`.
+
+El fallback de `profiles` comentados (tarea 2.4) **no se ha disparado**, y la fase 2 prueba
+que no hace falta: 2.1–2.3 salieron limpias, que es justo lo contrario de la condición que
+lo habría activado.
+
+**Verificación de tiempo de ejecución (fase 3): superada** (2026-09-08, Docker 29.7.2,
+motor `linux/x86_64`). Lo que responde la base, que es lo que pedía el apartado «Revisar»
+de este paso:
+
+```
+postgis_version
+3.5 USE_GEOS=1 USE_PROJ=1 USE_STATS=1
+```
+
+- 3.1 `docker compose up -d` → código 0; volumen `buscahogar_postgres_data` y red creados;
+  `docker compose ps --services` imprime exactamente `db`, así que `profiles: ['app']`
+  cumple su función y `web`/`ingestion` no arrancan.
+- 3.2 `db` alcanza `healthy` en ~10 s el primer arranque y en ~6 s los siguientes.
+- 3.3 `SELECT PostGIS_Version();` devuelve la cadena de arriba con código 0. La extensión
+  está **creada en la base**, no solo instalada en la imagen. El comando funciona tal y como
+  está escrito en el README, sin necesidad de `-T`.
+- 3.4 `down` → `up -d` conserva los datos.
+- 3.5 `down -v` → `up -d` destruye el volumen y recrea PostGIS limpio, misma versión.
+
+El criterio original de la tarea 3.4 era insuficiente y se reforzó: decía que obtener la
+misma versión tras `down`/`up` probaba que los datos se conservan, y no lo prueba, porque un
+volumen destruido reinicializaría Postgres y la extensión reaparecería con idéntica versión.
+La comprobación real usó una tabla marcador escrita antes del `down`: sobrevivió al ciclo de
+3.4 y desapareció (`relation "persistence_probe" does not exist`) tras el `down -v` de 3.5,
+que es lo que distingue de verdad un volumen conservado de uno recreado.
+
+La tarea 2.4 (fallback de `profiles` comentados) **no se ha disparado** y queda demostrado
+que no hacía falta: su disparador era que 2.1–2.3 fallaran, y salieron limpias.
+
+`pnpm format:check` falló en su primera ejecución (`docs/PROMPTS.md` y `docs/ROADMAP.md` con
+estilo desalineado); tras `pnpm format`, la segunda ejecución salió con código 0 sobre todo
+el repo.
+
+**Verificación independiente (2026-09-08).** Se ejecutó la fase `verify` del ciclo SDD, que
+volvió a correr todas las comprobaciones por su cuenta en lugar de aceptar lo ya informado:
+`pnpm -r build`, `typecheck`, `lint` y `test` en 0, los tres `docker compose config` en 0, y
+`pg_extension` confirmando `postgis 3.5.2` creado en la base `buscahogar`. Además provocó el
+escenario negativo de la spec en vez de suponerlo: la misma consulta contra la base
+`postgres` de mantenimiento devuelve `ERROR: function postgis_version() does not exist`,
+mientras que `\dx` allí sale con código 0 — que es exactamente el falso positivo que motivó
+elegir `SELECT PostGIS_Version();` como comprobación.
+
+De sus hallazgos, tres se han resuelto:
+
+- **Comentario del stanza `web`** (crítico). La spec exige que el comentario situado encima
+  de `web` diga que en desarrollo los servicios se ejecutan en local con `pnpm dev:web` y
+  `pnpm dev:ingestion`; esa frase estaba solo en la cabecera del fichero, cuarenta líneas
+  más arriba. Corregido en el propio comentario. Detalle en `AI-NOTES.md`.
+- **`DATABASE_URL` incoherente.** Conservaba los marcadores `USER`/`PASSWORD` del
+  `.env.example` mientras `POSTGRES_USER` ya era `buscahogar`. Compose nunca lee esa
+  variable —solo la aplicación—, así que ninguna comprobación de la fase 3 podía detectarlo;
+  habría fallado al conectar Drizzle en el paso 1.3. Corregido el `.env` y recreado el
+  volumen, porque Postgres solo aplica las credenciales sobre un `PGDATA` vacío. Conexión
+  comprobada desde el host: usuario `buscahogar`, base `buscahogar`, PostGIS `3.5`.
+- **Binarios ajenos en `docs/`.** Un instalador de 577 MB y un PDF, ninguno ignorado por
+  git, que dejaban `pnpm format:check` en código 2 por un error de lectura y habrían entrado
+  en el historial con un `git add -A`. Eliminados; el gate vuelve a 0 en todo el repo.
+
+La tarea 2.4 sigue sin marcar por diseño: su disparador era que 2.1–2.3 fallaran.
 
 ---
 
@@ -575,8 +659,10 @@ pueda corregir la interpretación antes de buscar.
 
 Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 
-| Fecha      | Paso | Cambio                                                                                       | Motivo                                                                                                                                                                                                                                                                                                  |
-| ---------- | ---- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-09-04 | 1.1  | Ronda correctiva completa tras marcarse `[x]` en falso                                       | El ciclo SDD se autoinformó `done` sin ejecutar install/build/lint/test; `react` quedó en una RC inventada (regresión sobre la estable ya commiteada), sin `.env.example`, sin `packageManager`, sin Tailwind ni runner de tests. Detalle en `AI-NOTES.md`.                                             |
-| 2026-09-04 | 1.1  | Añadidos no previstos en el prompt: `@next/eslint-plugin-next` y `apps/web/src/app/page.tsx` | `eslint-plugin-react@7.37.5` (vía `eslint-config-next/core-web-vitals`) es incompatible con ESLint 10; se sustituye por el plugin de Next directo. `next build` no compila sin página raíz. Decisiones 011 y notas en `AI-NOTES.md`.                                                                    |
-| 2026-09-04 | 1.1  | Tercera pasada: revisión manual completa y corrección de 13 hallazgos                        | Las cuatro puertas en verde no prueban que se cumpla el requisito. `apps/web` no aplicaba la config ESLint compartida, `engines.node` era insuficiente para el código escrito, un clonado limpio no arrancaba y `packages/core` heredaba tipos del DOM. Decisiones 012 y 013; detalle en `AI-NOTES.md`. |
+| Fecha      | Paso | Cambio                                                                                                        | Motivo                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------- | ---- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-04 | 1.1  | Ronda correctiva completa tras marcarse `[x]` en falso                                                        | El ciclo SDD se autoinformó `done` sin ejecutar install/build/lint/test; `react` quedó en una RC inventada (regresión sobre la estable ya commiteada), sin `.env.example`, sin `packageManager`, sin Tailwind ni runner de tests. Detalle en `AI-NOTES.md`.                                                                                                                                   |
+| 2026-09-04 | 1.1  | Añadidos no previstos en el prompt: `@next/eslint-plugin-next` y `apps/web/src/app/page.tsx`                  | `eslint-plugin-react@7.37.5` (vía `eslint-config-next/core-web-vitals`) es incompatible con ESLint 10; se sustituye por el plugin de Next directo. `next build` no compila sin página raíz. Decisiones 011 y notas en `AI-NOTES.md`.                                                                                                                                                          |
+| 2026-09-04 | 1.1  | Tercera pasada: revisión manual completa y corrección de 13 hallazgos                                         | Las cuatro puertas en verde no prueban que se cumpla el requisito. `apps/web` no aplicaba la config ESLint compartida, `engines.node` era insuficiente para el código escrito, un clonado limpio no arrancaba y `packages/core` heredaba tipos del DOM. Decisiones 012 y 013; detalle en `AI-NOTES.md`.                                                                                       |
+| 2026-09-07 | 1.2  | Partido en tres sesiones por bloqueos del entorno, no del código: fases 1, 2 y 4 el 07-09; fase 3 el 08-09    | El paso se escribió y documentó entero el 07-09, pero la verificación de tiempo de ejecución tuvo que esperar a tres bloqueos encadenados del entorno: Docker se dio por no instalado siendo falso (ver `AI-NOTES.md`), luego faltaba WSL, y luego el componente «Plataforma de máquina virtual» de Windows. Resuelto el 08-09, la fase 3 pasó sin cambiar una línea de `docker-compose.yml`. |
+| 2026-09-08 | 1.2  | Reforzado el criterio de la tarea 3.4 con una tabla marcador, en lugar de comparar solo la versión de PostGIS | El criterio escrito («la misma versión prueba que los datos se conservan») no distingue un volumen conservado de uno destruido: al recrearse, Postgres reinstala la extensión con idéntica versión. Se añadió una fila escrita antes del `down`, que sobrevive en 3.4 y desaparece en 3.5. Detalle en `AI-NOTES.md`.                                                                          |

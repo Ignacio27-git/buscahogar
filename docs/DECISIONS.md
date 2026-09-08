@@ -279,6 +279,86 @@ puntos donde `CLAUDE.md` concentra los tests.
 
 ---
 
+## 014 — Imagen PostGIS fijada en `17-3.5`; la extensión la activa la imagen, sin script de init
+
+**Estado:** aceptada
+
+**Decisión.** `docker-compose.yml` fija la imagen `postgis/postgis:17-3.5` (sin `latest`, sin
+rango). La activación de PostGIS en la base de datos de la aplicación se delega por completo
+al script `initdb-postgis.sh` de la propia imagen, que se ejecuta en el primer arranque sobre
+un volumen vacío. No se añade ningún script propio en `/docker-entrypoint-initdb.d`.
+
+**Alternativa descartada.** Añadir un script propio de inicialización (`init.sql` con
+`CREATE EXTENSION IF NOT EXISTS postgis;`) "por idempotencia".
+
+**Motivo.** Un script en `/docker-entrypoint-initdb.d` se dispara con el mismo trigger exacto
+que ya usa la imagen: volumen `PGDATA` vacío. Contra un volumen ya inicializado, ninguno de
+los dos se ejecuta. Añadir el script no cubre ningún caso adicional; solo añade un fichero más
+que mantener sincronizado con la imagen. Se justificaría únicamente si en el futuro hicieran
+falta extensiones fuera del conjunto por defecto de la imagen (`pg_trgm`, `unaccent`), lo cual
+es una cuestión del paso 1.3, no de este.
+
+**Consecuencia.** La verificación de que PostGIS quedó realmente creado (no solo instalado en
+la imagen) corre por cuenta de la comprobación documentada en el README
+(`SELECT PostGIS_Version();`), no de un script de inicialización.
+
+**Aviso para subir de versión.** Las etiquetas `17-*` (y anteriores) montan el volumen en
+`/var/lib/postgresql/data`. A partir de la serie `18-*` la imagen mueve la ruta a
+`/var/lib/postgresql` (sin `/data`). Revisar `docker-compose.yml` antes de cambiar el tag
+mayor.
+
+---
+
+## 015 — `web` e `ingestion` fuera del perfil por defecto; frontera de credenciales
+
+**Estado:** aceptada
+
+**Decisión.** `web` e `ingestion` llevan `profiles: ['app']` en `docker-compose.yml`, así que
+un `docker compose up -d` sin `--profile` levanta únicamente `db`, sin resolver siquiera su
+contexto de build. `ingestion` recibe `env_file: [.env]`; `web` no recibe ni `env_file` ni
+`environment`: no debe llegarle ninguna credencial de base de datos ni de las fuentes, y nunca
+una variable `NEXT_PUBLIC_*`.
+
+**Alternativa descartada.** Levantar los tres servicios por defecto, o dar a `web` el mismo
+`env_file` que `ingestion` "por si acaso".
+
+**Motivo.** Hoy no existe ningún `Dockerfile` para `web` ni para `ingestion`; sin `profiles`,
+`docker compose up -d` fallaría al intentar resolver un contexto de build inexistente. Además,
+`CLAUDE.md` prohíbe explícitamente que las credenciales lleguen a `apps/web`. Declarar el
+servicio sin ninguna vía de credenciales, en lugar de omitirlo, dice con claridad que la
+ausencia es intencionada y no un olvido, y establece la frontera antes de que exista ningún
+`Dockerfile` que la pueda violar.
+
+**Consecuencia.** Cualquier cambio futuro que quite `profiles: ['app']` de `web` o le añada
+`environment`/`env_file` debe releerse contra esta decisión y contra `CLAUDE.md` antes de
+aceptarse.
+
+---
+
+## 016 — El ciclo de vida de Docker se documenta en el README, sin scripts de `package.json`
+
+**Estado:** aceptada
+
+**Decisión.** Los comandos para levantar, parar y resetear la base de datos (`docker compose
+up -d` / `stop` / `down` / `down -v`) se documentan como prosa y bloques `bash` en el README,
+sección «Base de datos». No se añade ningún script `db:up`, `db:down` ni `db:reset` a
+`package.json`.
+
+**Alternativa descartada.** Envolver los comandos de Docker en scripts `db:*` de la raíz.
+
+**Motivo.** El prefijo `db:` ya tiene un significado establecido en este monorepo: operación
+delegada al workspace `@buscahogar/db` (`db:migrate` → `pnpm --filter @buscahogar/db run
+migrate`). Reutilizarlo para un mecanismo distinto (Docker Compose, sin relación con
+`@buscahogar/db`) confundiría el propietario de la operación. Además, un alias `db:reset`
+escondería detrás de una palabra amistosa un comando que borra el volumen de forma
+irreversible; exigir escribir `docker compose down -v` explícitamente mantiene visible que la
+operación es destructiva.
+
+**Consecuencia.** Si en el futuro se quieren envoltorios de conveniencia para el ciclo de vida
+de Docker, deben usar un prefijo distinto (`infra:` o `docker:`), nunca `db:`.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
