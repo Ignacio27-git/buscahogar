@@ -30,6 +30,63 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-08 — Declarar el almacén de artefactos del ciclo SDD
+
+**Tipo de tarea:** configuración
+**Forma de especificación:** prosa breve, sobre un problema detectado por el propio agente
+**Resultado:** utilizable sin cambios
+
+**Prompts:**
+
+> Si, revisa como dejarlo declarado antes de pasar al paso 1.3
+
+> si créalos antes de pasar al 1.3
+
+**Observación:** el encargo era investigar primero y decidir después, y esa separación resultó
+valiosa: la documentación del esquema de `config.yaml` **no menciona** ninguna clave para el
+almacén, así que la respuesta no estaba escrita en ninguna parte. Se determinó probando
+cinco variantes de nombre en un repositorio desechable al que se le puso el mismo remoto de
+git, para que la herramienta dedujera el mismo proyecto sin tocar este repositorio.
+
+Dos hallazgos que no se habrían obtenido leyendo documentación:
+
+1. Las claves incorrectas **se ignoran en silencio**. `store:`, `persistence:` y la forma
+   anidada `artifact_store: { mode: ... }` no dan error: vuelven a `openspec`. Una errata
+   aquí no falla, se degrada — y el modo degradado es justo el que ya despistó a tres fases.
+2. Con la declaración correcta, la herramienta **sí lee** los artefactos y responde
+   `nextRecommended: archived` sobre el paso 1.2, sin ayuda. El problema no era que el
+   almacén fuese ilegible, sino que nadie le había dicho dónde mirar.
+
+Lectura para la memoria: conviene desconfiar de un diagnóstico que se repite en fases
+sucesivas. Tres fases seguidas adjudicaron a mano el mismo desajuste y ninguna preguntó si
+era corregible; se trató como una peculiaridad del entorno en lugar de como un defecto de
+configuración. Decisión 017.
+
+### 2026-09-08 — Cierre y archivado del ciclo SDD del paso 1.2
+
+**Tipo de tarea:** configuración
+**Forma de especificación:** comando del ciclo SDD, sin prosa adicional
+**Resultado:** utilizable sin cambios
+**Prompt:**
+
+> /gentle-sdd-archive docker-compose-postgis
+
+**Observación:** el archivado no encontró nada que corregir ni en el código ni en la
+configuración —el paso ya estaba verificado y confirmado en el commit `d7d8f1b`—, así que
+lo aprovechable está en dos detalles del proceso.
+
+El primero: el estado nativo del ciclo declaraba `openspec` como almacén de artefactos y
+daba todos por ausentes, cuando este repositorio no tiene carpeta `openspec/` y el ciclo
+entero se ha llevado en memoria persistente. Un fallo de resolución del almacén se parece
+demasiado a «aquí no hay trabajo hecho», y las dos últimas fases han tenido que distinguir
+una cosa de la otra a mano para no volver a empezar un paso ya terminado.
+
+El segundo: el artefacto de tareas afirmaba que `docs/AI-NOTES.md` había ganado **cinco**
+entradas en este ciclo. Son cuatro encabezados; cinco son las correcciones, porque una de
+las entradas cubre dos. El fichero estaba bien y la afirmación sobre el fichero no. Es el
+tipo de imprecisión que nadie comprueba porque suena razonable, y que solo se cae al
+contarla.
+
 ### 2026-09-08 — Verificación independiente del 1.2 y corrección de sus hallazgos
 
 **Tipo de tarea:** verificación

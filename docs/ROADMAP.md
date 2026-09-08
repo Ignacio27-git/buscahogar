@@ -252,6 +252,20 @@ De sus hallazgos, tres se han resuelto:
 
 La tarea 2.4 sigue sin marcar por diseño: su disparador era que 2.1–2.3 fallaran.
 
+**Ciclo cerrado (2026-09-08).** El paso entero está en el commit `d7d8f1b` («feat: docker
+bbdd»): 6 ficheros, 555 inserciones y 6 supresiones. La verificación final salió en «pasa
+con avisos», con cero hallazgos críticos y dos avisos que se aceptan en lugar de corregirse:
+el tamaño del cambio (561 líneas, de las que 444 —el 79 %— son el registro documental que
+exige `CLAUDE.md`, no código), y la ausencia de tabla de evidencia TDD, que no aplica a un
+cambio de infraestructura sin lógica unitaria que probar; una aserción de vitest sobre el
+YAML sería más débil que la validación del esquema de Compose y las consultas contra el
+contenedor real, que es lo que se ha ejecutado.
+
+El contenedor `buscahogar-db-1` queda levantado y sano sobre un volumen recién inicializado,
+listo para el paso 1.3. A partir del momento en que existan migraciones, `docker compose
+down -v` deja de ser gratuito: hoy solo cuesta un arranque, después costará rehacer el
+esquema y los datos de prueba.
+
 ---
 
 ## [ ] 1.3 · Esquema de base de datos

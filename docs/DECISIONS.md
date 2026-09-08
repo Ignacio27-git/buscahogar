@@ -359,6 +359,35 @@ de Docker, deben usar un prefijo distinto (`infra:` o `docker:`), nunca `db:`.
 
 ---
 
+## 017 — El almacén de artefactos del ciclo SDD se declara en `openspec/config.yaml`
+
+**Estado:** aceptada
+
+**Decisión.** Se crea `openspec/config.yaml` con `sdd.artifact_store: engram`. Esa carpeta
+contiene únicamente esa declaración: los artefactos del ciclo (propuesta, spec, diseño,
+tareas, informes) siguen viviendo en memoria persistente, no en el repositorio.
+
+**Alternativa descartada.** No declarar nada y seguir distinguiendo a mano, en cada fase,
+entre «el almacén está mal resuelto» y «este paso no se ha empezado».
+
+**Motivo.** Sin declaración, la herramienta asume `openspec`, resuelve por presencia de
+directorio, no encuentra `openspec/changes/` y da los seis artefactos por ausentes con
+`nextRecommended: sdd-new`. Ese estado es indistinguible de un paso sin empezar, y ya obligó
+a corregir el rumbo a mano en tres fases seguidas del paso 1.2 (`apply`, `verify` y
+`archive`). El riesgo no es teórico: basta con que una fase se crea el diagnóstico para que
+rehaga trabajo terminado. Con la declaración puesta, la herramienta lee los artefactos y
+responde `nextRecommended: archived` por su cuenta, comprobado sobre el propio paso 1.2.
+
+**Consecuencia.** Una clave mal escrita **no da error**: se ignora en silencio y se vuelve a
+`openspec`. Las formas válidas comprobadas son `sdd.artifact_store`, `artifact_store` en la
+raíz y `artifactStore`; `store:`, `persistence:` y `artifact_store: { mode: ... }` se
+descartan sin avisar. Si algún día se quiere pasar a artefactos versionados en el repositorio,
+el cambio es de esta clave a `openspec` (o `hybrid`), no de estructura de carpetas. El nombre
+del proyecto se deduce del remoto de git, así que un worktree sin remoto resolvería a otro
+proyecto.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
