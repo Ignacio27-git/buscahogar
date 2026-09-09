@@ -27,7 +27,8 @@ Adaptador           respuesta cruda → RawListing
       ↓
 Normalizador        RawListing → Listing
       ↓
-tabla listings      un registro por anuncio y versión
+tablas listings +   identidad del anuncio (listings) + instantáneas de precio y
+listing_versions    contenido (listing_versions), una por versión
       ↓
 Deduplicación       bloqueo + puntuación
       ↓
@@ -64,8 +65,14 @@ repetir peticiones.
 
 ## Modelo de datos
 
-- **`listings`** — un registro por anuncio y fuente, normalizado. En la práctica inmutable:
-  un cambio de precio genera una versión nueva.
+- **`listings`** — identidad estable de un anuncio: un registro por anuncio y fuente,
+  nunca sobrescrito.
+- **`listing_versions`** — histórico de instantáneas de un anuncio, en orden de aparición:
+  cada cambio de precio o contenido añade una versión nueva en lugar de modificar la
+  existente. La versión vigente se marca con `is_current`.
+- **`listing_features`** — amenities de una versión concreta de un anuncio (relación con
+  `features`); cuelga de la versión, no de la identidad, porque una versión es una
+  instantánea completa.
 - **`properties`** — vivienda canónica; agrupación de uno o varios listings.
 - **`property_listings`** — relación, con puntuación, desglose por señal y estrategia que
   produjo la decisión.

@@ -268,7 +268,7 @@ esquema y los datos de prueba.
 
 ---
 
-## [ ] 1.3 · Esquema de base de datos
+## [~] 1.3 · Esquema de base de datos
 
 **Objetivo.** El paso más caro de corregir después. Revisar con calma.
 
@@ -297,6 +297,42 @@ decisiones de modelado que hayas tomado y que no estuvieran especificadas.
 señal en `property_listings`: si esto se queda corto, hay que reprocesar todo más adelante.
 
 **Notas:**
+
+Dividido en cuatro fases encadenadas por el volumen estimado del cambio (700-850 líneas,
+por encima del presupuesto de revisión de 400): fundamentos (PR 1), esquema espacial y
+migración generada (PR 2), aplicación de la migración y suite de integración (PR 3,
+bloqueada por Docker), documentación (PR 4).
+
+**Fase 1 — Fundamentos (offline, PR 1): hecha y verificada.** `drizzle.config.ts`, la
+inclusión de `drizzle.config.ts` en `tsconfig.json`, el enum `coverage_job_status`, el
+`customType` `geographyPoint`, y las cinco tablas sin geometría (`sources`, `locations`,
+`zones`, `coverage_jobs`, `features`). La migración `--custom` `0000_enable_postgis.sql`
+crea la extensión antes de cualquier migración de esquema. `pnpm typecheck`, `pnpm lint`,
+`pnpm format` y `pnpm format:check` pasan sin base de datos viva.
+
+**Fase 2 — Esquema espacial, cliente y migración generada: pendiente.** Faltan
+`listings`, `listing_versions`, `listing_features`, `properties` y `property_listings`
+con la columna `geography` generada y su índice GiST, el barrel `src/tables.ts`, el
+cliente (`src/db.ts`), el punto único de distancia (`src/spatial.ts`), el seed vacío y la
+migración `0001_*.sql`, generada a partir del esquema completo de diez tablas. Las
+comprobaciones `CHK-SRID` y `CHK-ENUM-EMITTED` se aplazaron deliberadamente a esta fase:
+ambas necesitan la migración `0001` generada sobre el esquema completo, y generarla ahora
+sobre un esquema parcial de cinco tablas fragmentaría el historial de migraciones.
+
+**Fase 3 — Migración aplicada e integración: bloqueada.** El motor Linux de Docker
+Desktop está caído (no aparece la tubería `dockerDesktopLinuxEngine`), así que no hay base
+de datos viva contra la que ejecutar `pnpm db:migrate`, `CHK-GEOG-STORED` ni la suite de
+integración. Doce de los dieciocho requisitos de la spec están marcados `[DOCKER-GATED]`
+y siguen **sin probar**, no fallidos.
+
+**Fase 4 — Documentación (PR 4): esta entrada.** Se adelantó al orden de escritura del
+propio prompt (que pide explicar las decisiones al terminar el esquema) porque las fases
+2 y 3 dependen de trabajo aún no hecho o de un bloqueo de entorno, y el registro
+obligatorio de `CLAUDE.md` exige documentar el trabajo ya completado en lugar de esperar
+al cierre del paso completo.
+
+El paso queda `[~]` en curso, no `[x]`: el modelo de datos y la migración completa aún no
+existen.
 
 ---
 
@@ -673,10 +709,11 @@ pueda corregir la interpretación antes de buscar.
 
 Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 
-| Fecha      | Paso | Cambio                                                                                                        | Motivo                                                                                                                                                                                                                                                                                                                                                                                        |
-| ---------- | ---- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-09-04 | 1.1  | Ronda correctiva completa tras marcarse `[x]` en falso                                                        | El ciclo SDD se autoinformó `done` sin ejecutar install/build/lint/test; `react` quedó en una RC inventada (regresión sobre la estable ya commiteada), sin `.env.example`, sin `packageManager`, sin Tailwind ni runner de tests. Detalle en `AI-NOTES.md`.                                                                                                                                   |
-| 2026-09-04 | 1.1  | Añadidos no previstos en el prompt: `@next/eslint-plugin-next` y `apps/web/src/app/page.tsx`                  | `eslint-plugin-react@7.37.5` (vía `eslint-config-next/core-web-vitals`) es incompatible con ESLint 10; se sustituye por el plugin de Next directo. `next build` no compila sin página raíz. Decisiones 011 y notas en `AI-NOTES.md`.                                                                                                                                                          |
-| 2026-09-04 | 1.1  | Tercera pasada: revisión manual completa y corrección de 13 hallazgos                                         | Las cuatro puertas en verde no prueban que se cumpla el requisito. `apps/web` no aplicaba la config ESLint compartida, `engines.node` era insuficiente para el código escrito, un clonado limpio no arrancaba y `packages/core` heredaba tipos del DOM. Decisiones 012 y 013; detalle en `AI-NOTES.md`.                                                                                       |
-| 2026-09-07 | 1.2  | Partido en tres sesiones por bloqueos del entorno, no del código: fases 1, 2 y 4 el 07-09; fase 3 el 08-09    | El paso se escribió y documentó entero el 07-09, pero la verificación de tiempo de ejecución tuvo que esperar a tres bloqueos encadenados del entorno: Docker se dio por no instalado siendo falso (ver `AI-NOTES.md`), luego faltaba WSL, y luego el componente «Plataforma de máquina virtual» de Windows. Resuelto el 08-09, la fase 3 pasó sin cambiar una línea de `docker-compose.yml`. |
-| 2026-09-08 | 1.2  | Reforzado el criterio de la tarea 3.4 con una tabla marcador, en lugar de comparar solo la versión de PostGIS | El criterio escrito («la misma versión prueba que los datos se conservan») no distingue un volumen conservado de uno destruido: al recrearse, Postgres reinstala la extensión con idéntica versión. Se añadió una fila escrita antes del `down`, que sobrevive en 3.4 y desaparece en 3.5. Detalle en `AI-NOTES.md`.                                                                          |
+| Fecha      | Paso | Cambio                                                                                                                                                                                                                          | Motivo                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-04 | 1.1  | Ronda correctiva completa tras marcarse `[x]` en falso                                                                                                                                                                          | El ciclo SDD se autoinformó `done` sin ejecutar install/build/lint/test; `react` quedó en una RC inventada (regresión sobre la estable ya commiteada), sin `.env.example`, sin `packageManager`, sin Tailwind ni runner de tests. Detalle en `AI-NOTES.md`.                                                                                                                                   |
+| 2026-09-04 | 1.1  | Añadidos no previstos en el prompt: `@next/eslint-plugin-next` y `apps/web/src/app/page.tsx`                                                                                                                                    | `eslint-plugin-react@7.37.5` (vía `eslint-config-next/core-web-vitals`) es incompatible con ESLint 10; se sustituye por el plugin de Next directo. `next build` no compila sin página raíz. Decisiones 011 y notas en `AI-NOTES.md`.                                                                                                                                                          |
+| 2026-09-04 | 1.1  | Tercera pasada: revisión manual completa y corrección de 13 hallazgos                                                                                                                                                           | Las cuatro puertas en verde no prueban que se cumpla el requisito. `apps/web` no aplicaba la config ESLint compartida, `engines.node` era insuficiente para el código escrito, un clonado limpio no arrancaba y `packages/core` heredaba tipos del DOM. Decisiones 012 y 013; detalle en `AI-NOTES.md`.                                                                                       |
+| 2026-09-07 | 1.2  | Partido en tres sesiones por bloqueos del entorno, no del código: fases 1, 2 y 4 el 07-09; fase 3 el 08-09                                                                                                                      | El paso se escribió y documentó entero el 07-09, pero la verificación de tiempo de ejecución tuvo que esperar a tres bloqueos encadenados del entorno: Docker se dio por no instalado siendo falso (ver `AI-NOTES.md`), luego faltaba WSL, y luego el componente «Plataforma de máquina virtual» de Windows. Resuelto el 08-09, la fase 3 pasó sin cambiar una línea de `docker-compose.yml`. |
+| 2026-09-08 | 1.2  | Reforzado el criterio de la tarea 3.4 con una tabla marcador, en lugar de comparar solo la versión de PostGIS                                                                                                                   | El criterio escrito («la misma versión prueba que los datos se conservan») no distingue un volumen conservado de uno destruido: al recrearse, Postgres reinstala la extensión con idéntica versión. Se añadió una fila escrita antes del `down`, que sobrevive en 3.4 y desaparece en 3.5. Detalle en `AI-NOTES.md`.                                                                          |
+| 2026-09-09 | 1.3  | Partido en cuatro fases encadenadas (PR 1-4) y ejecutado fuera del orden de escritura del propio prompt: la documentación (fase 4) se completó antes de terminar el esquema espacial (fase 2) y de probar la migración (fase 3) | El volumen estimado (700-850 líneas) supera el presupuesto de revisión de 400 líneas y obligó a encadenar PRs; la fase 3 quedó bloqueada por la caída del motor Linux de Docker, inalcanzable en esta sesión, y `CLAUDE.md` exige registrar el trabajo ya hecho en lugar de esperar al cierre completo del paso.                                                                              |

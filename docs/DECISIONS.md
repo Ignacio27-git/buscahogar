@@ -388,6 +388,214 @@ proyecto.
 
 ---
 
+## 018 — Versionado de anuncios: identidad estable + histórico, con procedencia opcional de versión en la decisión de deduplicación
+
+**Estado:** aceptada
+
+**Decisión.** `listings` guarda la identidad estable de un anuncio (uno por anuncio y
+fuente) y nunca se sobrescribe; cada cambio de precio o contenido añade una fila nueva en
+`listing_versions`, con un índice único parcial `(listing_id) WHERE is_current` que
+garantiza como mucho una versión vigente por anuncio. `property_listings` referencia la
+identidad del anuncio (`listing_id`), no una versión concreta, y añade una columna
+adicional y anulable `scored_listing_version_id` que apunta a la versión exacta que
+produjo la puntuación.
+
+**Alternativa descartada.** FK de `property_listings` solo a la identidad, sin procedencia
+de versión; y, en el extremo opuesto, FK solo a la versión vigente.
+
+**Motivo.** Solo a la identidad: la decisión de deduplicación queda registrada, pero se
+pierde qué instantánea exacta de datos la produjo, que es justo la evidencia que exige el
+TFM y no se puede reconstruir después. Solo a la versión: cada cambio de precio movería o
+invalidaría la relación, cuando el vínculo anuncio-vivienda no depende del precio vigente.
+
+**Consecuencia.** `scored_listing_version_id` usa `ON DELETE SET NULL`: si la versión
+referenciada se purgara alguna vez, la decisión y su desglose sobreviven; solo se pierde el
+puntero a la instantánea exacta.
+
+---
+
+## 019 — Semántica métrica del bloqueo geográfico: columna `geography` generada y GiST sobre ella
+
+**Estado:** aceptada
+
+**Decisión.** `listings.location` y `properties.location` se declaran
+`geometry(Point,4326)`, y cada tabla añade una columna generada `location_geography`
+(`STORED`, `geography(Point,4326)`), calculada como `location::geography`, con el índice
+GiST sobre esa columna generada, no sobre la geometría. Toda consulta de distancia pasa
+por una única función exportada (`withinMeters`), con un mecanismo de reserva nombrado
+(`CHK-GEOG-STORED` / `FB-GEOG-EXPR`) por si el `CAST` no se acepta como expresión
+`GENERATED ALWAYS` (SQLSTATE `42P17`).
+
+**Alternativa descartada.** Aplicar el `CAST ::geography` en línea dentro de cada consulta,
+contra un índice GiST declarado sobre la columna `geometry`.
+
+**Motivo.** `ST_DWithin` sobre `geometry(Point,4326)` mide en grados, no en metros;
+ejecutar así el bloqueo de deduplicación no falla, no avisa, y busca un radio equivocado en
+órdenes de magnitud. Aplicar el `CAST` en cada consulta deja sin resolver si un índice GiST
+declarado sobre la columna geometría se sigue usando contra una expresión `::geography` en
+el predicado (hueco de investigación sin confirmar); materializar la columna en el propio
+esquema hace la conversión una sola vez, en la escritura, y el índice se declara
+directamente sobre lo que se consulta.
+
+**Consecuencia.** Si el motor rechaza la expresión generada por no considerarla inmutable,
+el mecanismo de reserva documentado en el diseño sustituye la columna generada por un
+índice de expresión (`CREATE INDEX ... USING gist ((location::geography))`) y cambia
+únicamente el cuerpo de `withinMeters`; ningún punto de llamada cambia. Esta comprobación
+(`CHK-GEOG-STORED`) pertenece a la fase 3 del paso 1.3, bloqueada por la caída del motor
+Linux de Docker, y sigue sin ejecutarse.
+
+---
+
+## 020 — Evidencia de deduplicación: `signals` en JSONB, puntuación escalar aparte, índice GIN `jsonb_ops`
+
+**Estado:** aceptada
+
+**Decisión.** `property_listings.signals` es una columna `jsonb` tipada
+(`SignalBreakdown`, sin `any`) que guarda el desglose completo por señal, junto a columnas
+escalares independientes para `score`, `strategy_name` y `strategy_version`. El índice
+sobre `signals` usa la clase de operadores por defecto, `jsonb_ops`, no `jsonb_path_ops`.
+
+**Alternativa descartada.** Índice GIN con `jsonb_path_ops`.
+
+**Motivo.** `jsonb_path_ops` produce índices más pequeños y búsquedas de contención más
+rápidas, pero solo soporta `@>`, `@?` y `@@`, y no genera entradas para estructuras sin
+valor (por ejemplo `{"a":{}}`), lo que fuerza un recorrido completo en esos casos.
+`jsonb_ops` soporta además `?`, `?|` y `?&`, que es lo que hace falta para preguntar por la
+existencia de una señal concreta cuando se incorpore una estrategia nueva. Un cambio de
+índice es reversible sin migrar datos; la forma del JSONB no lo es.
+
+**Consecuencia.** El índice ocupa más espacio del mínimo posible. Aceptable: el volumen de
+`property_listings` está acotado por el número de anuncios, no crece sin límite.
+
+---
+
+## 021 — Tipos de columna: `uuid` para claves primarias, `bigint` para céntimos, `timestamptz` para fechas
+
+**Estado:** aceptada
+
+**Decisión.** Toda clave primaria es `uuid().defaultRandom()`. Los importes monetarios
+(`price_cents`, `min_price_cents`) son `bigint` con `{ mode: 'number' }`. Todas las
+columnas de fecha/hora son `timestamp(..., { withTimezone: true })`, con sufijo `_at`.
+
+**Alternativa descartada.** `bigserial` para las claves primarias; `numeric` o `real` para
+los importes; `timestamp` sin zona horaria.
+
+**Motivo.** `bigserial` es secuencial y enumerable, lo que filtraría el tamaño del corpus a
+través de una URL pública y permitiría enumerar anuncios por fuerza bruta; `uuid` no. Un
+importe en céntimos como entero de 32 bits desborda pasados los 21,4 millones de euros;
+`numeric` se mapea en Drizzle como cadena y su modo de uso no estaba verificado en la
+versión instalada; `real` trunca precisión, y el precio es justo la evidencia que no puede
+perder exactitud. `timestamp` sin zona horaria es ambiguo en cuanto `web` e `ingestion`
+corren en contenedores o entornos distintos: una hora ingenua mal interpretada corrompería
+el histórico de precios.
+
+**Consecuencia.** `{ mode: 'number' }` en `bigint` asume que los céntimos se mantienen muy
+por debajo de `2^53`; es una elección consciente para evitar la fricción de serializar
+`bigint` de JavaScript en JSON, verificada contra el tipo instalado de `drizzle-orm`
+(`bigint(name, config)`, con `mode` obligatorio y sin valor por defecto).
+
+---
+
+## 022 — `pgEnum` solo para `coverage_jobs.status`; el resto usa `text` con `CHECK`
+
+**Estado:** aceptada
+
+**Decisión.** El único enum nativo de PostgreSQL declarado es `coverage_job_status`
+(`pending`, `running`, `done`, `failed`), siempre exportado desde `src/schema/enums.ts`.
+El estado de `zones`, el tipo de `sources` y el estado de `listings` se modelan como
+`text` con una restricción `CHECK` explícita.
+
+**Alternativa descartada.** Un `pgEnum` por cada conjunto de valores cerrado.
+
+**Motivo.** PostgreSQL 17 no tiene `DROP VALUE` para tipos enum: quitar un valor exige
+recrear el tipo entero, mientras que añadir uno es barato. El conjunto de estados de
+`coverage_jobs` es normativo y cerrado por el propio dominio del scheduler; los demás
+(estado de zona, tipo de fuente, estado de anuncio) son más susceptibles de cambiar
+mientras el proyecto avanza, y una restricción `CHECK` se sustituye con una migración
+trivial (`DROP CONSTRAINT` / `ADD CONSTRAINT`).
+
+**Consecuencia.** Un `pgEnum` no exportado puede omitirse silenciosamente de la generación
+de `CREATE TYPE`; por eso `coverageJobStatus` se exporta explícitamente y su presencia en
+el SQL generado se verifica con una comprobación nombrada (`CHK-ENUM-EMITTED`, fase 2 del
+paso 1.3).
+
+---
+
+## 023 — Sin Zod dentro de `packages/db`
+
+**Estado:** aceptada
+
+**Decisión.** `packages/db` no depende de Zod ni de `drizzle-zod`. El contrato de tipos
+hacia el resto del monorepo son los tipos inferidos por Drizzle (`$inferSelect` /
+`$inferInsert`), reexportados desde `src/types.ts`.
+
+**Alternativa descartada.** `drizzle-zod`, para derivar esquemas de validación a partir de
+las tablas.
+
+**Motivo.** `CLAUDE.md` exige validar con Zod toda entrada externa, pero una fila de base
+de datos ya persistida no es entrada externa: es el resultado de datos que, en algún punto
+anterior del pipeline, ya se validaron al entrar. Añadir `drizzle-zod` sería una segunda
+validación redundante sobre datos de confianza, y una dependencia más que mantener
+sincronizada con cada cambio de esquema.
+
+**Consecuencia.** Los límites externos reales (parámetros de búsqueda, payloads de las
+fuentes) siguen validándose con Zod en `packages/core` y en los adaptadores de
+`apps/ingestion`, nunca aquí.
+
+---
+
+## 024 — Inyección de credenciales vía `createDb(connectionString)`; el paquete nunca lee `process.env`
+
+**Estado:** aceptada
+
+**Decisión.** `packages/db/src/db.ts` expone `createDb(connectionString: string)`, que
+recibe la cadena de conexión como parámetro. Ningún fichero de `packages/db/src` lee
+`process.env` directamente.
+
+**Alternativa descartada.** Leer `process.env.DATABASE_URL` dentro de `db.ts`, al estilo de
+un singleton de conexión inicializado al importar el módulo.
+
+**Motivo.** Un `process.env.DATABASE_URL` a nivel de módulo se ejecutaría también si
+`apps/web` importase por error ese fichero, lo que abriría una vía estructural para que
+credenciales de base de datos llegasen a un entorno con variables `NEXT_PUBLIC_*`
+(decisión 015). Exigir el parámetro hace ese camino imposible de compilar, no solo de
+evitar por convención.
+
+**Consecuencia.** `drizzle.config.ts` y `src/seed.ts` son los dos únicos puntos, ambos de
+invocación por CLI y nunca importados por una app, donde sí se lee
+`process.env.DATABASE_URL`.
+
+---
+
+## 025 — Forma de `locations` y `features`: jerarquía administrativa por municipio y catálogo de amenities ligado a la versión
+
+**Estado:** aceptada
+
+**Decisión.** `locations` es una jerarquía administrativa canónica, con clave natural
+`ine_code` (código INE de municipio) y las columnas `municipality`, `province`,
+`province_code` y `autonomous_community`. `features` es un catálogo de amenities (`key`
+único, `label_es`), y `listing_features` vincula ese catálogo a `listing_versions`, no a
+`listings`.
+
+**Alternativa descartada.** Guardar la localización como columnas sueltas repetidas en
+cada anuncio; modelar las amenities como columnas booleanas anchas en la propia tabla de
+versión, o como un bloque JSONB.
+
+**Motivo.** `zones` ya necesita un identificador de municipio canónico para el barrido bajo
+demanda, así que una tabla `locations` separada evita repetir y desincronizar esa
+jerarquía en cada anuncio, y sirve de base para el autocompletado. Las amenities como
+columnas anchas obligarían a una migración por cada amenity nueva; JSONB perdería la
+integridad referencial y la posibilidad de consultar por amenity con un índice normal.
+`listing_features` cuelga de la versión, no de la identidad, porque una versión es una
+instantánea completa: las amenities pueden cambiar entre versiones igual que el precio.
+
+**Consecuencia.** El paso 1.4 (`packages/core`, modelo de dominio) hereda esta forma tal
+cual: la jerarquía de `locations` y el catálogo de `features` quedan fijados aquí y no
+deben volver a decidirse en 1.4, solo tipar sus contratos externos con Zod donde
+corresponda.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

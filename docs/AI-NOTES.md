@@ -40,6 +40,96 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-09 — `explicit-function-return-type` de ESLint también se dispara en factorías privadas sin exportar
+
+**Contexto:** `packages/db/src/schema/columns.ts` (fase 1 del paso 1.3), helpers
+compartidos `id()` y `createdAt()` para las columnas comunes de todas las tablas.
+
+**Categoría:** código correcto en apariencia pero incorrecto (suposición sobre el alcance
+de una regla de lint).
+
+**Qué ocurrió:** se asumió que la regla `@typescript-eslint/explicit-function-return-type`
+de la configuración compartida solo se aplica a funciones exportadas, así que las dos
+factorías internas (`buildId`, `buildCreatedAt`) que construyen el tipo de retorno real de
+`id()`/`createdAt()` se dejaron sin anotar. `pnpm lint` falló: la regla se dispara igual
+sobre una función local sin exportar.
+
+**Cómo se detectó:** ejecución real de `pnpm lint`, no revisión previa de la configuración
+de la regla.
+
+**Coste:** minutos; una única ejecución de lint y un ajuste localizado.
+
+**Observación:** el tipo de retorno concreto de esas dos factorías es un genérico
+profundamente anidado de `drizzle-orm` que no se puede escribir a mano sin inventarlo o sin
+degradar su precisión, lo que debilitaría `$inferSelect`/`$inferInsert` de cada tabla que
+use estos helpers. Se añadió un `eslint-disable-next-line` puntual, con justificación en
+español, solo sobre las dos factorías privadas; las funciones públicas `id()`/`createdAt()`
+siguen completamente tipadas vía `ReturnType<typeof buildId>` /
+`ReturnType<typeof buildCreatedAt>`, sin ningún `eslint-disable` en la superficie
+exportada. Es la primera vez que aparece un `eslint-disable` en el repositorio: se registra
+explícitamente en lugar de dejarlo pasar en silencio, y la excepción queda acotada a dos
+funciones no exportadas, documentada en el propio código.
+
+### 2026-09-09 — `context7` inalcanzable a mitad de sesión; verificación contra los `.d.ts` instalados en su lugar
+
+**Contexto:** investigación de la API de Drizzle 0.45.2 para el paso 1.3 (columnas de
+geometría, forma de la configuración adicional de `pgTable`, índices GiST/GIN, enums).
+
+**Categoría:** pérdida de una capacidad de la sesión, no del código.
+
+**Qué ocurrió:** el servidor MCP `context7` no conectó (`CONNECT_TIMEOUT`) durante la fase
+de investigación. El usuario lo instaló a mitad de sesión, pero las conexiones MCP se
+establecen al arrancar la sesión y no pudieron reestablecerse sin reiniciarla. La
+investigación tuvo que apoyarse en documentación web sin versión explícita, donde conviven
+contenido de la serie 0.x y de una beta de la serie 1.x sin distinguirse con claridad.
+
+**Cómo se detectó:** el propio intento de conexión falló con un error explícito; no fue un
+fallo silencioso.
+
+**Cómo se resolvió:** una fase posterior leyó directamente los ficheros `.d.ts` instalados
+en `node_modules` para la versión exacta fijada en `package.json`
+(`drizzle-orm@0.45.2`, `drizzle-kit@0.31.10`), en lugar de depender de la documentación
+pública.
+
+**Coste:** una ronda de verificación adicional; sin impacto en el calendario porque era
+trabajo offline y no bloqueaba nada más.
+
+**Observación:** la verificación contra el artefacto instalado resultó ser evidencia más
+fuerte que la documentación, no solo un sustituto de emergencia. La pregunta de si la
+función adicional de `pgTable` (`extraConfig`) espera un array o un objeto no se podía
+resolver leyendo la documentación pública, porque ambas formas aparecen documentadas y
+ambas siguen aceptadas en 0.45.2; solo el orden de declaración y el estado de "legado" en
+los propios tipos revelan cuál es la preferida. Para una dependencia con versión fijada, el
+`.d.ts` instalado es la fuente que manda, por encima de la documentación y por encima de
+cualquier servidor de documentación.
+
+### 2026-09-09 — `ST_DWithin` sobre `geometry` mide grados, no metros
+
+**Contexto:** fase de investigación del paso 1.3, antes de escribir ninguna tabla del
+esquema de deduplicación geográfica.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** un bloqueo de deduplicación por proximidad escrito de forma natural —
+`ST_DWithin(location, punto, radio_en_metros)` sobre una columna `geometry(Point,4326)` —
+compila, se ejecuta sin ningún error y no lanza ningún aviso. La consulta interpreta el
+radio en las unidades del sistema de referencia espacial de la columna, que en SRID 4326
+son grados, no metros. Un radio pensado como "500 metros" se convierte en 500 grados, que
+cubre casi medio planeta.
+
+**Cómo se detectó:** investigación dirigida contra la documentación de PostGIS
+(`ST_DWithin`, guía de introducción a geography) antes de escribir código, no por un test
+que lo revelara después.
+
+**Coste:** ninguno realizado — se evitó por completo antes de escribir la primera tabla.
+
+**Observación:** es el tipo de fallo más peligroso para este proyecto: no rompe ningún test
+si el test no compara metros reales, y un radio equivocado en órdenes de magnitud puede
+pasar desapercibido durante meses agrupando —o dejando de agrupar— viviendas sin ningún
+síntoma visible salvo resultados de búsqueda progresivamente peores. Resuelto en el diseño
+con una columna `geography` generada y GiST sobre ella (decisión 019 de `DECISIONS.md`), no
+con una corrección posterior de la consulta.
+
 ### 2026-09-08 — Requisito cumplido en el sitio equivocado del fichero
 
 **Contexto:** fase `verify` del paso 1.2. La spec (REQ-06) exige que los comentarios de los

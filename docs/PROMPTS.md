@@ -30,6 +30,52 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-09 — Esquema de base de datos en `packages/db` (paso 1.3)
+
+**Tipo de tarea:** esquema y migración (configuración)
+**Forma de especificación:** ciclo SDD completo (propuesta → spec → diseño → tareas →
+apply), a partir de un prompt en prosa con puntos a resolver
+**Resultado:** con retoques, y todavía en curso
+
+**Prompt:**
+
+> Implementa el esquema de base de datos en packages/db según docs/ARCHITECTURE.md,
+> con Drizzle. Tablas: sources, listings, properties, property_listings, zones,
+> coverage_jobs, locations y features.
+>
+> Puntos que deben quedar bien resueltos:
+>
+> - listings es en la práctica inmutable: un cambio de precio genera una versión
+>   nueva en lugar de sobrescribir. Modela el versionado de forma que se pueda
+>   recuperar el estado actual de un anuncio y también su histórico.
+> - property_listings debe guardar la puntuación, el desglose por señal y la
+>   estrategia que produjo la decisión, no solo el vínculo.
+> - listings necesita columna geográfica con índice espacial GiST, para el bloqueo
+>   de la deduplicación.
+> - zones guarda el identificador canónico, el estado y la fecha del último barrido.
+> - coverage_jobs es la cola: estados pending, running, done y failed.
+>
+> Genera también la migración inicial y un script de seed vacío. Explícame las
+> decisiones de modelado que hayas tomado y que no estuvieran especificadas.
+
+**Observación:** el prompt no fijaba ningún tipo de columna, semántica de distancias ni
+forma de `locations`/`features`, así que la fase de investigación previa resultó decisiva
+antes de escribir una sola tabla: descubrió que `ST_DWithin` sobre `geometry(Point,4326)`
+mide en grados, no en metros, un defecto que compila, se ejecuta y no avisa de nada. Eso
+obligó a diseñar la columna `geography` generada y su índice GiST desde el propio modelo,
+no como corrección posterior a la consulta.
+
+El paso se dividió en cuatro fases encadenadas (PR 1-4) por el volumen estimado del cambio
+(700-850 líneas, por encima del presupuesto de revisión). La fase 1 (tablas sin geometría
+y configuración) está completa y verificada sin base de datos viva. Las fases 2 (tablas
+espaciales, migración generada) y 3 (aplicar la migración y la suite de integración,
+bloqueada por la caída del motor Linux de Docker) siguen pendientes. Esta entrada
+corresponde a la fase 4 (documentación), adelantada respecto al orden natural del propio
+prompt —que pide explicar las decisiones al terminar el esquema— porque las fases 2 y 3
+dependen de trabajo aún no hecho o de un bloqueo de entorno inalcanzable en esta sesión, y
+`CLAUDE.md` exige registrar el trabajo ya completado en lugar de esperar al cierre del
+paso completo.
+
 ### 2026-09-08 — Declarar el almacén de artefactos del ciclo SDD
 
 **Tipo de tarea:** configuración
