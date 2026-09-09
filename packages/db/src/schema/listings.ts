@@ -14,9 +14,9 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { createdAt, geographyPoint, id } from './columns';
-import { locations } from './locations';
-import { sources } from './sources';
+import { createdAt, geographyPoint, id } from './columns.js';
+import { locations } from './locations.js';
+import { sources } from './sources.js';
 
 export const listings = pgTable(
   'listings',

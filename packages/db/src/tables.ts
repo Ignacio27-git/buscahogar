@@ -3,14 +3,14 @@
 // fichero estuviera dentro del glob, drizzle-kit importaría cada tabla dos
 // veces y podría duplicarla en la migración generada (docs/DECISIONS.md,
 // decisión de módulos D1 del diseño).
-export { coverageJobStatus } from './schema/enums';
-export { coverageJobs } from './schema/coverage-jobs';
-export { features } from './schema/features';
-export { listingFeatures } from './schema/listing-features';
-export { listingVersions } from './schema/listing-versions';
-export { listings } from './schema/listings';
-export { locations } from './schema/locations';
-export { properties } from './schema/properties';
-export { propertyListings } from './schema/property-listings';
-export { sources } from './schema/sources';
-export { zones } from './schema/zones';
+export { coverageJobStatus } from './schema/enums.js';
+export { coverageJobs } from './schema/coverage-jobs.js';
+export { features } from './schema/features.js';
+export { listingFeatures } from './schema/listing-features.js';
+export { listingVersions } from './schema/listing-versions.js';
+export { listings } from './schema/listings.js';
+export { locations } from './schema/locations.js';
+export { properties } from './schema/properties.js';
+export { propertyListings } from './schema/property-listings.js';
+export { sources } from './schema/sources.js';
+export { zones } from './schema/zones.js';

@@ -3,7 +3,7 @@
 // `apps/ingestion`; la búsqueda nunca las llama en tiempo real (CLAUDE.md).
 import { sql } from 'drizzle-orm';
 import { boolean, check, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
-import { createdAt, id } from './columns';
+import { createdAt, id } from './columns.js';
 
 export const sources = pgTable(
   'sources',

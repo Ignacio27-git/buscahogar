@@ -4,7 +4,7 @@
 // que la llaman no cambian.
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
-import { listings } from './schema/listings';
+import { listings } from './schema/listings.js';
 
 // `ST_DWithin` sobre una columna `geometry` mide en las unidades del SRS: en
 // SRID 4326 eso son grados, no metros. Por eso el predicado se aplica sobre

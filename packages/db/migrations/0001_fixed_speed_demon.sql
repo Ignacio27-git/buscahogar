@@ -55,7 +55,6 @@ CREATE TABLE "listings" (
 	"location_id" uuid,
 	"url" text NOT NULL,
 	"location" geometry(point),
-	"location_geography" "geography(Point,4326)" GENERATED ALWAYS AS (("listings"."location"::geography)) STORED,
 	"coordinates_obfuscated" boolean DEFAULT false NOT NULL,
 	"status" text DEFAULT 'active' NOT NULL,
 	"first_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -80,7 +79,6 @@ CREATE TABLE "properties" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"location_id" uuid,
 	"location" geometry(point),
-	"location_geography" "geography(Point,4326)" GENERATED ALWAYS AS (("properties"."location"::geography)) STORED,
 	"min_price_cents" bigint,
 	"surface_m2" integer,
 	"rooms" smallint,
@@ -145,10 +143,8 @@ CREATE UNIQUE INDEX "listing_versions_current_idx" ON "listing_versions" USING b
 CREATE INDEX "listing_versions_listing_captured_idx" ON "listing_versions" USING btree ("listing_id","captured_at");--> statement-breakpoint
 CREATE INDEX "listing_versions_price_surface_current_idx" ON "listing_versions" USING btree ("price_cents","surface_m2") WHERE "listing_versions"."is_current";--> statement-breakpoint
 CREATE UNIQUE INDEX "listings_source_external_id_idx" ON "listings" USING btree ("source_id","external_id");--> statement-breakpoint
-CREATE INDEX "listings_location_geography_idx" ON "listings" USING gist ("location_geography");--> statement-breakpoint
 CREATE INDEX "listings_location_id_idx" ON "listings" USING btree ("location_id");--> statement-breakpoint
 CREATE INDEX "locations_municipality_idx" ON "locations" USING btree ("municipality");--> statement-breakpoint
-CREATE INDEX "properties_location_geography_idx" ON "properties" USING gist ("location_geography");--> statement-breakpoint
 CREATE INDEX "properties_min_price_cents_idx" ON "properties" USING btree ("min_price_cents");--> statement-breakpoint
 CREATE UNIQUE INDEX "property_listings_listing_id_idx" ON "property_listings" USING btree ("listing_id");--> statement-breakpoint
 CREATE INDEX "property_listings_property_id_idx" ON "property_listings" USING btree ("property_id");--> statement-breakpoint

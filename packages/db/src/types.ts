@@ -2,11 +2,11 @@
 // evidencia completa de una decisión de deduplicación (CLAUDE.md): se
 // guarda entera, no solo la decisión final, porque no se puede reconstruir
 // después.
-import type { listingFeatures } from './schema/listing-features';
-import type { listingVersions } from './schema/listing-versions';
-import type { listings } from './schema/listings';
-import type { properties } from './schema/properties';
-import type { propertyListings } from './schema/property-listings';
+import type { listingFeatures } from './schema/listing-features.js';
+import type { listingVersions } from './schema/listing-versions.js';
+import type { listings } from './schema/listings.js';
+import type { properties } from './schema/properties.js';
+import type { propertyListings } from './schema/property-listings.js';
 
 // Una señal individual considerada por una `DedupStrategy`: su valor
 // normalizado, el peso que tuvo en la puntuación final y un detalle legible

@@ -2,7 +2,7 @@
 // INE. Es la referencia geográfica compartida por `zones`, `listings` y
 // `properties`.
 import { index, pgTable, text } from 'drizzle-orm/pg-core';
-import { createdAt, id } from './columns';
+import { createdAt, id } from './columns.js';
 
 export const locations = pgTable(
   'locations',

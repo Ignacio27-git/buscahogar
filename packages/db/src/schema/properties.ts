@@ -14,8 +14,8 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { createdAt, geographyPoint, id } from './columns';
-import { locations } from './locations';
+import { createdAt, geographyPoint, id } from './columns.js';
+import { locations } from './locations.js';
 
 export const properties = pgTable(
   'properties',

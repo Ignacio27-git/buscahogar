@@ -14,8 +14,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "generate": "drizzle-kit generate",
-    "migrate": "drizzle-kit migrate",
-    "seed": "tsc -p tsconfig.build.json && node dist/seed.js",
+    "migrate": "node --env-file=../../.env node_modules/drizzle-kit/bin.cjs migrate",
+    "seed": "tsc -p tsconfig.build.json && node --env-file=../../.env dist/seed.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

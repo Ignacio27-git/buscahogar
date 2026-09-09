@@ -3,8 +3,8 @@
 // consolidado y la última vez que la zona se barrió por completo.
 import { sql } from 'drizzle-orm';
 import { check, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { createdAt, id } from './columns';
-import { locations } from './locations';
+import { createdAt, id } from './columns.js';
+import { locations } from './locations.js';
 
 export const zones = pgTable(
   'zones',

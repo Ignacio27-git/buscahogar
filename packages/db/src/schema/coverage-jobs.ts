@@ -3,10 +3,10 @@
 // zona y fuente, lo que gastaría cuota de la API dos veces (ver CLAUDE.md).
 import { sql } from 'drizzle-orm';
 import { index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import { id } from './columns';
-import { coverageJobStatus } from './enums';
-import { sources } from './sources';
-import { zones } from './zones';
+import { id } from './columns.js';
+import { coverageJobStatus } from './enums.js';
+import { sources } from './sources.js';
+import { zones } from './zones.js';
 
 export const coverageJobs = pgTable(
   'coverage_jobs',

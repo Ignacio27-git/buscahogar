@@ -2,8 +2,8 @@
 // versión, no a la identidad: una versión es una foto completa del anuncio
 // (ver `listing_versions`), así que sus comodidades viajan con ella.
 import { index, pgTable, primaryKey, text, uuid } from 'drizzle-orm/pg-core';
-import { features } from './features';
-import { listingVersions } from './listing-versions';
+import { features } from './features.js';
+import { listingVersions } from './listing-versions.js';
 
 export const listingFeatures = pgTable(
   'listing_features',

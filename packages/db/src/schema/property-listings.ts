@@ -14,11 +14,11 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import type { SignalBreakdown } from '../types';
-import { id } from './columns';
-import { listingVersions } from './listing-versions';
-import { listings } from './listings';
-import { properties } from './properties';
+import type { SignalBreakdown } from '../types.js';
+import { id } from './columns.js';
+import { listingVersions } from './listing-versions.js';
+import { listings } from './listings.js';
+import { properties } from './properties.js';
 
 export const propertyListings = pgTable(
   'property_listings',

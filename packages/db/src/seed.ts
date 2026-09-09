@@ -8,7 +8,7 @@
 // es un punto de entrada de línea de comandos para desarrolladores y CI, no
 // código que importen `apps/web` ni `apps/ingestion` (por eso no se exporta
 // desde `src/index.ts`).
-import { createDb } from './db';
+import { createDb } from './db.js';
 
 async function seed(): Promise<void> {
   const { pool } = createDb(process.env.DATABASE_URL ?? '');

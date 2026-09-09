@@ -18,8 +18,8 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { createdAt, id } from './columns';
-import { listings } from './listings';
+import { createdAt, id } from './columns.js';
+import { listings } from './listings.js';
 
 export const listingVersions = pgTable(
   'listing_versions',
