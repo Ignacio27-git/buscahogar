@@ -268,7 +268,7 @@ esquema y los datos de prueba.
 
 ---
 
-## [~] 1.3 · Esquema de base de datos
+## [x] 1.3 · Esquema de base de datos
 
 **Objetivo.** El paso más caro de corregir después. Revisar con calma.
 
@@ -335,11 +335,28 @@ esquema. Corregido con la migración `0002_fix_geometry_srid.sql`, que fija el t
 de esquema correcto con SQL generado incorrecto, que ninguna comprobación de TypeScript
 podía detectar.
 
-**Fase 3 — Migración aplicada e integración: bloqueada.** El motor Linux de Docker
-Desktop está caído (no aparece la tubería `dockerDesktopLinuxEngine`), así que no hay base
-de datos viva contra la que ejecutar `pnpm db:migrate`, `CHK-GEOG-STORED` ni la suite de
-integración. Doce de los dieciocho requisitos de la spec están marcados `[DOCKER-GATED]`
-y siguen **sin probar**, no fallidos.
+**Fase 3 — Migración aplicada e integración (PR 3): hecha y verificada.** Las cuatro
+migraciones se aplican limpiamente sobre una base vacía, y la suite de integración (15
+tests en 6 ficheros) pasa contra PostgreSQL 17 + PostGIS 3.5.2 real. **Los doce requisitos
+marcados `[DOCKER-GATED]` quedan demostrados**, no supuestos.
+
+`CHK-GEOG-STORED`: **superada**, pero tras diagnosticar un fallo distinto del previsto.
+`pnpm db:migrate` falló con `SQLSTATE 42704` («type "geography(Point,4326)" does not
+exist»), no con el `42P17` para el que estaba definida la alternativa `FB-GEOG-EXPR`, así
+que la alternativa no se aplicó. La causa era un defecto de `drizzle-kit`, no del esquema:
+está registrado en `docs/AI-NOTES.md` y corregido con la migración `0003`.
+
+Estado verificado contra la base de datos: `listings.location` y `properties.location` con
+SRID 4326 y tipo POINT; `location_geography` presente en ambas como `geography` generada
+`ALWAYS`; índices GiST `listings_location_geography_idx` y
+`properties_location_geography_idx` activos; cuatro migraciones registradas.
+
+La prueba de metros usa dos puntos reales a 498,69 m: un radio de 400 m los excluye y uno
+de 600 m los incluye, pasando por `withinMeters()`, el código de producción. La del índice
+se comprobó falsable: con 3000 filas el planificador elige `Bitmap Index Scan` (11 ms), y
+al desactivar `enable_indexscan` y `enable_bitmapscan` cae a `Seq Scan` (34 ms).
+
+`CHK-POSTGIS-PRIV` (hueco G5) resuelto durante la fase.
 
 **Fase 4 — Documentación (PR 4): esta entrada.** Se adelantó al orden de escritura del
 propio prompt (que pide explicar las decisiones al terminar el esquema) porque las fases

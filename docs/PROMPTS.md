@@ -35,7 +35,7 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 **Tipo de tarea:** esquema y migración (configuración)
 **Forma de especificación:** ciclo SDD completo (propuesta → spec → diseño → tareas →
 apply), a partir de un prompt en prosa con puntos a resolver
-**Resultado:** con retoques, y todavía en curso
+**Resultado:** utilizable con retoques
 
 **Prompt:**
 
@@ -66,15 +66,15 @@ obligó a diseñar la columna `geography` generada y su índice GiST desde el pr
 no como corrección posterior a la consulta.
 
 El paso se dividió en cuatro fases encadenadas (PR 1-4) por el volumen estimado del cambio
-(700-850 líneas, por encima del presupuesto de revisión). La fase 1 (tablas sin geometría
-y configuración) está completa y verificada sin base de datos viva. Las fases 2 (tablas
-espaciales, migración generada) y 3 (aplicar la migración y la suite de integración,
-bloqueada por la caída del motor Linux de Docker) siguen pendientes. Esta entrada
-corresponde a la fase 4 (documentación), adelantada respecto al orden natural del propio
-prompt —que pide explicar las decisiones al terminar el esquema— porque las fases 2 y 3
-dependen de trabajo aún no hecho o de un bloqueo de entorno inalcanzable en esta sesión, y
-`CLAUDE.md` exige registrar el trabajo ya completado en lugar de esperar al cierre del
-paso completo.
+(700-850 líneas, por encima del presupuesto de revisión), y las cuatro están completas: 36
+tareas, 18 requisitos y 19 escenarios verificados, doce de ellos contra una base de datos
+real. Los retoques que justifican el «con retoques» no fueron de estilo sino de fondo, y
+los tres salieron de comprobaciones con nombre definidas en el diseño: `drizzle-kit` omitió
+el SRID del DDL generado pese a declararse (`CHK-SRID`), y más tarde entrecomilló el tipo
+`geography` hasta hacerlo inválido (`CHK-GEOG-STORED`). En ambos casos el esquema
+TypeScript era correcto y el SQL generado no, algo que ninguna comprobación del lado de
+TypeScript podía detectar. El registro de la fase 4 se escribió antes que las fases 2 y 3,
+cuando el motor de Docker estaba caído; esta entrada recoge el estado final.
 
 ### 2026-09-08 — Declarar el almacén de artefactos del ciclo SDD
 

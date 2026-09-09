@@ -40,6 +40,51 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-09 — `drizzle-kit` no reconoce `geography` y lo entrecomilla como identificador
+
+**Contexto:** fase 3 del paso 1.3, primera aplicación real de las migraciones contra el
+contenedor de PostgreSQL 17 + PostGIS 3.5.2.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** `pnpm db:migrate` falló contra la base limpia con
+`SQLSTATE 42704: type "geography(Point,4326)" does not exist`. La causa no está en el
+esquema: `drizzle-kit` 0.31.10 mantiene una lista de tipos nativos que incluye `geometry`
+pero **no** `geography`, así que entrecomilla toda la cadena devuelta por el `customType`
+convirtiéndola en un identificador SQL inválido. Comprobado sobre su propio código
+empaquetado: `"geometry"` aparece seis veces y `"geography"` ninguna.
+
+**Cómo se detectó:** por `CHK-GEOG-STORED`, la comprobación del diseño, al ejecutar la
+migración. El detalle decisivo es que **el fallo no era el previsto**: el diseño había
+definido que la alternativa `FB-GEOG-EXPR` se activara solo con `SQLSTATE 42P17` y el
+mensaje `generation expression is not immutable`. Al observarse `42704`, la alternativa
+**no** se aplicó, y en su lugar se diagnosticó la causa real. Antes de tocar el esquema se
+probó la premisa con SQL crudo dentro de una transacción revertida: una columna `geography`
+generada `STORED` con índice GiST funciona sin problema en PostgreSQL 17. El diseño era
+correcto; lo incorrecto era la generación de código.
+
+**Coste:** aproximadamente 40 minutos entre diagnóstico y corrección. Resuelto retirando
+las dos cláusulas mal generadas de `0001_fixed_speed_demon.sql` —que nunca había llegado a
+aplicarse en ningún entorno, y cuyo fallo abortaba el `CREATE TABLE` entero sin dejar nada
+que un `ALTER` pudiera reparar— y añadiendo `0003_fix_geography_generated_column.sql` con
+el DDL correcto sin entrecomillar.
+
+**Observación:** un disparador vago —«si la migración falla, aplica la alternativa»— habría
+modificado el esquema para rodear un problema que no tenía, dejando intacto el defecto real
+y probablemente sin descubrir. La precisión del disparador (SQLSTATE y mensaje exactos) es
+lo que convirtió un fallo en un diagnóstico. Y es la segunda vez en este mismo paso que el
+esquema TypeScript era correcto y el SQL generado no: `customType` no sale gratis, porque
+cualquier tipo que la herramienta no conozca de forma nativa puede renderizarse mal aunque
+los tipos sean perfectos. Después de generar una migración que use `customType`, hay que
+leer el SQL emitido.
+
+En la misma fase salieron otros dos defectos que nada había anticipado, porque hasta
+entonces nunca se había ejecutado el código compilado: los imports relativos sin extensión
+`.js` rompen el cargador ESM nativo de Node (`moduleResolution: "Bundler"` los tolera en
+compilación, pero `node dist/seed.js` no), y la carga de `.env` se resolvía contra
+`process.cwd()`, que `pnpm --filter` cambia al directorio del paquete. Resueltos con
+`--env-file` y `process.loadEnvFile()`, sin añadir dependencias.
+
 ### 2026-09-09 — `drizzle-kit` emite `geometry(point)` sin SRID pese a declararlo
 
 **Contexto:** fase 2 del paso 1.3, generación de la migración inicial del esquema en
