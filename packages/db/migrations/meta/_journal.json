@@ -8,6 +8,20 @@
       "when": 1788944433046,
       "tag": "0000_enable_postgis",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788960243379,
+      "tag": "0001_fixed_speed_demon",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788960276793,
+      "tag": "0002_fix_geometry_srid",
+      "breakpoints": true
     }
   ]
 }

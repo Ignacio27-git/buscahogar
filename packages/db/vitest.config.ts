@@ -7,5 +7,9 @@ export default defineConfig({
     // Este workspace todavía no tiene lógica que probar. Se prefiere no tener
     // tests a tener tests tautológicos que den un verde sin valor.
     passWithNoTests: true,
+    // La Fase 3 (suite de integración) comparte un único contenedor de
+    // PostgreSQL entre todos los ficheros de test; ejecutarlos en paralelo
+    // interferiría de forma no determinista sobre los mismos datos.
+    fileParallelism: false,
   },
 });

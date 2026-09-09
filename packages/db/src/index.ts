@@ -7,5 +7,12 @@
 //
 // Depende de @buscahogar/core para tipos compartidos.
 // Importado por apps/web y apps/ingestion para acceder a la base de datos.
+// `src/seed.ts` NO se exporta desde aquí: es un punto de entrada de línea de
+// comandos, no una API de librería (ver comentario en ese fichero).
+
+export * from './tables';
+export * from './types';
+export * from './spatial';
+export { createDb, type Database } from './db';
 
 export const DB_VERSION = '0.0.1';

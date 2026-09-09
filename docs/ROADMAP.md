@@ -310,14 +310,30 @@ inclusión de `drizzle.config.ts` en `tsconfig.json`, el enum `coverage_job_stat
 crea la extensión antes de cualquier migración de esquema. `pnpm typecheck`, `pnpm lint`,
 `pnpm format` y `pnpm format:check` pasan sin base de datos viva.
 
-**Fase 2 — Esquema espacial, cliente y migración generada: pendiente.** Faltan
-`listings`, `listing_versions`, `listing_features`, `properties` y `property_listings`
-con la columna `geography` generada y su índice GiST, el barrel `src/tables.ts`, el
-cliente (`src/db.ts`), el punto único de distancia (`src/spatial.ts`), el seed vacío y la
-migración `0001_*.sql`, generada a partir del esquema completo de diez tablas. Las
-comprobaciones `CHK-SRID` y `CHK-ENUM-EMITTED` se aplazaron deliberadamente a esta fase:
-ambas necesitan la migración `0001` generada sobre el esquema completo, y generarla ahora
-sobre un esquema parcial de cinco tablas fragmentaría el historial de migraciones.
+**Fase 2 — Esquema espacial, cliente y migración generada (PR 2): hecha y verificada.**
+`listings` (identidad estable, con índice único natural sobre `source_id` y `external_id`),
+`listing_versions` (instantáneas append-only, con índice único parcial `WHERE is_current`
+que impone a nivel de base de datos una sola versión vigente por anuncio),
+`listing_features`, `properties` y `property_listings` (puntuación escalar, identificación
+de la estrategia, y desglose por señal en JSONB con índice GIN `jsonb_ops`). La columna
+`geography` generada `STORED` lleva el índice GiST en `listings` y en `properties`, y todo
+predicado de distancia pasa por `src/spatial.ts::withinMeters()`, punto único de cambio si
+hubiera que recurrir a la alternativa `FB-GEOG-EXPR`. Se añaden además el barrel
+`src/tables.ts` (deliberadamente fuera del glob de `drizzle-kit`, para que no recoja cada
+tabla dos veces), el cliente `src/db.ts` con `createDb(connectionString)` sin lectura de
+entorno, los tipos del desglose en `src/types.ts` y el seed vacío. `pnpm typecheck`,
+`pnpm lint` y `pnpm format:check` pasan sin base de datos viva.
+
+`CHK-ENUM-EMITTED`: **superada.** El SQL generado contiene
+`CREATE TYPE "public"."coverage_job_status" AS ENUM('pending', 'running', 'done', 'failed');`,
+así que exportar el `pgEnum` bastó para que `drizzle-kit` lo recogiera.
+
+`CHK-SRID`: **fallida, y su alternativa aplicada.** `drizzle-kit` emitió
+`"location" geometry(point)` —en minúscula y sin SRID— pese a declararse `srid: 4326` en el
+esquema. Corregido con la migración `0002_fix_geometry_srid.sql`, que fija el tipo real a
+`geometry(Point, 4326)` en ambas tablas. El detalle está en `docs/AI-NOTES.md`: es un caso
+de esquema correcto con SQL generado incorrecto, que ninguna comprobación de TypeScript
+podía detectar.
 
 **Fase 3 — Migración aplicada e integración: bloqueada.** El motor Linux de Docker
 Desktop está caído (no aparece la tubería `dockerDesktopLinuxEngine`), así que no hay base

@@ -40,6 +40,38 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-09 — `drizzle-kit` emite `geometry(point)` sin SRID pese a declararlo
+
+**Contexto:** fase 2 del paso 1.3, generación de la migración inicial del esquema en
+`packages/db`.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** las columnas espaciales de `listings` y `properties` se declararon como
+`geometry({ type: 'point', mode: 'xy', srid: 4326 })`. El código compila y `pnpm typecheck`
+pasa sin una sola queja. Pero `drizzle-kit generate` 0.31.10 emitió en
+`0001_fixed_speed_demon.sql` la línea `"location" geometry(point),` — en minúscula y **sin
+SRID alguno** — en las dos tablas. Sin SRID, PostGIS asigna el 0, y el cast a `geography` de
+la columna generada que sostiene el índice GiST deja de significar lo que el diseño supone.
+
+**Cómo se detectó:** por `CHK-SRID`, una comprobación con nombre que el diseño definió
+precisamente porque la fase de investigación había dejado ese punto sin confirmar (hueco G1):
+`grep -n "geometry(Point,4326)"` sobre el SQL generado devolvió cero coincidencias.
+
+**Coste:** unos 10 minutos. Se resolvió con la migración correctora
+`0002_fix_geometry_srid.sql`, que hace `ALTER COLUMN ... TYPE geometry(Point, 4326)` sobre
+ambas tablas. Sin pérdida de datos: ninguna tabla tenía filas todavía.
+
+**Observación:** el esquema TypeScript era correcto; lo incorrecto fue la emisión de SQL.
+Ninguna comprobación del lado de TypeScript —typecheck, lint, tipos inferidos— podía
+detectarlo, porque el defecto vive en el artefacto generado y no en el código fuente. La
+lección general vale más allá de Drizzle: cuando una herramienta genera SQL a partir de una
+declaración, una declaración correcta no garantiza SQL correcto, y el único control válido
+es leer lo emitido. Sin la comprobación explícita, el error habría llegado a la base de
+datos y solo se habría manifestado como un bloqueo de deduplicación que no encuentra
+candidatos. Efecto secundario: la migración correctora obliga a `drizzle-kit` a regenerar un
+snapshot completo del esquema, duplicando el volumen de líneas generadas.
+
 ### 2026-09-09 — `explicit-function-return-type` de ESLint también se dispara en factorías privadas sin exportar
 
 **Contexto:** `packages/db/src/schema/columns.ts` (fase 1 del paso 1.3), helpers
