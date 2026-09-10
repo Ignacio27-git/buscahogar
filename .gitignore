@@ -42,3 +42,8 @@ coverage/
 # Herramientas de agentes (generado, no versionar)
 .atl/
 .claude/
+.codegraph/
+
+# Sonda de la API de Idealista (paso 1.5): copia cruda de la respuesta,
+# nunca se versiona. La copia anonimizada sí se commitea.
+apps/ingestion/test/fixtures/**/raw/

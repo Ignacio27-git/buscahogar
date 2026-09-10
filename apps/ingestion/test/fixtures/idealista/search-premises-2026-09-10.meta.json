@@ -1,0 +1,44 @@
+{
+  "profile": "premises",
+  "requestParameters": [
+    {
+      "name": "center",
+      "value": "40.430,-3.702"
+    },
+    {
+      "name": "distance",
+      "value": "2000"
+    },
+    {
+      "name": "propertyType",
+      "value": "premises"
+    },
+    {
+      "name": "operation",
+      "value": "sale"
+    },
+    {
+      "name": "maxItems",
+      "value": "50"
+    },
+    {
+      "name": "numPage",
+      "value": "1"
+    }
+  ],
+  "counters": {
+    "token": 1,
+    "search": 1
+  },
+  "endpoint": "https://api.idealista.com/3.5/es/search",
+  "httpStatus": 200,
+  "timestamp": "2026-09-10T13:23:54.636Z",
+  "outcome": "ok",
+  "tokenQuotaImpact": "unknown",
+  "searchQuotaImpact": "billable",
+  "token": {
+    "tokenType": "bearer",
+    "expiresIn": 43199,
+    "scope": "read"
+  }
+}

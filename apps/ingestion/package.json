@@ -11,7 +11,11 @@
     "start": "node dist/index.js",
     "lint": "eslint .",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "probe": "node --env-file=../../.env --import tsx scripts/probe-idealista.ts",
+    "probe:homes": "node --env-file=../../.env --import tsx scripts/probe-idealista.ts --profile homes",
+    "probe:premises": "node --env-file=../../.env --import tsx scripts/probe-idealista.ts --profile premises",
+    "probe:analyse": "node --import tsx scripts/probe-idealista.ts --analyse"
   },
   "dependencies": {
     "@buscahogar/core": "workspace:*",

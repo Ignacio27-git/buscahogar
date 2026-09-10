@@ -7,5 +7,8 @@ export default defineConfig({
     // Este workspace todavía no tiene lógica que probar. Se prefiere no tener
     // tests a tener tests tautológicos que den un verde sin valor.
     passWithNoTests: true,
+    // Sonda de la API de Idealista (paso 1.5): la suite no debe poder tocar
+    // la red bajo ningún concepto (REQ-NONET, D9).
+    setupFiles: ['test/setup-no-network.ts'],
   },
 });
