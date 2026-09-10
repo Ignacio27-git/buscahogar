@@ -29,17 +29,28 @@ Este paquete contiene:
 
 ```
 src/
-  index.ts           Exporta el API público
-  types/             Tipos e interfaces
-  schemas/           Esquemas Zod
-  strategies/        Contratos (PropertySource, ListingNormalizer, etc.)
+  index.ts           Superficie pública (reexports explícitos, no `export *`)
+  types/             Tipos e interfaces escritos a mano
+  schemas/           Esquemas Zod (Listing, AreaQuery) + tipos derivados con z.infer
+  contracts/         Contratos intercambiables (PropertySource, ListingNormalizer, DedupStrategy)
 ```
+
+`contracts/` sustituye a la propuesta original de `strategies/` (paso 1.4): `strategies/`
+queda reservado para las implementaciones concretas de 1.9+, y `contracts/` es el contrato
+del que dependen, un directorio distinto para no mezclar la interfaz con una implementación
+de esa interfaz en la misma carpeta.
+
+**Convención mixta deliberada.** `Listing` y `AreaQuery` se derivan del esquema Zod
+correspondiente con `z.infer`, porque ambos cruzan una frontera externa real (salida del
+normalizador; entrada de CLI y de search params) donde la deriva entre tipo y validación es
+cara. El resto de tipos están escritos a mano: nunca se parsean, así que esquematizarlos
+añadiría maquinaria de validación sin entrada externa que validar (decisión 023). El
+razonamiento completo, con ejemplo, vive en `src/index.ts`.
 
 ## Crecimiento esperado
 
-Los pasos iniciales de la hoja de ruta poblán este paquete con:
-
-- 1.4: tipos de Listing, Location, Feature, PropertyType, OperationType, AreaQuery, SourcePage, SimilarityResult
-- 1.4: interfaces PropertySource, ListingNormalizer, DedupStrategy
-- 1.4: esquemas Zod para tipos que cruzan fronteras externas
-- 1.9+: implementaciones concretas de estrategias de deduplicación
+- **1.4 — hecho.** Tipos de dominio (`Listing`, `Location`, `Feature`, `PropertyType`,
+  `OperationType`, `AreaQuery`, `SourcePage`, `SimilarityResult`), las interfaces
+  `PropertySource`, `ListingNormalizer` y `DedupStrategy`, los esquemas Zod de `Listing` y
+  `AreaQuery`, y la regla de frontera `no-restricted-imports` de este paquete.
+- 1.9+: implementaciones concretas de estrategias de deduplicación en `strategies/`.
