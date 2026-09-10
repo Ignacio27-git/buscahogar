@@ -393,9 +393,42 @@ particularidades de ninguna fuente concreta.
 
 **Notas:**
 
+Paso **abierto y reordenado**: se lanzó el ciclo SDD el 2026-09-10 y se detuvo en la puerta
+previa a la propuesta, por decisión explícita de adelantar el paso 1.5. No se ha escrito
+código.
+
+Lo que sí queda hecho y sirve cuando se retome:
+
+- **Exploración** (Engram `sdd/core-domain-contracts/explore`). Hallazgo principal:
+  `ARCHITECTURE.md` especifica verbatim las tres interfaces, pero **no da un solo campo** de
+  `Listing`, `Location`, `Feature`, `PropertyType`, `OperationType` ni `AreaQuery`. Esa forma
+  solo puede salir del esquema ya desplegado en `packages/db` y de `DECISIONS.md`, que es
+  justo la capa de la que `core` debe ser independiente. Es la tensión central del paso.
+- **Investigación** sobre la API de Idealista (Engram `sdd/core-domain-contracts/research`),
+  resultado `partial`, **sin gastar ni una petición de cuota**: la documentación oficial está
+  tras solicitud de socio y no es legible. Toda la evidencia proviene de clientes open source
+  independientes contrastados entre sí, con nivel de confianza etiquetado por punto.
+- **Decisiones de producto confirmadas** por el usuario, que la propuesta debe dar por
+  cerradas: `PropertyType` como unión cerrada residencial y no residencial (`flat`, `house`,
+  `penthouse`, `duplex`, `studio`, `land`, `commercial`, `garage`, `storage_room`, `building`,
+  `other`); `AreaQuery` **geográfica** (centro + radio); y alcance ampliado con una regla
+  `no-restricted-imports` en `packages/core` y la unificación de `SignalScore` /
+  `SignalBreakdown`, que `packages/db` define a mano pese a declarar ya una dependencia
+  `workspace:*` sobre `@buscahogar/core` que ningún fichero importa.
+
+Dos matices de la investigación que la propuesta tendrá que recoger por escrito:
+
+1. `locationId` es una alternativa de primera clase y mutuamente excluyente con
+   `center`+`distance` en la API real. Exponer solo la forma geográfica en `AreaQuery` es una
+   simplificación deliberada —evita meter códigos de zona propios de Idealista en el
+   dominio— y obliga a que **el adaptador** traduzca zona canónica a centro y radio.
+2. La paginación real es por número de página (`numPage`), no por cursor opaco. El
+   `cursor?: string` de `SourcePage` sigue siendo válido, pero como envoltura de un número de
+   página, no como token reanudable del servidor.
+
 ---
 
-## [ ] 1.5 · Sonda de la API de la fuente
+## [x] 1.5 · Sonda de la API de la fuente
 
 **Objetivo.** Conocer la forma real de los datos y el coste en cuota antes de construir nada
 encima. Este paso gasta cuota: acotar mucho.
@@ -420,6 +453,85 @@ devuelve por página y cómo se pagina.
 de la deduplicación tendrá que ser mucho más amplio. Anotarlo en `DECISIONS.md`.
 
 **Notas:**
+
+Paso **ejecutado** el 2026-09-10, adelantado por delante del 1.4, que quedó parado esperando
+esta evidencia. Las 13 fases están hechas: el script, las dos llamadas reales, los fixtures y
+el análisis. **Coste: exactamente dos peticiones de búsqueda facturables**, las presupuestadas.
+Pendiente solo el cierre formal del ciclo SDD (`verify` y `archive`).
+
+Estado de la implementación, comprobado ejecutando, no por autoinforme del agente:
+
+- `pnpm --filter @buscahogar/ingestion test` → **43/43**, exit 0.
+- `typecheck` y `lint` → exit 0.
+- `build` → `dist/` contiene solo `index.*`. El script de sonda queda fuera del artefacto.
+- No existe ningún fichero de fixtures, que es la prueba de que no se ha llamado a la API.
+
+Decisiones de implementación que conviene retener:
+
+- **El script vive en `apps/ingestion/scripts/`, hermano de `src/`, no dentro.** El `exclude`
+  de TypeScript solo filtra el glob de `include`: no impide que un fichero entre por el grafo
+  de imports. Desde `src/scripts/`, un import desde `src/index.ts` habría emitido la sonda
+  dentro de `dist/` en silencio. Fuera de `src/`, el `rootDir` ya existente convierte esa
+  inclusión accidental en un TS6059 y el build falla. Verificado: el `dist/` emitido solo
+  contiene `index.*`.
+- **Simulación por defecto.** Sin `--execute` explícito no se abre ninguna conexión. No hay
+  entrada `:execute` en `package.json`: hay que teclearlo. Aplica la decisión 016.
+- **El contador incrementa antes del `fetch`, no después** (líneas 156 y 201), de modo que una
+  llamada que falle reporte una petición consumida y no cero. Cuenta peticiones de token y de
+  búsqueda por separado, porque no está documentado si la llamada al endpoint de token
+  consume cuota de búsqueda.
+- **Ausencia de bucles impuesta con una regla AST de ESLint**, no con una búsqueda de texto:
+  un grep no distingue código de comentarios ni de literales de cadena.
+- **`maxItems=50`, no el mínimo** que pide la letra del paso. La cuota se cobra por petición,
+  no por resultado, así que pedir uno o cincuenta cuesta lo mismo, y detectar ofuscación de
+  coordenadas exige comparar varios puntos entre sí. Ver la tabla de desviaciones.
+
+Pendiente antes de la fase 10: añadir a mano `IDEALISTA_API_KEY` e `IDEALISTA_API_SECRET` a
+`.env.example`. Ese fichero está denegado para lectura y escritura en el entorno del agente,
+así que es una acción del desarrollador.
+
+### Resultado de la sonda
+
+Dos respuestas de 50 elementos cada una, ambas HTTP 200. Token OAuth con `expiresIn` de 43200
+segundos, es decir 12 horas.
+
+**Coordenadas** (criterio de revisión del paso). Perfil `homes`, radio 300 m: 50 coordenadas
+distintas de 50, distancia máxima al centro 299,6 m, precisión de 7 decimales en 92 de 100
+valores. Perfil `premises`, radio 2000 m: 49 distintas de 50, máxima 1964,8 m. **No hay encaje
+al centroide ni redondeo**, pero eso es una cota inferior y no prueba exactitud: un
+desplazamiento aleatorio por anuncio conservaría unicidad y decimales. Registrado en la
+decisión **026**, junto con un negativo útil: `showAddress` no sirve para poblar
+`listings.coordinates_obfuscated`, porque ocultar la dirección no degrada la coordenada.
+
+De paso queda **confirmada por observación directa** la unidad de `distance`: metros. Con radio
+solicitado de 300 el elemento más lejano cae a 299,6 m, y con 2000 a 1964,8 m.
+
+**Taxonomía.** El `propertyType` de la respuesta no es el vocabulario del filtro de petición:
+enviando `homes` se reciben `flat`, `duplex` y `penthouse`; enviando `premises`, `premise` en
+singular. La investigación documental previa había tomado el parámetro de petición por el campo
+de respuesta. Registrado en la decisión **027**.
+
+**Optatividad de campos**, que es lo que tenía parado el 1.4: `rooms`, `hasLift`,
+`parkingSpace` y `luxuryVisibility` solo aparecen en `homes`; `ubicationInfo` solo en
+`premises`; `externalReference` está en 40 de 50 elementos. El cruce de los dos perfiles es
+justamente lo que permite distinguir un campo opcional de uno ausente por casualidad.
+
+**Paginación.** `homes`: total 124 en 3 páginas. `premises`: total 358 en 8 páginas.
+`itemsPerPage=50` aceptado, `paginable=true`, `hiddenResults=null`. La paginación es por número
+de página, no por cursor opaco: el `cursor` de `SourcePage` será una envoltura de `numPage`.
+
+**Datos personales.** `contactInfo` **no aparece como clave** en la respuesta, tampoco en la
+cruda: esta API no lo devuelve en absoluto. Lo mismo con `hiddenResults`. La distinción no es
+cosmética — para el normalizador del paso 1.6, una clave ausente se tipa `.optional()` y un
+valor nulo `.nullable()`, y no son lo mismo. El barrido de texto libre reescribió 3 teléfonos dentro de `description` y no queda
+ninguno residual. Los 8 valores de `externalReference` marcados para revisión resultaron ser
+referencias internas de agencia con forma de teléfono (`RP1852026154742`): el anonimizador
+acertó al marcarlos sin reescribirlos. Los ficheros crudos quedan fuera de git.
+
+Sigue sin poder determinarse la **cuota mensual** ni si la llamada al endpoint de token
+consume cuota de búsqueda. Solo lo cerraría el contador del panel de socio.
+
+Artefactos del ciclo en Engram: `sdd/source-api-probe/{explore,proposal,spec,design,tasks,apply-progress}`.
 
 ---
 
@@ -750,3 +862,5 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-07 | 1.2  | Partido en tres sesiones por bloqueos del entorno, no del código: fases 1, 2 y 4 el 07-09; fase 3 el 08-09                                                                                                                      | El paso se escribió y documentó entero el 07-09, pero la verificación de tiempo de ejecución tuvo que esperar a tres bloqueos encadenados del entorno: Docker se dio por no instalado siendo falso (ver `AI-NOTES.md`), luego faltaba WSL, y luego el componente «Plataforma de máquina virtual» de Windows. Resuelto el 08-09, la fase 3 pasó sin cambiar una línea de `docker-compose.yml`. |
 | 2026-09-08 | 1.2  | Reforzado el criterio de la tarea 3.4 con una tabla marcador, en lugar de comparar solo la versión de PostGIS                                                                                                                   | El criterio escrito («la misma versión prueba que los datos se conservan») no distingue un volumen conservado de uno destruido: al recrearse, Postgres reinstala la extensión con idéntica versión. Se añadió una fila escrita antes del `down`, que sobrevive en 3.4 y desaparece en 3.5. Detalle en `AI-NOTES.md`.                                                                          |
 | 2026-09-09 | 1.3  | Partido en cuatro fases encadenadas (PR 1-4) y ejecutado fuera del orden de escritura del propio prompt: la documentación (fase 4) se completó antes de terminar el esquema espacial (fase 2) y de probar la migración (fase 3) | El volumen estimado (700-850 líneas) supera el presupuesto de revisión de 400 líneas y obligó a encadenar PRs; la fase 3 quedó bloqueada por la caída del motor Linux de Docker, inalcanzable en esta sesión, y `CLAUDE.md` exige registrar el trabajo ya hecho en lugar de esperar al cierre completo del paso.                                                                              |
+| 2026-09-10 | 1.4  | Reordenado: el paso se detiene en la puerta previa a la propuesta y se adelanta el 1.5 (sonda de la API). Quedan persistidas la exploración y la investigación, y confirmadas las decisiones de producto.                                | La investigación externa cerró en `partial`: la documentación oficial de la API de Idealista está tras solicitud de socio y no es legible, así que la unidad real de `distance`, el radio máximo, la cuota, el tope de resultados paginables y la magnitud de la ofuscación de coordenadas siguen sin confirmar. Ninguno de esos huecos bloquea la forma de los tipos, pero el usuario prefirió obtener evidencia de primera mano antes de fijar `AreaQuery` y `SourcePage`. Detalle en Engram `sdd/core-domain-contracts/research`. |
+| 2026-09-10 | 1.5  | Adelantado por delante del 1.4. Ejecutado con `maxItems=50` en vez del mínimo que pide el prompt, con dos llamadas presupuestadas en vez de una, y entregado en bloque único aceptando excepción de tamaño a ~1891 líneas frente a las ~1170 estimadas.                | El paso se contradice a sí mismo: pide «el mínimo de resultados posible», pero su criterio de revisión hace de las coordenadas el punto crítico, y la ofuscación no se detecta con un solo punto. La contradicción se disuelve al ver que la cuota se cobra por petición y no por resultado: pedir 50 cuesta igual que pedir 1. La segunda llamada usa otro `propertyType` para cruzar payloads y averiguar qué campos de `Listing` son realmente opcionales, que es lo que tiene parado el 1.4. El exceso de volumen viene de cubrir con tests cuatro módulos puros por separado; el usuario reconfirmó la excepción sobre la cifra real. |

@@ -596,6 +596,103 @@ corresponda.
 
 ---
 
+## 026 — Las coordenadas de Idealista no están agrupadas ni redondeadas, pero eso es una cota inferior, no una prueba de exactitud
+
+**Estado:** aceptada
+
+**Decisión.** El radio de bloqueo geográfico de la deduplicación (pasos 1.8 y 1.9) se
+dimensiona **sin** asumir que las coordenadas estén encajadas al centroide del edificio ni
+redondeadas, pero **tampoco** como si fueran exactas al metro. Además, `showAddress` **no** se
+usa para poblar `listings.coordinates_obfuscated`: no es un indicador válido de ofuscación.
+
+**Alternativa descartada.** Dos, en direcciones opuestas. (a) Tratar las coordenadas como
+exactas y fijar un radio estrecho, del orden de decenas de metros. (b) Asumir ofuscación
+fuerte y ensanchar el radio a varios cientos de metros «por si acaso». Descartada también
+(c) derivar `coordinates_obfuscated` del campo `showAddress` de la respuesta, que era el
+candidato obvio.
+
+**Motivo.** Evidencia de la sonda del paso 1.5, dos respuestas reales de 50 elementos cada
+una (`apps/ingestion/test/fixtures/idealista/`):
+
+- **Perfil `homes`**, radio solicitado 300 m: 50 coordenadas distintas de 50 elementos,
+  ninguna repetida. Distancia máxima al centro 299,6 m. Histograma de precisión decimal:
+  5 decimales × 1, 6 × 7, 7 × 92.
+- **Perfil `premises`**, radio solicitado 2000 m: 49 coordenadas distintas de 50. Distancia
+  máxima 1964,8 m. Precisión: 6 decimales × 12, 7 × 88.
+
+La unicidad prácticamente total descarta el encaje al centroide, que se manifestaría como
+coordenadas repetidas entre anuncios del mismo edificio. La precisión de 7 decimales
+—resolución centimétrica— descarta la ofuscación por redondeo, que aparecería como un
+histograma cargado en 3 o 4 decimales.
+
+**Lo que la evidencia NO descarta**, y por eso esto es una cota inferior: un desplazamiento
+aleatorio por anuncio conserva tanto la unicidad como el número de decimales. Es indetectable
+desde una sola página sin verdad de campo. Y contrastar contra un geocodificador no lo
+resolvería, porque los geocodificadores devuelven ellos mismos el centroide del portal: una
+concordancia de 20-30 m no distingue una coordenada exacta de una encajada.
+
+Sobre `showAddress`, el resultado es un negativo útil. Ocultar la dirección **no** degrada la
+coordenada: los 49 elementos de `homes` con `showAddress=false` tienen 49 coordenadas
+distintas y la misma precisión alta, y los 42 de `premises` con `showAddress=false`, 42
+distintas. El único par de coordenadas repetidas de toda la muestra está, al contrario, entre
+los 8 elementos de `premises` con `showAddress=true` — dos locales en el mismo punto con
+dirección visible, que es una coincidencia real del mundo, no una ofuscación.
+
+**Consecuencia.** El paso 1.8 puede partir de un radio de bloqueo del orden de la decena de
+metros en lugar del centenar, lo que reduce mucho el número de pares candidatos, pero debe
+dejarlo como **parámetro configurable y medido contra el conjunto etiquetado**, no como
+constante. Dado que la prioridad declarada del proyecto es minimizar falsos positivos, ante
+la duda se ensancha. La columna `listings.coordinates_obfuscated` se queda sin fuente fiable
+por ahora: no se puede derivar de `showAddress`, y determinar su valor real exige verdad de
+campo sobre direcciones conocidas, que no forma parte de este paso.
+
+**Nota de método.** La unidad de `distance` queda **confirmada en metros por observación
+directa**, no ya por inferencia: con radio solicitado de 300 el elemento más lejano está a
+299,6 m, y con 2000 a 1964,8 m.
+
+---
+
+## 027 — El `propertyType` de la respuesta no es el mismo vocabulario que el de la petición
+
+**Estado:** aceptada
+
+**Decisión.** El tipo `PropertyType` de `packages/core` (paso 1.4) se modela sobre el
+vocabulario de la **respuesta**, no sobre el de la petición. El valor del filtro de búsqueda
+(`homes`, `premises`, …) es un detalle del adaptador de Idealista y no entra en el dominio.
+
+**Alternativa descartada.** Usar el conjunto cerrado de cinco valores del parámetro de
+búsqueda (`homes`, `offices`, `premises`, `garages`, `bedrooms`) como base del tipo de
+dominio, que es lo que sugería la investigación documental previa a la sonda.
+
+**Motivo.** La sonda del paso 1.5 demuestra que son dos vocabularios distintos:
+
+| Filtro enviado | `propertyType` observado en la respuesta | `typology` | `subTypology` |
+| --- | --- | --- | --- |
+| `homes` | `flat`, `duplex`, `penthouse` | `flat` | `duplex`, `penthouse` |
+| `premises` | `premise` | `premise` | `commercialProperty` |
+
+Es decir: el filtro es una categoría gruesa de búsqueda, y la respuesta trae una
+clasificación más fina. Tres de los miembros fijados para `PropertyType` en el paso 1.4
+—`flat`, `duplex`, `penthouse`— aparecen **literalmente** como valores reales. La
+investigación previa, basada en clientes de terceros, había concluido que solo existía el
+conjunto grueso de cinco y que esos miembros eran «reportados» y sin confirmar. Era una
+lectura del parámetro de petición tomada por la del campo de respuesta.
+
+`commercial` corresponde al `premise` de Idealista, en singular, que no coincide con el
+`premises` del filtro. `house`, `studio`, `land`, `garage`, `storage_room` y `building` no
+aparecen en esta muestra, que solo cubrió dos filtros y una zona: no están descartados.
+
+**Consecuencia.** El adaptador del paso 1.6 traduce el `propertyType` de la respuesta al tipo
+de dominio, y no reutiliza el valor del filtro. La unión cerrada de `PropertyType` se
+mantiene como estaba, ahora con tres miembros confirmados contra datos reales en lugar de
+inferidos. El paso 1.4 puede reanudarse sobre esta base.
+
+**Nota.** `typology` y `subTypology` son un segundo eje: para los pisos, `typology` vale
+`flat` en los 50 elementos mientras `propertyType` varía. `propertyType` parece ser el
+aplanado de ambos. El adaptador debe leer `propertyType`, no `typology`.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

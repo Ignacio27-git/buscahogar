@@ -40,6 +40,133 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-10 — Un test cuyo comentario prometía más de lo que sus aserciones comprobaban
+
+**Contexto:** paso 1.5, informe del contador de peticiones de la sonda
+(`apps/ingestion/scripts/probe/ledger.ts` y su test).
+
+**Categoría:** test que valida el comportamiento equivocado.
+
+**Qué ocurrió:** la especificación exigía que los contadores de token y de búsqueda se
+informaran siempre por separado, **nunca como una única cifra combinada**, porque no está
+documentado si la petición de token consume cuota de búsqueda: sumarlas afirma algo que no
+sabemos. El test escrito para ese requisito llevaba este comentario:
+
+```ts
+// Cada contador aparece en su propia línea, no como una única cifra combinada.
+```
+
+Y a continuación comprobaba únicamente que la línea de token y la de búsqueda fueran
+distintas entre sí. **Nunca comprobó la ausencia de una cifra combinada.** El código, en
+paralelo, sí imprimía una: `Total de peticiones de red: 2. Peticiones de búsqueda
+facturables: 1.` El test pasaba en verde con el incumplimiento delante.
+
+**Cómo se detectó:** la fase de verificación, leyendo la salida real del script y
+contrastándola contra el texto del requisito, no contra el test. El test no podía detectarlo:
+estaba escrito para no verlo.
+
+**Coste:** minutos. Se reforzó primero la aserción —que pasó a rojo— y después se corrigió el
+render para no sumar los contadores.
+
+**Observación:** el patrón es más incómodo que un test ausente. Un requisito sin test se ve
+en la cobertura; **un test que declara en su comentario una garantía más fuerte que la de sus
+aserciones se ve verde y desactiva la sospecha.** El comentario describía la intención del
+requisito y las aserciones describían otra cosa más débil, y nadie contrastó una con otra
+porque el test pasaba.
+
+La lección concreta: cuando un requisito se formula en negativo —«nunca aparece X»— la
+aserción tiene que ser también negativa (`expect(...).not.toMatch(...)`). Comprobar que otras
+dos cosas están bien no demuestra que la tercera no esté. Y en modo TDD estricto el orden
+importa: si la aserción negativa se hubiera escrito primero, habría estado en rojo desde el
+inicio y el código nunca habría llegado a imprimir el total.
+
+Vale también como aviso sobre el propio TDD estricto: escribir el test antes garantiza que
+hay un test, no que el test compruebe lo que dice comprobar.
+
+### 2026-09-10 — El comando alternativo documentado en el README tampoco funcionaba
+
+**Contexto:** paso 1.5, ejecución de la sonda de Idealista desde `apps/ingestion`.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** el README que generó la fase de implementación advertía, correctamente, de
+que en PowerShell un `--` suelto puede perderse al reenviar argumentos, y ofrecía una forma
+alternativa «explícita» para sortearlo:
+
+```bash
+pnpm --filter @buscahogar/ingestion exec node --env-file=../../.env --import tsx scripts/probe-idealista.ts --profile homes --execute
+```
+
+Esa alternativa **tampoco funciona**. `pnpm exec` no se sitúa en el directorio del paquete, así
+que `../../.env` se resuelve contra la raíz del repositorio y falla con `../../.env: not found`.
+La forma primaria tampoco: `pnpm run probe:homes -- --execute` reenvía el `--` como argumento
+literal, y `parseArgs` en modo estricto lo rechaza con «argumentos posicionales inesperados».
+
+La forma que sí funciona es entrar en el paquete, que es como `pnpm run` lo invoca por dentro:
+
+```bash
+cd apps/ingestion
+node --env-file=../../.env --import tsx scripts/probe-idealista.ts --profile homes --execute
+```
+
+**Cómo se detectó:** al ejecutar de verdad. Ninguna de las dos formas documentadas llegó a
+abrir una conexión, así que ambos fallos costaron cero cuota.
+
+**Coste:** dos intentos fallidos, minutos. README corregido con la forma que funciona y con la
+explicación de por qué las otras dos no.
+
+**Observación:** el patrón interesante no es el fallo, es **dónde** estaba. El agente
+identificó un riesgo real —el reenvío de `--`—, se molestó en documentar una vía de escape, y
+la vía de escape estaba rota por un motivo distinto y no comprobado. Una advertencia sobre un
+problema real da una falsa sensación de cobertura: quien la lee asume que alguien probó la
+alternativa. Aquí nadie la probó, porque probarla implicaba gastar cuota y toda la fase estaba
+deliberadamente prohibida de tocar la API.
+
+De ahí una lección concreta para pasos con recursos escasos: **si un comando no se puede
+ensayar sin gastar el recurso, la documentación debe decir que no está verificado**, en lugar
+de presentarlo con la misma autoridad que los que sí se probaron. Los dos fallos, además,
+fallaron cerrando —sin abrir conexión—, que es exactamente lo que el diseño buscaba con el
+modo de simulación por defecto y con `parseArgs` en estricto.
+
+### 2026-09-10 — Separador opcional fuera del grupo del prefijo en el anonimizador de teléfonos
+
+**Contexto:** paso 1.5, anonimizador de datos personales de `apps/ingestion/scripts/probe/anonymise.ts`.
+Barre texto libre (`description`) buscando teléfonos y correos antes de commitear el fixture
+de la sonda de Idealista.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** la primera versión de `PHONE_PATTERN` dejaba el separador opcional **fuera**
+del grupo del prefijo internacional, en lugar de anidado dentro. Con esa forma, el separador
+podía casar sin que hubiera prefijo, así que la coincidencia empezaba un carácter antes de lo
+debido y se comía el espacio previo al número:
+
+```text
+"Llamar al 612345678"  →  "Llamar al[REDACTED_PHONE]"     (mal, falta el espacio)
+"Llamar al 612345678"  →  "Llamar al [REDACTED_PHONE]"     (bien)
+```
+
+La redacción del teléfono sí funcionaba. Lo que se corrompía era el texto que la rodeaba.
+
+**Cómo se detectó:** su propio test en rojo, escrito antes que la implementación por el modo
+TDD estricto. La aserción comparaba la cadena completa resultante, no solo la presencia del
+marcador de redacción, así que el espacio perdido hizo fallar el test de inmediato.
+
+**Coste:** minutos. Corregido en la misma sesión anidando el separador dentro del grupo del
+prefijo.
+
+**Observación:** el fallo es interesante por dónde estaba, no por su dificultad. Un test que
+solo hubiera comprobado «el teléfono ya no aparece» habría pasado en verde con el error
+dentro. Lo que lo cazó fue afirmar sobre la cadena entera, es decir, sobre lo que se conserva
+además de sobre lo que se elimina. Para un anonimizador esa distinción es la que importa: su
+trabajo no es solo borrar, es borrar sin destruir el resto, porque el fixture tiene que seguir
+sirviendo a los tests del normalizador del paso 1.6.
+
+Vale también como argumento a favor del TDD estricto en este módulo concreto. Es código puro,
+sin dependencias, y su modo de fallo —publicar datos personales de terceros en un repositorio
+que se entrega, o corromper la evidencia— no se manifiesta en tiempo de compilación ni en una
+lectura rápida del diff.
+
 ### 2026-09-09 — `drizzle-kit` no reconoce `geography` y lo entrecomilla como identificador
 
 **Contexto:** fase 3 del paso 1.3, primera aplicación real de las migraciones contra el

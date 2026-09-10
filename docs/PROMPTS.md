@@ -30,6 +30,82 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-10 — Sonda de la API de la fuente (1.5)
+
+**Tipo de tarea:** script aislado con credenciales y cuota (configuración)
+**Forma de especificación:** ciclo SDD completo sobre el prompt del ROADMAP 1.5, más un ejemplo
+de llamada real aportado por el usuario en el propio chat
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> Ya tengo la api key de idealista y lo he puesto en el .env.
+> Ejemplo de llamada:
+> `curl -X POST -H "Authorization: Bearer {{OAUTH_BEARER}}" -H "Content-Type: multipart/form-data;" -F "center=40.430,-3.702" -F "propertyType=homes" -F "distance=15000" -F "operation=sale" "https://api.idealista.com/3.5/es/search"`
+> Arranca con el paso 1.5
+
+**Observación:** el dato interesante es **cuánto rindió el ejemplo de `curl`**. La fase de
+investigación previa había cerrado en `partial` porque la documentación oficial de Idealista
+exige aprobación de socio, y dos clientes open source independientes se contradecían sobre si
+`distance` estaba en metros o en kilómetros. El `distance=15000` del ejemplo resolvió la
+contradicción de inmediato: solo es coherente en metros. Un ejemplo real de una línea cerró un
+hueco que la investigación documental no pudo, y a coste cero de cuota. Para especificar
+tareas contra APIs cerradas, adjuntar una llamada que funciona rinde más que cualquier
+descripción en prosa.
+
+Segundo dato, este sobre el prompt del propio ROADMAP: **se contradice a sí mismo**. Pide «una
+zona muy pequeña, con el mínimo de resultados posible», pero su criterio de revisión dice que
+el punto crítico son las coordenadas, y la ofuscación no se detecta comparando un solo punto
+consigo mismo. La contradicción solo se disuelve al notar que la cuota se cobra por petición y
+no por resultado. Seguir la letra del prompt habría derrotado su propio objetivo declarado.
+Ningún agente lo detectó al leer el paso; salió al cruzar el requisito con el criterio de
+revisión.
+
+Tercer dato: el ejemplo de `curl` **induce un error si se traduce literalmente a código**. En
+`curl` es correcto escribir `-H "Content-Type: multipart/form-data;"` porque curl calcula el
+boundary. Con `fetch` y `FormData`, escribir esa cabecera a mano deja el boundary fuera y la
+petición falla con un 4xx **que se cobra igual**. La traducción literal de un ejemplo válido
+habría costado una petición de las dos presupuestadas.
+
+### 2026-09-10 — Contratos y modelo de dominio en `core` (1.4), detenido en la puerta previa a la propuesta
+
+**Tipo de tarea:** dominio (tipos, interfaces y esquemas)
+**Forma de especificación:** ciclo SDD (`/gentle-sdd-new`), con el prompt del ROADMAP 1.4 verbatim
+**Resultado:** descartado en esta pasada — el paso se reordena detrás del 1.5
+
+**Prompt:**
+
+> Implementa en packages/core el modelo de dominio y los contratos de
+> docs/ARCHITECTURE.md:
+>
+> - El tipo Listing normalizado y los tipos auxiliares (Location, Feature,
+>   PropertyType, OperationType, AreaQuery, SourcePage, SimilarityResult).
+> - Las interfaces PropertySource, ListingNormalizer y DedupStrategy.
+> - Los esquemas Zod correspondientes a los tipos que cruzan una frontera externa.
+>
+> SimilarityResult debe incluir la puntuación total y el desglose por señal.
+>
+> Sin implementaciones concretas y sin importar Next ni el ORM: solo tipos,
+> interfaces y esquemas.
+
+**Observación:** el prompt está bien especificado y no es la causa de que el paso no se
+completara. El problema es de **orden en la hoja de ruta**, y es el dato interesante para la
+memoria: la referencia a `docs/ARCHITECTURE.md` promete una especificación que el documento
+no contiene. `ARCHITECTURE.md` da verbatim las tres interfaces, pero **ni un solo campo** de
+`Listing` ni de los tipos auxiliares. Una especificación por referencia a documento solo
+funciona si el documento referenciado es completo en el punto que se referencia; aquí lo es
+para las interfaces y no lo es para los tipos de datos.
+
+La exploración lo detectó y escaló diez decisiones de producto abiertas en lugar de
+rellenarlas por su cuenta, que es el comportamiento correcto. Cuatro se cerraron con el
+usuario. Al validar la decisión sobre `AreaQuery` con investigación externa, esta cerró en
+`partial` —la documentación oficial de Idealista exige aprobación de socio— y el usuario
+optó por adelantar el paso 1.5 en vez de fijar el contrato sobre evidencia de terceros.
+
+Contraste útil frente al paso 1.3: allí la referencia a documento bastó porque el modelo de
+datos sí estaba especificado tabla por tabla. La forma de especificación no fue peor aquí;
+lo que cambió fue la completitud del documento de destino.
+
 ### 2026-09-09 — Esquema de base de datos en `packages/db` (paso 1.3)
 
 **Tipo de tarea:** esquema y migración (configuración)
