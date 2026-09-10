@@ -369,7 +369,7 @@ existen.
 
 ---
 
-## [ ] 1.4 · Contratos y modelo de dominio en `core`
+## [x] 1.4 · Contratos y modelo de dominio en `core`
 
 **Objetivo.** Tipos e interfaces, sin implementación.
 
