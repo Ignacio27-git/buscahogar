@@ -40,6 +40,63 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-10 — Una aserción de tipo que probaba el tipo indexado equivocado
+
+**Contexto:** paso 1.4, `packages/core/test/type-assertions.test.ts`, la aserción de que
+indexar un `SignalBreakdown` produce `SignalScore | undefined` bajo
+`noUncheckedIndexedAccess`.
+
+**Categoría:** código con apariencia correcta pero comportamiento incorrecto.
+
+**Qué ocurrió:** la primera versión de la aserción comparaba directamente el tipo indexado
+`SignalBreakdown[string]` contra `SignalScore | undefined` con el helper `Equal`. Parecía la
+forma obvia de expresarlo, pero `tsc --noEmit` la rechazó: `SignalBreakdown[string]` resolvía
+a `SignalScore` a secas, sin `undefined`. `noUncheckedIndexedAccess` añade `| undefined` al
+resolver una **expresión** de indexación sobre un valor (`objeto[clave]` dentro de código
+real), no al **tipo indexado** `T[K]` en sí mismo como operación de tipos independiente —
+una distinción que no está documentada de forma prominente y que se verificó de forma
+aislada con un `tsconfig.json` mínimo antes de corregir.
+
+**Cómo se detectó:** error de compilación (`tsc --noEmit`, no en la ejecución de Vitest —
+las importaciones `import type` se eliminan en tiempo de transformación y no habrían dado
+ninguna señal en tiempo de ejecución).
+
+**Coste:** aproximado, 10 minutos (una comprobación aislada con un `tsconfig.json` de
+prueba para confirmar el comportamiento real antes de corregir la aserción).
+
+**Observación:** la corrección captura el tipo de retorno de una función cuyo cuerpo indexa
+de verdad un valor (`function readSignal(...): SignalScore | undefined { return
+breakdown[key]; }`), y usa `ReturnType<typeof readSignal>` para la comparación. Habría sido
+previsible con una comprobación aislada del comportamiento del flag antes de escribir la
+aserción, en vez de asumir que un tipo indexado y una expresión de indexación se resuelven
+igual.
+
+### 2026-09-10 — `.finite()` generado en un esquema Zod, ya deprecated y no-op en la versión instalada
+
+**Contexto:** paso 1.4, `packages/core/src/schemas/area-query.schema.ts`, el campo
+`radiusMeters` de `areaQuerySchema`.
+
+**Categoría:** API o método inexistente (en este caso, existente pero deprecated y sin
+efecto en la versión instalada).
+
+**Qué ocurrió:** se escribió `radiusMeters: z.number().positive().finite()`, razonando que
+`.finite()` excluía explícitamente `Infinity`/`-Infinity`. `pnpm --filter @buscahogar/core
+lint` lo marcó con `@typescript-eslint/no-deprecated`: en zod@4.5.4, `z.number()` ya rechaza
+valores no finitos por defecto, así que `.finite()` es un no-op deprecated, no una
+protección adicional.
+
+**Cómo se detectó:** `pnpm lint` (regla `no-deprecated`), no revisión manual.
+
+**Coste:** aproximado, 5 minutos (verificación con una llamada aislada a
+`z.number().positive().safeParse(Infinity)` contra el paquete instalado antes de quitar la
+llamada).
+
+**Observación:** ya van dos versiones de Zod detectadas en este mismo cambio donde una API
+de v3 sigue compilando pero está marcada legacy/deprecated en v4.5.4 (la otra es
+`z.number().int()` frente a `z.int()`, ya prevista en el diseño). Antes de encadenar
+métodos "defensivos" sobre un esquema, merece la pena comprobar si la versión instalada ya
+cubre el caso por defecto.
+
 ### 2026-09-10 — Un test cuyo comentario prometía más de lo que sus aserciones comprobaban
 
 **Contexto:** paso 1.5, informe del contador de peticiones de la sonda

@@ -393,38 +393,56 @@ particularidades de ninguna fuente concreta.
 
 **Notas:**
 
-Paso **abierto y reordenado**: se lanzó el ciclo SDD el 2026-09-10 y se detuvo en la puerta
-previa a la propuesta, por decisión explícita de adelantar el paso 1.5. No se ha escrito
-código.
+Paso **ejecutado** el 2026-09-10, tras el ciclo SDD completo (propose → spec → design →
+tasks → apply), retomado sobre la base dejada por el paso 1.5 (sonda de la API). El checkbox
+se deja sin marcar hasta que `sdd-verify` confirme el resultado.
 
-Lo que sí queda hecho y sirve cuando se retome:
+**Lo que se implementó.** Solo tipos, interfaces y esquemas Zod — sin implementación
+concreta, como pedía el paso:
 
-- **Exploración** (Engram `sdd/core-domain-contracts/explore`). Hallazgo principal:
-  `ARCHITECTURE.md` especifica verbatim las tres interfaces, pero **no da un solo campo** de
-  `Listing`, `Location`, `Feature`, `PropertyType`, `OperationType` ni `AreaQuery`. Esa forma
-  solo puede salir del esquema ya desplegado en `packages/db` y de `DECISIONS.md`, que es
-  justo la capa de la que `core` debe ser independiente. Es la tensión central del paso.
-- **Investigación** sobre la API de Idealista (Engram `sdd/core-domain-contracts/research`),
-  resultado `partial`, **sin gastar ni una petición de cuota**: la documentación oficial está
-  tras solicitud de socio y no es legible. Toda la evidencia proviene de clientes open source
-  independientes contrastados entre sí, con nivel de confianza etiquetado por punto.
-- **Decisiones de producto confirmadas** por el usuario, que la propuesta debe dar por
-  cerradas: `PropertyType` como unión cerrada residencial y no residencial (`flat`, `house`,
-  `penthouse`, `duplex`, `studio`, `land`, `commercial`, `garage`, `storage_room`, `building`,
-  `other`); `AreaQuery` **geográfica** (centro + radio); y alcance ampliado con una regla
-  `no-restricted-imports` en `packages/core` y la unificación de `SignalScore` /
-  `SignalBreakdown`, que `packages/db` define a mano pese a declarar ya una dependencia
-  `workspace:*` sobre `@buscahogar/core` que ningún fichero importa.
+- `packages/core/src/types/`: `PropertyType`/`OperationType` (const tuples cerradas),
+  `Coordinates`, `Location`, `Feature`/`AppliedFeature`, `SignalScore`/`SignalBreakdown`/
+  `SimilarityResult`, `SourcePage<T>`.
+- `packages/core/src/schemas/`: `listingSchema`/`Listing` (derivado con `z.infer`, objeto no
+  estricto que elimina claves desconocidas) y `areaQuerySchema`/`AreaQuery` (derivado con
+  `z.infer`, `z.strictObject()`, geográfica y sin `propertyType`).
+- `packages/core/src/contracts/`: `PropertySource<T = unknown>`, `ListingNormalizer<T>` y
+  `DedupStrategy` (con `readonly version: string`, añadido sobre lo que declaraba
+  `docs/ARCHITECTURE.md` — ver decisión 028).
+- Frontera de dependencias mecánica: `@typescript-eslint/no-restricted-imports` en
+  `packages/core/eslint.config.mjs`, que hace fallar `pnpm lint` si el paquete importa
+  `next`, `react`, `drizzle-orm`, `@buscahogar/db` o cualquier ruta de `apps/`.
+- `packages/db/src/types.ts`: renombrada la familia de tipos de fila con sufijo `Row`
+  (colisión de nombre con el `Listing` de dominio) y sustituidas las declaraciones a mano de
+  `SignalScore`/`SignalBreakdown` por una reexportación de tipo desde `@buscahogar/core`.
+- Documentación: `docs/ARCHITECTURE.md` (snippet de Contratos corregido), `docs/DECISIONS.md`
+  (entradas 028–031), este mismo registro y `packages/core/README.md`.
 
-Dos matices de la investigación que la propuesta tendrá que recoger por escrito:
+**Verificación real ejecutada** (no solo reportada): `pnpm --filter @buscahogar/core test`,
+`lint`, `typecheck` y `build`; `pnpm --filter @buscahogar/db typecheck`, `test` y `build`;
+`pnpm -r typecheck` desde la raíz. Detalle completo en Engram
+`sdd/core-domain-contracts/apply-progress`.
 
-1. `locationId` es una alternativa de primera clase y mutuamente excluyente con
-   `center`+`distance` en la API real. Exponer solo la forma geográfica en `AreaQuery` es una
-   simplificación deliberada —evita meter códigos de zona propios de Idealista en el
-   dominio— y obliga a que **el adaptador** traduzca zona canónica a centro y radio.
-2. La paginación real es por número de página (`numPage`), no por cursor opaco. El
-   `cursor?: string` de `SourcePage` sigue siendo válido, pero como envoltura de un número de
-   página, no como token reanudable del servidor.
+**Entrega en bloque único con excepción de tamaño.** La estimación de diseño (~1680 líneas,
+tope 1900) supera varias veces el presupuesto de revisión por defecto. Se decidió en la
+puerta de tareas (`sdd/core-domain-contracts/gate-decisions`) no encadenar PRs: los tipos se
+referencian entre sí y trocear obligaría a revisar definiciones sin sus consumidores. No se
+añade una fila nueva a la tabla de desviaciones solo por esto — la excepción de tamaño fue
+una decisión explícita en la puerta, no una desviación silenciosa de cómo estaba escrito el
+paso.
+
+**Lo que queda pendiente para pasos posteriores, deliberadamente**: el rango de `score`
+(0–1 / 0–100 / sin acotar) se difiere a ROADMAP 1.9; 8 de los 11 miembros de `PropertyType`
+siguen sin confirmar contra datos reales (la sonda solo cubrió dos filtros y una zona,
+`other` es la válvula); ROADMAP 1.13 hereda dos obligaciones sobre `AreaQuery` (seleccionar
+las claves relevantes de los search params antes de parsear, y convertir string→number él
+mismo, ver decisión 030).
+
+**Cierre del reordenamiento 1.4 ↔ 1.5.** El paso 1.4 se detuvo deliberadamente a las puertas
+de la propuesta para adelantar el 1.5 (sonda de la API), documentado más abajo. Con el 1.4
+ya implementado sobre la evidencia de esa sonda, el reordenamiento se cierra: no queda
+ningún trabajo de 1.4 pendiente de la investigación de 1.5, y el orden de la hoja de ruta
+puede continuar como estaba fijado a partir de aquí.
 
 ---
 

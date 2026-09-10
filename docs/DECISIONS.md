@@ -693,6 +693,146 @@ aplanado de ambos. El adaptador debe leer `propertyType`, no `typology`.
 
 ---
 
+## 028 — `DedupStrategy.version`, y corrección de `docs/ARCHITECTURE.md`
+
+**Estado:** aceptada
+
+**Decisión.** La interfaz `DedupStrategy` de `packages/core` (paso 1.4) añade
+`readonly version: string` junto a `name` y `score`. `docs/ARCHITECTURE.md` se corrige para
+reflejarlo: el `## Contratos` snippet original solo declaraba `name` y `score`.
+
+**Alternativa descartada.** Dejar `docs/ARCHITECTURE.md` como estaba y añadir `version` solo
+en el código, con la divergencia documentada aparte.
+
+**Motivo.** La decisión 020 fija `property_listings.strategy_version` como columna
+`NOT NULL`, y no existe ninguna otra fuente de dominio de la que ese valor pueda salir: la
+propia `DedupStrategy` tiene que declararlo. `CLAUDE.md` exige señalar una regla de
+`ARCHITECTURE.md` obsoleta o incorrecta en vez de divergir en silencio, así que corregir el
+documento en el mismo cambio es obligatorio, no una mejora aparte.
+
+**Consecuencia.** Cualquier implementación futura de `DedupStrategy` (ROADMAP 1.9+) debe
+declarar `version` desde el primer commit; no hay periodo de gracia.
+
+---
+
+## 029 — `Listing`: forma plana de salida del normalizador, `propertyType` obligatorio, `coordinatesObfuscated` tri-estado
+
+**Estado:** aceptada
+
+**Decisión.** `Listing` (paso 1.4, `packages/core`) es una forma plana orientada a la salida
+del normalizador, no un espejo de la separación `listings`/`listing_versions` de
+`packages/db` (decisión 018). `propertyType: PropertyType` es **obligatorio** en `Listing`,
+aunque `listing_versions.property_type` sigue siendo texto libre nulable en la base de
+datos. `coordinatesObfuscated?: boolean` es opcional y tri-estado: `undefined` significa
+"sin señal fiable", nunca se infiere como `false`.
+
+**Alternativa descartada.** Hacer `Listing` un espejo 1:1 de las columnas persistidas
+(incluyendo `id`, `status`, marcas de tiempo de la tubería, `raw`); dejar `propertyType`
+opcional igual que la columna; o poblar `coordinatesObfuscated` a partir de `showAddress`.
+
+**Motivo.** `ListingNormalizer.normalize(raw): Listing` y `DedupStrategy.score(a, b)` leen
+ambos contra un único valor plano — el `id`, el `status` y los timestamps de la tubería no
+los produce ningún normalizador, y `raw` es específico de cada fuente por definición
+(decisión 006 la excluye del dominio). `propertyType` es obligatorio porque el paso 1.4 ya
+fija una unión cerrada con `other` como válvula de seguridad (decisión 027): la columna
+nullable de la base de datos solo reflejaba la ausencia previa de esa unión, no una
+propiedad genuina del dominio. `coordinatesObfuscated` como tri-estado sigue la decisión 026
+al pie de la letra: esa decisión ya estableció que `showAddress` no es un indicador válido
+de ofuscación y que no existe hoy una fuente fiable; un booleano obligatorio forzaría a todo
+normalizador a afirmar `false`, una afirmación positiva de exactitud que la evidencia no
+respalda.
+
+**Consecuencia.** Un adaptador que no pueda clasificar un `propertyType` debe usar `other`,
+nunca omitir el campo. La columna `listing_versions.property_type` no se endurece con un
+`CHECK` en este cambio — eso queda para cuando `core` haya demostrado el vocabulario en
+producción.
+
+---
+
+## 030 — `AreaQuery`: solo geográfica, sin `propertyType`, esquema estricto y sin coerción
+
+**Estado:** aceptada
+
+**Decisión.** `AreaQuery` (paso 1.4, `packages/core`) declara únicamente `center`,
+`radiusMeters` y `operation` (obligatorio), derivada con `z.infer` de un
+`z.strictObject(...)`. No declara `propertyType` ni `locationId`. El esquema no aplica
+ninguna coerción de tipos: los valores de search params se convierten *antes* de llegar a
+`areaQuerySchema` (obligación que queda abierta para el paso 1.13).
+
+**Alternativa descartada.** Añadir `propertyType: PropertyType` a `AreaQuery` para que un
+barrido pueda acotarse por tipo de propiedad; usar `z.object()` (no estricto) igual que
+`listingSchema`; o coercionar `radiusMeters` con `z.coerce.number()` para aceptar strings de
+search params directamente.
+
+**Motivo.** El argumento decisivo no es de alcance sino de vocabulario (decisión 027): la
+API de la fuente separa el filtro de petición (`homes`, `premises`, …, un conjunto grueso de
+cinco) del `propertyType` de respuesta (el vocabulario de once miembros que modela
+`PropertyType`). Añadir `propertyType: PropertyType` a `AreaQuery` lo tiparía en el
+vocabulario de respuesta y luego exigiría una retro-traducción N:M con pérdida hacia el
+vocabulario de petición — un error de modelado, no una simplificación. `operation` sí es
+obligatorio porque `sale`/`rent` es el mismo vocabulario en petición y en respuesta, y
+particiona genuinamente qué cobertura representa el barrido. `AreaQuery` es una frontera
+externa real (CLI de ingesta hoy, search params de búsqueda en 1.13), construida por un
+llamador editable; `z.strictObject()` convierte una clave mal escrita en un rechazo nombrado
+en vez de en un radio por defecto silencioso — caro en un sistema con cuota limitada por
+petición. Sin coerción: `z.coerce.number()` aceptaría `''` → `0` y `true` → `1`,
+reintroduciendo el mismo fallo silencioso que la estrictura existe para evitar.
+
+**Consecuencia.** ROADMAP 1.13 hereda dos obligaciones: seleccionar del `URLSearchParams`
+solo las claves relevantes antes de parsear (un `strictObject` recibiendo
+`Object.fromEntries(searchParams)` tal cual rechazaría cualquier URL con `utm_source` u
+otro parámetro de seguimiento), y realizar la conversión string→number él mismo, antes de
+`areaQuerySchema.safeParse`.
+
+---
+
+## 031 — `SignalScore`/`SignalBreakdown` pasan a `packages/core`; `contracts/` sobre `strategies/`; sufijo `Row` en `packages/db`
+
+**Estado:** aceptada
+
+**Decisión.** Tres piezas del mismo cambio (ROADMAP 1.4):
+
+1. `packages/core` declara `SignalScore` y `SignalBreakdown`; `packages/db/src/types.ts`
+   sustituye su declaración a mano por `export type { SignalScore, SignalBreakdown } from
+   '@buscahogar/core'`, una reexportación de solo tipos, erasable en compilación.
+2. El directorio de contratos de `packages/core` se llama `contracts/`, no `strategies/`
+   como sugería el README original de ese paquete.
+3. `packages/db/src/types.ts` renombra toda su familia de tipos de fila con el sufijo
+   `Row`: `Listing` → `ListingRow`, y así sucesivamente para `NewListing`, `ListingVersion`,
+   `NewListingVersion`, `ListingFeature`, `NewListingFeature`, `Property`, `NewProperty`,
+   `PropertyListing` y `NewPropertyListing`.
+
+**Alternativa descartada.** Mantener las dos declaraciones de `SignalScore`/`SignalBreakdown`
+fijadas de forma independiente en `core` y en `db`; llamar `strategies/` al directorio de
+contratos tal como sugería el README; o limitar el sufijo `Row` únicamente a
+`Listing`/`NewListing`, que son los dos nombres que de verdad colisionan.
+
+**Motivo.** (1) Las dos declaraciones describen la misma columna JSONB
+(`property_listings.signals`); mantenerlas independientes las deja libres para divergir sin
+que nadie lo note, lo que es peor que un error de compilación el día que diverjan.
+`packages/db/package.json` ya declaraba `"@buscahogar/core": "workspace:*"` y
+`packages/db/src/index.ts` ya documentaba la dependencia, pero ningún fichero la importaba:
+este cambio activa una dependencia declarada y dormida, no crea una nueva. La forma es
+byte-idéntica, así que `propertyListings.$inferSelect` no cambia. (2) El README de
+`packages/core` ya reservaba `strategies/` para "1.9+: implementaciones concretas de
+estrategias de deduplicación"; nombrar `contracts/` al directorio del paso 1.4 mantiene esa
+reserva intacta y separa el contrato de sus futuras implementaciones. (3) `@buscahogar/core`
+(ROADMAP 1.4) exporta un `Listing` de dominio, y `docs/ARCHITECTURE.md` fija ese nombre para
+el dominio en las tres interfaces de contratos — `packages/db` es el lado que colisiona, así
+que es el que renombra. El radio de impacto verificado es cero: ningún fichero de
+`packages/db/src`, `packages/db/test` ni `apps/**` importa ninguno de estos tipos de fila
+(se reexportan con `export *` desde `src/index.ts` pero no se usan). Como el coste de
+renombrar toda la familia es idéntico al de renombrar solo dos nombres, se extendió a toda
+la familia por consistencia interna.
+
+**Consecuencia.** `packages/db` debe reconstruirse (`pnpm --filter @buscahogar/core build`)
+antes de typecheckearse en un clon limpio con `--ignore-scripts`, porque resuelve
+`@buscahogar/core` a través de su `dist/index.d.ts` — el script `prepare` de la raíz ya
+cubre el flujo normal (`pnpm install` sin ese flag). Cualquier código futuro que importe los
+tipos de fila de `packages/db` debe usar el sufijo `Row`.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

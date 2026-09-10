@@ -43,9 +43,9 @@ lanzarse por separado sobre datos ya persistidos, sin gastar cuota.
 ## Contratos
 
 ```typescript
-interface PropertySource {
+interface PropertySource<T = unknown> {
   readonly id: string;
-  fetchArea(area: AreaQuery, cursor?: string): Promise<SourcePage>;
+  fetchArea(area: AreaQuery, cursor?: string): Promise<SourcePage<T>>;
 }
 
 interface ListingNormalizer<T> {
@@ -54,12 +54,17 @@ interface ListingNormalizer<T> {
 
 interface DedupStrategy {
   readonly name: string;
+  readonly version: string;
   score(a: Listing, b: Listing): SimilarityResult;
 }
 ```
 
-`SourcePage` incluye el cursor siguiente para poder reanudar un barrido interrumpido sin
-repetir peticiones.
+`SourcePage<T = unknown>` incluye `nextCursor`, el cursor siguiente, para poder reanudar un
+barrido interrumpido sin repetir peticiones. `T` es siempre el payload crudo de la fuente,
+antes de normalizar — nunca un `Listing`.
+
+`DedupStrategy.version` acompaña a `name` porque `property_listings.strategy_version` es
+`NOT NULL` y no existe otra fuente de dominio para ese valor (decisión 020).
 
 `SimilarityResult` incluye la puntuación total **y el desglose por señal**.
 

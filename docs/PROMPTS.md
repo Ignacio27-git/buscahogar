@@ -30,6 +30,39 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-10 — Contratos y modelo de dominio en `core` (1.4)
+
+**Tipo de tarea:** dominio (tipos, interfaces, esquemas Zod)
+**Forma de especificación:** ciclo SDD completo (propose → spec → design → tasks → apply),
+retomado sobre la evidencia de primera mano de la sonda del paso 1.5 (Engram
+`sdd/source-api-probe/probe-findings`)
+**Resultado:** utilizable con retoques
+
+**Prompt:**
+
+> Implementa en packages/core el modelo de dominio y los contratos de
+> docs/ARCHITECTURE.md: el tipo Listing normalizado y los tipos auxiliares (Location,
+> Feature, PropertyType, OperationType, AreaQuery, SourcePage, SimilarityResult); las
+> interfaces PropertySource, ListingNormalizer y DedupStrategy; los esquemas Zod
+> correspondientes a los tipos que cruzan una frontera externa. SimilarityResult debe
+> incluir la puntuación total y el desglose por señal. Sin implementaciones concretas y sin
+> importar Next ni el ORM: solo tipos, interfaces y esquemas.
+
+**Observación:** el propio criterio de revisión del paso ("que los tipos no arrastran
+particularidades de ninguna fuente concreta") es también su mayor riesgo: la sonda del 1.5
+entregó un inventario de campos reales de Idealista, y la tentación obvia es copiarlo como
+esquema. El backstop ejecutable (`contracts.test.ts` con una fuente ficticia `acme` sin
+ningún nombre de campo compartido con un portal real) funcionó como diseñado — si se hubiera
+colado un campo específico de fuente, esa fake habría dejado de poder escribirse. Los
+retoques fueron dos trampas concretas de TypeScript/Zod, ambas detectadas por `lint` o
+`typecheck` antes de comprometerse, no por revisión posterior: `.finite()` marcado
+deprecated como no-op en zod@4.5.4, y una aserción de tipo que asumía que
+`noUncheckedIndexedAccess` afecta al tipo indexado `T[string]` en sí, cuando en realidad
+solo afecta a la resolución de una expresión de indexación sobre un valor. Detalle en
+`AI-NOTES.md`.
+
+---
+
 ### 2026-09-10 — Sonda de la API de la fuente (1.5)
 
 **Tipo de tarea:** script aislado con credenciales y cuota (configuración)
