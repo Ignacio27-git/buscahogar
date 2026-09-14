@@ -978,6 +978,157 @@ duro del presupuesto (`budget.ts`, decisión 033), no el linter.
 
 ---
 
+## 036 — Una zona resuelve a un área de búsqueda con `--center` y `--radius` explícitos; `--zone` solo etiqueta
+
+**Estado:** aceptada
+
+**Decisión.** El comando de barrido del paso 1.7 recibe el área geográfica en dos parámetros
+explícitos, `--center` (par de coordenadas) y `--radius` (metros), que son los que construyen
+el `AreaQuery`. `--zone` es únicamente la etiqueta de registro con la que se anota el
+barrido: no lleva geometría asociada y no interviene en el cálculo del área.
+
+**Alternativa descartada.** Dos: (1) añadir una columna de centroide a `locations` y
+sembrarla desde un dataset del CNIG/IGN, de modo que `--zone` bastara por sí solo; (2) usar
+el `locationId` propio de Idealista.
+
+**Motivo.** El centroide sembrado se aplaza, no se descarta: la granularidad del cruce entre
+el código INE de `locations` y la entidad de población del dataset no está confirmada, y
+sembrar sobre una correspondencia no verificada dejaría centroides plausibles y equivocados
+—barridos que parecen correctos y cubren otro sitio—. El `locationId` de Idealista se
+descarta por tres razones independientes: su contrato con el vendor no está confirmado (la
+misma barrera de documentación que cerró la investigación del paso 1.5 en `partial`), no es
+derivable de un código INE, y averiguar su coste en cuota exige gastar cuota.
+
+**Consecuencia asumida.** Un municipio no es un círculo. La cobertura de una zona barrida por
+centro y radio es aproximada por construcción: sobra área fuera del término y falta área en
+sus extremos. Es la misma parcialidad deliberada en la que se apoya la decisión 039.
+
+---
+
+## 037 — Detección de cambio campo a campo en el espacio de columnas, sin columna de hash
+
+**Estado:** aceptada
+
+**Decisión.** Un anuncio genera una fila nueva en `listing_versions` cuando difiere campo a
+campo del último estado persistido, y esa comparación se hace **en el espacio de columnas**:
+los valores del `Listing` normalizado se proyectan a los tipos de columna antes de
+compararse, no se comparan en los tipos del dominio. No requiere migración de esquema.
+
+**Alternativa descartada.** (1) Una columna de hash de contenido persistida. (2) Comparar
+solo el precio.
+
+**Motivo.** El hash exige migración y, peor, invalida todos los hashes históricos cada vez
+que cambie la lista de campos que lo alimenta: el histórico dejaría de ser comparable
+consigo mismo, que es justo lo que la decisión 002 conserva. Comparar solo el precio
+contradice `docs/ARCHITECTURE.md`, que define la versión sobre el anuncio y no sobre un
+campo. Y el espacio de columnas no es un detalle de implementación sino la condición misma
+de la idempotencia: `surfaceM2`, `rooms` y `bathrooms` viajan como `z.number()` en el dominio
+y como `integer` / `smallint` en la columna, así que un `78.5` se escribe `79` y un
+comparador del lado del dominio insertaría una versión nueva en cada barrido,
+indefinidamente. Ver `docs/AI-NOTES.md`, entrada 2026-09-14.
+
+---
+
+## 038 — Un elemento rechazado por el normalizador se salta, se anota con su motivo y se cuenta
+
+**Estado:** aceptada
+
+**Decisión.** Cuando el normalizador rechaza un elemento de una página, el barrido lo salta,
+lo anota con su motivo en el informe de la ejecución y lo suma a un recuento; la página
+continúa con los elementos restantes. Un elemento inválido nunca aborta la página. Esto
+resuelve el punto que el paso 1.6 dejó explícitamente fuera de alcance.
+
+**Alternativa descartada.** Abortar la página completa ante el primer elemento inválido.
+
+**Motivo.** La petición HTTP que trajo esa página ya está pagada y no se puede volver a pedir
+gratis. Abortarla tira los elementos válidos que venían en el mismo payload y obliga a gastar
+cuota otra vez para recuperarlos; bastaría un único elemento con `price` inválido —el único
+caso en que `normalize()` lanza, decisión 034— para inutilizar una página entera.
+
+**Consecuencia.** Un barrido puede terminar correctamente habiendo descartado elementos, así
+que el recuento por motivo no es información accesoria: es lo que distingue «no había nada
+que ingerir» de «se rechazó todo». Sin él, un rechazo sistemático por un cambio de forma del
+vendor sería indistinguible de una zona vacía.
+
+---
+
+## 039 — La ausencia de un anuncio en un barrido nunca cambia `listings.status`
+
+**Estado:** aceptada
+
+**Decisión.** Ningún camino de código de este cambio escribe `listings.status`. Que un
+anuncio ya persistido no aparezca en un barrido no se interpreta como retirada.
+
+**Alternativa descartada.** Reconciliar por diferencia: marcar como retirado todo anuncio
+presente en la base y ausente del barrido, que es lo habitual en una ingesta que se supone
+exhaustiva.
+
+**Motivo.** Esa inferencia solo es válida si el barrido es exhaustivo sobre la zona, y aquí
+no lo es por construcción: el área es un círculo aproximado (decisión 036) y el barrido tiene
+un tope duro de peticiones (decisión 033), así que un anuncio puede faltar por caer fuera del
+radio, por quedar más allá del tope o porque el barrido terminó antes. Confundir «no lo he
+visto» con «ya no existe» retiraría anuncios vivos, y la decisión 001 encuadra el sistema
+como un índice con caducidad: retirar es una afirmación sobre la fuente, y un barrido parcial
+no tiene evidencia para hacerla.
+
+**Consecuencia.** La retirada real queda para el refresco y la retención (decisión 007, paso
+2.5), que sí pueden comprobar un anuncio concreto en lugar de deducirlo de una ausencia.
+
+---
+
+## 040 — Una transacción por página, con el avance del cursor de `coverage_jobs` dentro
+
+**Estado:** aceptada
+
+**Decisión.** El barrido abre una transacción por página de resultados. La escritura de los
+`listings` y `listing_versions` de esa página y el avance de `coverage_jobs.cursor` ocurren
+dentro de la misma transacción y confirman juntos.
+
+**Alternativa descartada.** Avanzar el cursor fuera de la transacción, antes o después; o
+envolver el barrido entero en una única transacción.
+
+**Motivo.** Con el cursor fuera, un fallo entre el commit de las filas y el del cursor deja el
+barrido reanudable en un punto que no corresponde a lo confirmado: adelantado, se saltarían
+páginas ya pagadas sin haberlas escrito —pérdida silenciosa que solo se descubre al no
+encontrar los datos—; atrasado, se repetirían peticiones que la cuota mensual no regala. Con
+el avance dentro, el cursor no puede apuntar nunca más allá de lo commiteado. Una transacción
+única para todo el barrido se descarta por lo contrario: un fallo en la última página tiraría
+todas las anteriores y con ellas la cuota gastada en traerlas.
+
+**Contexto.** El cursor vive en la fila de `coverage_jobs` que el propio comando de CLI crea y
+actualiza, que es también donde encaja el cursor de reanudación que el paso 1.6 dejó sin
+destino (decisión 032); el índice único parcial de esa tabla hace de guarda de concurrencia.
+
+---
+
+## 041 — El seed valida el catálogo entero antes de escribir una sola fila; siembra atómica
+
+**Estado:** aceptada
+
+**Decisión.** `seedReferenceData` (`packages/db/src/seed.ts`) valida estructuralmente cada
+entrada del catálogo de municipios (`assertValidMunicipality`) antes de tocar la base de
+datos. Si cualquier entrada falla, no se escribe ninguna fila de ninguna entrada, ni
+siquiera la fuente `sources`. Las escrituras que sí llegan a ejecutarse van dentro de una
+única transacción.
+
+**Alternativa descartada.** Validar y escribir entrada por entrada, dejando sembradas las
+entradas válidas anteriores a la que falla.
+
+**Motivo.** COVERAGE-8 exige que una entrada sin código INE verificado falle «insertando
+cero filas para esa entrada», pero no especifica si el resto del catálogo debe sembrarse de
+todos modos. Con un catálogo de una sola entrada real (Granada) la diferencia es hoy
+invisible, pero deja de serlo en cuanto se añada una segunda zona (pendiente, ver
+`ROADMAP.md`): sembrar parcialmente dejaría el resultado del script dependiente del orden
+del array, silenciosamente distinto entre una ejecución y la siguiente si el catálogo
+cambia. Fallar entero, nombrando la entrada ofensiva, es la misma disciplina de «nunca
+fabricar, nunca parchear en silencio» que ya rige el resto de P5.
+
+**Consecuencia.** Añadir una segunda zona al catálogo con un código INE aún sin verificar
+bloquea también la siembra de las zonas ya verificadas hasta corregirlo — comportamiento
+deliberado, no un efecto secundario a evitar.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

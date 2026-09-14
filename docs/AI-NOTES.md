@@ -40,6 +40,176 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-14 — PERSIST-3 (spec) contra el paso 2 de D5 (diseño): qué columnas de `listings` puede tocar una re-visión
+
+**Contexto:** paso 1.7, fase `sdd-apply` (batch 3), implementación de `listing-writer.ts`.
+
+**Categoría:** deriva entre artefactos de la misma planificación.
+
+**Qué ocurrió:** PERSIST-3 (spec) afirma, sin condición, que una re-visión NO debe modificar
+`url`, `location`, `location_id` ni `coordinates_obfuscated` — solo `last_seen_at` y
+`updated_at` pueden cambiar. El paso 2 de D5 (diseño), en su prosa de ejemplo («nunca vaciar:
+url/location/coordinatesObfuscated se escriben solo cuando el valor entrante está
+definido»), se lee como un permiso de sobrescritura condicionada, más laxo que el «nunca» de
+la spec.
+
+**Cómo se detectó:** al escribir la cláusula `set` del `onConflictDoUpdate` de la fila de
+identidad, contrastando el texto exacto de la spec contra la prosa del diseño en vez de
+implementar la primera lectura que encajara.
+
+**Cómo se resolvió:** a favor de la spec, por ser el documento de criterios de aceptación:
+la cláusula `set` solo incluye `{lastSeenAt, updatedAt}`. El RED test existente no
+discriminaba entre ambas lecturas (sus re-visiones reutilizan el mismo `item`, así que
+`url`/`location` nunca cambian de valor en ninguna de las dos interpretaciones).
+
+**Observación:** mismo patrón que la entrada de columnas de identidad (3 frente a 4,
+sesión de esta misma fecha): cuando la prosa de un documento resume o ejemplifica lo que
+otro documento fija como regla, el resumen es el que cede. Ninguna prueba obligaba a elegir
+—las dos lecturas pasaban el mismo test— así que sin comparar el texto exacto la elección
+habría sido arbitraria y silenciosa.
+
+---
+
+### 2026-09-14 — A quién le toca resolver `sources.key` → UUID: ¿a `listing-writer.ts` o al compositor?
+
+**Contexto:** paso 1.7, fase `sdd-apply` (batch 3), alcance de `listing-writer.ts` frente al
+de `reference-store.ts` y el futuro compositor (`scripts/sweep-zone.ts`, fase 4).
+
+**Categoría:** deriva entre artefactos de la misma planificación.
+
+**Qué ocurrió:** la instrucción de lanzamiento del batch describía el trabajo de
+`listing-writer.ts` como «resolver `Listing.sourceId` ('idealista') a la UUID FK vía
+`sources.key`; fallar en voz alta si falta» — lectura que sitúa PERSIST-9 dentro de
+`listing-writer.ts`. El diseño (D5 paso 1), el propio puerto `PersistPageInput` (`store.ts`,
+fase 1) y el RED test ya escrito coincidían en lo contrario: la resolución ocurre UNA vez
+por barrido, en el compositor, y `sourceUuid` llega ya resuelto como campo del input.
+
+**Cómo se detectó:** cruzando las tres fuentes (diseño, tipo del puerto, fixture del propio
+test) antes de escribir el lookup redundante que la instrucción de lanzamiento sugería.
+
+**Cómo se resolvió:** a favor del trío diseño/puerto/test: `listing-writer.ts` escribe
+`input.sourceUuid` directamente en `listings.source_id`, sin volver a consultar `sources`.
+`reference-store.ts` (fase 2) ya implementa PERSIST-9; es responsabilidad del compositor
+(fase 4) llamarlo una vez y pasar el resultado.
+
+**Observación:** una paráfrasis en una instrucción de lanzamiento no es una fuente de
+autoridad equivalente al diseño, al tipo del puerto ya cerrado y al test ya escrito — cuando
+las tres coinciden entre sí y difieren de la paráfrasis, ganan las tres. Registrado para que
+la fase 4 no repita el lookup por duplicado.
+
+---
+
+### 2026-09-14 — Las tareas decían tres columnas de identidad; la tabla del diseño lista cuatro
+
+**Contexto:** paso 1.7, fase `sdd-apply`. Distinción entre las columnas que determinan la
+identidad de un anuncio y las que, al cambiar, producen una versión nueva.
+
+**Categoría:** deriva entre artefactos de la misma planificación.
+
+**Qué ocurrió:** la prosa del artefacto de tareas hablaba de «3 campos de columna de
+identidad». La tabla del propio diseño lista cuatro: `url`, `coordinates`, `location` y
+`coordinatesObfuscated`. Las dos afirmaciones no pueden ser ciertas a la vez.
+
+**Cómo se detectó:** al implementar el módulo correspondiente, contrastando la prosa de las
+tareas contra la tabla del diseño en lugar de codificar la primera cifra leída.
+
+**Cómo se resolvió:** a favor de la tabla del diseño, que es internamente consistente con su
+propia aritmética de campos.
+
+**Observación:** la prosa que resume una tabla es una copia, y una copia se desincroniza del
+original. Mismo patrón que la afirmación de «cinco entradas» sobre este fichero registrada
+el 2026-09-08: nadie comprueba una cifra que suena razonable hasta que la cuenta. Contar las
+filas de la tabla cuesta segundos; comparar por tres columnas de identidad en vez de cuatro
+habría cambiado en silencio qué cuenta como el mismo anuncio.
+
+---
+
+### 2026-09-14 — Una puerta de tests que habría quedado verde para siempre sin probar nada
+
+**Contexto:** paso 1.7, estrategia de tests con base de datos para `apps/ingestion`.
+
+**Categoría:** test que valida el comportamiento equivocado — en el límite, que no valida
+nada.
+
+**Qué ocurrió:** el movimiento obvio era copiar `packages/db/test/helpers/docker-gate.ts` a
+`apps/ingestion`, igual que se copia `db-client.ts`. No funciona:
+`apps/ingestion/test/setup-no-network.ts` no carga ningún `.env` **a propósito** —su propio
+comentario exige que las credenciales estén «ausentes del proceso de test»—, mientras que
+`packages/db/vitest.config.ts` sí carga el `.env` de la raíz. La puerta copiada encontraría
+`DATABASE_URL` ausente y saltaría el 100% de los tests de base de datos, informando verde,
+indefinidamente.
+
+**Cómo se detectó:** `sdd-design`, comparando las dos configuraciones de Vitest en vez de dar
+por portable un helper por el hecho de vivir en el mismo monorepo.
+
+**Cómo se resolvió:** un `vitest.db.config.ts` aparte, cuyo fichero de setup **lanza** si
+falta `DATABASE_URL` en lugar de saltar.
+
+**Observación:** saltar es correcto donde la precondición es opcional y se puede cumplir. En
+un paquete donde esa misma precondición está prohibida por diseño, el helper idéntico
+convierte la suite entera en un no-op verde. La diferencia entre saltar y lanzar no es de
+estilo: decide si la ausencia del entorno se ve. Es la misma familia de fallo que la tabla
+marcador del paso 1.2 y la aserción negativa del 1.5 — la prueba vacía, cuyo verde es
+indistinguible del legítimo.
+
+---
+
+### 2026-09-14 — Redondeo entre dominio y columna: el comparador habría insertado una versión nueva en cada barrido
+
+**Contexto:** paso 1.7, diseño del detector de cambios que decide si un anuncio genera una
+fila nueva en `listing_versions`.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** `packages/core/src/schemas/listing.schema.ts` tipa `surfaceM2`, `rooms` y
+`bathrooms` como `z.number().optional()`, sin restricción de entero; las columnas
+correspondientes son `integer` / `smallint`. Una superficie de `78.5` se escribe redondeada
+a `79` y se lee de vuelta como `79`. Un comparador que trabajara en el espacio del dominio
+vería `78.5 !== 79` y **insertaría una versión nueva en cada ejecución, para siempre** —
+exactamente la idempotencia que este paso existe para garantizar.
+
+**Cómo se detectó:** `sdd-design`, trazando el viaje de ida y vuelta de cada campo entre el
+tipo de dominio y su columna. No por un test: los tests que lo habrían ejercitado son los de
+las fases 2 a 4, bloqueadas por la falta de contenedor.
+
+**Coste:** ninguno en código. Se decidió comparar en el espacio de columnas antes de escribir
+el comparador (decisión 037).
+
+**Observación:** el defecto no está en el esquema ni en las columnas por separado; ambos son
+correctos. Está en la frontera entre los dos, que es donde no mira ninguna de las dos
+revisiones naturales. Regla que se extrae: cuando un valor cruza una frontera de tipos con
+pérdida, la comparación se hace del lado donde el valor ya perdió precisión, nunca del lado
+donde todavía la conserva. Y el modo de fallo es el peor posible para este paso: no rompe
+nada visible, solo hace crecer el histórico con versiones idénticas hasta que alguien mira.
+
+---
+
+### 2026-09-14 — `sdd-propose` afirmó «sin dependencias de runtime nuevas» y era falso
+
+**Contexto:** paso 1.7, fase `sdd-propose` del cambio `zone-sweep-persistence`; declaración
+de dependencias de `apps/ingestion/package.json`.
+
+**Categoría:** afirmación técnica no verificada.
+
+**Qué ocurrió:** la propuesta dio por hecho que persistir en `listings` no añade ninguna
+dependencia de runtime. Verificado contra el fichero: `apps/ingestion/package.json` declara
+solo `@buscahogar/core`, `@buscahogar/db` y `zod` — ni `drizzle-orm` ni `pg`. No hay
+`.npmrc`, así que se aplica el layout estricto de pnpm y una transitiva no es resoluble; y
+la API pública de `@buscahogar/db` nombra los tipos `Database` y `Pool`.
+
+**Cómo se detectó:** `sdd-design`, leyendo el `package.json` real en lugar de heredar la
+afirmación de la fase anterior.
+
+**Coste:** ninguno hasta ahora. El defecto es latente: nada bajo `apps/ingestion/src` importa
+todavía `@buscahogar/db`, así que la fase 1 —núcleo puro— no lo despierta.
+
+**Observación:** mismo patrón ya registrado el 2026-09-07, una afirmación de una fase
+anterior propagada sin releer la fuente primaria. «Este cambio no añade dependencias» es una
+afirmación sobre un fichero concreto y solo se puede hacer después de abrirlo; aquí costaba
+una lectura.
+
+---
+
 ### 2026-09-14 — `docs/ROADMAP.md:538` se contradecía con su propia línea 542
 
 **Contexto:** paso 1.6, especificación (`sdd-spec`) y luego corrección de housekeeping

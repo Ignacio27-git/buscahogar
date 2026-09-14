@@ -554,7 +554,7 @@ Artefactos del ciclo en Engram: `sdd/source-api-probe/{explore,proposal,spec,des
 
 ---
 
-## [ ] 1.6 · Adaptador y normalizador de la primera fuente
+## [x] 1.6 · Adaptador y normalizador de la primera fuente
 
 ```text
 Implementa en apps/ingestion el adaptador de Idealista contra la interfaz
@@ -646,7 +646,7 @@ falso de la API real nunca se invoca.
 
 ---
 
-## [ ] 1.7 · Persistencia y barrido de una zona
+## [x] 1.7 · Persistencia y barrido de una zona
 
 ```text
 Implementa el pipeline de ingesta hasta la tabla listings: barrido de una zona,
@@ -667,6 +667,118 @@ datos están completos y que una segunda ejecución no duplica.
 evaluación. No esperar al paso de deduplicación.
 
 **Notas:**
+
+Paso **iniciado** el 2026-09-14 con el ciclo SDD completo (explore → research → propose →
+spec + design en paralelo → tasks → apply), cambio `zone-sweep-persistence`. La
+planificación está terminada; la implementación se partió en cuatro fases y **solo la fase 1
+está ejecutada**. El paso no está completo: se queda en `[~]`.
+
+**Hecho — fase 1, núcleo puro sin I/O**, en `apps/ingestion/src/sweep/`: `store.ts`,
+`options.ts`, `area.ts`, `listing-field-policy.ts`, `version-columns.ts`, `job-cursor.ts`,
+`report.ts` y `sweep-runner.ts`, más siete ficheros de test en `apps/ingestion/test/`. 72
+tests nuevos, TDD estricto con RED antes de GREEN en todos ellos. Verificación independiente
+del orquestador: `pnpm --filter @buscahogar/ingestion test` → **198/198 en verde**, 22
+ficheros, código de salida 0. Cero llamadas de red y cero accesos a base de datos. **Nada
+commiteado**: los cambios están en el árbol de trabajo.
+
+**Pendiente — fases 2, 3 y 4 (33 tareas)**, bloqueadas por el entorno, no por el diseño:
+Docker Desktop no está arrancado en esta máquina, así que no hay contenedor PostgreSQL +
+PostGIS contra el que probar la escritura, el versionado ni la idempotencia, que es
+precisamente lo que esas tres fases verifican. Mismo tipo de bloqueo que ya partió el paso
+1.2 y la fase 3 del 1.3.
+
+**Actualización — fases 2, 3 y 4 completas**, una vez disponible el contenedor PostgreSQL +
+PostGIS, en sesiones posteriores encadenadas (batches 2 a 4 de `sdd-apply`):
+
+- **Fase 2** (dependencias declaradas, arnés de test respaldado por base de datos,
+  `coverage-store.ts`, `reference-store.ts`): completa. La sesión que la ejecutó se
+  interrumpió por el límite de tasa de una API externa antes de dejar su propio registro de
+  progreso; el estado final se verificó de forma independiente en la sesión siguiente —
+  ver tabla de desviaciones.
+- **Fase 3** (`listing-writer.ts`: upsert de identidad, detección de cambio en espacio de
+  columna, versionado con demote-antes-de-insertar): completa, con ciclo TDD de primera
+  mano — 11 escenarios contra PostgreSQL real, incluida la trampa de redondeo de superficie
+  fraccional (78.5→79, decisión 036) y la garantía de que el orden de escritura nunca
+  dispara el índice único parcial de cabeza de versión.
+- **Fase 4** (`scripts/sweep-zone.ts` como raíz de composición; extensión del seed de
+  `packages/db` con el código INE real de Granada —18087, suministrado y confirmado por el
+  responsable del proyecto, nunca fabricado, decisión 041; script `"sweep"`; barril de
+  `apps/ingestion/src/index.ts`; documentación): completa.
+
+Verificación final independiente: suite offline `pnpm --filter @buscahogar/ingestion test` →
+**198/198**; suite respaldada por PostgreSQL `run test:db` → **25/25** (más 14 tests nuevos
+del seed en `packages/db`, **29/29** en ese paquete); `typecheck`, `lint` y `build` en verde
+en ambos paquetes. Cero llamadas a la API real de Idealista en cualquier test — todas las
+suites usan fixtures grabadas o una base de datos real con fetch bloqueado.
+
+**Ejecución de aceptación: hecha, con 2 peticiones reales en total.** El criterio de revisión
+de este paso —lanzarlo sobre Granada con un tope bajo, comprobar que los datos están completos
+y que una segunda ejecución no duplica— se ejecutó con autorización expresa del responsable del
+proyecto, que fijó el tope mínimo.
+
+Comando usado. Nótese que en este entorno `pnpm run <script> -- <args>` **no** separa el `--`,
+así que hay que invocar el script directamente:
+
+```text
+cd apps/ingestion
+node --env-file=../../.env --import tsx scripts/sweep-zone.ts   --zone 18087 --center 37.1773,-3.5986 --radius 1000 --operation sale --max-requests 1
+```
+
+- **Comprobación previa de coste cero**: con `--radious` en lugar de `--radius`, el comando
+  responde `Unknown option '--radious'` y termina **antes de tocar la red**. La estrictura de
+  `parseArgs` y de Zod corta antes de gastar cuota.
+- **Primera ejecución**: `requestsSpent: 1`, `created: 50`, `versioned: 0`, `unchanged: 0`,
+  `rejected: 0`, cursor de reanudación `homes:2`.
+- **Segunda ejecución sobre la misma página**: `created: 0`, `versioned: 0`, **`unchanged: 50`**,
+  `rejected: 0`. Esta es la prueba de idempotencia que pedía el enunciado.
+- Para repetir la misma página hubo que **rebobinar el cursor a mano** (`update coverage_jobs
+  set cursor = null`), porque la CLI no expone bandera de reinicio: una segunda invocación sin
+  rebobinar reanuda en la página 2, lo que prueba reanudación, no idempotencia. Ver la tabla de
+  desviaciones.
+- **Estado en base de datos tras ambas ejecuciones**: 50 `listings`, 50 `listing_versions`,
+  **50 cabezas vigentes** (exactamente una por anuncio), 50 claves naturales distintas, 50 con
+  geometría y 50 con superficie. Precios entre 190.000 € y 1.495.000 €. La segunda pasada no
+  hizo crecer ninguna tabla.
+
+Nada de esta sesión está commiteado: los cambios quedan en el árbol de trabajo.
+
+**Decisiones de producto confirmadas** en esta sesión, que condicionan el resto del paso:
+
+- **P1.** Una zona resuelve a un área de búsqueda con `--center` y `--radius` explícitos;
+  `--zone` es solo la etiqueta de registro, sin geometría. Descartados el centroide sembrado
+  en `locations` desde CNIG/IGN (aplazado: la granularidad del cruce con el código INE no
+  está confirmada) y el `locationId` de Idealista. Decisión 036.
+- **P2.** Un «cambio» que justifica una fila nueva en `listing_versions` es una diferencia
+  campo a campo sobre el `Listing` normalizado, comparada **en el espacio de columnas**. Sin
+  migración de esquema. Decisión 037.
+- **P3.** Un elemento que el normalizador rechaza se salta, se anota con su motivo y se
+  cuenta; la página continúa. Nunca aborta la página, porque la petición HTTP ya está
+  pagada. Resuelve lo que el paso 1.6 dejó explícitamente fuera de alcance. Decisión 038.
+- **P4.** El barrido de CLI crea y actualiza una fila de `coverage_jobs`: ahí vive el cursor
+  de reanudación que el paso 1.6 dejó sin destino, y el índice único parcial de la tabla
+  hace de guarda de concurrencia.
+- **P5.** Los datos de referencia (`sources`, `locations`, `zones`) se siembran extendiendo
+  de forma idempotente el seed de `packages/db` con datos reales del INE. Esto rompe el
+  no-op deliberado de `packages/db/src/seed.ts` (REQ-MIG-03): ver la tabla de desviaciones.
+- **P6.** Que un anuncio no aparezca en un barrido **nunca** cambia `listings.status`. La
+  ausencia no es prueba de retirada cuando la cobertura es parcial por construcción (P1). En
+  este cambio `listings.status` no tiene ningún escritor. Decisión 039.
+
+**Decisiones de ingeniería del diseño.** Una transacción por página, con el avance de
+`coverage_jobs.cursor` **dentro** de ella, para que el cursor no pueda adelantarse a lo
+commiteado (decisión 040). Y `db-client.ts` se duplica en `apps/ingestion`, pero
+`docker-gate.ts` deliberadamente **no**: en su lugar, un `vitest.db.config.ts` aparte cuyo
+fichero de setup lanza si falta `DATABASE_URL`, porque copiar la puerta habría saltado el
+100% de los tests de base de datos en verde y para siempre. Detalle en `docs/AI-NOTES.md`.
+
+**Tres errores de fase de planificación corregidos antes de implementar** —una dependencia
+de runtime no declarada, un redondeo dominio↔columna que habría roto la propia idempotencia
+que este paso existe para garantizar, y la puerta de tests siempre verde—, más una deriva
+tareas↔diseño detectada al implementar. Los cuatro, en `docs/AI-NOTES.md`.
+
+Artefactos del ciclo en Engram: exploración obs #112, decisiones de producto obs #113
+(revisión 4), investigación obs #114 (`partial`), propuesta obs #115, diseño obs #116, spec
+obs #117, tareas obs #118 y progreso de `sdd-apply` obs #119.
 
 ---
 
@@ -952,3 +1064,9 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-10 | 1.4  | Reordenado: el paso se detiene en la puerta previa a la propuesta y se adelanta el 1.5 (sonda de la API). Quedan persistidas la exploración y la investigación, y confirmadas las decisiones de producto.                                | La investigación externa cerró en `partial`: la documentación oficial de la API de Idealista está tras solicitud de socio y no es legible, así que la unidad real de `distance`, el radio máximo, la cuota, el tope de resultados paginables y la magnitud de la ofuscación de coordenadas siguen sin confirmar. Ninguno de esos huecos bloquea la forma de los tipos, pero el usuario prefirió obtener evidencia de primera mano antes de fijar `AreaQuery` y `SourcePage`. Detalle en Engram `sdd/core-domain-contracts/research`. |
 | 2026-09-10 | 1.5  | Adelantado por delante del 1.4. Ejecutado con `maxItems=50` en vez del mínimo que pide el prompt, con dos llamadas presupuestadas en vez de una, y entregado en bloque único aceptando excepción de tamaño a ~1891 líneas frente a las ~1170 estimadas.                | El paso se contradice a sí mismo: pide «el mínimo de resultados posible», pero su criterio de revisión hace de las coordenadas el punto crítico, y la ofuscación no se detecta con un solo punto. La contradicción se disuelve al ver que la cuota se cobra por petición y no por resultado: pedir 50 cuesta igual que pedir 1. La segunda llamada usa otro `propertyType` para cruzar payloads y averiguar qué campos de `Listing` son realmente opcionales, que es lo que tiene parado el 1.4. El exceso de volumen viene de cubrir con tests cuatro módulos puros por separado; el usuario reconfirmó la excepción sobre la cifra real. |
 | 2026-09-14 | 1.6  | `errors.ts` (tarea 2.12 del checklist de `sdd-tasks`) se escribió completo desde el principio de la fase 2 del propio checklist, no tras la tarea 2.11. Entregado en bloque único con excepción de tamaño, sin encadenar las PRs A→B1→B2 que `sdd-tasks` había sugerido. | `cursor.ts` (2.4), `budget.ts` (2.6) y `sweep-planner.ts` (2.11) necesitan importar `IdealistaSweepError` y sus subclases antes de la tarea numerada 2.12: el checklist lista las tareas en el orden de especificación (para que la revisión pueda leerlas en el orden en que el diseño las justifica), no en el orden físico posible de creación de ficheros. Ningún test ni ninguna tarea se omitió, solo cambió el momento de creación de un fichero. Sobre el tamaño: la puerta de tareas registró `size:exception` explícito del usuario para esta sesión (`ask-on-risk` resuelto), documentado en Engram `sdd/idealista-adapter-normalizer/apply-progress`; no se reabre aquí como una desviación nueva, igual que el precedente del paso 1.4. |
+| 2026-09-14 | 1.7  | Partido en cuatro fases; solo la fase 1 (núcleo puro, sin I/O) ejecutada. El paso queda en `[~]` con 33 tareas pendientes y nada commiteado. | Docker Desktop no está arrancado en esta máquina, así que no hay contenedor PostgreSQL + PostGIS contra el que probar la escritura, el versionado y la idempotencia, que es lo que verifican las fases 2 a 4. La fase 1 no necesita contenedor y se entregó completa y en verde (198/198). `CLAUDE.md` exige registrar el trabajo ya hecho en lugar de esperar al cierre del paso; mismo precedente que la fase 3 del 1.3. |
+| 2026-09-14 | 1.7  | `packages/db/src/seed.ts` deja de ser el no-op deliberado que entregó el paso 1.3 y pasa a sembrar de forma idempotente `sources`, `locations` y `zones` con datos reales del INE (REQ-MIG-03). | El prompt del paso 1.3 pedía «un script de seed vacío» y así se entregó. El barrido del 1.7 necesita que esas tres tablas de referencia existan antes de escribir un solo `listing`, y sembrarlas a mano fuera del repositorio dejaría el paso irreproducible. Decisión de producto P5 de esta sesión. |
+| 2026-09-14 | 1.7  | Estimación de volumen superada otra vez: `sdd-tasks` previó ~2020 líneas para el paso completo, y solo la fase 1 sumó 1333 frente a las ~710-800 que esa misma fase tenía estimadas. | Segunda subestimación consecutiva de la fase de tareas: el paso 1.6 previó ~1300 líneas y entregó ~1952. El patrón se repite —cubrir con tests varios módulos puros por separado bajo TDD estricto se estima sistemáticamente por lo bajo—, así que la cifra de `sdd-tasks` se registra como dato del proceso, no como un presupuesto fiable. |
+| 2026-09-14 | 1.7  | La fase 2 (dependencias, arnés de base de datos, `coverage-store.ts`, `reference-store.ts`) quedó completa y en verde en el árbol de trabajo, pero no existe evidencia TDD por tarea (RED confirmado, recuento GREEN) para las tareas 2.1-2.14 individualmente. | El batch que ejecutó la fase 2 se interrumpió por el límite de tasa de una API externa antes de persistir su propio informe de progreso. El batch siguiente verificó el estado final de forma independiente —`typecheck` limpio, `test:db -- reference-store coverage-store` en verde (11/11)— y marca 2.1-2.14 como completas sobre esa base, pero es verificación de resultado, no un registro de primera mano del ciclo RED→GREEN. Se anota en vez de fabricar una traza paso a paso que esa sesión no presenció. Detalle en Engram `sdd/zone-sweep-persistence/apply-progress`. |
+| 2026-09-14 | 1.7  | El script `"test:db"` de `apps/ingestion/package.json` (tarea 4.6) se añadió antes de tiempo, durante el batch de la fase 3, no en la fase 4 a la que pertenece la tarea. | Bloqueo real, no ampliación de alcance: sin ese script no se podía ejecutar la verificación de la propia fase 3 (`listing-writer.ts`) ni re-verificar la fase 2. La tarea 4.6 de la fase 4 solo tuvo que añadir después el script `"sweep"` que le faltaba. |
+| 2026-09-14 | 1.7  | La ejecución de aceptación necesitó rebobinar a mano el cursor de `coverage_jobs` (`update coverage_jobs set cursor = null`) para volver a barrer la misma página. La CLI no expone ninguna bandera de reinicio, así que una segunda invocación idéntica reanuda en la página siguiente: eso prueba reanudación, no idempotencia. Sin el rebobinado, el criterio de revisión del paso —«una segunda ejecución no duplica»— no se puede comprobar con el comando tal cual. Queda como carencia conocida de la CLI: una bandera `--restart` explícita pertenece a un paso posterior, no se añade aquí de tapadillo. |

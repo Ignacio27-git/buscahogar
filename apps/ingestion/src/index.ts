@@ -15,6 +15,57 @@ import { fileURLToPath } from 'node:url';
 // se reexporta con `export *`, igual que packages/db/src/index.ts.
 export * from './sources/idealista/index.js';
 
+// Paso 1.7 — barrido de zona y persistencia de listings. Reexports
+// explícitos y nombrados, nunca `export *` (mismo estilo que el barril de
+// idealista, src/sources/idealista/index.ts): dos ficheros distintos
+// declaran un tipo `SweepOutcomeKind` con la misma forma
+// (sweep-runner.ts, report.ts) y `export *` los haría colisionar en
+// silencio, así que el de report.ts se reexporta con un alias.
+//
+// `db-env-guard.ts` queda deliberadamente fuera de este barril: es
+// infraestructura de apoyo a `test/db/setup-db-env.ts` (diseño D2), no
+// parte de la API de dominio del barrido — mismo criterio por el que
+// `test/setup-no-network.ts` tampoco se exporta.
+export { SweepOptionsError, parseSweepArgs } from './sweep/options.js';
+export type { SweepOptions } from './sweep/options.js';
+
+export { areaFingerprint, buildArea } from './sweep/area.js';
+
+export { LISTING_FIELD_POLICY, VERSION_COLUMN_FIELDS } from './sweep/listing-field-policy.js';
+export type { FieldPolicy, VersionColumns } from './sweep/listing-field-policy.js';
+
+export { equalVersionColumns, projectToVersionColumns } from './sweep/version-columns.js';
+
+export { decodeJobCursor, encodeJobCursor } from './sweep/job-cursor.js';
+
+export { buildReport } from './sweep/report.js';
+export type { SweepOutcomeKind as SweepReportOutcomeKind, SweepReport, SweepReportInput } from './sweep/report.js';
+
+export type {
+  ClaimedJob,
+  JobOutcome,
+  PersistPageInput,
+  PersistPageItem,
+  PersistPageOutcome,
+  SweepStore,
+} from './sweep/store.js';
+
+export { runSweep } from './sweep/sweep-runner.js';
+export type { SweepOutcomeKind, SweepRunResult, SweepRunnerOptions } from './sweep/sweep-runner.js';
+
+export { createListingWriter } from './sweep/listing-writer.js';
+export type { ListingWriter } from './sweep/listing-writer.js';
+
+export { createCoverageStore, JobAlreadyClaimedError } from './sweep/coverage-store.js';
+export type { CoverageStore } from './sweep/coverage-store.js';
+
+export {
+  resolveSourceUuid,
+  resolveZoneByIneCode,
+  UnknownSourceError,
+  UnknownZoneError,
+} from './sweep/reference-store.js';
+
 export const INGESTION_VERSION = '0.0.1';
 
 export function main(): void {

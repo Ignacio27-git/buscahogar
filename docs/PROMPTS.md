@@ -30,6 +30,77 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-14 — Persistencia y barrido de una zona (1.7), fase 1 de 4
+
+**Tipo de tarea:** persistencia + comando de CLI (núcleo puro de barrido, comparador de
+versiones, cursor de reanudación)
+**Forma de especificación:** ciclo SDD completo (`/gentle-sdd-new`: explore → research →
+propose → spec + design en paralelo → tasks → apply) bajo Strict TDD, sobre el prompt del
+ROADMAP 1.7 verbatim y la base del paso 1.6 (adaptador y normalizador de Idealista). Cambio
+`zone-sweep-persistence`
+**Resultado:** planificación utilizable sin cambios; implementación completa (fases 1-4) y en
+verde, con tres correcciones previas a escribir código más una deriva detectada al
+implementar. Pendiente, deliberadamente, solo la ejecución de aceptación contra la API real
+(gasta cuota facturable; queda para el responsable del proyecto)
+
+**Prompt:**
+
+> Implementa el pipeline de ingesta hasta la tabla listings: barrido de una zona,
+> normalización y escritura, respetando que listings no se sobrescribe sino que se
+> versiona.
+>
+> Añade un comando de CLI en apps/ingestion para lanzar el barrido de una zona
+> concreta, con la zona y el tope de peticiones como parámetros.
+>
+> El barrido debe ser idempotente: ejecutarlo dos veces sobre la misma zona no puede
+> duplicar registros ni generar versiones nuevas si nada ha cambiado.
+
+**Observación:** el prompt es de los mejores especificados del proyecto —tres requisitos, uno
+de ellos (la idempotencia) formulado como propiedad comprobable y no como tarea— y aun así
+la planificación tuvo que cerrar seis decisiones de producto que el prompt no podía contener,
+empezando por la más básica: **qué es «una zona»**. No hay geometría asociada a un municipio
+en este esquema, así que el barrido se especifica con `--center` y `--radius` explícitos y
+`--zone` queda como etiqueta de registro. Un prompt bien escrito no vuelve completa una
+especificación que depende de datos que el repositorio no tiene todavía (decisiones 036–040).
+
+El dato interesante de la sesión es **dónde se cazaron los fallos**. Tres errores murieron en
+fases de planificación, antes de escribir una línea, y los tres eran invisibles para
+cualquier puerta automática: una dependencia de runtime que la propuesta declaró inexistente
+y que el `package.json` real desmiente; un redondeo entre `z.number()` del dominio y las
+columnas `integer`/`smallint` que habría insertado una versión nueva en cada barrido —es
+decir, habría roto en silencio **justo el requisito que este paso existe para cumplir**—; y
+una puerta de tests de base de datos que, copiada del paquete vecino, habría saltado el 100%
+de los tests informando verde para siempre. El cuarto, una deriva entre la prosa de las
+tareas y la tabla del diseño (tres columnas de identidad frente a cuatro), salió al
+implementar. Los cuatro, en `AI-NOTES.md`. Contraste con el paso 1.6: allí `sdd-tasks` llegó
+a `apply` con los conflictos ya reconciliados; aquí fue `sdd-design` quien hizo el trabajo de
+verificación, releyendo ficheros reales en vez de heredar las afirmaciones de `sdd-propose`.
+
+Lo entregado es la fase 1 y solo la fase 1: ocho módulos puros en `apps/ingestion/src/sweep/`
+y siete ficheros de test, 72 tests nuevos, TDD estricto, `198/198` en verde verificado de
+forma independiente y sin una sola llamada de red ni acceso a base de datos. Las fases 2 a 4
+(33 tareas) están bloqueadas porque Docker Desktop no está arrancado en esta máquina — el
+tercer paso del proyecto que se parte por el mismo motivo, después del 1.2 y del 1.3. Vale la
+pena anotarlo como patrón y no como incidente: la parte del trabajo que se puede especificar
+y probar sin infraestructura es sistemáticamente mayor de lo que parece al empezar, y el
+límite reaparece siempre en el mismo sitio.
+
+**Cierre (mismo prompt, sesiones posteriores).** Con el contenedor ya disponible, las fases
+2 a 4 se completaron en tres sesiones encadenadas de `sdd-apply`. La segunda de ellas se
+interrumpió por el límite de tasa de una API externa antes de dejar su propio registro de
+progreso —el primer corte de este proyecto que no viene de Docker ni de una decisión de
+producto pendiente, sino de un límite de un proveedor externo—; la sesión siguiente verificó
+el estado resultante contra la base de datos real en vez de asumirlo. La fase 4 resolvió el
+único dato real que le faltaba al diseño —el código INE de Granada— pidiéndoselo al usuario
+en vez de recordarlo o inventarlo (decisión de producto P5: fabricar ese código estaba
+prohibido explícitamente). Verificación final: suite offline 198/198, suite contra
+PostgreSQL 25/25 más 14 tests nuevos del seed en `packages/db`, cero llamadas a la API real
+en cualquier test. Deliberadamente sin cerrar: la ejecución de aceptación contra la API real
+de Idealista, que gasta cuota facturable y queda para que la dispare el responsable del
+proyecto con un tope de peticiones bajo, no el agente.
+
+---
+
 ### 2026-09-14 — Adaptador de Idealista y normalizador de listados (1.6)
 
 **Tipo de tarea:** adaptador + dominio (esquemas Zod, normalizador puro, shell de I/O)
