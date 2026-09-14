@@ -535,8 +535,9 @@ de respuesta. Registrado en la decisión **027**.
 justamente lo que permite distinguir un campo opcional de uno ausente por casualidad.
 
 **Paginación.** `homes`: total 124 en 3 páginas. `premises`: total 358 en 8 páginas.
-`itemsPerPage=50` aceptado, `paginable=true`, `hiddenResults=null`. La paginación es por número
-de página, no por cursor opaco: el `cursor` de `SourcePage` será una envoltura de `numPage`.
+`itemsPerPage=50` aceptado, `paginable=true`, `hiddenResults` **ausente como clave** (no
+`null`; ver la corrección de contradicción interna más abajo). La paginación es por número de
+página, no por cursor opaco: el `cursor` de `SourcePage` será una envoltura de `numPage`.
 
 **Datos personales.** `contactInfo` **no aparece como clave** en la respuesta, tampoco en la
 cruda: esta API no lo devuelve en absoluto. Lo mismo con `hiddenResults`. La distinción no es
@@ -574,6 +575,74 @@ Requisitos:
 **Revisar.** Que el tope de peticiones existe y funciona. Que los tests pasan sin red.
 
 **Notas:**
+
+Paso **ejecutado** el 2026-09-14, tras el ciclo SDD completo (explore → research → propose →
+spec → design → tasks → apply), sobre la base dejada por el paso 1.5 (sonda de la API) y el
+1.4 (contratos y modelo de dominio en `core`). El checkbox se deja sin marcar hasta que
+`sdd-verify` confirme el resultado.
+
+**Lo que se implementó**, en `apps/ingestion/src/sources/idealista/`:
+
+- Núcleo puro, sin I/O: `filters.ts` (tupla congelada de los cinco filtros de barrido),
+  `raw-element.schema.ts` y `raw-envelope.schema.ts` (esquemas Zod `looseObject`,
+  `.optional()` salvo evidencia de fixture de `null`), `property-type-map.ts` (mapa
+  fuente→dominio, incluido el sintético `chalet→house`), `normalizer.ts`
+  (`IdealistaListingNormalizer`, total salvo `price` inválido), `cursor.ts` (codec
+  `"<filtro>:<numPage>"`, rechaza en vez de caer en un valor por defecto), `budget.ts`
+  (contador de `search`/`token` separados, tope duro configurable), `sweep-planner.ts`
+  (`planNext`, las cinco condiciones de terminación) y `errors.ts` (taxonomía uniforme,
+  todo fallo lanza).
+- Shell de I/O: `search-request.ts` (construcción de la petición), `scrub-credentials.ts`
+  (reimplementación deliberada, ver decisión 033), `ports.ts` (interfaces inyectadas),
+  `http-client.ts` (el único `fetch()` del adaptador) e `idealista-source.ts`
+  (`createIdealistaSource`, orquestación, `PropertySource<IdealistaElement>` +
+  `diagnostics()`).
+- Barrido y reexport: `index.ts` del adaptador y barril de `apps/ingestion/src/index.ts`.
+- Frontera de bucles: `eslint.config.mjs` extendido a los dos ficheros del adaptador que
+  pueden emitir una petición (`http-client.ts`, `idealista-source.ts`), verificado en
+  positivo y en negativo (bucle inyectado a propósito, confirmado el fallo, revertido).
+- Documentación: este mismo registro, `docs/DECISIONS.md` (entradas 032–035),
+  `docs/AI-NOTES.md` (contradicción `hiddenResults` corregida) y `docs/PROMPTS.md`.
+
+**Verificación real ejecutada** (no solo reportada): `pnpm --filter @buscahogar/ingestion
+test` (126 tests, 15 ficheros, verde), `lint`, `typecheck` y `build`, todos en verde. El
+criterio de revisión del paso — que el tope de peticiones existe y funciona — se prueba con
+un puerto falso que cuenta llamadas (`test/idealista-source-cap.test.ts`): con
+`maxSearchRequestsPerSweep: 3` y páginas que siempre declaran más por delante, el barrido se
+detiene EXACTAMENTE tras 3 peticiones y el error de tope lleva el cursor de reanudación
+exacto de la 4ª. Detalle completo, incluida la tabla RED→GREEN por tarea, en Engram
+`sdd/idealista-adapter-normalizer/apply-progress`.
+
+**Tres conflictos spec↔diseño, reconciliados en la propia tarea de `sdd-tasks` (obs #106) y
+no relitigados aquí**: (1) `totalPages` no fiable **lanza** `UntrustworthyEnvelopeError` con
+el cursor de la MISMA página, no avanza en silencio al siguiente filtro como decía el texto
+informal del spec — sigue el diseño y su propia razón anti-spin; registrado en decisión 032.
+(2) `normalize()` conserva su propio throw de `price` (contrato directamente testeado) aunque
+el diseño afirme que nunca lanza dentro del pipeline 1.6/1.7 — ambas cosas son ciertas en
+puntos distintos: `rawElementSchema` ya filtra `price` inválido antes de que 1.7 invoque
+`normalize()`, pero el tipo `IdealistaElement` no puede expresar esa garantía en compilación.
+(3) La frontera del ban de bucles de ESLint se extiende a los dos ficheros del adaptador que
+pueden emitir una petición: decidido "requerido", no opcional, con entrada propia en
+`DECISIONS.md` (035) — el diseño lo había dejado a discreción de `sdd-tasks`.
+
+**Deviación de ejecución dentro de la fase 2 del checklist de tareas**: `errors.ts` (tarea
+2.12 en el checklist original) se escribió completo desde el principio de la fase 2, no tras
+la tarea 2.11, porque `cursor.ts` (2.4), `budget.ts` (2.6) y `sweep-planner.ts` (2.11)
+necesitan importar sus clases antes de esa tarea — el checklist lista las tareas en orden de
+especificación, no en el orden físico de creación de ficheros posible. Ningún test ni ninguna
+tarea se omitió; solo cambió el momento de creación del fichero. Ver la tabla de
+desviaciones.
+
+**Lo que queda pendiente para el paso 1.7, deliberadamente**: la llamada real a
+`normalizer.normalize()` sobre los `items` de un barrido (y la decisión de si un elemento
+rechazado aborta la página o se salta, explícitamente fuera de alcance del spec de este
+paso); la persistencia en `listings`; el comando de CLI de barrido y su idempotencia; el
+catálogo de `Feature` (D8, `features` se emite como `[]`); y el cableado de credenciales
+reales en la raíz de composición (nunca dentro del adaptador, D5).
+
+**No se ha llamado a la API real de Idealista en ningún momento de esta tarea.** Todos los
+tests usan las dos fixtures commiteadas en el paso 1.5 o entradas sintéticas; el puerto
+falso de la API real nunca se invoca.
 
 ---
 
@@ -882,3 +951,4 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-09 | 1.3  | Partido en cuatro fases encadenadas (PR 1-4) y ejecutado fuera del orden de escritura del propio prompt: la documentación (fase 4) se completó antes de terminar el esquema espacial (fase 2) y de probar la migración (fase 3) | El volumen estimado (700-850 líneas) supera el presupuesto de revisión de 400 líneas y obligó a encadenar PRs; la fase 3 quedó bloqueada por la caída del motor Linux de Docker, inalcanzable en esta sesión, y `CLAUDE.md` exige registrar el trabajo ya hecho en lugar de esperar al cierre completo del paso.                                                                              |
 | 2026-09-10 | 1.4  | Reordenado: el paso se detiene en la puerta previa a la propuesta y se adelanta el 1.5 (sonda de la API). Quedan persistidas la exploración y la investigación, y confirmadas las decisiones de producto.                                | La investigación externa cerró en `partial`: la documentación oficial de la API de Idealista está tras solicitud de socio y no es legible, así que la unidad real de `distance`, el radio máximo, la cuota, el tope de resultados paginables y la magnitud de la ofuscación de coordenadas siguen sin confirmar. Ninguno de esos huecos bloquea la forma de los tipos, pero el usuario prefirió obtener evidencia de primera mano antes de fijar `AreaQuery` y `SourcePage`. Detalle en Engram `sdd/core-domain-contracts/research`. |
 | 2026-09-10 | 1.5  | Adelantado por delante del 1.4. Ejecutado con `maxItems=50` en vez del mínimo que pide el prompt, con dos llamadas presupuestadas en vez de una, y entregado en bloque único aceptando excepción de tamaño a ~1891 líneas frente a las ~1170 estimadas.                | El paso se contradice a sí mismo: pide «el mínimo de resultados posible», pero su criterio de revisión hace de las coordenadas el punto crítico, y la ofuscación no se detecta con un solo punto. La contradicción se disuelve al ver que la cuota se cobra por petición y no por resultado: pedir 50 cuesta igual que pedir 1. La segunda llamada usa otro `propertyType` para cruzar payloads y averiguar qué campos de `Listing` son realmente opcionales, que es lo que tiene parado el 1.4. El exceso de volumen viene de cubrir con tests cuatro módulos puros por separado; el usuario reconfirmó la excepción sobre la cifra real. |
+| 2026-09-14 | 1.6  | `errors.ts` (tarea 2.12 del checklist de `sdd-tasks`) se escribió completo desde el principio de la fase 2 del propio checklist, no tras la tarea 2.11. Entregado en bloque único con excepción de tamaño, sin encadenar las PRs A→B1→B2 que `sdd-tasks` había sugerido. | `cursor.ts` (2.4), `budget.ts` (2.6) y `sweep-planner.ts` (2.11) necesitan importar `IdealistaSweepError` y sus subclases antes de la tarea numerada 2.12: el checklist lista las tareas en el orden de especificación (para que la revisión pueda leerlas en el orden en que el diseño las justifica), no en el orden físico posible de creación de ficheros. Ningún test ni ninguna tarea se omitió, solo cambió el momento de creación de un fichero. Sobre el tamaño: la puerta de tareas registró `size:exception` explícito del usuario para esta sesión (`ask-on-risk` resuelto), documentado en Engram `sdd/idealista-adapter-normalizer/apply-progress`; no se reabre aquí como una desviación nueva, igual que el precedente del paso 1.4. |

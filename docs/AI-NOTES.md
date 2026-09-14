@@ -40,6 +40,41 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-14 — `docs/ROADMAP.md:538` se contradecía con su propia línea 542
+
+**Contexto:** paso 1.6, especificación (`sdd-spec`) y luego corrección de housekeeping
+durante `sdd-apply`, en la sección de resultado de la sonda del paso 1.5 dentro de
+`docs/ROADMAP.md`.
+
+**Categoría:** deriva de la arquitectura entre sesiones — no un fallo del agente actual
+sobre código nuevo, sino una afirmación incorrecta dejada por el cierre del paso 1.5 que
+ninguna verificación posterior había comparado contra su propia línea vecina.
+
+**Qué ocurrió:** la línea 538 afirmaba `hiddenResults=null` en el resumen de paginación de
+la sonda. Dos líneas más abajo (línea 542), el mismo documento dice lo contrario:
+"`hiddenResults` no aparece como clave en la respuesta, tampoco en la cruda: esta API no lo
+devuelve en absoluto". Ambas afirmaciones no pueden ser ciertas a la vez — una clave no
+puede estar ausente y valer `null` simultáneamente. Verificado contra las dos fixtures
+commiteadas del paso 1.5 (100 elementos, dos envelopes): cero apariciones literales de
+`"hiddenResults"` en ninguna de las dos, confirmando que :542 era la afirmación correcta y
+:538 la incorrecta.
+
+**Cómo se detectó:** lectura completa de la sección de la sonda durante `sdd-spec`, exigida
+por la tarea de housekeeping del spec de este paso (`docs/ROADMAP.md:538` MUST corregirse,
+consistente con :542 y con las fixtures). No fue un fallo de compilación ni de test — solo
+apareció al leer las dos frases seguidas y compararlas contra los ficheros reales.
+
+**Coste:** ~5 minutos (una búsqueda de texto sobre las fixtures y una edición de una línea).
+
+**Observación:** esta es exactamente la distinción que le importa al normalizador del paso
+1.6 (`.optional()` para clave ausente, `.nullable()` para valor `null` presente) — un
+resumen redactado a mano que confunde ambos casos es peligroso precisamente porque el código
+que lo hereda sí distingue entre ellos. La verificación que lo encontró fue leer el
+documento entero de una sección, no solo la línea que el prompt señalaba, y contrastarlo
+contra las fixtures en vez de contra la propia prosa del documento.
+
+---
+
 ### 2026-09-10 — Una aserción de tipo que probaba el tipo indexado equivocado
 
 **Contexto:** paso 1.4, `packages/core/test/type-assertions.test.ts`, la aserción de que

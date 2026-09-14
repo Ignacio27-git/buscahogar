@@ -10,6 +10,11 @@
 
 import { fileURLToPath } from 'node:url';
 
+// Paso 1.6 — adaptador de la primera fuente (Idealista) y su normalizador.
+// Barril interno al workspace (no un paquete consumido por otros), así que
+// se reexporta con `export *`, igual que packages/db/src/index.ts.
+export * from './sources/idealista/index.js';
+
 export const INGESTION_VERSION = '0.0.1';
 
 export function main(): void {

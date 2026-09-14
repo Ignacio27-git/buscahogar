@@ -30,6 +30,45 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-14 — Adaptador de Idealista y normalizador de listados (1.6)
+
+**Tipo de tarea:** adaptador + dominio (esquemas Zod, normalizador puro, shell de I/O)
+**Forma de especificación:** ciclo SDD completo (explore → research → propose → spec →
+design → tasks → apply) bajo Strict TDD, retomado sobre los contratos del paso 1.4
+(`sdd/core-domain-contracts`) y las fixtures reales grabadas por la sonda del paso 1.5
+(`sdd/source-api-probe`)
+**Resultado:** utilizable con retoques
+
+**Prompt:**
+
+> Implementa en apps/ingestion el adaptador de Idealista contra la interfaz PropertySource
+> de packages/core, y su ListingNormalizer. Requisitos: la paginación debe tener corte
+> explícito y un tope máximo de peticiones por barrido, configurable — un bucle sin corte
+> agota la cuota del mes; SourcePage devuelve el cursor siguiente para poder reanudar un
+> barrido interrumpido sin repetir peticiones; el normalizador es una función pura sobre la
+> respuesta cruda, sin red ni base de datos; los tests del normalizador corren contra el
+> fixture grabado en el paso anterior y nunca llaman a la API real.
+
+**Observación:** el propio checklist de tareas (`sdd-tasks`) llegó a `sdd-apply` con tres
+conflictos spec↔diseño ya reconciliados y con la autoridad de cada resolución explicada —
+diferencia notable frente a los pasos 1.4/1.5, donde la reconciliación de ambigüedades ocurrió
+durante la propia implementación. El más interesante de los tres (Reconciliación #2:
+`normalize()` ¿lanza o nunca lanza?) resultó ser un falso conflicto una vez trazado el flujo
+de datos completo: ambas afirmaciones son ciertas en puntos distintos del pipeline —
+`rawElementSchema` ya filtra `price` inválido antes de que el paso 1.7 invoque `normalize()`,
+pero el TIPO `IdealistaElement` no puede expresar esa garantía de runtime en compilación, así
+que `normalize()` conserva su propio throw como contrato directamente testeado. El único
+retoque real de esta sesión fue de proceso, no de diseño: el checklist listaba `errors.ts`
+como tarea 2.12 (tras el planificador de barrido), pero `cursor.ts`, `budget.ts` y
+`sweep-planner.ts` necesitan sus clases de error antes — se escribió el fichero completo al
+principio de la fase 2 y se registró la desviación de orden de ejecución en `ROADMAP.md`, sin
+que ningún test ni ninguna tarea se omitiera. El criterio de revisión del paso (que el tope de
+peticiones existe y funciona, sin red) se probó con un puerto falso que cuenta llamadas y una
+función `driveSweep` con la forma exacta que usará el llamador del paso 1.7 — la especificación
+ejecutable dobla como test.
+
+---
+
 ### 2026-09-10 — Contratos y modelo de dominio en `core` (1.4)
 
 **Tipo de tarea:** dominio (tipos, interfaces, esquemas Zod)

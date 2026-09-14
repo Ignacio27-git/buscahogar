@@ -833,6 +833,151 @@ tipos de fila de `packages/db` debe usar el sufijo `Row`.
 
 ---
 
+## 032 — Cursor de barrido: codifica filtro + página sobre una tupla congelada, valida por nombre, rechaza en vez de defaultear
+
+**Estado:** aceptada
+
+**Decisión.** El cursor de `IdealistaSource.fetchArea` es la cadena `"<filtro>:<numPage>"`,
+donde `<filtro>` es uno de la tupla congelada `IDEALISTA_FILTERS = [homes, offices,
+premises, garages, bedrooms]` (orden significativo: la posición de un filtro implica que
+todos los anteriores ya están agotados) y `<numPage>` un entero positivo. Se valida por
+**nombre**, nunca por índice. Un cursor malformado — filtro desconocido, página no entera o
+no positiva, separador ausente — **rechaza** con `InvalidCursorError`; nunca cae en un valor
+por defecto como `homes:1`.
+
+Segunda parte de la misma decisión, resuelta durante `sdd-tasks` (obs #106) sobre un punto
+que el spec y el diseño de este cambio dejaban en dos sitios distintos: cuando el envelope
+de una página no es fiable (`totalPages` ausente, no entero, o mayor que
+`MAX_TRUSTED_TOTAL_PAGES`), el adaptador **lanza** `UntrustworthyEnvelopeError` con
+`resumeCursor` igual a la MISMA página — nunca avanza en silencio al siguiente filtro.
+
+**Alternativa descartada.** Validar el cursor por índice numérico sobre la tupla (`"0:1"`
+en vez de `"homes:1"`); defaultear un cursor malformado a `homes:1` en vez de rechazarlo; y,
+para el envelope no fiable, avanzar en silencio al siguiente filtro tratándolo como agotado
+(la lectura literal del texto de escenario del spec de este cambio).
+
+**Motivo.** Por nombre, no por índice: si la tupla de filtros se reordena alguna vez, un
+cursor por índice apuntaría en silencio a OTRO filtro sin que nada lo detecte; un nombre
+desconocido rechaza con un error explícito. Rechazar en vez de defaultear: un cursor
+malformado que cayera en `homes:1` volvería a pedir peticiones que el barrido ya pagó —
+exactamente el tipo de gasto silencioso que la cuota mensual limitada no permite. Sobre el
+envelope no fiable: el diseño de este cambio (D5, taxonomía de errores) y su propio flujo de
+datos son internamente consistentes en que lanza, con el mismo razonamiento anti-spin que
+ya regía la decisión 018 (nunca una página vacía con el mismo cursor, porque reintroduciría
+el problema que el tope de peticiones existe para evitar); el texto del escenario del spec
+("no repite la misma página indefinidamente") es el resto informal de una redacción
+anterior al diseño, y queda superseded por esta decisión. Documentado también en
+`sdd/idealista-adapter-normalizer/tasks` (obs #106), Reconciliación #1.
+
+---
+
+## 033 — Presupuesto de peticiones por barrido: contador propio de la instancia, token contado aparte y con tope duro de 1
+
+**Estado:** aceptada
+
+**Decisión.** `createIdealistaSource` recibe `maxSearchRequestsPerSweep` (por defecto 10),
+un contador de peticiones de búsqueda propio de la instancia que persiste entre llamadas a
+`fetchArea`. Superarlo lanza `SweepBudgetExhaustedError` con el cursor de reanudación exacto
+— nunca una página vacía. El token OAuth se cuenta en el MISMO objeto de presupuesto pero
+con su propio contador, tope duro de 1 independiente de `maxSearchRequestsPerSweep`, se
+adquiere una única vez por instancia y se cachea en memoria (nunca en disco, nunca
+reintentado) durante toda la vida del barrido. Los dos contadores se informan siempre por
+separado y **nunca se suman**.
+
+**Alternativa descartada.** Un contador global compartido entre `search` y `token` (una
+única cifra "peticiones de esta ejecución"); un `TokenQuotaPolicy: 'billable' |
+'not-billable'` explícito que declarase si el token consume cuota de búsqueda; refrescar o
+reintentar el token dentro del propio barrido si expira a mitad de camino.
+
+**Motivo.** `10` es una cota de contención de blast-radius razonable para el desarrollo, no
+un número derivado de la cifra anecdótica de "100 peticiones al mes" que ningún documento
+oficial confirma (la investigación de este cambio no encontró ninguna cifra documentada,
+igual que ya constataba la decisión sobre la sonda del paso 1.5). Los contadores nunca se
+suman por el mismo motivo que `probe/ledger.ts` (paso 1.5, verificado en
+`probe-ledger.test.ts:57`) no lo hacía: no está documentado si la petición de token consume
+cuota de búsqueda, así que una cifra agregada afirmaría un hecho que no se conoce. Un flag
+`TokenQuotaPolicy` se descartó porque enviaría hoy una rama sin alcanzar nunca en producción
+y sin ningún test que la ejercite — un revisor leería sus dos miembros como un hecho
+establecido cuando R3 (proposal) dice explícitamente que no se sabe. Reintentar el token
+dentro del barrido implicaría una segunda petición de token no planeada, contra la premisa
+de que cada `fetchArea` emite como mucho una petición de búsqueda — un 401 a mitad de
+barrido termina el barrido; el llamador reanuda con una instancia nueva y un token nuevo.
+
+**Consecuencia.** Si en el futuro se confirma que el token sí consume cuota de búsqueda, el
+cambio queda confinado al cuerpo de `createSweepBudget().spend` y a su propio test — ningún
+punto de llamada, puerto, fuente ni cursor cambia, porque los dos contadores ya viven detrás
+de una única función de entrada.
+
+---
+
+## 034 — Esquemas crudos de Idealista: `looseObject`, ausencia tipada `.optional()`; corrección de `docs/ROADMAP.md:538`
+
+**Estado:** aceptada
+
+**Decisión.** `rawElementSchema` y `rawEnvelopeSchema` (`apps/ingestion/src/sources/idealista/`)
+usan `z.looseObject`, nunca `z.strictObject` ni el `.strip()` implícito por defecto. Un
+campo se tipa `.optional()` cuando la evidencia de fixture muestra la CLAVE ausente;
+`.nullable()` solo se reserva para un campo donde una fixture commiteada muestre un `null`
+JSON literal, citado por línea — verificación de este cambio: cero apariciones de `null`
+JSON en los 100 elementos y los dos envelopes de las dos fixtures del paso 1.5. Ningún campo
+del esquema usa `.nullable()`.
+
+Consecuencia directa: se corrige `docs/ROADMAP.md:538`, que afirmaba `hiddenResults=null`
+—contradiciendo su propia línea 542, que ya decía correctamente que la clave está ausente—.
+Ver `docs/AI-NOTES.md`, entrada 2026-09-14.
+
+**Alternativa descartada.** `z.strictObject` (rechazaría una página ya pagada por una clave
+nueva del vendor) o el `.strip()` por defecto de Zod (descartaría en silencio bytes que el
+paso 1.7 querrá persistir sin modelar); `.nullish()` en vez de `.optional()` para todo campo
+opcional, que oculta cuál de las dos formas produce realmente la API y habría hecho
+infalsificable en código la propia contradicción de `docs/ROADMAP.md:538`.
+
+**Motivo.** La pregunta decisiva no es estricto-vs-laxo en abstracto, sino qué lado del
+fallo cuesta dinero: aceptar en silencio una clave nueva no cuesta nada (es asunto del
+vendor); rechazar una página ya pagada por una clave nueva SÍ cuesta, porque no se puede
+volver a pedir gratis. `looseObject` además preserva los bytes no modelados, que el paso 1.7
+necesita persistir tal cual. Mismo precedente ya usado en `TokenResponseSchema`
+(`scripts/probe-idealista.ts:63`, solo lectura). La regla `.optional()`-por-defecto /
+`.nullable()`-solo-con-cita hace que la distinción sea verificable en el propio código, no
+solo en prosa — que es exactamente lo que expuso la contradicción de la línea 538.
+
+---
+
+## 035 — El ban de bucles de ESLint sigue la superficie que emite peticiones, no el paquete completo
+
+**Estado:** aceptada
+
+**Decisión.** `apps/ingestion/eslint.config.mjs` extiende el bloque `no-restricted-syntax`
+introducido en el paso 1.5 (antes solo `scripts/probe-idealista.ts`) a dos ficheros más:
+`src/sources/idealista/http-client.ts` e `src/sources/idealista/idealista-source.ts` — los
+dos únicos ficheros del adaptador de Idealista que pueden emitir una petición HTTP. El resto
+del adaptador (`sweep-planner.ts`, `normalizer.ts`, `property-type-map.ts`, etc.) queda
+fuera del bloque a propósito: son módulos puros que sí necesitan iterar arrays.
+
+**Alternativa descartada.** Dejar el glob sin cambios (el ban se detendría en el fichero más
+antiguo del paquete mientras el código nuevo que sí toca la red queda sin esa guarda);
+extender el ban a todo `src/sources/idealista/**` (incorrecto: el planificador debe recorrer
+la tupla de cinco filtros y el normalizador debe construir arrays de salida; ambos son puros
+y no pueden emitir ninguna petición).
+
+**Motivo.** El principio ya estaba escrito para la sonda del paso 1.5
+(`scripts/probe/options.ts:117-119`: "el ban de bucles de ESLint solo alcanza al fichero que
+toca la red") — este cambio lo aplica de nuevo, no introduce uno nuevo. El diseño de este
+cambio dejó esta entrada marcada como opcional por precedente (el paso 1.5 introdujo el ban
+sin una entrada dedicada en este fichero) y delegó la decisión final a `sdd-tasks` (obs
+#106): se decidió **requerida**, no opcional, porque extender una regla a través de una
+frontera de paquete es, si acaso, más notable que introducirla por primera vez, y
+`CLAUDE.md` exige registrar aquí toda decisión de arquitectura no especificada de antemano.
+Verificado en positivo y en negativo durante `sdd-apply`: un bucle `for` inyectado a
+propósito en `idealista-source.ts` hace fallar `pnpm lint` con el mensaje actualizado;
+revertido, `pnpm lint` vuelve a salir en verde sobre el código real entregado.
+
+**Consecuencia.** Como en el paso 1.5, esta regla AST no cubre recursión ni
+`.map`/`.forEach`/`.reduce` sobre una llamada de red — de eso sigue encargándose el tope
+duro del presupuesto (`budget.ts`, decisión 033), no el linter.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
