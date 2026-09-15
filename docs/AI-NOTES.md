@@ -40,6 +40,142 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-15 — Una aserción de plan que no podía fallar nunca, presentada como prueba en tres artefactos
+
+**Contexto:** paso 1.8, `CHK-GIST-SELFJOIN`. La detectó la fase `sdd-verify`, y la había dado
+por buena antes tanto `sdd-apply` como el propio orquestador al revisar el fichero.
+
+**Categoría:** código que compila, pasa y verifica exactamente nada.
+
+**Qué ocurrió:** `packages/db/test/blocking/blocking-plan.test.ts` afirmaba
+`expect(planText).not.toContain('Seq Scan on listings')` sobre el resultado de
+`EXPLAIN (ANALYZE, FORMAT JSON)` serializado con `JSON.stringify`. Esa cadena literal **no
+existe en el formato JSON**: ahí el tipo de nodo y la relación son claves separadas
+(`"Node Type": "Seq Scan"`, `"Relation Name": "listings"`, `"Alias": "a"`). El fraseo
+`Seq Scan on listings` solo aparece en el `EXPLAIN` de formato TEXT. La aserción pasaba
+siempre, incluso con el plan que `FB-GIST-NOT-CHOSEN` existe precisamente para impedir.
+
+**Cómo se detectó:** `sdd-verify` no se conformó con ver el test en verde: forzó un recorrido
+secuencial real sobre `listings` contra el contenedor y comprobó que la subcadena seguía sin
+aparecer. Confirmado después de forma independiente por el orquestador —
+`explain (analyze, format json) select count(*) from listings` con `enable_indexscan=off`
+devuelve 0 ocurrencias del literal.
+
+**Coste:** aproximado, 40 minutos entre detección, confirmación independiente, reescritura de
+la aserción y prueba de que la nueva sí falla.
+
+**Observación:** es el fallo más caro de este paso, y no por el tiempo. La aserción se citó
+como prueba de una propiedad de seguridad en tres artefactos distintos (spec, tareas y
+`apply-progress`), y el orquestador llegó a informar al responsable de que «la aserción de plan
+es real». Un test que no puede fallar es peor que no tener test: ocupa el hueco de la prueba y
+apaga la sospecha. La corrección recorre el árbol del plan y compara campos en vez de buscar
+subcadenas, y se acotó a lo que de verdad importa: el lado interno `b` entra por
+`listings_location_geography_idx` y nunca se recorre secuencialmente. `a` sí se recorre una
+vez, por ser la relación conductora del autojoin, así que la aserción original —además de
+vacía— habría sido falsa de haber funcionado. La nueva se validó poniéndola en rojo a propósito
+con `enable_indexscan=off` antes de darla por buena.
+
+### 2026-09-15 — Comentario falso en `listing-writer.ts`: afirmaba que las coordenadas están ausentes de todo lo que emite el adaptador de Idealista
+
+**Contexto:** el comentario se escribió en el paso 1.7 (persistencia y barrido), fase
+`sdd-apply`; se detectó y corrigió en el paso 1.8, durante la verificación de R1 (obs #127) y
+la tarea DOC-1.
+
+**Categoría:** código correcto en apariencia pero incorrecto — en este caso, un comentario, no
+código ejecutable, pero en la dirección peligrosa: afirma justo lo contrario de lo que hace el
+código de al lado.
+
+**Qué ocurrió:** `apps/ingestion/src/sweep/listing-writer.ts:80-82` afirmaba, sobre el spread
+condicional que escribe `listings.location`: *"Ausente en todo lo que emite este adaptador
+(1.6 D9) — se escribe solo cuando llega, nunca se inventa."* Es falso:
+`apps/ingestion/src/sources/idealista/normalizer.ts:36-39` emite `coordinates` siempre que la
+fuente aporta `latitude`/`longitude`, y la propia API de búsqueda de Idealista los devuelve en
+la práctica — el corpus real verificado en el paso 1.8 (obs #127) tenía 50/50 filas con
+`location` poblada.
+
+**Cómo se detectó:** al verificar R1 (la caveat de coordenadas ofuscadas/ausentes) del paso
+1.8 contra la base de datos real, antes de dar la spec por cerrada — no por revisión del
+código en sí, sino por contrastar la afirmación del comentario con el dato medido.
+
+**Coste:** aproximado, 10 minutos (una línea de comentario corregida, tarea 4.1 del paso 1.8).
+
+**Observación:** el comentario no cambiaba ningún comportamiento — el spread condicional de
+las líneas 83-85 era y sigue siendo correcto —, pero un comentario que afirma lo contrario de
+lo que el código hace es peor que no tener comentario: induce a un lector futuro (humano o
+agente) a "corregir" código correcto basándose en una premisa falsa. Corregido para decir que
+las coordenadas se escriben siempre que el normalizador las emite, y que el spread condicional
+existe para una fuente que no las aporte, no porque este adaptador las omita sistemáticamente.
+
+### 2026-09-15 — `.offset(0)` como barrera de optimización: código que compilaba y parecía correcto, pero no hacía nada
+
+**Contexto:** paso 1.8, fase `sdd-apply` (batch 2), `packages/db/src/blocking.ts`
+(`pairCandidatesSubquery`).
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** para forzar a PostgreSQL a evaluar la subconsulta `LATERAL` del bloqueo de
+candidatos como un bucle anidado real (en vez de "aplanarla" de vuelta al árbol de uniones
+del padre y reordenar libremente), se añadió `.offset(0)` como la barrera de optimización
+clásica de Postgres — un modismo bien conocido que no cambia el resultado (ningún registro se
+descarta con offset cero) pero impide el "pull-up" de la subconsulta. El código compilaba,
+tenía el comentario correcto explicando la intención, y `EXPLAIN (ANALYZE, FORMAT JSON)`
+seguía devolviendo el plan malo — exactamente el mismo plan, byte a byte, que sin `.offset(0)`
+en absoluto.
+
+**Cómo se detectó:** al no ver ningún cambio en el plan tras dos restructuraciones distintas,
+se dumpeó `query.toSQL().sql` con un `console.log` temporal dentro del propio test (revertido
+después de la comprobación) para inspeccionar el SQL real enviado a Postgres. No aparecía
+ningún "offset" en el texto. Se confirmó leyendo el código fuente de Drizzle 0.45.2
+(`node_modules/.../drizzle-orm/pg-core/dialect.js:287`): `const offsetSql = offset ? sql\`
+offset ${offset}\` : void 0;` — `0` es falso en JavaScript, así que la cláusula `OFFSET` nunca
+se renderiza cuando el valor es literalmente cero.
+
+**Coste:** aproximado, 20-25 minutos (dos iteraciones de restructuración de consulta más la
+inspección de `toSQL()` y del código fuente de Drizzle).
+
+**Observación:** el idioma "`OFFSET 0` como barrera de optimización" es correcto para
+PostgreSQL en general, pero no es universalmente cierto a través de un ORM: cada capa que
+genera SQL puede tener su propia comprobación de "valor por defecto" que descarta
+silenciosamente un `0` legítimo. La lección generalizable: cuando una técnica de SQL conocida
+no produce el efecto esperado, inspeccionar el SQL *realmente enviado* (`toSQL()`, un log, o
+el propio `EXPLAIN`) antes de asumir que el motor de base de datos se comporta distinto a lo
+documentado — el defecto estaba en la capa intermedia, no en Postgres. Corregido usando
+`.limit(Number.MAX_SAFE_INTEGER)` en su lugar, que no tiene esa comprobación de falsedad.
+Registrado también como decisión 043 en `docs/DECISIONS.md`.
+
+### 2026-09-15 — La suite de tests de `packages/db` truncó el corpus real de Idealista del paso 1.7
+
+**Contexto:** paso 1.8, fase `sdd-apply` (batch 1-2), `packages/db/test/blocking/
+blocking-plan.test.ts` (bulk-insert de ~2000 filas sintéticas para las pruebas de plan de
+consulta bajo volumen).
+
+**Categoría:** pérdida de contexto/estado entre sesiones — un efecto secundario destructivo
+de un mecanismo de test preexistente, no introducido por esta tarea.
+
+**Qué ocurrió:** ejecutar `pnpm --filter @buscahogar/db run test:blocking` (y también el
+`test` por defecto del paquete) truncó `listings`, `listing_versions` y el resto de tablas de
+`DATABASE_URL` antes de cada suite (`truncateAll`, `packages/db/test/helpers/
+db-client.ts:34-36`). En este entorno `DATABASE_URL` apunta a la misma base de datos que
+contenía los 50 anuncios reales de Idealista ingeridos en la ejecución de aceptación del paso
+1.7 (obs #122 en Engram). Quedaron sustituidos por un corpus sintético de 2000 filas
+(`external_id` `bulk-N`, `url` `https://example.test/bulk/N`) y `coverage_jobs` quedó vacío.
+
+**Cómo se detectó:** al retomar la tarea en un batch posterior y consultar directamente la
+base de datos para verificar el estado real del corpus antes de confiar en un checkpoint
+previo (instrucción explícita del batch 2: "verify the tree, do not trust it").
+
+**Coste:** irrecuperable sin gasto de cuota — restaurar el corpus real cuesta
+aproximadamente 2 peticiones facturables de la API de Idealista (un barrido nuevo de
+Granada), la misma cuota que costó obtenerlo la primera vez. No se ha vuelto a ingerir: es
+una decisión del responsable del proyecto, no automática.
+
+**Observación:** el mecanismo no es nuevo de este paso — `packages/db/test/integration/
+coverage.test.ts` y `dedup-recompute.test.ts` ya truncaban del mismo modo antes de 1.8 — pero
+nadie lo había señalado como destructivo hasta que un dato con coste real de cuota se perdió
+por ejecutarlo. Registrado como decisión 046 en `docs/DECISIONS.md` (problema pendiente, sin
+solución aplicada en este cambio: requiere una base de datos de test separada o un guardián
+que rechace truncar una base de datos que no sea la designada).
+
 ### 2026-09-14 — PERSIST-3 (spec) contra el paso 2 de D5 (diseño): qué columnas de `listings` puede tocar una re-visión
 
 **Contexto:** paso 1.7, fase `sdd-apply` (batch 3), implementación de `listing-writer.ts`.

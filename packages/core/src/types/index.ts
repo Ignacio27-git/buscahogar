@@ -7,3 +7,4 @@ export * from './location.js';
 export * from './feature.js';
 export * from './similarity.js';
 export * from './source-page.js';
+export * from './candidate-pair.js';

@@ -17,7 +17,8 @@
     "probe:homes": "node --env-file=../../.env --import tsx scripts/probe-idealista.ts --profile homes",
     "probe:premises": "node --env-file=../../.env --import tsx scripts/probe-idealista.ts --profile premises",
     "probe:analyse": "node --import tsx scripts/probe-idealista.ts --analyse",
-    "sweep": "node --env-file=../../.env --import tsx scripts/sweep-zone.ts"
+    "sweep": "node --env-file=../../.env --import tsx scripts/sweep-zone.ts",
+    "calibrate": "node --env-file=../../.env --import tsx scripts/calibrate-blocking.ts"
   },
   "dependencies": {
     "@buscahogar/core": "workspace:*",

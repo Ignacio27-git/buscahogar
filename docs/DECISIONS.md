@@ -440,9 +440,11 @@ directamente sobre lo que se consulta.
 **Consecuencia.** Si el motor rechaza la expresión generada por no considerarla inmutable,
 el mecanismo de reserva documentado en el diseño sustituye la columna generada por un
 índice de expresión (`CREATE INDEX ... USING gist ((location::geography))`) y cambia
-únicamente el cuerpo de `withinMeters`; ningún punto de llamada cambia. Esta comprobación
-(`CHK-GEOG-STORED`) pertenece a la fase 3 del paso 1.3, bloqueada por la caída del motor
-Linux de Docker, y sigue sin ejecutarse.
+únicamente el cuerpo de `withinMeters`; ningún punto de llamada cambia. `CHK-GEOG-STORED`
+quedó ejecutada implícitamente contra PostgreSQL real a partir del paso 1.7 (barrido y
+escritura reales) y de nuevo en el paso 1.8 (bloqueo de candidatos, `listings_location_
+geography_idx` usado en los planes reales de `CHK-GIST-SELFJOIN`): la columna generada fue
+aceptada por el motor, `FB-GEOG-EXPR` nunca se necesitó.
 
 ---
 
@@ -1129,6 +1131,153 @@ deliberado, no un efecto secundario a evitar.
 
 ---
 
+## 042 — Autojoin de bloqueo de candidatos: subconsulta LATERAL correlacionada con `.limit()` como barrera de optimización, no un self-join plano
+
+**Estado:** aceptada
+
+**Decisión.** `findCandidatePairs`/`countCandidatePairs` (`packages/db/src/blocking.ts`)
+comparten un único predicado (`pairCandidatesSubquery`): una subconsulta `LATERAL`
+correlacionada con la fila externa (`a`/`va`), con `a.id < b.id` como condición de
+emparejamiento y un `.limit(Number.MAX_SAFE_INTEGER)` interno como barrera de optimización.
+
+**Alternativa descartada.** Un self-join plano de dos pares `alias()` (`a`/`va`, `b`/`vb`)
+con `lt(a.id, b.id)` como condición del `JOIN` y el predicado geográfico en el `WHERE` o en
+el propio `ON` del `JOIN`.
+
+**Motivo.** Medido contra PostgreSQL real, dos veces: ni el `WHERE` ni el `ON` del `JOIN`
+influyen en el plan, porque para `INNER JOIN` el planificador reordena libremente el árbol de
+uniones sin mirar dónde se escribió cada condición. Con una banda de precio ancha, subestima
+la selectividad de un rango de precio parametrizado en un bucle anidado y prefiere unir
+`va`/`vb` por el índice de precio antes que aplicar la restricción geográfica — un producto
+intermedio de ~2000×2000 filas antes de tocar el índice GiST. Solo una subconsulta `LATERAL`
+con una barrera de optimización (`LIMIT`/`OFFSET`) impide que Postgres la aplane de vuelta al
+árbol de uniones del padre y reordene igual.
+
+**Consecuencia.** `CHK-GIST-SELFJOIN` pasa: el plan usa `listings_location_geography_idx` en
+un bucle anidado real. Pero la misma estructura fija el orden de acceso siempre por geometría
+primero, así que `CHK-PRICE-IDX` (el índice parcial de precio/superficie, en el régimen de
+radio ancho/banda estrecha) deja de ser demostrable con esta forma de consulta — ver decisión
+044 y `FB-PARTIAL-IDX-NOT-CHOSEN` en `docs/ROADMAP.md`, notas del paso 1.8.
+
+---
+
+## 043 — `.offset(0)` no es una barrera de optimización en Drizzle 0.45.2; se usa `.limit()` con un valor alto
+
+**Estado:** aceptada
+
+**Decisión.** La barrera de optimización que impide a Postgres aplanar la subconsulta
+`LATERAL` de `pairCandidatesSubquery` es `.limit(Number.MAX_SAFE_INTEGER)`, no `.offset(0)`.
+
+**Alternativa descartada.** `.offset(0)` — el modismo clásico de Postgres para impedir el
+"pull-up" de una subconsulta sin alterar el resultado (ningún registro se descarta con
+offset cero).
+
+**Motivo.** Probado y medido: `.offset(0)` no tiene ningún efecto en Drizzle 0.45.2, porque
+`pg-core/dialect.js:287` renderiza la cláusula `OFFSET` con
+`offset ? sql\`offset ${offset}\` : void 0`, y `0` es falso en JavaScript — la cláusula nunca
+llega a formar parte del SQL enviado a Postgres (confirmado inspeccionando `toSQL()`: ningún
+"offset" en el texto). `.limit()` (`dialect.js:286`) comprueba en cambio
+`typeof limit === 'number' && limit >= 0`, sin ese defecto, así que un límite muy alto actúa
+como barrera real sin descartar ninguna fila.
+
+**Consecuencia.** Cualquier futuro código de este repositorio que necesite una barrera de
+optimización sobre una subconsulta de Drizzle debe usar `.limit()` con un valor alto, nunca
+`.offset(0)`. Registrado también en `docs/AI-NOTES.md` como hallazgo de IA corregido en la
+propia sesión.
+
+---
+
+## 044 — `is_current` emitido como columna booleana desnuda; precio y superficie como rangos sobre las columnas indexadas
+
+**Estado:** aceptada
+
+**Decisión.** Dentro de `blocking.ts`, `isCurrentHead(v)` emite `sql\`${v.isCurrent}\`
+(columna booleana desnuda, sin parámetro ligado), y el predicado de precio se escribe como
+`vb.price_cents BETWEEN va.price_cents - banda AND va.price_cents + banda` (rango sobre la
+columna indexada), nunca `abs(...)`. El mismo criterio se aplica a la superficie.
+
+**Alternativa descartada.** `eq(v.isCurrent, true)` (renderiza un parámetro ligado) y
+`abs(va.price_cents - vb.price_cents) <= banda` (entierra la columna en una expresión).
+
+**Motivo.** El índice parcial `listing_versions_price_surface_current_idx` tiene como
+predicado la expresión desnuda `is_current` (`listing-versions.ts:66-68`). Postgres solo usa
+un índice parcial cuando puede *probar* que el predicado de la consulta implica el del
+índice — con un parámetro ligado esa prueba depende del tipo de plan (protocolo extendido
+con o sin nombre), no es una garantía. Emitir la misma forma sintáctica que el índice hace la
+implicación trivial, sin depender del planificador. El rango sobre la columna indexada, en
+vez de `abs()`, es lo único que puede convertirse en un recorrido de índice real dentro del
+bucle anidado.
+
+**Consecuencia.** `CHK-PARTIAL-IDX` (comprobación sobre `toSQL()`, independiente del
+planificador y del volumen de filas) queda como la prueba vinculante de que el índice parcial
+es *matchable*; que el planificador lo *elija* realmente con la forma de consulta que exige
+decisión 042 no quedó demostrado — ver `FB-PARTIAL-IDX-NOT-CHOSEN` en `docs/ROADMAP.md`,
+notas del paso 1.8. No se reclama en la memoria del TFM.
+
+---
+
+## 045 — Manejo asimétrico de NULL: la superficie ausente rescata el par, la geometría ausente lo excluye; umbrales absolutos en la unidad de cada columna
+
+**Estado:** aceptada
+
+**Decisión.** Cuando `surface_m2` es NULL en cualquiera de los dos lados de un par
+candidato, el par se emite igualmente (`surfaceDeltaM2: null`). Cuando
+`location`/`location_geography` es NULL en cualquiera de los dos lados, el par se excluye,
+sin rescate. Los tres umbrales (`radiusMeters`, `priceBandCents`, `surfaceToleranceM2`) son
+absolutos, en la unidad propia de cada columna, nunca relativos ni porcentuales.
+
+**Alternativa descartada.** Tratar ambas ausencias igual (o bien rescatando las dos, o bien
+excluyendo las dos); umbral de precio relativo (porcentaje) en vez de absoluto.
+
+**Motivo.** La superficie es un *refinamiento* del conjunto candidato — bajo lógica
+trivaluada SQL, un `BETWEEN` sobre NULL evalúa a `UNKNOWN`, indistinguible de "fuera de
+margen": rescatarla evita una pérdida silenciosa (un par que nunca se emite no se puede
+recuperar en ROADMAP 1.9). La geometría es la propia *clave* del bloqueo, no un
+refinamiento: rescatarla degeneraría la consulta en un cruce completo del corpus por precio y
+superficie, justo lo contrario de bloquear. Un umbral de precio relativo necesitaría
+`least()`/`greatest()` para mantenerse simétrico, lo que entierra la columna en una expresión
+y anula el índice (igual razón que la decisión 044); un umbral absoluto es simétrico por
+construcción y legible directamente en la rejilla de calibración.
+
+**Consecuencia.** Un umbral de precio absoluto es proporcionalmente más estricto en el
+extremo caro del corpus. Limitación deliberada, no un descuido — registrada, no corregida
+aquí; si la evaluación de ROADMAP 1.9 muestra pérdida de recall en ese extremo, el umbral
+relativo es el parámetro a revisar entonces.
+
+---
+
+## 046 — La suite de tests de `packages/db` trunca la base de datos del propio desarrollador; sin base de datos de test separada
+
+**Estado:** pendiente — problema registrado, sin solución aplicada en este cambio
+
+**Decisión.** Se deja constancia del problema y se pospone su solución a un paso posterior.
+`packages/db/test/helpers/db-client.ts` (`truncateAll`) ejecuta
+`TRUNCATE ... RESTART IDENTITY CASCADE` contra `process.env.DATABASE_URL` sin distinguir una
+base de datos de test de la base de datos real de desarrollo — que son la misma en este
+entorno, porque no existe una segunda `DATABASE_URL` dedicada a tests ni ningún guardián que
+rechace truncar una base de datos que no sea la designada para ello.
+
+**Alternativa descartada.** Corregirlo dentro de este cambio (ROADMAP 1.8), añadiendo una
+`DATABASE_URL` de test separada o un guardián de nombre/marca en la base de datos antes de
+truncar.
+
+**Motivo.** El problema es preexistente — los mismos síntomas ya los tenían
+`packages/db/test/integration/coverage.test.ts` y `dedup-recompute.test.ts` antes de este
+cambio — y su arreglo correcto (una segunda base de datos de test, o un guardián que
+verifique el nombre/rol antes de truncar) toca infraestructura de test compartida por toda la
+suite de `packages/db`, no solo por el bloqueo de candidatos. Ampliar el alcance de este
+cambio para arreglarlo sería la misma clase de deriva que `CLAUDE.md` pide evitar.
+
+**Consecuencia.** Ejecutar `pnpm --filter @buscahogar/db test` o `test:blocking` en un
+entorno donde `DATABASE_URL` apunta a datos reales los destruye sin aviso. Ocurrió durante la
+sesión de este mismo paso (1.8): los 50 anuncios reales de Idealista ingeridos en la
+aceptación del paso 1.7 fueron sustituidos por un corpus sintético de 2000 filas
+(`external_id` `bulk-N`) al ejecutar los tests de plan de consulta. La evidencia de
+aceptación del paso 1.7 sobrevive solo en Engram (obs #122), no de forma reproducible en la
+base de datos. Queda como pendiente explícito más abajo, en "Pendientes de decidir".
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
@@ -1140,3 +1289,7 @@ deliberado, no un efecto secundario a evitar.
   etiquetado.
 - **Segunda zona del corpus:** una de costa con mucha agencia local, a decidir cuando se
   conozca el coste en cuota de la primera.
+- **Base de datos de test separada para `packages/db`** (decisión 046): la suite trunca hoy
+  la base de datos apuntada por `DATABASE_URL`, que en desarrollo es la misma que contiene
+  datos reales ingeridos. Requiere una segunda `DATABASE_URL` de test o un guardián que
+  rechace truncar una base de datos que no sea la designada.

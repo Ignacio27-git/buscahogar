@@ -782,7 +782,7 @@ obs #117, tareas obs #118 y progreso de `sdd-apply` obs #119.
 
 ---
 
-## [ ] 1.8 · Bloqueo de candidatos
+## [x] 1.8 · Bloqueo de candidatos
 
 ```text
 Implementa la fase de bloqueo de la deduplicación en packages/core y packages/db:
@@ -800,6 +800,86 @@ candidatos genera cada combinación de umbrales, para poder calibrarlos.
 demasiado estricto o las coordenadas están ofuscadas.
 
 **Notas:**
+
+Ciclo SDD completo (explore → preproposal → proposal → spec → design → tasks → apply) bajo
+Strict TDD, `size:exception` aceptado por el responsable (obs #130). `sdd-apply` corrió en dos
+batches — el primero interrumpido por un límite de tasa del proveedor a mitad de la fase 2, el
+segundo lo retomó verificando el árbol de trabajo real en vez del checkpoint persistido. Ver
+`docs/PROMPTS.md` para el ciclo completo.
+
+**Corpus (R2, decisión de diseño heredada).** El corpus real de la aceptación del paso 1.7
+tiene 50 anuncios, una sola zona (Granada), 0/50 con coordenadas ofuscadas. Los conteos de
+calibración a este tamaño son comparaciones *relativas* entre combinaciones de umbrales, no un
+radio calibrado en sentido estadístico — no hay suficiente volumen para que un umbral concreto
+tenga significado por sí solo. La calibración con valores concretos frente al corpus real
+queda pendiente hasta que exista un corpus mayor.
+
+**Qué prueban de verdad los dos índices (D-T2), y qué no.** `CHK-PARTIAL-IDX` (comprobación
+sobre `toSQL()`, sin planificador) demuestra que `is_current` se emite de forma que el índice
+parcial de precio/superficie es *matchable* — sigue en verde y es la prueba vinculante.
+`CHK-GIST-SELFJOIN` (plan real a ~2000 filas, radio estrecho/banda ancha) demuestra que el
+índice GiST se usa de verdad, pero solo después de reescribir el autojoin como una subconsulta
+`LATERAL` correlacionada con una barrera de optimización interna (`.limit()`) — un self-join
+plano, con el predicado geográfico en el `WHERE` o en el `ON` del `JOIN`, NO basta: Postgres
+reordena libremente el árbol de `INNER JOIN` y prefiere el índice de precio por una
+subestimación de coste, medido dos veces contra Postgres real. Esa misma reescritura, aplicada
+con `FB-GIST-NOT-CHOSEN`, deja `CHK-PRICE-IDX` (radio ancho/banda estrecha) sin poder
+demostrarse con esta forma de consulta — se retiró la aserción per `FB-PARTIAL-IDX-NOT-CHOSEN`
+(no se relajó, se eliminó), y **no se reclama en la memoria del TFM** que el índice parcial se
+elija en ese régimen. Detalle completo en decisiones 042-045, `docs/DECISIONS.md`.
+
+**Escrituras.** Este cambio escribe cero filas en cualquier tabla — es una consulta de
+lectura, tal como especifica el diseño.
+
+**Corpus real perdido durante la sesión.** La suite de tests de `packages/db` trunca la base
+de datos apuntada por `DATABASE_URL` (mecanismo preexistente, no introducido por este paso).
+Los 50 anuncios reales de la aceptación del paso 1.7 fueron sustituidos por un corpus
+sintético de 2000 filas al ejecutar las pruebas de plan de consulta de este mismo paso. La
+evidencia de aceptación del 1.7 sobrevive solo en Engram (obs #122), no de forma reproducible
+en la base de datos. Restaurar el corpus real cuesta cuota facturable (~2 peticiones, un
+barrido nuevo) — decisión del responsable del proyecto, no ejecutada en esta sesión. Registrado
+como decisión 046 en `docs/DECISIONS.md` y como incidente en `docs/AI-NOTES.md`.
+
+**Verificación: FAIL en la primera pasada, bloqueo corregido.** `sdd-verify` encontró un
+hallazgo crítico: la aserción negativa de `CHK-GIST-SELFJOIN` era vacua. Comprobaba
+`not.toContain('Seq Scan on listings')` sobre un `EXPLAIN (FORMAT JSON)`, y ese literal no
+existe en formato JSON, así que no podía fallar nunca — ni siquiera con el plan que
+`FB-GIST-NOT-CHOSEN` existe para impedir. La implementación de la consulta era correcta; lo
+roto era la prueba. Corregido recorriendo el árbol del plan y comparando campos, acotado a la
+propiedad que importa: el lado interno `b` entra por `listings_location_geography_idx` y nunca
+se recorre secuencialmente (`a` sí, por ser la relación conductora del autojoin). La nueva
+aserción se validó en rojo a propósito con `enable_indexscan=off` antes de darla por buena.
+Añadida además la cobertura BT-2a a nivel de fila que el verificador echó en falta: los campos
+de diagnóstico de un `CandidatePair` devuelto (`surfaceDeltaM2` nulo y lado ofuscado) solo
+estaban probados de forma agregada. Suite de bloqueo: 18 tests. Incidente registrado en
+`docs/AI-NOTES.md`.
+
+**Criterio de aceptación leído contra datos reales (2026-09-15).** Con el corpus sintético
+perdido, se autorizó un barrido nuevo de Idealista con corte explícito en `--max-requests 2`:
+**2 peticiones facturables gastadas, 100 anuncios creados, 0 rechazados**, zona 18087 (Granada),
+centro `37.1773,-3.5986`, radio 1500 m, operación `sale`. Corpus resultante: 100 anuncios,
+100 con geometría, **0 con coordenadas ofuscadas**, 100 con superficie en la versión vigente.
+
+Calibración sobre ese corpus (banda de precio 20 000 €, margen de superficie ±10 m²):
+
+| Radio | Pares candidatos |
+| ----- | ---------------- |
+| 25 m | 4 |
+| 50 m | 4 |
+| 100 m | 7 |
+| 250 m | 27 |
+| 500 m | 36 |
+| 1000 m | 80 |
+
+**Ni enorme ni cero, y monótono con el radio: el bloqueo discrimina.** Con 100 anuncios hay
+4950 pares posibles; a 1000 m el bloqueo deja 80, un 1,6 % del total. A 100 m deja 7. La curva
+es utilizable para fijar umbrales empíricamente, que es exactamente lo que este paso tenía que
+entregar. El `0` de coordenadas ofuscadas confirma por segunda vez, sobre un corpus real
+distinto, la decisión de tratar `coordinates_obfuscated` como dimensión del informe y no como
+rama del predicado (Q4 del pre-proposal, obs #127).
+
+**Estado.** Implementado, verificado (`pass_with_warnings`, 0 bloqueos) y con el criterio de
+aceptación leído sobre datos reales. Paso cerrado.
 
 ---
 
@@ -1070,3 +1150,6 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-14 | 1.7  | La fase 2 (dependencias, arnés de base de datos, `coverage-store.ts`, `reference-store.ts`) quedó completa y en verde en el árbol de trabajo, pero no existe evidencia TDD por tarea (RED confirmado, recuento GREEN) para las tareas 2.1-2.14 individualmente. | El batch que ejecutó la fase 2 se interrumpió por el límite de tasa de una API externa antes de persistir su propio informe de progreso. El batch siguiente verificó el estado final de forma independiente —`typecheck` limpio, `test:db -- reference-store coverage-store` en verde (11/11)— y marca 2.1-2.14 como completas sobre esa base, pero es verificación de resultado, no un registro de primera mano del ciclo RED→GREEN. Se anota en vez de fabricar una traza paso a paso que esa sesión no presenció. Detalle en Engram `sdd/zone-sweep-persistence/apply-progress`. |
 | 2026-09-14 | 1.7  | El script `"test:db"` de `apps/ingestion/package.json` (tarea 4.6) se añadió antes de tiempo, durante el batch de la fase 3, no en la fase 4 a la que pertenece la tarea. | Bloqueo real, no ampliación de alcance: sin ese script no se podía ejecutar la verificación de la propia fase 3 (`listing-writer.ts`) ni re-verificar la fase 2. La tarea 4.6 de la fase 4 solo tuvo que añadir después el script `"sweep"` que le faltaba. |
 | 2026-09-14 | 1.7  | La ejecución de aceptación necesitó rebobinar a mano el cursor de `coverage_jobs` (`update coverage_jobs set cursor = null`) para volver a barrer la misma página. La CLI no expone ninguna bandera de reinicio, así que una segunda invocación idéntica reanuda en la página siguiente: eso prueba reanudación, no idempotencia. Sin el rebobinado, el criterio de revisión del paso —«una segunda ejecución no duplica»— no se puede comprobar con el comando tal cual. Queda como carencia conocida de la CLI: una bandera `--restart` explícita pertenece a un paso posterior, no se añade aquí de tapadillo. |
+| 2026-09-14 | 1.8  | Corregido mid-paso el comentario falso de `apps/ingestion/src/sweep/listing-writer.ts:80-82` (tarea DOC-1, alcance añadido por la propia spec del 1.8, no del prompt original) | El comentario afirmaba que las coordenadas están ausentes de todo lo que emite el adaptador de Idealista; falso, y en la dirección peligrosa — `normalizer.ts:36-39` las emite siempre que la fuente las aporta, y el corpus real verificado (obs #127) tenía 50/50 filas con `location` poblada. Cero cambio de comportamiento, solo el comentario. Detalle en `docs/AI-NOTES.md`. |
+| 2026-09-14 | 1.8  | `size:exception` aceptado explícitamente por el responsable del proyecto (obs #130) tras revisar el pronóstico de ~1345 líneas (rango 1300-1650) frente al presupuesto de sesión de 800 | El diseño requería, sin margen para recortar sin perder alcance del propio ROADMAP 1.8: el esquema de umbrales, el tipo `CandidatePair`, la consulta de bloqueo con su predicado compartido, la puerta de tests fail-loud, dos pruebas de plan de índice, la CLI de calibración completa y la documentación obligatoria. Se ofrecieron tres límites de corte para encadenar PRs y se declinaron a favor de una sola PR. |
+| 2026-09-14/15 | 1.8  | El autojoin del diseño original (`D-Q1`: `alias()` + `lt(a.id,b.id)` como condición del `JOIN`, predicado geográfico en `WHERE`) se reescribió dos veces durante `apply`, hasta una subconsulta `LATERAL` correlacionada con `.limit()` como barrera de optimización — restructuración real de la consulta, no una aserción relajada | Medido contra PostgreSQL real: ni el `WHERE` ni el `ON` del `JOIN` bastan, porque Postgres reordena libremente el árbol de `INNER JOIN`s y prefería el índice de precio incluso con radio estrecho, por una subestimación de coste del planificador sobre un rango parametrizado. Permitido explícitamente por `FB-GIST-NOT-CHOSEN` ("restructure the query"). Consecuencia aceptada por el mismo fallback: `CHK-PRICE-IDX` dejó de ser demostrable con la nueva forma de consulta y se retiró (no se relajó) per `FB-PARTIAL-IDX-NOT-CHOSEN`. Detalle en decisiones 042-045, `docs/DECISIONS.md`. |

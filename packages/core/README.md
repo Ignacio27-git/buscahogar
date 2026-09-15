@@ -53,4 +53,7 @@ razonamiento completo, con ejemplo, vive en `src/index.ts`.
   `OperationType`, `AreaQuery`, `SourcePage`, `SimilarityResult`), las interfaces
   `PropertySource`, `ListingNormalizer` y `DedupStrategy`, los esquemas Zod de `Listing` y
   `AreaQuery`, y la regla de frontera `no-restricted-imports` de este paquete.
+- **1.8 — hecho.** `blockingThresholdsSchema` (radio, banda de precio, margen de superficie)
+  y `CandidatePair` (tipo escrito a mano, sin campo de decisión) para el bloqueo de
+  candidatos que consume `packages/db`.
 - 1.9+: implementaciones concretas de estrategias de deduplicación en `strategies/`.

@@ -32,11 +32,14 @@ export type { Location } from './types/location.js';
 export type { AppliedFeature, Feature } from './types/feature.js';
 export type { SignalBreakdown, SignalScore, SimilarityResult } from './types/similarity.js';
 export type { SourcePage } from './types/source-page.js';
+export type { CandidatePair } from './types/candidate-pair.js';
 
 export type { Listing } from './schemas/listing.schema.js'; // derivado con z.infer
 export { listingSchema } from './schemas/listing.schema.js';
 export type { AreaQuery } from './schemas/area-query.schema.js'; // derivado con z.infer
 export { areaQuerySchema } from './schemas/area-query.schema.js';
+export type { BlockingThresholds } from './schemas/blocking-thresholds.schema.js'; // derivado con z.infer
+export { blockingThresholdsSchema } from './schemas/blocking-thresholds.schema.js';
 
 export type { DedupStrategy } from './contracts/dedup-strategy.js';
 export type { ListingNormalizer } from './contracts/listing-normalizer.js';

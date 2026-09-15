@@ -30,6 +30,54 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-14/15 — Bloqueo de candidatos (1.8), ciclo completo en dos batches de `sdd-apply`
+
+**Tipo de tarea:** consulta SQL (autojoin + índices) + comando de CLI de calibración + tipos
+puros en `core`
+**Forma de especificación:** ciclo SDD completo (explore → preproposal → proposal → spec →
+design → tasks → apply) bajo Strict TDD, sobre el prompt del ROADMAP 1.8 verbatim. Cambio
+`candidate-blocking`. `size:exception` aceptado explícitamente por el responsable del proyecto
+(obs #130) tras revisar el pronóstico de ~1345 líneas frente al presupuesto de 800
+**Resultado:** utilizable con retoques — la implementación entera pasó las fases 1-4 y 5
+(documentación) en verde, pero el diseño original del autojoin (`D-Q1`, `alias()` +
+`lt(a.id,b.id)` como condición de `JOIN`) resultó insuficiente contra PostgreSQL real y tuvo
+que reescribirse dos veces en tiempo de `apply` (ver decisiones 042-043) hasta encontrar una
+forma que de verdad forzara el uso del índice GiST. `sdd-apply` se ejecutó en dos batches: el
+primero interrumpido por un límite de tasa del proveedor a mitad de la fase 2, el segundo
+retomado verificando el árbol de trabajo real en vez de confiar en el checkpoint de progreso
+persistido (que resultó estar desactualizado en varios puntos). **`sdd-verify` devolvió FAIL en
+la primera pasada**: la aserción negativa de `CHK-GIST-SELFJOIN` era vacua (buscaba una subcadena
+que el `EXPLAIN` en formato JSON no emite nunca), de modo que una prueba incapaz de fallar se
+había citado como demostración en tres artefactos. Corregida y validada poniéndola en rojo a
+propósito; la re-verificación cerró el hallazgo en `pass_with_warnings`, sin bloqueos. El retoque
+más caro del ciclo no fue código de producción, sino una prueba que no probaba nada
+
+**Prompt:**
+
+> Implementa la fase de bloqueo de la deduplicación en packages/core y packages/db:
+> generación de pares candidatos mediante consulta SQL, por proximidad geográfica,
+> banda de precio y margen de superficie, usando el índice espacial.
+>
+> Los umbrales deben ser parámetros configurables, no constantes en el código:
+> se van a ajustar empíricamente sobre los datos.
+>
+> Añade un comando que, sobre los datos ya ingeridos, muestre cuántos pares
+> candidatos genera cada combinación de umbrales, para poder calibrarlos.
+
+**Observación:** el prompt en sí especifica bien el QUÉ (proximidad + precio + superficie +
+umbrales configurables + CLI de calibración), pero no podía anticipar el CÓMO a nivel de
+planificador de consultas: la forma "obvia" del autojoin (dos alias, un `JOIN` con `lt(a.id,
+b.id)`) es correcta funcionalmente y pasó toda la suite de corrección (16/16), pero el
+planificador de PostgreSQL la reordenaba libremente y nunca llegaba a usar el índice GiST que
+el paso 1.3 había creado exactamente para esto. Hicieron falta tres restructuraciones
+sucesivas, cada una medida contra `EXPLAIN (ANALYZE, FORMAT JSON)` real, no asumida por
+lectura del SQL generado — la última (subconsulta `LATERAL` correlacionada + `.limit()` como
+barrera de optimización) fue la única que funcionó, y reveló además un defecto real en
+Drizzle 0.45.2 (`.offset(0)` no se renderiza nunca, ver `docs/AI-NOTES.md`). El otro coste
+notable: la propia suite de tests truncó el corpus real de 50 anuncios ingeridos en la
+aceptación del paso 1.7, un problema preexistente de la infraestructura de test que este paso
+no introdujo pero sí sufrió (decisión 046, `docs/AI-NOTES.md`).
+
 ### 2026-09-14 — Persistencia y barrido de una zona (1.7), fase 1 de 4
 
 **Tipo de tarea:** persistencia + comando de CLI (núcleo puro de barrido, comparador de

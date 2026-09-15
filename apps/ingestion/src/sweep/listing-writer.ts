@@ -78,8 +78,14 @@ export function createListingWriter(db: Database): ListingWriter {
             lastSeenAt: now,
             updatedAt: now,
             // `listing.coordinates` → `listings.location` ({x: lon, y: lat},
-            // diseño D4). Ausente en todo lo que emite este adaptador (1.6
-            // D9) — se escribe solo cuando llega, nunca se inventa.
+            // diseño D4). Se escribe siempre que el normalizador la emite —
+            // es decir, siempre que la fuente aporta latitude/longitude
+            // (`sources/idealista/normalizer.ts:36-39`; verificado en el
+            // corpus real de ROADMAP 1.7: 50/50 filas con `location`
+            // poblada). El spread condicional de abajo existe para una
+            // fuente que no las aporte, no porque este adaptador las omita
+            // (corregido en ROADMAP 1.8, DOC-1 — el comentario anterior
+            // afirmaba justo lo contrario; ver `docs/AI-NOTES.md`).
             ...(listing.coordinates !== undefined
               ? { location: { x: listing.coordinates.longitude, y: listing.coordinates.latitude } }
               : {}),

@@ -15,5 +15,11 @@ export default defineConfig({
     // de test, sin que este paquete lea ni imprima su contenido (ver
     // `test/setup-env.ts`).
     setupFiles: ['./test/setup-env.ts'],
+    // ROADMAP 1.8 (diseño D-T1): la suite de bloqueo vive en su propia
+    // config (vitest.blocking.config.ts, script `test:blocking`) porque es
+    // fail-loud (lanza sin DATABASE_URL) en vez de silenciosamente-omitida
+    // como `describeWithDb` — así `pnpm --filter @buscahogar/db test` no la
+    // ejecuta dos veces ni cambia su semántica actual.
+    exclude: ['test/blocking/**'],
   },
 });

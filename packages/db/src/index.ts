@@ -19,6 +19,7 @@
 export * from './tables.js';
 export * from './types.js';
 export * from './spatial.js';
+export * from './blocking.js';
 export { createDb, type Database } from './db.js';
 
 export const DB_VERSION = '0.0.1';

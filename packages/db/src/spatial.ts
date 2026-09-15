@@ -4,6 +4,7 @@
 // que la llaman no cambian.
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { listings } from './schema/listings.js';
 
 // `ST_DWithin` sobre una columna `geometry` mide en las unidades del SRS: en
@@ -15,4 +16,13 @@ import { listings } from './schema/listings.js';
 export function withinMeters(lon: number, lat: number, meters: number): SQL {
   return sql`ST_DWithin(${listings.locationGeography},
     ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography, ${meters})`;
+}
+
+// ROADMAP 1.8 — hermana fila-a-fila de `withinMeters` (decisión 019:
+// localidad de la expresión de distancia — ambas viven en este único
+// fichero). El bloqueo de candidatos (blocking.ts) compara dos filas de
+// `listings` entre sí, no una fila contra un punto fijo; las columnas se
+// ligan como parámetros de tipo, nunca como valores interpolados.
+export function rowsWithinMeters(left: AnyPgColumn, right: AnyPgColumn, meters: number): SQL {
+  return sql`ST_DWithin(${left}, ${right}, ${meters})`;
 }

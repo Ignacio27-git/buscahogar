@@ -3,7 +3,7 @@
 // necesite comprobar (versión, puntuación, ubicación...).
 import { randomUUID } from 'node:crypto';
 import type { Database } from '../../src/db.js';
-import { listings, locations, sources } from '../../src/tables.js';
+import { listings, listingVersions, locations, sources } from '../../src/tables.js';
 
 export async function insertSource(db: Database): Promise<string> {
   const [source] = await db
@@ -34,6 +34,48 @@ export async function insertListing(
     throw new Error('No se pudo insertar el anuncio de prueba');
   }
   return listing.id;
+}
+
+// ROADMAP 1.8 — `insertListing` (arriba) solo puebla columnas de identidad
+// de `listings`; cada caso de bloqueo necesita además su versión vigente
+// (`is_current = true`) con precio y superficie. Un único punto de
+// inserción evita repetir en cada test las dos sentencias por separado.
+// `location`/`status`/`coordinatesObfuscated` quedan opcionales porque solo
+// algunos casos del bloqueo (p. ej. CBQ-3, CBQ-9) necesitan variarlos.
+export async function insertListingWithCurrentVersion(
+  db: Database,
+  sourceId: string,
+  options: {
+    readonly location?: { x: number; y: number };
+    readonly priceCents: number;
+    readonly surfaceM2?: number | null;
+    readonly status?: string;
+    readonly coordinatesObfuscated?: boolean;
+  }
+): Promise<{ listingId: string; versionId: string }> {
+  const listingId = await insertListing(db, sourceId, {
+    ...(options.location !== undefined ? { location: options.location } : {}),
+    ...(options.status !== undefined ? { status: options.status } : {}),
+    ...(options.coordinatesObfuscated !== undefined
+      ? { coordinatesObfuscated: options.coordinatesObfuscated }
+      : {}),
+  });
+
+  const [version] = await db
+    .insert(listingVersions)
+    .values({
+      listingId,
+      version: 1,
+      isCurrent: true,
+      priceCents: options.priceCents,
+      surfaceM2: options.surfaceM2 ?? null,
+      operation: 'sale',
+    })
+    .returning({ id: listingVersions.id });
+  if (!version) {
+    throw new Error('No se pudo insertar la versión vigente del anuncio de prueba');
+  }
+  return { listingId, versionId: version.id };
 }
 
 export async function insertLocation(db: Database): Promise<string> {
