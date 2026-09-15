@@ -4,8 +4,9 @@ import type { SignalBreakdown, SignalScore, SimilarityResult } from '../src/type
 
 // `SimilarityResult` es la evidencia no reconstruible del TFM (CLAUDE.md): debe
 // exponer siempre la puntuación total Y el desglose por señal, nunca solo una
-// de las dos. El rango de `score` queda deliberadamente sin acotar — se fija
-// en ROADMAP 1.9, no aquí.
+// de las dos. El rango de `score` está fijado en [0, 1] desde ROADMAP 1.9
+// (docs/DECISIONS.md, decisión 048) — los tests de esta suite, escritos
+// antes de esa fijación, usan valores ya dentro de ese rango sin cambios.
 describe('SimilarityResult', () => {
   it('un literal con dos señales expone score y signals', () => {
     const result: SimilarityResult = {

@@ -48,6 +48,17 @@ class AcmeListingNormalizer implements ListingNormalizer<AcmeRaw> {
   }
 }
 
+// Fixture de compilación de contratos (D6/D11 del diseño de ROADMAP 1.9),
+// NO la estrategia enviada. Su regla — `a.address === b.address` — es
+// exactamente la igualdad ingenua de direcciones que decisión 047 prohíbe
+// para una estrategia enviada: colisiona sobre el 20% de los anuncios
+// reales medidos (obs #143, "Piso en Trafalgar, Madrid", 10/50, 45 pares).
+// Se conserva sin cambios porque es el único test que prueba que
+// `DedupStrategy` es implementable por un tercero (el respaldo anti-fuga de
+// D6) — no se debe copiar esta regla. La estrategia enviada es
+// `ruleBasedDedupStrategy` (packages/core/src/strategies/rule-based/), cuyo
+// contraste ejecutable con esta misma regla ingenua vive en
+// rule-based-address.test.ts.
 class AcmeDedupStrategy implements DedupStrategy {
   readonly name = 'acme-exact-address';
   readonly version = '1.0.0';

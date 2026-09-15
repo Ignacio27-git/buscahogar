@@ -56,4 +56,11 @@ razonamiento completo, con ejemplo, vive en `src/index.ts`.
 - **1.8 — hecho.** `blockingThresholdsSchema` (radio, banda de precio, margen de superficie)
   y `CandidatePair` (tipo escrito a mano, sin campo de decisión) para el bloqueo de
   candidatos que consume `packages/db`.
-- 1.9+: implementaciones concretas de estrategias de deduplicación en `strategies/`.
+- **1.9 — hecho.** Primera `DedupStrategy` basada en reglas sobre datos estructurados
+  (`ruleBasedDedupStrategy`, `strategies/rule-based/`): distancia pura (`geo/`), señales
+  de precio/superficie/habitaciones/baños, normalización de direcciones en dos niveles
+  (fuerte/zona) y bandeado `accept`/`undecided`/`reject` (`classify`) con un veto de solo
+  rechazo sobre `propertyType`/`operation`. Corpus de 24 pares etiquetados
+  (`packages/core/test/dedup-corpus.ts`) que prueba mecánica, no calibración — pesos y
+  umbrales quedan sin validar a escala hasta ROADMAP 1.10.
+- 1.10+: consolidación de viviendas canónicas y comparación de estrategias.

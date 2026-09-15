@@ -45,4 +45,16 @@ export type { DedupStrategy } from './contracts/dedup-strategy.js';
 export type { ListingNormalizer } from './contracts/listing-normalizer.js';
 export type { PropertySource } from './contracts/property-source.js';
 
+// Primera DedupStrategy concreta (ROADMAP 1.9). Deliberadamente NO
+// exportados: pesos, umbrales, el piso de evidencia, el vocabulario de
+// tokens de calle y las funciones de señal individuales — internos a
+// `strategies/rule-based/`, siguiendo el mismo precedente que
+// `coordinatesSchema` (barrel.test.ts:42-46). Los tests los alcanzan vía
+// `../src/strategies/rule-based/...`, igual que el resto de tests de este
+// paquete (contracts.test.ts:3-9).
+export { haversineDistanceMeters } from './geo/distance.js';
+export { ruleBasedDedupStrategy } from './strategies/rule-based/strategy.js';
+export { classify } from './strategies/rule-based/classify.js';
+export type { SimilarityBand } from './strategies/rule-based/classify.js';
+
 export const CORE_VERSION = '0.0.1';

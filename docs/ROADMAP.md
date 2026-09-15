@@ -883,7 +883,7 @@ aceptación leído sobre datos reales. Paso cerrado.
 
 ---
 
-## [ ] 1.9 · Estrategia de puntuación
+## [x] 1.9 · Estrategia de puntuación
 
 ```text
 Implementa la primera DedupStrategy basada en reglas sobre datos estructurados,
@@ -903,6 +903,38 @@ mismo bloque con superficie y precio similares que son viviendas distintas.
 grupos formados.
 
 **Notas:**
+
+Implementada `ruleBasedDedupStrategy` (`packages/core/src/strategies/rule-based/`): siete
+señales estructuradas (distancia, precio, superficie, dirección en dos niveles, habitaciones,
+baños) acumuladas por peso EFECTIVO —no por peso total configurado, decisión 049— más un veto
+de solo rechazo sobre `propertyType`/`operation` (decisión 048). `classify` banda el resultado
+en `accept`/`undecided`/`reject` sobre dos umbrales (0.45/0.82) y un piso de evidencia mínima
+(≥3 señales, ≥55 de peso efectivo) que impide que una única señal maximal normalice a `accept`.
+
+**Cifra de colisión de direcciones corregida.** La fase de exploración (`sdd-explore`) había
+afirmado que la cadena `"Piso en Trafalgar, Madrid"` colisionaba en ~40% de los pares. Medido
+directamente contra el fixture real (`apps/ingestion/test/fixtures/idealista/search-homes-
+2026-09-10.json`): son **10 de 50 anuncios (20%)** y **4,7% de los pares (57 de 1225)** — la
+cifra de exploración confundía una frecuencia por anuncio con una tasa de colisión por par,
+que está ponderada por n². El riesgo en sí era real (esa cadena genera 45 pares de viviendas
+distintas que una igualdad ingenua trataría como coincidencia fuerte), pero la magnitud estaba
+inflada. Detalle en `docs/AI-NOTES.md`.
+
+**El falso positivo irreducible (RDS-7).** Dos anuncios idénticos en TODOS los campos
+estructurados que la estrategia evalúa normalizan a score exactamente 1.0 por construcción —
+ningún umbral por debajo de 1.0 puede evitar que acepten. Documentado explícitamente en el
+corpus (`hn-8-identico-en-todo-falso-positivo-irreducible`) como límite conocido de una
+estrategia solo de datos estructurados, no como negativo difícil superado: distinguir ese caso
+de una vivienda genuinamente distinta que comparte por casualidad cada campo evaluado exigiría
+una señal de imagen, diferida por decisión 006. Detalle en `docs/AI-NOTES.md`.
+
+**Esto prueba mecánica, no calibración.** El corpus de 24 pares etiquetados
+(`packages/core/test/dedup-corpus.ts`) es construido a mano, no muestreado: demuestra que la
+estrategia hace lo que dice que hace (desglose completo, normalización por peso efectivo,
+piso de evidencia, veto, bandeado), nunca que los pesos y umbrales concretos (versión 1.0.0)
+sean los correctos a escala real. Ningún peso ni ninguno de los dos umbrales está validado
+contra evaluación real. La evaluación real —falsos positivos y falsos negativos medidos sobre
+datos reales, revisados a mano— llega en ROADMAP 1.10.
 
 ---
 
@@ -1153,3 +1185,5 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-14 | 1.8  | Corregido mid-paso el comentario falso de `apps/ingestion/src/sweep/listing-writer.ts:80-82` (tarea DOC-1, alcance añadido por la propia spec del 1.8, no del prompt original) | El comentario afirmaba que las coordenadas están ausentes de todo lo que emite el adaptador de Idealista; falso, y en la dirección peligrosa — `normalizer.ts:36-39` las emite siempre que la fuente las aporta, y el corpus real verificado (obs #127) tenía 50/50 filas con `location` poblada. Cero cambio de comportamiento, solo el comentario. Detalle en `docs/AI-NOTES.md`. |
 | 2026-09-14 | 1.8  | `size:exception` aceptado explícitamente por el responsable del proyecto (obs #130) tras revisar el pronóstico de ~1345 líneas (rango 1300-1650) frente al presupuesto de sesión de 800 | El diseño requería, sin margen para recortar sin perder alcance del propio ROADMAP 1.8: el esquema de umbrales, el tipo `CandidatePair`, la consulta de bloqueo con su predicado compartido, la puerta de tests fail-loud, dos pruebas de plan de índice, la CLI de calibración completa y la documentación obligatoria. Se ofrecieron tres límites de corte para encadenar PRs y se declinaron a favor de una sola PR. |
 | 2026-09-14/15 | 1.8  | El autojoin del diseño original (`D-Q1`: `alias()` + `lt(a.id,b.id)` como condición del `JOIN`, predicado geográfico en `WHERE`) se reescribió dos veces durante `apply`, hasta una subconsulta `LATERAL` correlacionada con `.limit()` como barrera de optimización — restructuración real de la consulta, no una aserción relajada | Medido contra PostgreSQL real: ni el `WHERE` ni el `ON` del `JOIN` bastan, porque Postgres reordena libremente el árbol de `INNER JOIN`s y prefería el índice de precio incluso con radio estrecho, por una subestimación de coste del planificador sobre un rango parametrizado. Permitido explícitamente por `FB-GIST-NOT-CHOSEN` ("restructure the query"). Consecuencia aceptada por el mismo fallback: `CHK-PRICE-IDX` dejó de ser demostrable con la nueva forma de consulta y se retiró (no se relajó) per `FB-PARTIAL-IDX-NOT-CHOSEN`. Detalle en decisiones 042-045, `docs/DECISIONS.md`. |
+| 2026-09-15 | 1.9  | No se escribe nada en `property_listings` en este paso, pese a que el texto literal del paso dice "se persiste en property_listings junto con la decisión y el nombre de la estrategia" | Confirmado en el pre-proposal (Q1, obs #144): 1.9 se mantiene puro en `packages/core`, sin ninguna dependencia de `packages/db` ni conexión a base de datos — `score(a, b)` deriva todo de los dos valores `Listing` en memoria. El texto del paso queda satisfecho por disponibilidad de contrato, no por una inserción real: las columnas `score`/`signals`/`strategy_name`/`strategy_version` de `property_listings` ya existen (ROADMAP 1.3) y `SimilarityResult` ya trae todo lo que necesitan. La inserción real es ROADMAP 1.10. |
+| 2026-09-15 | 1.9  | "Revisar a mano una muestra de los grupos formados" es estructuralmente inaplicable en este paso | ROADMAP 1.9 no forma ningún grupo — Q1 excluye explícitamente `findCandidatePairs`, la hidratación de `Listing` desde filas persistidas y la consolidación de `properties` (ROADMAP 1.10/1.11). No hay ningún grupo que muestrear. El artefacto revisable en su lugar es el corpus de 24 pares etiquetados con rationale (`packages/core/test/dedup-corpus.ts`), que es lo que el prompt original pedía explícitamente ("Añade tests con pares etiquetados, incluyendo negativos difíciles"). |

@@ -40,6 +40,72 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-15 — Cifra de colisión de direcciones inflada en la fase de exploración (1.9)
+
+**Contexto:** paso 1.9, `sdd-explore` para la estrategia de deduplicación basada en reglas.
+
+**Categoría:** afirmación numérica no verificada directamente contra los datos.
+
+**Qué ocurrió:** `sdd-explore` afirmó que la cadena `"Piso en Trafalgar, Madrid"` aparecía
+20 de 50 veces (40%) en el fixture real, y que una igualdad literal de direcciones
+dispararía en «~40% de los pares». Medido directamente contra
+`apps/ingestion/test/fixtures/idealista/search-homes-2026-09-10.json`: son **10 de 50
+(20%)** a nivel de anuncio y **4,7% (57 de 1225)** a nivel de par. Inflado 2x y ~8,5x
+respectivamente. La causa: confundir una frecuencia por anuncio con una tasa de colisión
+por par, que está ponderada por n² (n anuncios con la misma cadena generan n·(n-1)/2 pares,
+no n).
+
+**Cómo se detectó:** recuento directo del fixture en la fase de diseño (`sdd-design`,
+obs #146), contrastado independientemente en esta fase de `sdd-apply` con un script
+`node -e` sobre el mismo fixture, que reprodujo exactamente 10/50 y confirmó el recuento.
+
+**Coste:** ninguno en tiempo de implementación — el riesgo en sí era real y se mantuvo (esa
+única cadena sin calle genera 45 pares que recibirían señal fuerte siendo viviendas
+distintas), así que ninguna decisión de diseño tuvo que deshacerse. El coste habría sido de
+diseño, no de implementación: una magnitud de ~40% habría justificado un tratamiento más
+agresivo del que la cifra real (4,7% de los pares) requiere.
+
+**Observación:** para cualquier afirmación de "colisiona en X% de los pares", verificar si
+X% se midió a nivel de PAR (la unidad real del problema) o se derivó de una frecuencia a
+nivel de elemento — las dos escalan de forma muy distinta (n² frente a n) y una frecuencia
+alta por elemento no implica automáticamente una tasa de colisión alta por par.
+
+### 2026-09-15 — Escenario insatisfacible en la revisión 1 del spec (1.9): un par idéntico no puede clasificar `undecided`
+
+**Contexto:** paso 1.9, revisión 1 del spec (`sdd-spec`), corregida a revisión 2 antes de
+llegar a `sdd-tasks`/`sdd-apply` (adjudicación del orquestador, obs #148).
+
+**Categoría:** especificación que pide algo estructuralmente imposible bajo una decisión ya
+confirmada.
+
+**Qué ocurrió:** la revisión 1 del spec fijó el escenario CORP-3b: un par estructuralmente
+idéntico (mismos campos estructurados en ambos lados) debía clasificar como `undecided`. Es
+imposible por construcción — bajo la normalización por peso efectivo (confirmada en el
+pre-proposal, Q3, no reabierta), un par idéntico en todos los campos evaluados hace que
+cada señal puntúe su valor máximo, así que el score normalizado es exactamente
+`Σ(1·peso) / Σ(peso) = 1.0`, el techo del rango [0,1]. Ningún umbral `T_HIGH < 1.0` puede
+clasificar un score de 1.0 como `undecided`. El spec incluso ofrecía una salida falsa («si
+los umbrales lo dejan por encima de `high`, ajustar los umbrales»), que no existe: el
+problema es estructural (cualquier `T_HIGH < 1.0` sigue fallando), no de calibración.
+
+**Cómo se detectó:** `sdd-design`, ejecutada en paralelo sobre la misma propuesta, derivó la
+imposibilidad matemática de forma independiente y contradijo directamente al spec. El
+orquestador comparó ambos artefactos entre sí (no solo cada uno contra la propuesta) y
+adjudicó a favor del diseño, enviando a `sdd-spec` una re-ejecución correctiva.
+
+**Coste:** ninguno en `sdd-apply` — la contradicción se resolvió antes de que las tareas se
+generaran. Corregido a `expected: 'accept'` en el par `hn-8` del corpus
+(`packages/core/test/dedup-corpus.ts`), documentado explícitamente como el falso positivo
+irreducible de una estrategia basada solo en datos estructurados — consecuencia directa de
+que la decisión 006 aplace la comparación de imágenes a una fase posterior.
+
+**Observación:** ejecutar `sdd-spec` y `sdd-design` en paralelo sobre la misma propuesta es
+barato, pero permite que los dos rellenen el mismo hueco deliberadamente abierto con
+respuestas incompatibles. El hueco aquí — qué debía clasificar el negativo difícil
+irreducible — lo dejó abierto la propuesta a propósito, y cada fase lo cerró por su cuenta.
+Verificar cada artefacto solo contra sus propias entradas no habría detectado nada; hace
+falta diferenciar los artefactos paralelos entre sí.
+
 ### 2026-09-15 — Una aserción de plan que no podía fallar nunca, presentada como prueba en tres artefactos
 
 **Contexto:** paso 1.8, `CHK-GIST-SELFJOIN`. La detectó la fase `sdd-verify`, y la había dado
@@ -1038,3 +1104,39 @@ Next + bloques compartidos, con estos últimos al final para que prevalezcan.
 **Observación:** un `pnpm lint` verde no prueba que las reglas que crees tener estén
 activas. Para configuración de linting, la verificación es `eslint --print-config` y un
 fichero de prueba que viole la regla a propósito.
+
+---
+
+### 2026-09-15 — Aserción vacua en el test ADX-1a de la estrategia de deduplicación
+
+**Qué se propuso mal:** la fase de implementación del paso 1.9 cubrió el escenario ADX-1a
+("la presencia del token de calle es una propiedad de la cadena compartida, nunca «en un
+lado sí, en el otro no»") con esta única aserción:
+
+```ts
+const shared = 'Piso en Calle de Sagasta, Trafalgar, Madrid';
+expect(isStreetLevel(shared)).toBe(isStreetLevel(shared));
+```
+
+**Por qué era incorrecto:** compara el resultado de una función pura y determinista
+consigo misma. Esa igualdad se cumple con *cualquier* implementación, correcta o no, así
+que el test no podía fallar nunca. Además ni siquiera planteaba el caso que el propio
+escenario describe: su cláusula GIVEN habla de dos anuncios, y el test usaba una sola
+cadena.
+
+**Cómo se detectó:** la fase de verificación lo marcó como aviso de calidad de aserción
+(W-1) al revisar el informe escenario por escenario. La suite estaba en verde, 336/336, y
+el fallo era invisible desde el resultado de los tests.
+
+**Cómo se resolvió:** ADX-1a compara ahora dos cadenas crudas **distintas** que normalizan
+al mismo cuerpo — difieren en mayúsculas, acentos y espaciado, que es exactamente lo que
+`normalise` neutraliza — y afirma que `body` coincide, que `isStreetLevel` coincide entre
+ambos lados y que el valor es el esperado. Se comprobó en rojo: sustituyendo `head()` para
+que ignore la normalización, ADX-1a falla; con la implementación restaurada, 336/336 en
+verde. La aserción anterior habría pasado con esa misma rotura.
+
+**Observación:** es la segunda aserción vacua del proyecto, después de la del paso 1.8
+(`CHK-GIST-SELFJOIN`). En ambos casos el test estaba en verde y el defecto solo aparece al
+preguntarse qué rotura concreta lo haría fallar. Un test que no se ha visto fallar nunca no
+es evidencia de nada; para aserciones sobre propiedades estructurales, la verificación es
+romper la implementación a propósito y comprobar el rojo.

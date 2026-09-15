@@ -14,6 +14,13 @@ describe('barril público de @buscahogar/core', () => {
     expect(barrel.CORE_VERSION).toBeDefined();
   });
 
+  it('ROADMAP 1.9: expone haversineDistanceMeters, ruleBasedDedupStrategy y classify', () => {
+    expect(typeof barrel.haversineDistanceMeters).toBe('function');
+    expect(barrel.ruleBasedDedupStrategy).toBeDefined();
+    expect(barrel.ruleBasedDedupStrategy.name).toBe('rule-based-structured');
+    expect(typeof barrel.classify).toBe('function');
+  });
+
   it('PROPERTY_TYPES y OPERATION_TYPES son iterables por consumidores/tests futuros', () => {
     expect(Array.isArray(barrel.PROPERTY_TYPES)).toBe(true);
     expect(Array.isArray(barrel.OPERATION_TYPES)).toBe(true);
@@ -43,5 +50,16 @@ describe('barril público de @buscahogar/core', () => {
     // coordinatesSchema es un esquema anidado interno (sub-barril de
     // schemas/), no forma parte de la superficie pública enumerada en D1.
     expect((barrel as Record<string, unknown>)['coordinatesSchema']).toBeUndefined();
+  });
+
+  it('ROADMAP 1.9: pesos, umbrales, vocabulario y funciones de señal individuales quedan internos', () => {
+    // Deliberadamente NO exportados (design.md, sección Interfaces): solo
+    // ruleBasedDedupStrategy/classify/SimilarityBand cruzan a la superficie
+    // pública. Los tests los alcanzan vía ../src/strategies/rule-based/...
+    const internals = ['WEIGHTS', 'T_HIGH', 'T_LOW', 'STREET_TOKENS_OBSERVED', 'scoreDistance', 'scorePrice'];
+
+    for (const symbol of internals) {
+      expect((barrel as Record<string, unknown>)[symbol]).toBeUndefined();
+    }
   });
 });

@@ -20,8 +20,10 @@ export interface SignalScore {
 export type SignalBreakdown = Readonly<Record<string, SignalScore>>;
 
 export interface SimilarityResult {
-  // El rango (0-1 / 0-100 / sin acotar) queda deliberadamente diferido a
-  // ROADMAP 1.9 — no se fija en este cambio.
+  // Rango fijado en ROADMAP 1.9 (docs/DECISIONS.md, decisión 048):
+  // `score` es siempre un número en el intervalo cerrado [0, 1], normalizado
+  // sobre el peso EFECTIVAMENTE aplicado (las señales evaluadas), nunca
+  // sobre el peso máximo configurado — decisión 049 explica por qué.
   readonly score: number;
   readonly signals: SignalBreakdown;
 }

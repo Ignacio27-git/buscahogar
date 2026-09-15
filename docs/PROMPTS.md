@@ -30,6 +30,43 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-15 — Estrategia de puntuación basada en reglas (1.9), ciclo SDD completo en un solo batch de `sdd-apply`
+
+**Tipo de tarea:** dominio puro (señales estructuradas + acumulación ponderada + bandeado) +
+corpus de test etiquetado, íntegramente en `packages/core`, sin I/O
+**Forma de especificación:** ciclo SDD completo (explore → preproposal → proposal → spec →
+design → tasks → apply) bajo Strict TDD, sobre el prompt del ROADMAP 1.9 verbatim. Cambio
+`rule-based-dedup-strategy`. `size:exception` aceptado explícitamente por el responsable del
+proyecto (obs #151) tras revisar el pronóstico de ~1530 líneas frente al presupuesto de 800,
+con la partición por fases A→B1→B2→C de `sdd-tasks` conservada como la historia de commits
+dentro de la única PR, no como PRs encadenadas.
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> Implementa la primera DedupStrategy basada en reglas sobre datos estructurados, según los
+> criterios de docs/DECISIONS.md (decisión 006). Decisión por acumulación de señales;
+> ninguna señal decide por sí sola. La dirección solo cuenta como señal fuerte si la
+> coincidencia es exacta. Sin comparación de imágenes en esta fase. El resultado incluye
+> siempre el desglose por señal, que se persiste en property_listings junto con la decisión
+> y el nombre de la estrategia. Añade tests con pares etiquetados, incluyendo negativos
+> difíciles: anuncios del mismo bloque con superficie y precio similares que son viviendas
+> distintas.
+
+**Observación:** las 41 tareas de `sdd-tasks` se ejecutaron en un solo batch, ciclo RED→GREEN
+completo por tarea, sin ningún ajuste a la lógica de producción una vez escrita — los únicos
+ajustes fueron en los propios tests: dos casos de `scorePrice`/`scoreSurface` con la
+aritmética del ratio mal calculada a mano (`|pa-pb|/max(pa,pb)`, no sobre el valor base), y
+un caso de `BAND-1a` reescrito para fijar `score` como literal exacto en vez de reconstruirlo
+por álgebra inversa, evitando fragilidad de punto flotante en una comparación de frontera.
+El corpus de 24 pares se diseñó primero a mano contra la fórmula del diseño, se verificó con
+un test diagnóstico temporal que imprimía el score real de cada par (`console.log`, fichero
+borrado antes de commitear), y los 24 aterrizaron en la banda esperada a la primera — sin
+necesitar retocar ningún peso ni umbral para que el corpus "pasara". El escenario de spec
+CORP-3b (par idéntico → `undecided`) llegó ya corregido a `accept` por la adjudicación del
+propio ciclo SDD (obs #148) antes de `apply`, así que no hubo ninguna sorpresa de spec
+insatisfacible en esta fase — solo la ejecución de lo ya decidido.
+
 ### 2026-09-14/15 — Bloqueo de candidatos (1.8), ciclo completo en dos batches de `sdd-apply`
 
 **Tipo de tarea:** consulta SQL (autojoin + índices) + comando de CLI de calibración + tipos

@@ -1278,6 +1278,141 @@ base de datos. Queda como pendiente explícito más abajo, en "Pendientes de dec
 
 ---
 
+## 047 — Definición operacional de "dirección exacta": normalización de cuerpo, precondición de token de calle, vocabulario en dos niveles
+
+**Estado:** aceptada
+
+**Decisión.** Para que dos direcciones cuenten como coincidencia fuerte (`addressExact`,
+peso 25) hace falta algo más que la igualdad literal de cadena: (1) normalizar ambas
+cadenas (plegado de acentos, minúsculas, colapso de espacios); (2) recortar el prefijo
+`"<Tipo> en "` anclando en el ÚLTIMO `" en "` antes de la primera coma; (3) exigir que el
+primer segmento (hasta la primera coma) empiece por un token de nivel de calle reconocido
+(`calle`, `cl`, `glorieta`, `plaza`, medidos; más una lista convencional no medida aún).
+Dos cuerpos iguales pero sin token de calle cuentan solo como coincidencia débil de zona
+(`addressZone`, peso 8). Dos cuerpos distintos cuentan como desacuerdo débil (peso 8,
+valor 0) — nunca peso 0 y nunca la banda fuerte.
+
+**Alternativa descartada.** Igualdad ingenua `a.address === b.address` (la regla que
+implementa `AcmeDedupStrategy` en `packages/core/test/contracts.test.ts` como fixture de
+compilación, nunca como estrategia enviada); descartar la dirección como señal fuerte por
+completo; parseo completo de calle/número.
+
+**Motivo.** La igualdad ingenua colisiona sobre el 20% de los anuncios reales medidos en
+un único barrio-cadena street-less (`"Piso en Trafalgar, Madrid"`, 10/50 anuncios, 45
+pares — obs #143), y sobre el 4,7% de los pares del corpus completo (57/1225):
+recompensaría con peso fuerte a viviendas distintas del mismo bloque. Descartar la
+dirección por completo tira evidencia real (decisión 006 la nombra explícitamente).
+Parsear calle/número es desproporcionado para una cadena de formato libre de una sola
+fuente, y el propio fixture de `premises` demuestra que ni siquiera es auto-consistente:
+tres direcciones llevan un doble `" en "` y una lleva la palabra de tipo de vía despojada
+por el portal (`apps/ingestion/test/fixtures/idealista/search-premises-2026-09-10.json:21,
+1916, 2389, 2751`). Anclar en el ÚLTIMO `" en "`, no en el primero, es lo que clasifica
+correctamente el caso del doble `" en "` como nivel de calle.
+
+**Consecuencia.** Una fuente que use tokens de nivel de calle como etiqueta de zona (p.
+ej. `"Piso en Plaza de España"` significando el barrio, no la calle) degradaría de forma
+insegura. No se ha observado ese patrón en ninguna de las dos fuentes comprometidas; la
+mitigación es re-medir cuando llegue una segunda fuente (decisión 020 hace ese re-medido
+obligatorio vía bump de versión, no opcional).
+
+---
+
+## 048 — Banda de tres salidas con veto de solo rechazo, y el rango de `score` fijado en [0, 1]
+
+**Estado:** aceptada
+
+**Decisión.** `classify(result: SimilarityResult)` clasifica en tres salidas —
+`accept`/`undecided`/`reject` — a partir de dos umbrales (`T_LOW = 0.45`, `T_HIGH = 0.82`,
+versión 1.0.0) y un veto que solo puede forzar `reject`, nunca `accept` ni `undecided`:
+si `propertyType` u `operation` no coinciden, el resultado es `reject` sin importar el
+score acumulado, comprobado ANTES que los umbrales. El rango de `score` en
+`SimilarityResult` (`types/similarity.ts`) queda fijado en el intervalo cerrado [0, 1],
+retirando la deferencia de ROADMAP 1.4.
+
+**Alternativa descartada.** Sin veto — dejar que la acumulación de señales decida en todos
+los casos, incluido un desacuerdo de tipo de inmueble u operación.
+
+**Motivo.** Decisión 006 prohíbe que una única señal DECIDA una coincidencia, pero no dice
+nada sobre que una única señal FUERCE un rechazo — y su prioridad declarada es minimizar
+falsos positivos. Sin veto, dos anuncios en las mismas coordenadas, mismo precio y
+superficie pero de tipos distintos (un piso y un local, o el mismo piso en venta y en
+alquiler) acumularían un score muy alto por evidencia estructural compartida, aceptando
+por error algo que decisión 006 pide evitar activamente. El veto se comprueba antes que
+los umbrales, nunca después, para que ningún score alto pueda enmascararlo.
+
+**Consecuencia.** `propertyTypeMatch`/`operationMatch` son dos claves siempre presentes en
+`signals`, siempre a peso 0 (decisión 049 las excluye de la acumulación y del piso de
+evidencia) — `classify` deriva el veto de su `value`, no de una entidad de marcador
+separada (BAND-3 del diseño).
+
+---
+
+## 049 — Normalización por peso efectivo y piso de evidencia mínima anclado en distance+price+surface
+
+**Estado:** aceptada
+
+**Decisión.** `score()` divide la suma ponderada de valores entre la suma de los pesos
+REALMENTE aplicados (las señales no marcadas como ausentes), nunca entre la suma de los
+pesos máximos configurados (110). Esto abre un agujero — un par con una única señal
+evaluable y máxima normaliza a 1.0 — que se cierra con un piso de evidencia mínima antes de
+que `classify` pueda devolver `accept`: al menos 3 señales evaluadas (peso > 0, contando
+solo las siete claves acumuladas) Y al menos 55 unidades de peso efectivo acumulado. 55 es
+exactamente `distance(25) + price(15) + surface(15)` — el conjunto base que el propio
+texto de ROADMAP 1.9 nombra. El piso solo puede empujar hacia `undecided`/`reject`, nunca
+hacia `accept`.
+
+**Alternativa descartada.** Dividir por el peso TOTAL configurado (110) en vez de por el
+peso efectivamente aplicado.
+
+**Motivo.** Dividir por peso total penaliza sistemáticamente a los pares `premises`
+(locales, garajes, trasteros), que casi nunca tienen `rooms`/`bathrooms` — perderían 30
+puntos de peso configurado sin ninguna relación con si son o no la misma unidad, sesgo de
+tipo de inmueble que decisión 006 no pide. Medido: el mismo par `premises` (sin
+rooms/bathrooms, resto idéntico) puntúa 0.984 bajo normalización efectiva y solo 0.716 bajo
+normalización total — cruzando de `accept` a `undecided` solo por el tipo de inmueble, no
+por ninguna diferencia real entre los dos anuncios.
+
+**Consecuencia.** El piso de evidencia mínima es una invariante independiente de versión,
+no derivada automáticamente de los pesos: para la versión 1.0.0 el caso de dos señales más
+ricas posible (`distance` + `addressExact`, 25+25=50) ya se queda por debajo de 55, así que
+el recuento de "≥3 señales" es hoy redundante con el peso — pero se mantiene como regla
+explícita para que un futuro cambio de pesos (bump de versión, decisión 020) no pueda
+volver alcanzable un `accept` de dos señales sin que sea una decisión deliberada.
+
+---
+
+## 050 — Segunda expresión de distancia geográfica en el monorepo: no enmienda la decisión 019
+
+**Estado:** aceptada
+
+**Decisión.** `packages/core/src/geo/distance.ts` añade `haversineDistanceMeters`, una
+distancia de círculo máximo pura sobre una esfera (R = 6 371 000 m), independiente de
+PostGIS y del ORM. `packages/db/src/spatial.ts:1-4` sigue afirmando, citando la decisión
+019, que es el "único punto donde se expresa una distancia geográfica" — esa frase gobierna
+el lado SQL y no se toca aquí; esta entrada registra la segunda expresión sin enmendar 019.
+
+**Alternativa descartada.** Reexportar o llamar de algún modo a `ST_DWithin`/`ST_Distance`
+desde `packages/core` (imposible: ROADMAP 1.9 exige que `score(a, b)` derive todo de los
+dos valores `Listing` en memoria, sin conexión a base de datos — Q1 confirmado, obs #144);
+editar la decisión 019 para que hable también del lado en memoria.
+
+**Motivo.** El alcance puro de Q1 hace inevitable una segunda expresión: no existe forma
+de que una función pura sobre dos `Listing` consulte PostGIS. La divergencia entre ambas
+expresiones (esfera vs. WGS84 geodésico) está acotada en ≲0.5% — a la escala del radio de
+bloqueo (150-600 m) son ≲1.5 m; a la escala de un mismo bloque (≈25 m) son ≲0.1 m. Cota
+derivada, no medida contra el motor real: no hubo base de datos disponible en esta fase.
+La señal `distance` (`packages/core/src/strategies/rule-based/signals.ts`) decae de forma
+continua y sin ningún salto cerca de esos radios, así que esa magnitud de divergencia no
+cambia ninguna clasificación.
+
+**Consecuencia.** Existe una tercera expresión duplicada, fuera del alcance de este cambio:
+`apps/ingestion/scripts/probe/summarise.ts:133`, cuyo propio comentario dice que existe
+solo porque `core` estaba pausado en el paso 1.4. Colapsarla sobre este nuevo export queda
+registrada como trabajo de seguimiento, no realizado aquí. Un cotejo real contra PostGIS
+con base de datos disponible queda pendiente para ROADMAP 1.10.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
