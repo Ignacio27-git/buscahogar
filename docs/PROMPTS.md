@@ -30,6 +30,85 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-15/16 — Consolidación de viviendas canónicas (1.10), ciclo SDD completo, spec y diseño en paralelo con una contradicción arbitrada
+
+**Tipo de tarea:** dominio puro (agrupación por unión-búsqueda + selección de ganador) +
+capa de hidratación y escritor transaccional en `packages/db` + comando de CLI de reproceso
+en `apps/ingestion`, primer paso del arco que escribe `properties`/`property_listings` en
+producción
+**Forma de especificación:** ciclo SDD completo sobre el prompt del ROADMAP 1.10 verbatim.
+Exploración → ocho decisiones de producto confirmadas por el responsable del proyecto
+(Q0-Q7, obs #158) → propuesta (obs #159) → **spec y diseño en paralelo** (obs #161/#160),
+que produjo una contradicción real entre ambos artefactos, arbitrada por el orquestador
+antes de `sdd-tasks` (obs #162) → tareas (obs #163, 54 tareas en 6 fases) → cuatro batches
+de `sdd-apply` con revisión del responsable del proyecto entre cada uno. Cambio
+`canonical-property-consolidation`. `size:exception` aceptado explícitamente
+(`delivery_strategy: exception-ok`, sesión completa) tras un pronóstico de diseño de
+~2455 líneas (rango 2300-2900) frente al presupuesto de 800, entregado como una única PR con
+cuatro unidades de trabajo a nivel de commit (A: esquema/migraciones, B: algoritmos puros de
+`core`, C: hidratación+escritor de `db`, D: CLI+eslint+docs+verificación final)
+**Resultado:** con retoques — la especificación previa (Q0-Q7 + arbitraje) resolvió por
+adelantado los puntos de producto más delicados, y ninguna de las cuatro correcciones que
+ocurrieron durante `apply` llegó a afectar código de producción ya escrito y comprometido:
+las cuatro son correcciones de proceso o de infraestructura de test detectadas y resueltas
+dentro del mismo batch en el que aparecieron, no regresiones descubiertas después. Se
+informa así explícitamente en vez de como «utilizable sin cambios», porque hubo una
+arbitración sustantiva de contradicción y cuatro correcciones en vuelo, aunque ninguna
+sobreviviera al código final
+
+**Prompt:**
+
+> Implementa la fase que agrupa listings en properties a partir de las decisiones
+> del deduplicador, y consolida los valores de la vivienda canónica.
+>
+> El precio mostrado es el más económico del grupo. El resto de atributos se toman
+> del anuncio más completo y actualizado. Se conserva el acceso individual a cada
+> anuncio de origen.
+>
+> Añade un comando para reprocesar la deduplicación completa sobre los datos ya
+> ingeridos, sin llamar a ninguna fuente externa.
+
+**Observación:** la contradicción arbitrada (obs #162) es el dato más interesante de esta
+sesión para el proceso SDD en sí. `sdd-spec` y `sdd-design` corrieron en paralelo, cada uno
+internamente coherente, y discreparon en un punto que ninguno de los dos poseía por sí
+solo: si un anuncio sin duplicado detectado («singleton») es también una vivienda que merece
+su propia fila en `property_listings`. La especificación original (revisión 1) lo negaba,
+razonando desde `property_listings` como tabla de coincidencias reales; el diseño lo exigía
+(D6), razonando desde que `score`/`signals` son `NOT NULL` en esa tabla. El criterio de
+desempate no estaba en ninguno de los dos artefactos: fue leer el consumidor aguas abajo
+—ROADMAP 1.11 consulta `properties`, no `listings`— cruzado con la medición ya hecha en la
+exploración (50 códigos de anuncio distintos entre 50 anuncios reales, obs #142): bajo la
+lectura de la especificación, casi ningún anuncio real habría tenido fila en `properties` y
+la página de resultados de 1.11 habría vuelto vacía. El diseño ganó el arbitraje y la
+especificación recibió su única re-ejecución correctiva (revisión 2).
+
+Las cuatro correcciones en vuelo durante `apply`, ninguna alcanzó código de producción ya
+escrito: (1) las tareas 1.7/1.8 (decisiones 051/055) se difirieron erróneamente a la fase 5
+por una instrucción de batch que contradecía la ubicación que las propias tareas ya les
+daban en la fase 1 — corregido dentro de la misma unidad, antes de empezar la fase 2; (2) el
+texto literal de la tarea 3.1 especificaba un solo fichero de `setupFiles` para la config de
+vitest de consolidación, que habría hecho fallar la suite incondicionalmente en vez de
+fallar-alto-solo-cuando-falta — corregido para igualar el precedente real de 1.8
+(`vitest.blocking.config.ts:17`, dos ficheros) antes de escribir ningún test; (3) el
+`truncateAll()` de test compartido (`packages/db/test/helpers/db-client.ts`, del paso 1.7)
+no incluía las dos tablas nuevas en su lista de orden FK, descubierto por un recuento
+absoluto de filas que fallaba en la propia fase 3 — corregido, sin regresión en las suites
+1.7-1.9; y (4) el mismo defecto se encontró proactivamente, antes de que causara un fallo,
+en la copia del arnés de `apps/ingestion` durante la fase 4. Ninguna de las cuatro fue
+detectada por una puerta automática en verde: las tres primeras salieron de leer el propio
+texto de la tarea contra su precedente citado, y la cuarta de aplicar la lección de la
+tercera por adelantado.
+
+La sesión confirmó también, de primera mano contra el contenedor real, que el corpus de 50
+anuncios reales de Idealista (obs #142) desapareció de la base de datos de desarrollo
+—`listings`, `listing_versions`, `properties`, `sources` en cero filas— casi con toda
+certeza por la propia decisión 046 (sin base de datos de test separada) combinada con el
+número de ejecuciones de suite contra base de datos real que este cambio, el más grande del
+arco, disparó en una sola sesión. El agrupamiento no trivial (D2/D3) queda demostrado contra
+datos sembrados a propósito (Unidad B: 18 tests puros; Unidad C: 14 tests de integración),
+nunca contra el corpus real, que ya no existe para volver a intentarlo sin gastar cuota de
+nuevo.
+
 ### 2026-09-15 — Estrategia de puntuación basada en reglas (1.9), ciclo SDD completo en un solo batch de `sdd-apply`
 
 **Tipo de tarea:** dominio puro (señales estructuradas + acumulación ponderada + bandeado) +

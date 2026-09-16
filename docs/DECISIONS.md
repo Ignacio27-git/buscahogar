@@ -1413,6 +1413,227 @@ con base de datos disponible queda pendiente para ROADMAP 1.10.
 
 ---
 
+## 051 — Siete columnas de atributo consolidado en `properties` como caché recalculada, un único índice compuesto
+
+**Estado:** aceptada
+
+**Decisión.** `properties` gana siete columnas nulables —`propertyType`, `operation`, `address`,
+`bathrooms`, `floor`, `title`, `description`— que reflejan el contenido del anuncio ganador de
+cada consolidación (migración 0004), siguiendo el mismo patrón de caché recalculada que ya
+declaran `minPriceCents`/`surfaceM2`/`rooms` (`properties.ts:1-4`). Un único índice compuesto,
+`properties_operation_property_type_idx` sobre `(operation, property_type)`, es el único índice
+nuevo sobre estas columnas.
+
+**Alternativa descartada.** Limitar la consolidación a las columnas ya existentes, sin ampliar el
+esquema; un `canonicalListingId` con FK al anuncio ganador, resuelto por join en el momento de la
+búsqueda en vez de materializar los atributos; y un índice independiente por cada columna de baja
+cardinalidad, en vez de uno solo compuesto.
+
+**Motivo.** El texto de ROADMAP 1.10 exige que una vivienda consolidada exponga los mismos
+atributos que un anuncio individual, y ROADMAP 1.11 ya nombra filtros de búsqueda (`tipo de
+inmueble`, `baños`) que necesitan columnas indexables, no una recomputación por consulta. Resolver
+por join en cada búsqueda de 1.11 es exactamente el coste que la caché recalculada evita — el
+mismo razonamiento que ya justifica `minPriceCents`. El índice compuesto sirve `operation` sola,
+como prefijo, y ambas columnas juntas a la vez — los dos filtros de baja cardinalidad que toda
+búsqueda de 1.11 aplicará—, mientras que un índice por cada columna de rango sería especulativo
+sin conocer las formas de consulta reales, que 1.11 es quien define.
+
+**Consecuencia.** Las siete columnas son nulables: `properties` no tiene filas de producción hoy,
+pero `NOT NULL` fallaría contra cualquier fila transitoria, mientras que nulable más un CHECK
+(`operation IN ('sale', 'rent')`, que pasa con NULL, igual que `listings_status_check`) es aditivo
+y seguro. En la práctica `operation` y `propertyType` se escriben siempre, porque son enums
+obligatorios en `Listing`; la nulabilidad es una propiedad de la migración, no una afirmación de
+modelado. Un índice por filtro adicional sobre las columnas de rango queda diferido a ROADMAP
+1.11, que es quien mide las consultas reales antes de construir el instrumento.
+
+---
+
+## 052 — Agrupación por unión-búsqueda sobre aristas `accept`; un componente en conflicto se rechaza entero, nunca se divide
+
+**Estado:** aceptada
+
+**Decisión.** `buildPropertyGroups` (`packages/core/src/consolidation/grouping.ts`) forma
+propiedades canónicas mediante cierre transitivo (unión-búsqueda) sobre los pares clasificados
+como `accept` únicamente. El chequeo de conflicto se ejecuta después, sobre la partición ya
+completa: si dos miembros de un mismo componente fueron clasificados `reject` entre sí, el
+componente entero se rechaza — ninguna propiedad resultante contiene a ambos, pero tampoco se
+intenta dividir el componente para salvar una fusión parcial. Cada miembro de un componente
+rechazado pasa a ser su propia propiedad de un solo anuncio (singleton). Un par nunca comparado
+por el bloqueo y un par clasificado `undecided` no son conflictos: ninguno de los dos bloquea ni
+causa una fusión.
+
+**Alternativa descartada.** División iterativa del componente eliminando en cada paso la arista
+`accept` de menor puntuación hasta que el conflicto desaparezca (la propuesta original). Descartada
+por cuatro motivos independientes: (1) es una heurística sin garantía de calidad — la forma
+correcta de dividir un grafo para separar los extremos de un `reject` es un corte mínimo, y con
+varios `reject` es clustering por correlación, NP-duro; la heurística puede eliminar una arista que
+ni siquiera está en el camino entre los dos extremos en conflicto, destruyendo una fusión correcta
+sin resolver el conflicto; (2) la decisión 006 (minimizar falsos positivos) apunta directamente
+hacia el rechazo: una división emite una agrupación derivada de evidencia contradictoria sin nada
+que respalde a quien sobrevive, mientras que un rechazo no emite ninguna, fallando hacia el falso
+negativo que la decisión 006 exige preferir; (3) el rechazo es determinista sin necesitar ningún
+orden total adicional, mientras que una división determinista exigiría uno (`score`, `listingAId`,
+`listingBId`) — y los empates de puntuación no son hipotéticos: dos anuncios con campos idénticos
+puntúan exactamente 1.0; (4) un componente rechazado es una unidad revisable de un vistazo (la cola
+de revisión manual que ROADMAP 1.9 ya había diferido); uno dividido heurísticamente exige entender
+la heurística para poder revisarlo, y la propia división añade iteración, recomputación, un orden
+total y sus tests a un cambio ya muy por encima del presupuesto de revisión.
+
+**Motivo.** La reversibilidad es la que decide entre las dos opciones: el rechazo es estrictamente
+más conservador, y si la evaluación futura muestra que cuesta demasiado recall, una división puede
+añadirse después como un salto de versión de estrategia con mediciones reales en la mano. Publicar
+la división primero y descubrir que fabricó falsos positivos significaría que esos falsos positivos
+ya habrían entrado en las cifras medidas del TFM. Un par `undecided` es un tercer estado distinto
+del par nunca comparado (Q2a): ambos deben quedar fuera del chequeo de conflicto, y cada uno tiene
+su propio test para no confundirlos.
+
+**Consecuencia.** Rechazar el componente entero NO significa descartar sus anuncios: cada uno sigue
+formando su propia propiedad, singleton incluida — un anuncio ausente de `groups` desaparecería por
+completo de la búsqueda de ROADMAP 1.11. El orden de entrada de los pares no afecta el resultado:
+la partición que produce la unión de aristas `accept` es el cierre transitivo, independiente del
+orden por definición; la compresión de camino y la unión por rango solo varían qué nodo actúa de
+raíz, y la raíz nunca se expone — cada grupo se ordena por `listings.id` (uuid, orden total) antes
+de devolverse, así que el mismo corpus produce siempre el mismo resultado, byte a byte.
+
+---
+
+## 053 — Un único listing ganador por grupo; completitud sobre los siete campos opcionales, desempate por `capturedAt`, `listingId` como clave final de orden total
+
+**Estado:** aceptada
+
+**Decisión.** `selectWinningListing` (`packages/core/src/consolidation/winner.ts`) elige, para cada
+grupo, exactamente un listing ganador que aporta TODOS los atributos consolidados de la propiedad
+— nunca una fusión campo a campo entre miembros. El comparador tiene tres claves, en este orden:
+(1) `countCompleteness`, el número de campos no ausentes entre los siete campos opcionales de
+contenido de `Listing` (`surfaceM2`, `rooms`, `bathrooms`, `floor`, `title`, `description`,
+`address`) — descendente; (2) `capturedAt` de la versión actual del listing (recencia de CAMBIO de
+contenido, no de re-observación) — descendente, y solo desempata entre candidatos de completitud
+igual; (3) `listingId` — ascendente, desempate final. El precio consolidado (`minPriceCents`) NO
+sale del ganador: es el mínimo de precio entre todos los miembros del grupo (cruza con la decisión
+sobre `properties.ts`, D5 del diseño, obs #160).
+
+**Alternativa descartada.** Completitud ponderada por campo (pesos arbitrarios que necesitarían su
+propia calibración — exactamente el problema que `docs/ROADMAP.md` ya señala para los pesos de la
+propia estrategia de deduplicación); usar `listings.lastSeenAt` como señal de recencia (avanza en
+cada barrido del anuncio, incluso sin ningún cambio de contenido, así que todo anuncio vivo
+empataría); detener el comparador en dos claves (completitud y `capturedAt`), sin una tercera clave
+de desempate total.
+
+**Motivo.** `operation` y `propertyType` son enums obligatorios en `Listing`, presentes siempre en
+cualquier candidato — no discriminan nada, y contarlos solo induciría a pensar que sí lo hacen.
+`coordinates` queda fuera deliberadamente y es inerte de cualquier forma: el bloqueo excluye todo
+par con geometría ausente, así que todo miembro de un grupo con más de un anuncio tiene coordenadas
+por construcción, y un singleton no tiene con qué comparar. La tercera clave no es un adorno
+defensivo: `capturedAt` es `defaultNow()` y `now()` de Postgres es la hora de INICIO de la
+transacción, así que toda versión que un mismo barrido inserta comparte `capturedAt` exactamente —
+el empate entre dos candidatos de igual completitud tras un mismo barrido es el caso COMÚN, no el
+raro. Sin la tercera clave, el ganador dependería del orden en que el driver devolviera las filas,
+el reproceso dejaría de ser reproducible, y el determinismo de la agrupación (decisión 052) se
+rompería en el punto de la consolidación aunque la agrupación en sí siguiera siendo determinista.
+`listings.id` es un uuid único, así que esta clave sí es un orden total genuino.
+
+**Consecuencia.** Con un único ganador por grupo (Q3), la propiedad puede quedar con un atributo
+`NULL` cuando un miembro no ganador tenía ese dato y el ganador no — coste aceptado explícitamente
+(N3 del diseño), no un defecto, y sin obligación alguna de rellenar el hueco desde otro miembro.
+Queda anotado como obligación hacia adelante para ROADMAP 1.11, cuyos filtros de `baños`/`tipo de
+inmueble` no verán ese valor si el ganador no lo tenía.
+
+---
+
+## 054 — `properties.id` no es estable entre reprocesos; obligación hacia adelante para las URLs de 1.12
+
+**Estado:** aceptada
+
+**Decisión.** El comando de reproceso (`apps/ingestion/scripts/reprocess-dedup.ts`) borra por
+completo `properties`/`property_listings` y los reconstruye desde cero en cada corrida (decisión
+055): cada `properties.id` que resulta de una corrida es un uuid nuevo, generado por esa corrida,
+sin ninguna relación garantizada con el id que la vivienda equivalente tuvo en la corrida anterior
+(Q6). No hay ningún mecanismo — ni de "misma vivienda, mismo id" ni de redirección — que preserve
+la identidad de una vivienda consolidada de una corrida a la siguiente.
+
+**Alternativa descartada.** Una columna de generación con intercambio atómico (`generation` +
+`UPDATE ... SET current = false` seguido de un `INSERT`/`swap`) en vez de borrar-y-reconstruir,
+que sí permitiría conservar el mismo `properties.id` entre corridas cuando el grupo resultante es
+el mismo conjunto de anuncios — nombrada explícitamente en el diseño (D8, `FB-TX-TOO-LONG`) como
+el rediseño que además reduciría la duración de la transacción a gran escala. Descartada aquí
+porque nada publicado depende todavía de la estabilidad de estos ids (Q6 ya está confirmada por el
+maintainer) y porque el coste de implementarla — intercambio atómico, resolución de qué grupo de
+la corrida anterior corresponde a cuál de la nueva — no tiene ningún consumidor real en este
+cambio.
+
+**Motivo.** Q6 fija explícitamente que el reproceso puede reasignar identificadores; el diseño
+(D8) elige borrar y reconstruir la caché entera en una única transacción precisamente porque es la
+forma más simple de garantizar "en todo momento existe exactamente una generación de
+`properties`", y esa simplicidad tiene como contrapartida directa la no persistencia del id. Es
+una decisión ya tomada por el diseño (D8) y confirmada por el maintainer (Q6); esta entrada
+documenta la consecuencia para quien construya sobre `properties.id` más adelante, no reabre la
+elección.
+
+**Consecuencia.** ROADMAP 1.12 (páginas de detalle con URL propia) no puede usar `properties.id`
+tal cual como parte de una URL durable: un reproceso posterior puede reasignar el id de la misma
+vivienda real. Queda anotado como obligación hacia adelante para 1.12, que deberá resolver su
+propio esquema de identificador estable (por ejemplo, anclado a `listings.id`/`external_id` en vez
+de a `properties.id`, o adoptando el intercambio de generación descartado arriba si la estabilidad
+resulta imprescindible). REPRO-3 (obs #161) es la contraparte de especificación de esta misma
+decisión.
+
+---
+
+## 055 — Ledger de evidencia por corrida, separado de la caché de `properties`/`property_listings`; `property_listings` no se migra
+
+**Estado:** aceptada
+
+**Decisión.** Dos tablas nuevas, `dedup_runs` y `dedup_pair_evidence` (migración 0005), forman un
+ledger de apéndice que nunca se borra: cada fila de evidencia queda delimitada por `runId` (FK a
+`dedup_runs`, cascada), y persiste el score, el desglose completo por señal y la banda —
+`accept`, `undecided` y `reject` por igual— de todo par candidato que la estrategia puntúa. Es
+estructuralmente distinto del ciclo de vida de `properties`/`property_listings`, que se borran y
+reconstruyen por completo en cada reproceso. `property_listings` no recibe ninguna migración:
+toda vivienda —incluida la que no tiene ningún duplicado detectado— obtiene exactamente una fila
+en esa tabla ya existente, reutilizando sus columnas `score`/`signals` (ya `NOT NULL`) con un
+marcador de peso 0 (`{ selfGroup: { value: 1, weight: 0, ... } }`) para el caso de un solo
+anuncio, en vez de añadir una columna nueva.
+
+**Alternativa descartada.** Para el ledger: truncarlo en cada corrida; delimitar el chequeo de
+conflicto por `(strategyName, strategyVersion)` en vez de por corrida; hacer upsert sobre
+`(listingAId, listingBId)` quedándose solo con la última decisión; añadir `runId` también a
+`properties`. Para `property_listings`: añadir una columna dedicada (por ejemplo, un booleano
+`isSingleton`) para marcar el caso sin duplicado, en vez de reutilizar `score`/`signals`; y,
+antes de eso, la lectura que la primera revisión de la especificación había dado a este punto
+—que `property_listings` solo recibe fila para un anuncio que termina en un grupo de verdad
+formado, dejando sin fila alguna a los anuncios cuya única relación con otros es `undecided` o
+`reject`.
+
+**Motivo.** Los umbrales de bloqueo (`radius`, banda de precio, margen de superficie) son
+argumentos de la CLI de reproceso, no una constante de la versión de estrategia: dos corridas de
+la MISMA versión con un `--radius` distinto producen conjuntos de candidatos distintos, así que
+delimitar por versión de estrategia dejaría que un `reject` de una corrida bloqueara una fusión
+que otra corrida ni siquiera llegó a proponer —el mismo fallo que ya se evita dentro de una
+corrida al no tratar un par nunca comparado como un conflicto, reapareciendo entre corridas por
+la puerta trasera. Truncar el ledger en cada corrida sería correcto para ese chequeo, pero
+destruye la evidencia no reconstruible que CLAUDE.md exige conservar, y con ella la posibilidad
+de comparar estrategias —el propio objetivo de esta tabla. Sobre `property_listings`: `score` y
+`signals` ya son `NOT NULL` (`property-listings.ts:37,40`), así que una vivienda sin pareja
+puntuada no tiene con qué llenarlos si no se decide algo explícitamente. La especificación
+(obs #161) y el diseño (obs #160) discreparon en este punto exacto, y la arbitración (obs #162)
+lo resolvió a favor del diseño: la búsqueda de ROADMAP 1.11 consulta `properties`, no `listings`,
+y la exploración midió 50 códigos de anuncio distintos entre 50 anuncios reales del corpus vivo
+(obs #142) —bajo la primera lectura de la especificación, casi ningún anuncio real habría tenido
+fila en `properties` y la página de resultados de 1.11 habría vuelto vacía. Un anuncio sin
+duplicado detectado sigue siendo una vivienda. El marcador de peso 0 no es una invención para
+esta ocasión: `weight: 0` ya es el idioma establecido en el repositorio para "presente, no
+contribuye" (`weights.ts:9-12`, `classify.ts:12-15`), y sigue siendo consultable mediante el
+mismo índice GIN `jsonb_ops` que ya sirve `property_listings.signals` (`property-listings.ts:54`),
+a través del operador `?`.
+
+**Consecuencia.** `property_listings` conserva exactamente su esquema, pero su significado se
+amplía: ya no solo relaciona un anuncio con una vivienda por coincidencia real, sino que también
+aloja el caso "vivienda de un solo anuncio". `dedup_pair_evidence` sigue siendo la única tabla que
+retiene el desglose completo de una decisión `reject`/`undecided` —la superficie analítica para
+comparar estrategias sigue siendo esa tabla, nunca `property_listings`.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

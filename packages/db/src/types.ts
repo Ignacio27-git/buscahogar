@@ -13,6 +13,8 @@
 // no cambia (docs/DECISIONS.md, decisión 031).
 export type { SignalBreakdown, SignalScore } from '@buscahogar/core';
 
+import type { dedupPairEvidence } from './schema/dedup-pair-evidence.js';
+import type { dedupRuns } from './schema/dedup-runs.js';
 import type { listingFeatures } from './schema/listing-features.js';
 import type { listingVersions } from './schema/listing-versions.js';
 import type { listings } from './schema/listings.js';
@@ -39,3 +41,9 @@ export type NewPropertyRow = typeof properties.$inferInsert;
 
 export type PropertyListingRow = typeof propertyListings.$inferSelect;
 export type NewPropertyListingRow = typeof propertyListings.$inferInsert;
+
+export type DedupRunRow = typeof dedupRuns.$inferSelect;
+export type NewDedupRunRow = typeof dedupRuns.$inferInsert;
+
+export type DedupPairEvidenceRow = typeof dedupPairEvidence.$inferSelect;
+export type NewDedupPairEvidenceRow = typeof dedupPairEvidence.$inferInsert;

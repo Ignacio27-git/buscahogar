@@ -14,6 +14,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:blocking": "vitest run -c vitest.blocking.config.ts",
+    "test:consolidation": "vitest run -c vitest.consolidation.config.ts",
     "generate": "drizzle-kit generate",
     "migrate": "node --env-file=../../.env node_modules/drizzle-kit/bin.cjs migrate",
     "seed": "tsc -p tsconfig.build.json && node --env-file=../../.env dist/seed.js",

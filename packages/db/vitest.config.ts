@@ -20,6 +20,9 @@ export default defineConfig({
     // fail-loud (lanza sin DATABASE_URL) en vez de silenciosamente-omitida
     // como `describeWithDb` — así `pnpm --filter @buscahogar/db test` no la
     // ejecuta dos veces ni cambia su semántica actual.
-    exclude: ['test/blocking/**'],
+    // ROADMAP 1.10 (diseño D10): mismo motivo para la suite de
+    // consolidación (vitest.consolidation.config.ts, script
+    // `test:consolidation`) — también fail-loud.
+    exclude: ['test/blocking/**', 'test/consolidation/**'],
   },
 });

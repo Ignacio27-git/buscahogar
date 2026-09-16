@@ -32,4 +32,39 @@ export default [
       ],
     },
   },
+  {
+    // ROADMAP 1.10 (diseño D11, CHK-NOSOURCES-LINT): el reproceso de
+    // deduplicación no consulta ninguna fuente externa — cero peticiones,
+    // cero cuota (REPRO-1). Variante typescript-eslint, no la de ESLint
+    // base, mismo motivo que packages/core/eslint.config.mjs:10-15: en la
+    // versión instalada `allowTypeImports` es opt-in y por defecto vale
+    // `false`, así que un `import type` de un módulo de fuentes también
+    // queda bloqueado. Verificado en la propia tarea de aplicación
+    // (CHK-NOSOURCES-LINT, tarea 4.8) con una violación deliberada: el
+    // patrón `'**/sources/**'` SÍ coincide contra el texto del especificador
+    // de una importación relativa como `../src/sources/idealista/
+    // idealista-source.js` bajo el minimatch instalado — no hizo falta el
+    // fallback a formas relativas literales que el diseño dejaba previsto.
+    // Lo que esto prueba y lo que no (D11, honesto): es un ban DIRECTO sobre
+    // el texto del especificador, no sobre el grafo de módulos resuelto —
+    // no cubre un import transitivo a través de otro módulo, ni un import
+    // muerto que la ejecución real nunca alcanza (eso lo prueba en tiempo
+    // de ejecución D12, test/db/reprocess-dedup.db.test.ts). Ninguna de las
+    // dos pruebas basta por sí sola; juntas sí.
+    files: ['scripts/reprocess-dedup.ts', 'src/dedup/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/sources/**', '../src/sources/*', './sources/*'],
+              message:
+                'El reproceso no consulta ninguna fuente externa: cero peticiones y cero cuota (ROADMAP 1.10).',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];

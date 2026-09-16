@@ -21,6 +21,21 @@ describe('barril público de @buscahogar/core', () => {
     expect(typeof barrel.classify).toBe('function');
   });
 
+  it('ROADMAP 1.10: expone buildPropertyGroups, selectWinningListing y countCompleteness', () => {
+    expect(typeof barrel.buildPropertyGroups).toBe('function');
+    expect(typeof barrel.selectWinningListing).toBe('function');
+    expect(typeof barrel.countCompleteness).toBe('function');
+
+    // Prueba de comportamiento mínima, no solo de existencia (D3): un único
+    // par 'accept' produce un único grupo con ambos miembros.
+    const grouping = barrel.buildPropertyGroups(
+      ['a', 'b'],
+      [{ listingAId: 'a', listingBId: 'b', band: 'accept', score: 0.9 }]
+    );
+    expect(grouping.groups).toHaveLength(1);
+    expect(grouping.groups[0]?.listingIds).toEqual(['a', 'b']);
+  });
+
   it('PROPERTY_TYPES y OPERATION_TYPES son iterables por consumidores/tests futuros', () => {
     expect(Array.isArray(barrel.PROPERTY_TYPES)).toBe(true);
     expect(Array.isArray(barrel.OPERATION_TYPES)).toBe(true);

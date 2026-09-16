@@ -938,7 +938,7 @@ datos reales, revisados a mano— llega en ROADMAP 1.10.
 
 ---
 
-## [ ] 1.10 · Consolidación de viviendas canónicas
+## [x] 1.10 · Consolidación de viviendas canónicas
 
 ```text
 Implementa la fase que agrupa listings en properties a partir de las decisiones
@@ -956,6 +956,73 @@ ingeridos, sin llamar a ninguna fuente externa.
 estrategias más adelante.
 
 **Notas:**
+
+Implementados `buildPropertyGroups`/`selectWinningListing` (`packages/core/src/consolidation/`),
+la hidratación y el escritor transaccional (`packages/db/src/{hydration,consolidation}.ts`) y el
+comando `reprocess` (`apps/ingestion/scripts/reprocess-dedup.ts`). **Los anuncios sin duplicado
+detectado también se consolidan**: cada listing recibe exactamente una fila en
+`property_listings`, singleton incluido, con un marcador `selfGroup` de peso 0 en `signals`
+(decisión de diseño D6, spec revisión 2, arbitrada en obs #162 — ver el prompt de esta entrada
+en `docs/PROMPTS.md` para el razonamiento completo).
+
+**La prueba de "cero cuota" (D11+D12) es doble y ninguna mitad basta por sí sola.** D12 es un
+test de integración que corre con `fetch` sustituido para lanzar y ambas credenciales de
+Idealista borradas del proceso: prueba que el camino REALMENTE EJECUTADO no llama a ninguna
+fuente. D11 es una regla de eslint (`no-restricted-imports` sobre `**/sources/**`) que prohíbe
+el import directo de cualquier módulo de `src/sources/**` desde `scripts/reprocess-dedup.ts` y
+`src/dedup/**`: prueba la superficie de imports declarada, incluido código muerto que el test
+nunca alcanzaría. **Ninguna cubre lo que la otra no cubre**: D12 no detecta un import nunca
+ejecutado; D11 solo detecta la especificación textual del import, no el grafo de módulos
+resuelto, así que un import transitivo (un módulo intermedio que a su vez importe de
+`sources/`) queda fuera de su alcance. La verificación en tiempo de `apply` (tarea 4.8) confirmó
+que el glob `'**/sources/**'` SÍ coincide con la forma relativa real
+(`../src/sources/idealista/idealista-source.js`) bajo el minimatch instalado — se probó con una
+importación deliberadamente violatoria, se confirmó el aviso de lint exacto, y se retiró. No
+hizo falta ningún fallback.
+
+**Obligación hacia adelante para ROADMAP 1.11 (N3).** Un único ganador por grupo (decisión 053)
+significa que una propiedad puede quedar con un atributo `NULL` cuando un miembro no ganador sí
+tenía ese dato y el ganador no. Un valor `NULL` en `bathrooms`/`propertyType` es invisible para
+los filtros de «baños»/«tipo de inmueble» que 1.11 va a construir sobre estas mismas columnas.
+No se rellena desde otro miembro en este paso — coste aceptado explícitamente, no un defecto.
+
+**Obligación hacia adelante para ROADMAP 1.12 (R4).** `properties.id` no es estable entre
+reprocesos (decisión 054, Q6): cada reproceso borra y reconstruye la caché completa con uuids
+nuevos. Las páginas de detalle con URL propia que 1.12 va a construir no pueden usar
+`properties.id` tal cual como parte de una URL durable.
+
+**`packages/db`'s `vitest run` por defecto no prueba nada de este paso.** La puerta de tests que
+sí lo hace es `pnpm --filter @buscahogar/db run test:consolidation` — la suite por defecto usa
+la puerta `describeWithDb` que se salta en silencio sin base de datos, el mismo límite ya
+documentado para el paso 1.8 (obs #129, nota A6). Confirmado directamente en la tarea 3.11 de
+esta misma fase: la suite por defecto siguió en verde (29/29) sin ejercer ni una sola línea de
+`hydration.ts`/`consolidation.ts`.
+
+**`apps/ingestion` consume `@buscahogar/db` por su `dist/` compilado, no por su código fuente.**
+Cualquier cambio en `packages/db`/`packages/core` necesita `pnpm --filter @buscahogar/db run
+build` antes de que `apps/ingestion` (y, por la misma razón, `apps/web` en pasos futuros) pueda
+verlo. La unidad D de esta fase lo sufrió directamente: el primer `test:db` contra el CLI recién
+escrito falló con `TypeError: hydrateListingsForDedup is not a function` hasta reconstruir el
+`dist/` desactualizado. Detalle en `docs/AI-NOTES.md`.
+
+**El corpus real de Idealista (obs #142, 50 anuncios) ya no existe en la base de datos de
+desarrollo.** Verificado directamente contra el contenedor `buscahogar-db-1`: `listings`,
+`listing_versions`, `properties` y `sources` están en cero filas; solo `zones` conserva una fila.
+La causa, con certeza razonable y no una simple sospecha: la decisión 046 (sin base de datos de
+test separada) combinada con el número de ejecuciones de suites contra base de datos real que
+este cambio —el mayor del arco, con tres configuraciones fail-loud distintas en `packages/db` y
+`apps/ingestion`— disparó en una sola sesión, cada una truncando la base compartida. **Esto tiene
+una consecuencia directa para la honestidad de la memoria del TFM: el agrupamiento no trivial
+(D2/D3, cuando un componente reúne más de un anuncio) quedó demostrado exclusivamente contra
+datos sembrados a propósito** — 18 tests puros de la Unidad B y 14 tests de integración de la
+Unidad C, todos con corpus construido a mano para forzar el caso multi-miembro — **nunca contra
+el corpus real**, que en su estado anterior (50 códigos de anuncio distintos entre 50 anuncios,
+obs #142) probablemente no formaba ningún grupo de más de un miembro de todos modos. La ejecución
+manual del comando `reprocess` contra la base de datos real (tarea 4.12) solo pudo demostrar la
+forma y la finalización del informe (`listingsConsidered: 0`), no una agrupación no trivial sobre
+datos reales — y no puede volver a intentarse sin volver a gastar la cuota facturable que costó
+obtener esos 50 anuncios originalmente. Ningún paso posterior debe presentar el agrupamiento como
+validado contra datos reales a partir de esta sesión.
 
 ---
 
@@ -1187,3 +1254,8 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-14/15 | 1.8  | El autojoin del diseño original (`D-Q1`: `alias()` + `lt(a.id,b.id)` como condición del `JOIN`, predicado geográfico en `WHERE`) se reescribió dos veces durante `apply`, hasta una subconsulta `LATERAL` correlacionada con `.limit()` como barrera de optimización — restructuración real de la consulta, no una aserción relajada | Medido contra PostgreSQL real: ni el `WHERE` ni el `ON` del `JOIN` bastan, porque Postgres reordena libremente el árbol de `INNER JOIN`s y prefería el índice de precio incluso con radio estrecho, por una subestimación de coste del planificador sobre un rango parametrizado. Permitido explícitamente por `FB-GIST-NOT-CHOSEN` ("restructure the query"). Consecuencia aceptada por el mismo fallback: `CHK-PRICE-IDX` dejó de ser demostrable con la nueva forma de consulta y se retiró (no se relajó) per `FB-PARTIAL-IDX-NOT-CHOSEN`. Detalle en decisiones 042-045, `docs/DECISIONS.md`. |
 | 2026-09-15 | 1.9  | No se escribe nada en `property_listings` en este paso, pese a que el texto literal del paso dice "se persiste en property_listings junto con la decisión y el nombre de la estrategia" | Confirmado en el pre-proposal (Q1, obs #144): 1.9 se mantiene puro en `packages/core`, sin ninguna dependencia de `packages/db` ni conexión a base de datos — `score(a, b)` deriva todo de los dos valores `Listing` en memoria. El texto del paso queda satisfecho por disponibilidad de contrato, no por una inserción real: las columnas `score`/`signals`/`strategy_name`/`strategy_version` de `property_listings` ya existen (ROADMAP 1.3) y `SimilarityResult` ya trae todo lo que necesitan. La inserción real es ROADMAP 1.10. |
 | 2026-09-15 | 1.9  | "Revisar a mano una muestra de los grupos formados" es estructuralmente inaplicable en este paso | ROADMAP 1.9 no forma ningún grupo — Q1 excluye explícitamente `findCandidatePairs`, la hidratación de `Listing` desde filas persistidas y la consolidación de `properties` (ROADMAP 1.10/1.11). No hay ningún grupo que muestrear. El artefacto revisable en su lugar es el corpus de 24 pares etiquetados con rationale (`packages/core/test/dedup-corpus.ts`), que es lo que el prompt original pedía explícitamente ("Añade tests con pares etiquetados, incluyendo negativos difíciles"). |
+| 2026-09-15/16 | 1.10 | `sdd-spec` y `sdd-design` corrieron en paralelo y devolvieron una contradicción real, no un falso conflicto: si un anuncio sin duplicado detectado ("singleton") recibe o no su propia fila en `property_listings`. Arbitrada por el orquestador antes de `sdd-tasks` (obs #162) a favor del diseño; la especificación recibió su única re-ejecución correctiva (revisión 2) | La especificación original razonaba desde `property_listings` como tabla de coincidencias reales entre dos anuncios y negaba la fila a un singleton. El diseño exigía la fila (D6), forzado porque `score`/`signals` son `NOT NULL` en esa tabla y porque ROADMAP 1.11 consulta `properties`, no `listings` — bajo la lectura de la especificación, con el corpus real medido en la exploración (50 códigos de anuncio distintos entre 50 anuncios, obs #142), casi ningún anuncio real habría tenido fila en `properties` y la página de resultados de 1.11 habría vuelto vacía. Ninguno de los dos artefactos poseía por sí solo el criterio de desempate: fue leer el consumidor aguas abajo lo que lo resolvió. |
+| 2026-09-15 | 1.10 | Las tareas 1.7/1.8 (decisiones 051/055) se difirieron erróneamente a la fase 5 por una instrucción de batch que contradecía la ubicación que las propias tareas de `sdd-tasks` ya les daban en la fase 1 | Corregido dentro de la misma unidad de trabajo (Unidad A), antes de empezar la Unidad B: los comentarios del propio esquema ya citaban "decisión 051"/"055" como si existieran, así que se siguió la ubicación original de las tareas en vez de la instrucción de batch conflictiva. Ningún código de producción se vio afectado; ambas decisiones quedaron redactadas en la fase 1 como estaba especificado. |
+| 2026-09-15 | 1.10 | El texto literal de la tarea 3.1 especificaba un único fichero de `setupFiles` para la nueva config de vitest de consolidación, en vez de los dos que usa el precedente que la propia tarea cita como "reutilizado verbatim" (`vitest.blocking.config.ts:17`, paso 1.8) | Seguir el texto literal habría hecho fallar la suite incondicionalmente (sin `DATABASE_URL` en el entorno de shell ambiente, solo en `.env`), no "fallar alto solo cuando falta genuinamente" — justo el objetivo declarado de D10. Corregido a los dos ficheros del precedente, byte a byte en el mismo orden, antes de escribir ningún test contra la base de datos real; verificado en rojo con los errores de módulo-no-encontrado esperados, no con errores de entorno. |
+| 2026-09-15 | 1.10 | `packages/db/test/helpers/db-client.ts`'s `truncateAll()` (infraestructura de test del paso 1.7) no incluía `dedup_runs`/`dedup_pair_evidence` en su lista de orden por dependencia FK, un hueco preexistente que solo esta fase podía descubrir porque esas tablas no existían cuando el helper se escribió | Descubierto por un recuento absoluto de filas fallando en la propia Unidad C (`4` en vez de `1` esperado) en el test de atomicidad de `writeConsolidation`. Corregido añadiendo ambas tablas explícitamente; reverificado sin regresión en las suites de los pasos 1.7-1.9 (29/29, 18/18), que nunca escriben esas tablas y por tanto nunca dependieron del hueco. El mismo defecto se buscó y se corrigió proactivamente en la copia equivalente del arnés en `apps/ingestion` durante la Unidad D, antes de que causara ningún fallo allí. |
+| 2026-09-16 | 1.10 | El corpus real de Idealista (obs #142, 50 anuncios) desapareció de la base de datos de desarrollo durante esta sesión, confirmado directamente contra `buscahogar-db-1`: `listings`/`listing_versions`/`properties`/`sources` en cero filas | Consecuencia aceptada de la decisión 046 (sin base de datos de test separada) combinada con el número de ejecuciones de suites contra base de datos real que este cambio —el mayor del arco, con tres configuraciones fail-loud distintas— disparó en una sola sesión, cada una truncando la base compartida. No es un defecto de este paso, pero sí tiene una consecuencia real para la memoria: el agrupamiento no trivial de este paso (D2/D3) queda demostrado solo contra datos sembrados a propósito (32 tests entre las unidades B y C), nunca contra el corpus real, que ya no puede volver a usarse para el intento sin gastar cuota facturable de nuevo. Detalle completo en las notas de este paso y en `docs/PROMPTS.md`. |

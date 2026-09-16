@@ -33,6 +33,7 @@ export type { AppliedFeature, Feature } from './types/feature.js';
 export type { SignalBreakdown, SignalScore, SimilarityResult } from './types/similarity.js';
 export type { SourcePage } from './types/source-page.js';
 export type { CandidatePair } from './types/candidate-pair.js';
+export type { ClassifiedPair } from './types/classified-pair.js';
 
 export type { Listing } from './schemas/listing.schema.js'; // derivado con z.infer
 export { listingSchema } from './schemas/listing.schema.js';
@@ -56,5 +57,15 @@ export { haversineDistanceMeters } from './geo/distance.js';
 export { ruleBasedDedupStrategy } from './strategies/rule-based/strategy.js';
 export { classify } from './strategies/rule-based/classify.js';
 export type { SimilarityBand } from './strategies/rule-based/classify.js';
+
+// Consolidación de viviendas canónicas (ROADMAP 1.10): los dos algoritmos
+// puros que convierten pares clasificados en propiedades — agrupación por
+// cierre transitivo (D3) y selección del listing ganador (D4). Ambos
+// exportados por nombre, no `export *`, siguiendo la convención explícita
+// de este barril (:12-18).
+export { buildPropertyGroups } from './consolidation/grouping.js';
+export type { PropertyGroup, RefusedComponent, GroupingResult } from './consolidation/grouping.js';
+export { selectWinningListing, countCompleteness } from './consolidation/winner.js';
+export type { WinnerCandidate } from './consolidation/winner.js';
 
 export const CORE_VERSION = '0.0.1';

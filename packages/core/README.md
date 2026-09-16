@@ -33,6 +33,8 @@ src/
   types/             Tipos e interfaces escritos a mano
   schemas/           Esquemas Zod (Listing, AreaQuery) + tipos derivados con z.infer
   contracts/         Contratos intercambiables (PropertySource, ListingNormalizer, DedupStrategy)
+  strategies/        Implementaciones concretas de DedupStrategy (rule-based/, ROADMAP 1.9)
+  consolidation/     Agrupación (D3) y selección del ganador (D4) — puro, sin ORM (ROADMAP 1.10)
 ```
 
 `contracts/` sustituye a la propuesta original de `strategies/` (paso 1.4): `strategies/`
@@ -63,4 +65,12 @@ razonamiento completo, con ejemplo, vive en `src/index.ts`.
   rechazo sobre `propertyType`/`operation`. Corpus de 24 pares etiquetados
   (`packages/core/test/dedup-corpus.ts`) que prueba mecánica, no calibración — pesos y
   umbrales quedan sin validar a escala hasta ROADMAP 1.10.
-- 1.10+: consolidación de viviendas canónicas y comparación de estrategias.
+- **1.10 — hecho (parcial: algoritmos puros).** `consolidation/grouping.ts` —
+  `buildPropertyGroups`, cierre transitivo sobre aristas `accept` con chequeo de conflicto
+  sobre la partición ya completa; un componente con un `reject` interno real se rechaza
+  entero (nunca se divide), y todo listing recibido termina en exactamente un grupo, incluso
+  sin ningún par que lo mencione. `consolidation/winner.ts` — `selectWinningListing` y
+  `countCompleteness`, comparador de tres claves (completitud DESC, recencia de cambio de
+  contenido DESC, `listingId` ASC como desempate final total). Ambos puros, sin ORM, sin
+  Next, sin efectos secundarios; consumidos por la hidratación y el escritor transaccional de
+  `packages/db` (resto de 1.10, aún pendiente en este paquete).

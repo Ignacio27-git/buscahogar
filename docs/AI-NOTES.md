@@ -40,6 +40,101 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-16 — `apps/ingestion` resuelve `@buscahogar/db` por su `dist/` compilado, no por su código fuente
+
+**Contexto:** paso 1.10, Unidad D (`sdd-apply`), primer intento de ejecutar
+`pnpm --filter @buscahogar/ingestion run test:db` contra el CLI de reproceso ya escrito.
+
+**Categoría:** deriva de la arquitectura entre sesiones — un cambio en un paquete interno no
+es visible para su consumidor sin un paso intermedio que ningún test detecta por adelantado.
+
+**Qué ocurrió:** `packages/db/package.json` declara `"main": "./dist/index.js"`, así que
+`apps/ingestion` importa siempre el `dist/` compilado del paquete, nunca su `src/` en
+TypeScript. La Unidad C de este mismo paso (`sdd-apply`, batch 3) había añadido
+`hydrateListingsForDedup`/`writeConsolidation` a `packages/db/src/index.ts`, pero el `dist/`
+seguía siendo el compilado antes de esa unidad. La primera ejecución de la suite de la
+Unidad D contra el CLI recién escrito falló con
+`TypeError: hydrateListingsForDedup is not a function`, no con un error de tipos ni de
+import — la función existía en el código fuente y en los tipos, pero no en el artefacto que
+Node realmente cargaba.
+
+**Cómo se detectó:** el error en tiempo de ejecución de la propia suite `test:db`, no por
+`typecheck` (que compila contra `src/` vía referencias de proyecto de TypeScript y no
+detecta este desfase) ni por `lint`.
+
+**Cómo se resolvió:** `pnpm --filter @buscahogar/db run build`, seguido de una comprobación
+por `grep` de que `dist/index.js`/`dist/index.d.ts` ya exportaban ambos módulos nuevos.
+Reejecutada la suite, verde a la primera. `dist/` está en `.gitignore`, así que esto no deja
+ningún diff.
+
+**Coste:** bajo — un ciclo de diagnóstico y una orden de build, sin ninguna corrección de
+código de producción.
+
+**Observación:** cualquier cambio en `packages/db` o `packages/core` durante una sesión de
+trabajo necesita una reconstrucción explícita antes de que `apps/ingestion` (y, por la misma
+razón, `apps/web` en pasos futuros) pueda verlo — el `main` apuntando a `dist/` hace que esto
+sea sistemático, no específico de este paso. Vale la pena comprobarlo por adelantado la
+próxima vez que un consumidor use algo recién exportado por un paquete hermano.
+
+### 2026-09-15/16 — `codegraph_explore` reporta como "ya enviado antes en esta conversación" un fichero que nunca se había leído, dos veces en dos fases distintas
+
+**Contexto:** paso 1.9 (`sdd-design`, obs #146) y paso 1.10 (`sdd-design`, obs #160) de este
+proyecto, en sesiones distintas.
+
+**Categoría:** herramienta de asistencia (no el modelo ni el código del proyecto) que emite
+una afirmación de estado falsa y verificable.
+
+**Qué ocurrió:** en ambas fases de diseño, la herramienta `codegraph_explore` devolvió
+`packages/db/src/blocking.ts` y `packages/core/src/types/candidate-pair.ts` marcados como
+"ya enviados anteriormente en esta conversación", cuando ninguno de los dos había aparecido
+todavía en la conversación correspondiente. En ambos casos el fichero se abrió con `Read`
+en su lugar, sin depender de la afirmación de la herramienta.
+
+**Cómo se detectó:** en el paso 1.9, comprobación manual de que el contenido citado no
+coincidía con nada mostrado previamente en esa sesión. En el paso 1.10, el mismo patrón
+exacto se reconoció de inmediato por ser la segunda vez sobre los mismos dos ficheros.
+
+**Coste:** ninguno en ambos casos — la mitigación (`Read` directo en vez de confiar en la
+herramienta) ya era la práctica seguida, así que ningún contenido incorrecto llegó a
+usarse. El coste habría sido alto de no aplicarse: ambos ficheros son fuente de verdad para
+decisiones de diseño no triviales (el predicado de bloqueo real y el tipo `CandidatePair`).
+
+**Observación:** es el mismo defecto observado dos veces sobre los mismos dos ficheros, en
+fases de diseño consecutivas de este proyecto — deja de ser un incidente aislado y pasa a
+ser un patrón conocido de la herramienta. Para cualquier fichero que `codegraph_explore`
+marque como "ya enviado", confirmar con `Read` directo antes de citarlo como evidencia,
+especialmente cuando el fichero es la base de una decisión de diseño.
+
+### 2026-09-15 — Dos propuestas archivadas asignan el comando de reproceso al paso equivocado del ROADMAP
+
+**Contexto:** paso 1.10 (`sdd-propose`), al revisar el trabajo heredado de los pasos 1.8 y
+1.9 para evitar repetir alcance ya cubierto.
+
+**Categoría:** afirmación heredada entre fases, nunca contrastada contra el texto fuente que
+cita.
+
+**Qué ocurrió:** tanto `sdd/candidate-blocking/proposal` (obs #126, paso 1.8) como
+`sdd/rule-based-dedup-strategy/proposal` (obs #145, paso 1.9) listan "el comando de
+reproceso completo" como alcance de **ROADMAP 1.11**. El texto literal del ROADMAP lo asigna
+a **1.10** (`docs/ROADMAP.md:951-952`); 1.11 es la página de búsqueda en Next
+(`docs/ROADMAP.md:962-977`), sin ningún comando de CLI en su alcance. El error se copió de
+la primera propuesta (1.8) a la segunda (1.9) sin que ninguna de las dos lo contrastara
+contra el propio texto del paso que citaba.
+
+**Cómo se detectó:** lectura directa de `docs/ROADMAP.md` durante la exploración del paso
+1.10, al confirmar en qué paso debía aterrizar el comando de reproceso antes de escribir la
+propuesta.
+
+**Coste:** ninguno en código — ambas propuestas archivadas ya estaban cerradas y no se
+reabrieron; el paso 1.10 implementó el comando en su propio alcance, que es donde siempre
+perteneció según el texto del ROADMAP.
+
+**Observación:** una afirmación sobre "a qué paso pertenece X" que se repite sin cambios
+entre dos propuestas consecutivas merece la misma sospecha que cualquier otro dato heredado
+sin verificar: contrastarla contra el documento fuente que cita, no asumir que dos fuentes
+independientes que coinciden ya la confirman — aquí la segunda simplemente copió el error de
+la primera.
+
 ### 2026-09-15 — Cifra de colisión de direcciones inflada en la fase de exploración (1.9)
 
 **Contexto:** paso 1.9, `sdd-explore` para la estrategia de deduplicación basada en reglas.

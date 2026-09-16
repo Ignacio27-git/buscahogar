@@ -17,13 +17,25 @@ export function connectTestDb(): { db: Database; pool: Pool } {
 
 // Mismo orden que el original: respeta las claves foráneas del esquema
 // compartido. CASCADE cubre cualquier referencia añadida más adelante.
+//
+// ROADMAP 1.10: `dedup_pair_evidence`/`dedup_runs` se añaden aquí de forma
+// explícita, mismo fallo y mismo arreglo ya documentados en
+// `packages/db/test/helpers/db-client.ts` (Unit C, obs #164): `dedup_pair_
+// evidence` ya quedaba vaciada de rebote por el CASCADE de `listings`
+// (referencia `listings.id`), pero `dedup_runs` no tiene ninguna fila en
+// esta lista que la referencie, así que sin este añadido sus filas
+// sobrevivirían entre tests del mismo fichero — el nuevo
+// `test/db/reprocess-dedup.db.test.ts` (D12) escribe ambas tablas en cada
+// corrida.
 const TABLES_IN_FK_ORDER = [
   'property_listings',
+  'dedup_pair_evidence',
   'listing_features',
   'listing_versions',
   'coverage_jobs',
   'listings',
   'properties',
+  'dedup_runs',
   'zones',
   'sources',
   'locations',

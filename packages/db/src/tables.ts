@@ -5,6 +5,8 @@
 // decisión de módulos D1 del diseño).
 export { coverageJobStatus } from './schema/enums.js';
 export { coverageJobs } from './schema/coverage-jobs.js';
+export { dedupPairEvidence } from './schema/dedup-pair-evidence.js';
+export { dedupRuns } from './schema/dedup-runs.js';
 export { features } from './schema/features.js';
 export { listingFeatures } from './schema/listing-features.js';
 export { listingVersions } from './schema/listing-versions.js';
