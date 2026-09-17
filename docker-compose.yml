@@ -52,6 +52,19 @@ services:
       # lockfile y los packages compartidos, no solo apps/web.
       context: .
       dockerfile: apps/web/Dockerfile
+    # ROADMAP 1.11, docs/DECISIONS.md decisión 056 (enmienda la 015): `web`
+    # recibe SU PROPIA credencial de solo lectura, nunca `env_file` (que le
+    # daría también la credencial de escritura de `ingestion` y las de las
+    # fuentes). `WEB_DATABASE_URL` vive en el `.env` de la raíz junto a la de
+    # `ingestion`, bajo un nombre distinto para que no colisionen; nunca una
+    # variable `NEXT_PUBLIC_*`.
+    environment:
+      # Sin `:?`: esa forma aborta la interpolación del fichero ENTERO, también
+      # para `docker compose up -d` sin `--profile`, que la decisión 015
+      # garantiza que levanta solo `db`. El fallo ruidoso vive donde toca, en
+      # `apps/web/src/server/db.ts`: lanza un error nombrado citando la decisión
+      # 056 cuando falta la variable, y está probado en `apps/web/test/db.test.ts`.
+      DATABASE_URL: '${WEB_DATABASE_URL}'
     depends_on:
       db:
         condition: service_healthy
@@ -61,8 +74,9 @@ services:
     build:
       context: .
       dockerfile: apps/ingestion/Dockerfile
-    # Las credenciales viven solo aquí. `web` no recibe env_file ni environment: no
-    # debe ver credenciales de base de datos ni de las fuentes, y nunca NEXT_PUBLIC_*.
+    # Las credenciales de escritura y las de las fuentes viven solo aquí.
+    # `web` (arriba) recibe una `environment:` propia y acotada, nunca este
+    # `env_file` completo (docs/DECISIONS.md, decisión 056).
     env_file:
       - .env
     depends_on:

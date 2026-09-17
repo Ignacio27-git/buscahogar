@@ -9,6 +9,7 @@ import { writeConsolidation } from '../../src/consolidation.js';
 import { listingVersions, listings, properties, propertyListings } from '../../src/tables.js';
 import { connectTestDb, truncateAll } from '../helpers/db-client.js';
 import { insertListingWithVersion, insertSourceWithKey, orderPair } from './helpers.js';
+import { eq } from 'drizzle-orm';
 
 const STRATEGY = { strategyName: 'rule-based-structured', strategyVersion: '1.0.0' };
 const THRESHOLDS = { radiusMeters: 300, priceBandCents: 2_500_000, surfaceToleranceM2: 10 };
@@ -411,6 +412,64 @@ describe('writeConsolidation (D5, D6, D8)', () => {
 
       expect(listingsAfter).toEqual(listingsBefore);
       expect(versionsAfter).toEqual(versionsBefore);
+    });
+  });
+
+  // Hueco detectado por `sdd-verify` (obs #182, hallazgo CRÍTICO 3): el
+  // escenario «Consolidated Thumbnail Selection» de la especificación no tenía
+  // ningún test, pese a que `consolidation.ts` se modificó justo para proyectar
+  // esa columna. El ganador NO es el más barato a propósito: si la
+  // consolidación tomara el thumbnail del anuncio del precio mínimo —el mismo
+  // del que sí toma `minPriceCents`— este test fallaría.
+  describe('PROP-4: el thumbnail consolidado es el del ganador, no el del más barato', () => {
+    it('PROP-4a: `properties.thumbnailUrl` sale del anuncio ganador aunque otro del grupo sea más barato', async () => {
+      const sourceId = await insertSourceWithKey(db, 'idealista');
+      const winnerThumbnail = 'https://img4.idealista.com/blur/ganador.webp';
+      const cheapestThumbnail = 'https://img4.idealista.com/blur/barato.webp';
+
+      const { listingId: winnerId, versionId: winnerVersionId } = await insertListingWithVersion(db, sourceId, {
+        priceCents: 300_000_00, // el ganador NO es el más barato
+        propertyType: 'flat',
+        address: 'Calle del Ganador 1',
+      });
+      const { listingId: cheapestId, versionId: cheapestVersionId } = await insertListingWithVersion(db, sourceId, {
+        priceCents: 200_000_00,
+        propertyType: 'flat',
+        address: 'Calle del Barato 2',
+      });
+
+      // `thumbnailUrl` es columna de identidad de `listings` (decisión 059), no
+      // de `listing_versions`, así que se fija aquí y no en la versión.
+      await db.update(listings).set({ thumbnailUrl: winnerThumbnail }).where(eq(listings.id, winnerId));
+      await db.update(listings).set({ thumbnailUrl: cheapestThumbnail }).where(eq(listings.id, cheapestId));
+
+      const [a, b] = orderPair(winnerId, cheapestId);
+      const outcome = await writeConsolidation(
+        db,
+        baseInput({
+          listingsConsidered: 2,
+          pairs: [
+            {
+              listingAId: a,
+              listingBId: b,
+              band: 'accept' as const,
+              score: 0.9,
+              signals: SIGNALS_A,
+              scoredListingVersionIdA: a === winnerId ? winnerVersionId : cheapestVersionId,
+              scoredListingVersionIdB: a === winnerId ? cheapestVersionId : winnerVersionId,
+            },
+          ],
+          groups: [{ listingIds: [winnerId, cheapestId].sort(), winnerId }],
+        })
+      );
+
+      expect(outcome.propertiesCreated).toBe(1);
+      const [property] = await db.select().from(properties);
+      expect(property?.thumbnailUrl).toBe(winnerThumbnail);
+      // Control: el precio sí es el mínimo del grupo, así que el ganador y el
+      // origen del precio son anuncios distintos y la aserción de arriba no
+      // puede cumplirse por casualidad.
+      expect(property?.minPriceCents).toBe(200_000_00);
     });
   });
 });

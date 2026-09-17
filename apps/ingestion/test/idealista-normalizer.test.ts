@@ -43,6 +43,14 @@ describe('IdealistaListingNormalizer — sobre datos reales (ambas fixtures, D3 
     }
   });
 
+  it('thumbnailUrl se mapea desde raw.thumbnail (ROADMAP 1.11, decisión 059)', () => {
+    for (const element of loadElements('search-homes-2026-09-10.json')) {
+      const listing = normalizer.normalize(element);
+      expect(listing.thumbnailUrl).toBe(element.thumbnail);
+      expect(typeof listing.thumbnailUrl).toBe('string');
+    }
+  });
+
   it('features es siempre un array vacío (D8, catálogo diferido a un paso posterior)', () => {
     const [element] = loadElements('search-homes-2026-09-10.json');
     expect(element).toBeDefined();

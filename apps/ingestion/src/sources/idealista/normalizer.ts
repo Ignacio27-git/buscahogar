@@ -52,6 +52,8 @@ export class IdealistaListingNormalizer implements ListingNormalizer<IdealistaEl
       title: raw.suggestedTexts?.title,
       description: raw.description,
       address: raw.address,
+      // ROADMAP 1.11 — docs/DECISIONS.md, decisión 059.
+      thumbnailUrl: raw.thumbnail,
       coordinates,
       // Siempre undefined en esta fuente: no hay campo INE/provincia/CCAA
       // (location) y `showAddress` no es una señal válida de ofuscación

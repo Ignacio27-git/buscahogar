@@ -94,6 +94,7 @@ describe('listingSchema — matriz de campos opcionales ausentes', () => {
     'address',
     'coordinates',
     'location',
+    'thumbnailUrl',
   ] as const;
 
   it.each(optionalFields)('es válido sin el campo opcional "%s"', (field) => {
@@ -123,6 +124,27 @@ describe('listingSchema — coordinatesObfuscated es tri-estado (decisión 026)'
     if (undefinedResult.success && falseResult.success) {
       expect(undefinedResult.data.coordinatesObfuscated).toBeUndefined();
       expect(falseResult.data.coordinatesObfuscated).toBe(false);
+    }
+  });
+});
+
+describe('listingSchema — thumbnailUrl es .optional(), nunca .nullable() (ROADMAP 1.11, decisión 059)', () => {
+  it('acepta un thumbnailUrl con formato de URL', () => {
+    const result = listingSchema.safeParse({
+      ...minimalValid,
+      thumbnailUrl: 'https://img4.idealista.com/blur/480_360_mq/foto.webp',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.thumbnailUrl).toBe('https://img4.idealista.com/blur/480_360_mq/foto.webp');
+    }
+  });
+
+  it('es válido sin thumbnailUrl, y el valor resultante es undefined (nunca null)', () => {
+    const result = listingSchema.safeParse(minimalValid);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.thumbnailUrl).toBeUndefined();
     }
   });
 });

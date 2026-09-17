@@ -280,4 +280,35 @@ describe('listing-writer — PERSIST-1..8, D5', () => {
       );
     expect(currentRows).toHaveLength(1);
   });
+
+  // Hueco detectado por `sdd-verify` (obs #182, hallazgo CRÍTICO 2): el
+  // escenario «Re-sighting with a different thumbnail» de la especificación no
+  // tenía NINGÚN test ejecutado — solo la lectura del diff. Es el escenario que
+  // protege la invariante no negociable del proyecto: `listings` no se
+  // sobrescribe y de ahí sale el histórico. Si `thumbnailUrl` entrara en
+  // `VERSION_COLUMN_FIELDS` (la decisión 059 lo prohíbe), cada recorte de
+  // imagen del portal fabricaría una fila nueva en `listing_versions`.
+  it('PERSIST-3b: una re-visión que solo cambia el thumbnail no crea versión nueva y congela el valor original', async () => {
+    const sourceUuid = await insertSource(db);
+    const externalId = `ext-thumb-${randomUUID()}`;
+    const firstThumbnail = 'https://img4.idealista.com/blur/primera.webp';
+    const secondThumbnail = 'https://img4.idealista.com/blur/segunda.webp';
+
+    await persistOne(sourceUuid, buildItem({ externalId, thumbnailUrl: firstThumbnail }));
+    await persistOne(sourceUuid, buildItem({ externalId, thumbnailUrl: secondThumbnail }));
+
+    const [row] = await db.select().from(listings).where(eq(listings.externalId, externalId));
+    const listingRow = requireRow(row, 'listings row no encontrada tras la re-visión');
+
+    // Columna de IDENTIDAD: PERSIST-3 no la sobrescribe, así que se congela en
+    // la primera vista. Coste aceptado y declarado en la decisión 059.
+    expect(listingRow.thumbnailUrl).toBe(firstThumbnail);
+
+    // Lo que de verdad protege este test: ni una versión nueva.
+    const versions = await db
+      .select()
+      .from(listingVersions)
+      .where(eq(listingVersions.listingId, listingRow.id));
+    expect(versions).toHaveLength(1);
+  });
 });

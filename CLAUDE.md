@@ -17,8 +17,12 @@ externa desde `apps/web`, es incorrecta.
 debe tener corte explícito. Un bucle mal cerrado agota la cuota del mes. Nunca llamar a
 la API real desde tests: usar fixtures grabados.
 
-**Credenciales solo en `apps/ingestion`.** Nunca en `apps/web`, nunca en variables
-`NEXT_PUBLIC_*`.
+**Credenciales de fuentes y de escritura solo en `apps/ingestion`.** (docs/DECISIONS.md,
+decisión 056, enmienda la 015). `apps/web` tiene su propia credencial de base de datos,
+respaldada por un rol de PostgreSQL de **solo lectura**: `DATABASE_URL` en
+`apps/web/.env.local` (local) o inyectada por Compose desde `WEB_DATABASE_URL` (contenedor).
+Ninguna credencial de las fuentes (Idealista u otra) llega nunca a `apps/web`, y ninguna
+credencial de ningún tipo se expone como variable `NEXT_PUBLIC_*`.
 
 **`listings` y `properties` son cosas distintas.** `listings` = un anuncio de una fuente.
 `properties` = vivienda canónica, agrupación de uno o varios listings. No mezclarlas ni

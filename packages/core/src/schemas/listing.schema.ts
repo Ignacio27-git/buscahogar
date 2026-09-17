@@ -39,6 +39,10 @@ export const listingSchema = z.object({
   // Tri-estado deliberado (decisión 026): `undefined` significa "sin señal
   // fiable", nunca se infiere como `false`.
   coordinatesObfuscated: z.boolean().optional(),
+  // ROADMAP 1.11 — .optional(), nunca .nullable(): cero nulos JSON en el
+  // campo `thumbnail` de las fixtures reales (docs/DECISIONS.md, decisión
+  // 059).
+  thumbnailUrl: z.string().optional(),
 
   features: z.array(appliedFeatureSchema).readonly().default([]),
 });

@@ -30,6 +30,105 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-17 — Búsqueda y listado en Next (1.11), cierre: ejecutar la aplicación encuentra lo que 715 tests en verde no encontraban
+
+**Tipo de tarea:** corrección + test
+**Forma de especificación:** iterativo (continuaciones cortas: «continúa», «resetea y verifica»)
+**Resultado:** utilizable con retoques
+
+**Observación:** esta entrada cubre el tramo posterior al primer lote de `sdd-apply`, donde la
+forma de trabajo dejó de ser «especificar» y pasó a ser «ejecutar y mirar». El dato del paso:
+
+Con 715 tests en verde, typecheck limpio y lint en exit 0, la búsqueda **no había funcionado
+nunca**. La subconsulta del recuento de fuentes emitía un `"id"` sin cualificar y Postgres la
+rechazaba con 42702. Los 21 tests de `.toSQL()` que la cubrían pasaban igual con el SQL roto y
+con el corregido, porque comparan la forma de la cadena emitida y no la ejecutan. El fallo
+apareció al arrancar `next start` y pedir la página: las URL válidas daban 500 y las inválidas
+200, porque estas últimas ni llegaban a la base de datos.
+
+Dos defectos más aparecieron por el mismo método —construir y ejecutar, no razonar—: un import
+con sufijo `.js` que `tsc` acepta y Turbopack no, y un `${VAR:?...}` en el compose que abortaba
+la interpolación del fichero entero.
+
+Después, `sdd-verify` devolvió `fail` con 3 bloqueantes: escenarios de la especificación sin
+ningún test que los ejecutara. Verificó de forma independiente los 715 tests, rehízo dos
+sabotajes por su cuenta y **desmintió una afirmación del informe de implementación** (decía tener
+un test de `page=101` que no existía). Los tres huecos se cubrieron después, cada uno verificado
+en rojo.
+
+Lección para la memoria: en este paso, el valor marginal de un test más de construcción de
+consulta era cero, y el de ejecutar la aplicación una sola vez fue encontrar tres defectos, uno
+de ellos total. La instrucción que más rindió no fue una especificación: fue «continúa» seguido
+de mirar la salida real.
+
+### 2026-09-17 — Búsqueda y listado en Next (1.11), implementación (`sdd-apply`) sobre la planificación ya cerrada
+
+**Tipo de tarea:** interfaz + consulta SQL + esquema Zod + migración de esquema + script de backfill
+**Forma de especificación:** ciclo SDD completo — tareas persistidas (39, obs #177) sobre spec
+revisión 2 (obs #174), diseño (obs #173) y arbitraje (obs #175) ya cerrados en la sesión previa
+**Resultado:** utilizable con retoques (dos bloqueos de infraestructura, no de especificación)
+**Prompt:**
+
+> Ejecuta `sdd-apply` para `web-search-listing` (ROADMAP 1.11) en modo TDD estricto, con la
+> corrección explícita de exigir un paso "verificar en rojo" en cada aserción estructural
+> (romper la implementación a propósito, confirmar el fallo exacto, revertir) — dos aserciones
+> vacuas ya se habían colado en verde en los pasos 1.8 y 1.9 de este mismo proyecto.
+
+**Observación:** las 39 tareas se implementaron y typecheckearon limpias en los cuatro
+workspaces tocados (`packages/core`, `packages/db`, `apps/ingestion`, `apps/web`), con el ciclo
+RED→GREEN real (no simulado) en cada tarea con test asociado. El paso "verificar en rojo" se
+ejecutó de verdad cinco veces (clasificación de `thumbnailUrl`, import prohibido del backfill,
+rescate `OR IS NULL` en el filtro de precio/operación, directiva `'use client'`, import
+prohibido de `page.tsx`) — todas confirmaron el fallo esperado antes de revertir. Dos bloqueos,
+ninguno de especificación: (1) Docker Desktop no está disponible en este entorno, así que
+ninguna suite respaldada por PostgreSQL real pudo ejecutarse, ni las nuevas ni las que ya
+existían antes de este cambio; (2) el rol de PostgreSQL de solo lectura de `apps/web` sigue
+siendo un prerrequisito exclusivo del mantenedor. Ambos se registran honestamente como
+bloqueados en vez de fingir una verificación que no ocurrió. Ver la tabla de desviaciones.
+
+Un hallazgo de diseño propio durante la implementación, no anticipado por el diseño: la
+aserción "`projectToVersionColumns` produce el mismo resultado para dos `Listing` que solo
+difieren en `thumbnailUrl`" es estructuralmente incapaz de fallar si se sabotea la
+CLASIFICACIÓN del campo en `listing-field-policy.ts` (esa función nunca consulta la política);
+solo falla si se sabotea la propia función de proyección. Corregido antes de reportar verde.
+Ver `AI-NOTES.md`.
+
+### 2026-09-16 — Búsqueda y listado en Next (1.11), planificación completa; el spec y el diseño en paralelo vuelven a destapar una contradicción
+
+**Tipo de tarea:** interfaz + consulta SQL + configuración
+**Forma de especificación:** prosa estructurada (lista de requisitos) + restricción negativa explícita
+**Resultado:** utilizable con retoques (una re-ejecución correctiva del spec)
+**Prompt:**
+
+> Implementa la búsqueda en apps/web: página de resultados como Server Component que consulta
+> packages/db directamente, sin capa de fetching en cliente. Filtros en search params
+> (operación, ubicación, rango de precio, rango de superficie, habitaciones, baños, tipo de
+> inmueble), validados con Zod. Ordenación por precio, superficie y fecha de actualización.
+> Cada resultado muestra los datos consolidados y en cuántas fuentes aparece. Imágenes remotas
+> mediante la optimización de imágenes de Next, con los dominios de la fuente configurados.
+> Nada de TanStack Query ni Zustand. El estado de búsqueda vive en la URL.
+
+**Observación:** el prompt es corto y su parte más útil es la **restricción negativa** del final
+("nada de TanStack Query ni Zustand"). Nombrar lo prohibido cerró de entrada toda una rama de
+diseño sin gastar una sola pregunta. La parte más cara fue la opuesta: "ubicación" y "los
+dominios de la fuente" se leían como requisitos triviales y ninguno lo era. `locationId` está
+a `NULL` en el 100 % de las filas reales, y no había ninguna URL de imagen persistida en todo
+el pipeline. Ambos huecos solo aparecieron al mirar los datos, no al leer el prompt.
+
+Tres decisiones de producto se escalaron en **un único prompt agrupado** antes de la propuesta,
+con la alternativa descartada y su coste en cada una: frontera de credenciales, alcance de las
+imágenes y mecanismo del filtro de ubicación. Agruparlas evitó tres paradas sucesivas.
+
+`sdd-spec` y `sdd-design` corrieron en paralelo por segunda vez en el proyecto (la primera fue
+el 1.10). El diseño declaró 10 riesgos de contradicción y la especificación 5 supuestos: de los
+15, **13 eran falsas alarmas** — ambos agentes habían llegado por su cuenta a la misma
+conclusión. El coste del cruce fue bajo precisamente porque los dos declararon sus supuestos por
+adelantado. Ver `AI-NOTES.md`, entrada del 2026-09-16 sobre la contradicción interna del spec.
+
+**Estado al cierre:** planificación completa (explore, propuesta, spec revisión 2, diseño,
+arbitraje). Sin `sdd-tasks` ni implementación: se detuvo a petición del usuario por cuota, en un
+límite limpio, en lugar de dejar la implementación a medias.
+
 ### 2026-09-15/16 — Consolidación de viviendas canónicas (1.10), ciclo SDD completo, spec y diseño en paralelo con una contradicción arbitrada
 
 **Tipo de tarea:** dominio puro (agrupación por unión-búsqueda + selección de ganador) +

@@ -55,6 +55,34 @@ describe('rawElementSchema — fixtures reales (paso 1.5)', () => {
   });
 });
 
+describe('rawElementSchema — thumbnail tipado (ROADMAP 1.11, decisión 059)', () => {
+  it('tipa "thumbnail" como string en los 50 elementos de la fixture de homes', () => {
+    const { elementList } = loadFixture('search-homes-2026-09-10.json');
+    for (const element of elementList) {
+      const result = rawElementSchema.safeParse(element);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(typeof result.data.thumbnail).toBe('string');
+      }
+    }
+  });
+
+  it('es válido sin thumbnail, y el valor resultante es undefined', () => {
+    const base = {
+      propertyCode: '12345',
+      price: 100000,
+      propertyType: 'flat',
+      operation: 'sale',
+      url: 'https://example.test/12345',
+    };
+    const result = rawElementSchema.safeParse(base);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.thumbnail).toBeUndefined();
+    }
+  });
+});
+
 describe('rawElementSchema — validación de price (rechazo, R-PRICE)', () => {
   const base = {
     propertyCode: '12345',

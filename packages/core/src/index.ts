@@ -41,6 +41,8 @@ export type { AreaQuery } from './schemas/area-query.schema.js'; // derivado con
 export { areaQuerySchema } from './schemas/area-query.schema.js';
 export type { BlockingThresholds } from './schemas/blocking-thresholds.schema.js'; // derivado con z.infer
 export { blockingThresholdsSchema } from './schemas/blocking-thresholds.schema.js';
+export type { SearchQuery, PropertySearchCriteria } from './schemas/search-query.schema.js'; // derivado con z.infer
+export { searchQuerySchema } from './schemas/search-query.schema.js';
 
 export type { DedupStrategy } from './contracts/dedup-strategy.js';
 export type { ListingNormalizer } from './contracts/listing-normalizer.js';

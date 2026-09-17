@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { listingSchema, type Listing } from '@buscahogar/core';
 
 import { LISTING_FIELD_POLICY, VERSION_COLUMN_FIELDS } from '../src/sweep/listing-field-policy.js';
+import { projectToVersionColumns } from '../src/sweep/version-columns.js';
 
 describe('LISTING_FIELD_POLICY — PERSIST-10a: pinning contra el esquema', () => {
   it('cubre exactamente las mismas claves que listingSchema.shape', () => {
@@ -69,9 +70,35 @@ describe('LISTING_FIELD_POLICY — clasificación exacta de cada campo (diseño 
     }
   });
 
-  it('el objeto cubre las 17 claves de Listing sin huecos ni duplicados', () => {
+  it('clasifica "thumbnailUrl" como identity-column apuntando a "thumbnailUrl" (ROADMAP 1.11, decisión 059)', () => {
+    expect(LISTING_FIELD_POLICY.thumbnailUrl).toEqual({ kind: 'identity-column', column: 'thumbnailUrl' });
+  });
+
+  it('el objeto cubre las 18 claves de Listing sin huecos ni duplicados', () => {
     const keys = Object.keys(LISTING_FIELD_POLICY) as (keyof Listing)[];
     expect(new Set(keys).size).toBe(keys.length);
-    expect(keys.length).toBe(17);
+    expect(keys.length).toBe(18);
+  });
+});
+
+describe('thumbnailUrl nunca entra en la detección de cambio (A-7, ROADMAP 1.11)', () => {
+  const base = {
+    sourceId: 'idealista',
+    externalId: 'ext-1',
+    url: 'https://example.test/1',
+    operation: 'sale' as const,
+    propertyType: 'flat' as const,
+    priceCents: 100_000_00,
+    features: [] as const,
+  };
+
+  it('VERSION_COLUMN_FIELDS no contiene "thumbnailUrl"', () => {
+    expect(VERSION_COLUMN_FIELDS).not.toContain('thumbnailUrl');
+  });
+
+  it('projectToVersionColumns produce el mismo resultado para dos Listing que solo difieren en thumbnailUrl', () => {
+    const listingA: Listing = { ...base, thumbnailUrl: 'https://example.test/a.webp' };
+    const listingB: Listing = { ...base, thumbnailUrl: 'https://example.test/b.webp' };
+    expect(projectToVersionColumns(listingA)).toEqual(projectToVersionColumns(listingB));
   });
 });

@@ -22,6 +22,7 @@ export * from './spatial.js';
 export * from './blocking.js';
 export * from './hydration.js';
 export * from './consolidation.js';
+export * from './search.js';
 export { createDb, type Database } from './db.js';
 
 export const DB_VERSION = '0.0.1';

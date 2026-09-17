@@ -101,11 +101,15 @@ export async function writeConsolidation(
       surfaceM2: number | null;
       rooms: number | null;
       currentVersionId: string;
+      thumbnailUrl: string | null;
     }> {
       const [row] = await tx
         .select({
           locationId: listings.locationId,
           location: listings.location,
+          // ROADMAP 1.11 — mismo join ya existente para locationId/location,
+          // sin join nuevo (docs/DECISIONS.md, decisión 059).
+          thumbnailUrl: listings.thumbnailUrl,
           propertyType: listingVersions.propertyType,
           operation: listingVersions.operation,
           address: listingVersions.address,
@@ -308,6 +312,7 @@ export async function writeConsolidation(
         .values({
           locationId: winner.locationId,
           location: winner.location,
+          thumbnailUrl: winner.thumbnailUrl,
           minPriceCents,
           surfaceM2: winner.surfaceM2,
           rooms: winner.rooms,

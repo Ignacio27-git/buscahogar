@@ -333,6 +333,10 @@ ausencia es intencionada y no un olvido, y establece la frontera antes de que ex
 `environment`/`env_file` debe releerse contra esta decisión y contra `CLAUDE.md` antes de
 aceptarse.
 
+**Enmendada por la 056** (ROADMAP 1.11): `web` sí recibe una `environment:` propia, acotada a
+una credencial de base de datos de solo lectura. La prohibición de credenciales de fuentes
+externas y de escritura permanece vigente sin cambios.
+
 ---
 
 ## 016 — El ciclo de vida de Docker se documenta en el README, sin scripts de `package.json`
@@ -1631,6 +1635,179 @@ amplía: ya no solo relaciona un anuncio con una vivienda por coincidencia real,
 aloja el caso "vivienda de un solo anuncio". `dedup_pair_evidence` sigue siendo la única tabla que
 retiene el desglose completo de una decisión `reject`/`undecided` —la superficie analítica para
 comparar estrategias sigue siendo esa tabla, nunca `property_listings`.
+
+---
+
+## 056 — `apps/web` recibe su propia credencial de solo lectura; enmienda la frontera de la decisión 015
+
+**Estado:** aceptada
+
+**Decisión.** La decisión 015 acota su frontera: «ninguna credencial de base de datos ni de las
+fuentes» pasa a leerse como «ninguna credencial de **fuentes externas** ni de **escritura**».
+`apps/web` (paso 1.11) recibe su propia credencial de PostgreSQL, respaldada por un rol creado
+por el mantenedor con permiso **únicamente de `SELECT`**. En `docker-compose.yml`, el servicio
+`web` pasa de no tener ninguna vía de credenciales a una `environment:` propia y acotada,
+`DATABASE_URL: '${WEB_DATABASE_URL}'` — nunca el mismo
+
+> **Corrección (2026-09-17).** La redacción original de esta decisión escribía
+> `${WEB_DATABASE_URL:?falta WEB_DATABASE_URL en .env}`. Esa forma aborta la interpolación del
+> `docker-compose.yml` ENTERO en tiempo de parseo, con independencia de los perfiles, y rompía
+> la garantía de la decisión 015 de que `docker compose up -d` sin `--profile` levanta solo `db`.
+> El fallo ruidoso vive en `apps/web/src/server/db.ts`, que lanza un error nombrado citando esta
+> misma decisión cuando la variable falta. Ver `AI-NOTES.md`, 2026-09-17.
+`env_file` que `ingestion`. En local (`pnpm dev:web`), el valor va en `apps/web/.env.local`
+(gitignored, convención propia de Next), bajo el nombre llano `DATABASE_URL` dentro del
+contenedor/proceso de `web`; en el `.env` de la raíz del monorepo se llama `WEB_DATABASE_URL`
+para no colisionar con la credencial de escritura de `ingestion`, que vive en ese mismo fichero.
+Ninguna de las dos rutas usa `NEXT_PUBLIC_*`.
+
+**Alternativa descartada.** Dar a `web` el mismo `env_file: [.env]` que `ingestion` (concede
+escritura y credenciales de fuentes que `web` no necesita); mantener la decisión 015 literal
+(haría el paso 1.11 —y la propia decisión de producto 004, Next.js con Server Components sobre
+la base de datos— inimplementables).
+
+**Motivo.** CLAUDE.md prohíbe que `apps/web` llame a una fuente externa o reciba sus
+credenciales — esa parte de la decisión 015 sigue vigente sin cambios. Lo que la decisión 015 no
+había anticipado es que `apps/web` sí necesita SU PROPIA conexión a la base de datos para
+consultar `properties` directamente desde un Server Component (decisión 004), y que esa
+necesidad es de LECTURA, nunca de escritura. Dar a `web` el `env_file` completo de `ingestion`
+concedería de más: la credencial de escritura y las credenciales de las fuentes, ninguna de las
+cuales `web` usa o debería poder usar. Un rol de PostgreSQL con permiso `SELECT` únicamente hace
+que un intento de escritura desde `web` —por error de programación, no por diseño— sea
+rechazado por la propia base de datos, no solo por convención de código.
+
+**Consecuencia.** La creación del rol de solo lectura y el volcado de su URL en ambos ficheros
+(`.env` de la raíz y `apps/web/.env.local`) es un prerrequisito exclusivamente del mantenedor:
+ningún agente puede leer ni escribir esos ficheros. `apps/web/src/server/db.ts` falla alto y
+nombra esta decisión cuando `DATABASE_URL` no está definida, en vez de degradar a un valor por
+defecto o a una lista de resultados vacía. Pointer: enmienda la decisión 015, que permanece
+en su redacción original como evidencia histórica del TFM (convención de la decisión 050: se
+enmienda por entrada nueva, nunca reescribiendo la anterior).
+
+---
+
+## 057 — `packages/core` posee la coerción string→number de los search params de búsqueda; parseo nombrado, no `z.coerce`
+
+**Estado:** aceptada
+
+**Decisión.** `searchQuerySchema` (paso 1.11, `packages/core/src/schemas/search-query.schema.ts`)
+convierte cada parámetro numérico de `string` a `number` mediante expresiones regulares
+nombradas (`intParam`/`decimalParam`) seguidas de `.transform(Number)`, nunca con
+`z.coerce.number()`. Esto enmienda el puntero «ROADMAP 1.13» que dejó abierto la decisión 030
+(`AreaQuery`: solo geográfica…, `packages/core/src/schemas/area-query.schema.ts:36-37`): la
+obligación de convertir string→number antes de `areaQuerySchema.safeParse` ahora la posee
+`searchQuerySchema`, en el paso 1.11, no en un paso 1.13 que ya no existe con ese alcance.
+
+**Alternativa descartada.** `z.coerce.number()` sobre cada campo numérico de la petición.
+
+**Motivo.** `z.coerce.number()` convierte `''` en `0` y `true`/`false` en `1`/`0` de forma
+silenciosa — exactamente el fallo que la frontera de `searchQuerySchema` existe para impedir
+(«Empty string is not zero», REVISION 2 del spec). Una expresión regular nombrada por campo
+(`^\d+$` para enteros sin signo, `^-?\d+(\.\d+)?$` para decimales con signo opcional) rechaza
+con un mensaje que identifica el parámetro exacto, en vez de aceptar en silencio un valor que
+nunca fue el que el usuario escribió en la URL.
+
+**Consecuencia.** `packages/core` sigue siendo el único punto de conversión string→number para
+los search params de esta página; `packages/db/src/search.ts` recibe siempre `number` (o
+`undefined`), nunca `string`, y sigue sin importar Zod (decisión 023).
+
+---
+
+## 058 — Semántica de `buildPropertySearchQuery`: recuento de fuentes sin join, exclusión de NULL activa, `NULLS LAST` explícito, paginación por offset con `hasNextPage`
+
+**Estado:** aceptada
+
+**Decisión.** `buildPropertySearchQuery` (paso 1.11, `packages/db/src/search.ts`) fija cuatro
+comportamientos como parte del contrato de la consulta, no como detalles de la implementación
+actual: (1) el recuento de fuentes distintas se calcula como `COUNT(DISTINCT
+listings.source_id)` en una subconsulta correlacionada de la proyección, sin unir la tabla
+`sources` — válido porque `listings.source_id` es `NOT NULL REFERENCES sources.id`, así que
+ambos recuentos son idénticos para cualquier fila que pueda existir; (2) un filtro activo
+EXCLUYE cualquier fila cuya columna filtrada sea NULL, y un filtro ausente no añade ningún
+predicado — sin ninguna rama de rescate `OR … IS NULL`, al contrario que el bloqueo de
+candidatos (`blocking.ts`, decisión implícita en D-Q3), donde NULL sí rescata el par; (3) todo
+`ORDER BY` fija `NULLS LAST` explícitamente en ambas direcciones, con `properties.id ASC` como
+desempate determinista; (4) la paginación es por offset con un tamaño de página fijo
+(`PAGE_SIZE`) y expone `hasNextPage` en vez de un recuento total —sin `COUNT(*) OVER ()`—,
+pidiendo una fila de más (`LIMIT PAGE_SIZE + 1`) y recortándola.
+
+**Alternativa descartada.** Para el recuento de fuentes: un join explícito contra `sources`, o
+un join agrupado (`GROUP BY`) que calcularía el agregado para todas las filas coincidentes
+antes de aplicar `LIMIT`. Para NULL: rescatar la fila con una rama `OR … IS NULL`, igual que el
+bloqueo. Para la paginación: `COUNT(*) OVER ()` para un total exacto, o un cursor por clave
+(keyset), o clampar una página fuera de rango a la última válida.
+
+**Motivo.** Un join agrupado computa el agregado para TODO el conjunto filtrado antes de
+recortar a una página, cuando solo hace falta para las filas ya paginadas — el peor patrón
+posible para una consulta paginada. La exclusión de NULL en un filtro activo es lo que un
+usuario espera de "quiero pisos con precio máximo X": un precio desconocido no es una prueba de
+que cumpla el filtro. `COUNT(*) OVER ()` es un segundo recorrido completo del conjunto filtrado
+que el ROADMAP nunca pidió — "hay página siguiente" es lo único que necesitan los controles de
+paginación. Clampar una página fuera de rango devolvería datos de una página distinta de la que
+la URL nombra, rompiendo la garantía de que compartir la URL reproduce la búsqueda (misma lógica
+que el rechazo, no clamp, del propio parámetro `page` en `searchQuerySchema`).
+
+**Consecuencia.** Un `properties.id` es un uuid sin orden temporal ninguno; el desempate por
+`id ASC` es determinista dentro de una misma generación de la caché (decisión 054: un reproceso
+puede reasignar esos ids). No existe ningún "está en la página 3 de 7" en la interfaz: solo
+"hay más resultados" — un rediseño futuro que necesite un contador total tendrá que decidir
+explícitamente pagar ese segundo recorrido, no heredarlo en silencio.
+
+---
+
+## 059 — `thumbnailUrl` como `identity-column`, fuera de `VERSION_COLUMN_FIELDS`
+
+**Estado:** aceptada
+
+**Decisión.** `thumbnailUrl` (paso 1.11) se clasifica en `LISTING_FIELD_POLICY`
+(`apps/ingestion/src/sweep/listing-field-policy.ts`) como `identity-column`, igual que `url` o
+`location`. Se escribe una sola vez, en la primera visión del anuncio, y nunca se sobrescribe en
+una re-visión posterior (`listing-writer.ts`, `onConflictDoUpdate.set` sin tocar esta columna).
+Al quedar fuera de `VERSION_COLUMN_FIELDS` (derivado de la política, nunca mantenido a mano, R2),
+tampoco participa en la comparación campo a campo que decide si una re-visión abre una versión
+nueva en `listing_versions`.
+
+**Alternativa descartada.** Clasificarla como `version-column`, comparándola igual que
+`priceCents` o `surfaceM2`.
+
+**Motivo.** Cada portal reescala y recomprime sus imágenes (CLAUDE.md, «Imágenes no comparables
+por hash exacto»), así que la URL de la miniatura de un mismo anuncio puede cambiar entre dos
+barridos sin que ningún dato relevante para el histórico de precios haya cambiado. Clasificarla
+como `version-column` habría hecho que un simple recorte de imagen del portal fabricara una fila
+nueva en `listing_versions` en cada barrido — corrompiendo en silencio el histórico que esa tabla
+existe para preservar (CLAUDE.md: «`listings` no se sobrescribe»; docs/DECISIONS.md, decisión 037).
+
+**Consecuencia.** El thumbnail consolidado se congela en la primera vista de cada anuncio: si el
+portal cambia la imagen más adelante, ese cambio nunca llega a `listings.thumbnail_url` salvo que
+se reingiera el anuncio desde cero. Coste aceptado explícitamente en la propuesta (A-7):
+protege el histórico de precios a cambio de una miniatura potencialmente desactualizada.
+
+---
+
+## 060 — Índices por filtro de búsqueda re-aplazados; disparador de medición explícito
+
+**Estado:** aceptada
+
+**Decisión.** `buildPropertySearchQuery` (paso 1.11, `packages/db/src/search.ts`) no añade
+ningún índice nuevo sobre `properties` para sus siete filtros (operación, tipo, precio,
+superficie, habitaciones, baños, geografía). El único índice compuesto ya existente
+(`properties_operation_property_type_idx`, decisión 051) permanece sin cambios.
+
+**Alternativa descartada.** Añadir un índice por cada filtro nuevo (precio, superficie,
+habitaciones, baños) al introducir la consulta que los usa por primera vez.
+
+**Motivo.** El corpus real tiene del orden de 100 filas en `properties` (ROADMAP 1.10): a ese
+volumen cualquier afirmación sobre qué índice preferiría el planificador es, por definición,
+inmedible — el precedente ya retractado de ROADMAP 1.8 (tarea 5.2, `CHK-PARTIAL-IDX` vs. el plan
+real bajo volumen) es exactamente el mismo error: reclamar en la documentación un comportamiento
+del planificador que nunca se verificó con `EXPLAIN` contra un volumen representativo. Añadir
+índices no medibles hoy sería la misma clase de afirmación no falsificable.
+
+**Consecuencia.** Disparador explícito para revisar esta decisión: cuando el corpus alcance un
+volumen suficiente para que `EXPLAIN (ANALYZE, FORMAT JSON)` sobre `buildPropertySearchQuery`
+muestre un `Seq Scan` costoso en `properties` bajo un filtro realista, medir con datos reales
+antes de añadir cualquier índice — nunca a partir de una intuición sobre el volumen. Propietario:
+quien retome ROADMAP 1.11 o 2.4 (indexación y medición de rendimiento).
 
 ---
 

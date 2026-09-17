@@ -14,6 +14,15 @@ describe('barril público de @buscahogar/core', () => {
     expect(barrel.CORE_VERSION).toBeDefined();
   });
 
+  it('ROADMAP 1.11: expone searchQuerySchema, utilizable como validador Zod', () => {
+    expect(barrel.searchQuerySchema).toBeDefined();
+    const result = barrel.searchQuerySchema.safeParse({ operation: 'sale' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.operation).toBe('sale');
+    }
+  });
+
   it('ROADMAP 1.9: expone haversineDistanceMeters, ruleBasedDedupStrategy y classify', () => {
     expect(typeof barrel.haversineDistanceMeters).toBe('function');
     expect(barrel.ruleBasedDedupStrategy).toBeDefined();

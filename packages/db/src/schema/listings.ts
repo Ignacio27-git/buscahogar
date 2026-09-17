@@ -43,6 +43,10 @@ export const listings = pgTable(
     // Algunas fuentes ofuscan la coordenada exacta; esta marca lo hace
     // explícito para no tratar un radio de bloqueo amplio como un error.
     coordinatesObfuscated: boolean('coordinates_obfuscated').notNull().default(false),
+    // ROADMAP 1.11 — identity-column (docs/DECISIONS.md, decisión 059): se
+    // congela en la primera vista, igual que `url`/`location`. Nullable, sin
+    // índice: no participa en ningún filtro ni bloqueo.
+    thumbnailUrl: text('thumbnail_url'),
     status: text('status').notNull().default('active'),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),

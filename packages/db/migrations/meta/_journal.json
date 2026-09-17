@@ -43,6 +43,13 @@
       "when": 1789491318120,
       "tag": "0005_sudden_chamber",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789638992105,
+      "tag": "0006_nasty_christian_walker",
+      "breakpoints": true
     }
   ]
 }

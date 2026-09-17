@@ -94,6 +94,11 @@ export function createListingWriter(db: Database): ListingWriter {
             ...(listing.coordinatesObfuscated !== undefined
               ? { coordinatesObfuscated: listing.coordinatesObfuscated }
               : {}),
+            // ROADMAP 1.11 — identity-column (decisión 059): mismo spread
+            // condicional que arriba, se escribe solo en la primera vista.
+            // `onConflictDoUpdate.set` de abajo NO incluye thumbnailUrl
+            // (PERSIST-3, sin cambios): una re-visión nunca lo sobrescribe.
+            ...(listing.thumbnailUrl !== undefined ? { thumbnailUrl: listing.thumbnailUrl } : {}),
             // `listing.location` (ineCode/municipio…) → `listings.location_id`
             // FK: siempre `undefined` desde esta fuente (diseño D4/D9) — no
             // hay resolución ine_code→locations.id que implementar aquí

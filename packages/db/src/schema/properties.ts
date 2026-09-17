@@ -51,6 +51,10 @@ export const properties = pgTable(
     floor: text('floor'),
     title: text('title'),
     description: text('description'),
+    // ROADMAP 1.11 — proyectada desde el `listings.thumbnail_url` del
+    // listing ganador (docs/DECISIONS.md, decisión 059); mismo tratamiento
+    // de caché recalculada que las siete columnas de atributo de arriba.
+    thumbnailUrl: text('thumbnail_url'),
     listingCount: integer('listing_count').notNull().default(0),
     consolidatedAt: timestamp('consolidated_at', { withTimezone: true }),
     createdAt: createdAt(),

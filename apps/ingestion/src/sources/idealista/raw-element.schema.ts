@@ -35,6 +35,10 @@ export const rawElementSchema = z.looseObject({
   longitude: z.number().optional(),
   description: z.string().optional(),
   suggestedTexts: z.looseObject({ title: z.string().optional() }).optional(),
+  // ROADMAP 1.11 — tipa la miniatura para que el normalizador pueda leerla
+  // (docs/DECISIONS.md, decisión 059). Cero nulos JSON en 100/100 elementos
+  // de ambas fixtures, de ahí `.optional()`, nunca `.nullable()`.
+  thumbnail: z.string().optional(),
 });
 
 export type IdealistaElement = z.infer<typeof rawElementSchema>;

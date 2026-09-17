@@ -1026,7 +1026,7 @@ validado contra datos reales a partir de esta sesión.
 
 ---
 
-## [ ] 1.11 · Búsqueda y listado en Next
+## [x] 1.11 · Búsqueda y listado en Next
 
 ```text
 Implementa la búsqueda en apps/web:
@@ -1043,12 +1043,131 @@ Implementa la búsqueda en apps/web:
 Nada de TanStack Query ni Zustand. El estado de búsqueda vive en la URL.
 ```
 
-**Revisar.** Que una búsqueda es compartible copiando la URL. Que no hay llamadas a la API
-externa desde `web`.
+**Revisar.**
+
+- Que una búsqueda es compartible copiando la URL.
+- Que no hay llamadas a la API externa desde `web`.
+- **MANUAL ACCEPTANCE (sin mecanismo de test, arbitraje obs #175):** el bundle de cliente no
+  contiene la credencial de base de datos (requiere inspeccionar un `next build` de producción
+  real). El rol de solo lectura rechaza un intento de escritura (requiere el rol real,
+  prerrequisito del mantenedor). Abrir la URL de resultados en una sesión de navegador limpia
+  reproduce exactamente la misma búsqueda (filtros/orden/página visibles e idénticos).
 
 **Notas:**
 
+Paso **planificado, no implementado**, el 2026-09-16. Ciclo SDD detenido tras el arbitraje, a
+petición del usuario por cuota, en un límite limpio: no se ha ejecutado `sdd-tasks` ni se ha
+escrito código. Artefactos en Engram: `explore` (#169), `preproposal-state` (#170 rev 2),
+`proposal` (#171), `design` (#173), `spec` (#174 rev 2), `arbitration` (#175).
+
+**Tres decisiones de producto, escaladas en un único prompt agrupado y confirmadas por el
+usuario antes de la propuesta:**
+
+- **PD-1, frontera de credenciales.** `apps/web` recibe su propio `DATABASE_URL` respaldado por
+  un rol de PostgreSQL de solo lectura, nunca `NEXT_PUBLIC_*`. Obliga a enmendar la decisión 015
+  (ver desviaciones). Descartado: el mismo `env_file` que `ingestion` (concede escritura
+  innecesaria) y mantener la prohibición literal (haría el paso inimplementable).
+- **PD-2, imágenes dentro del alcance.** El `thumbnail` de Idealista se captura de extremo a
+  extremo y las filas existentes se rellenan con un backfill desde `listing_versions.raw`, que
+  **no gasta cuota**: `rawElementSchema` es `z.looseObject` y ya preservaba la clave.
+- **PD-3, filtro de ubicación por centro + radio** sobre `properties.locationGeography`, la
+  única geografía con datos reales. `locationId` está a `NULL` en el 100 % de las filas.
+
+**Siete decisiones técnicas delegadas a la propuesta (A-1…A-7):** recuento de fuentes como
+`COUNT(DISTINCT listings.source_id)` en proyección correlacionada; NULL excluido mientras su
+filtro está activo, sin rama de rescate; `NULLS LAST` explícito con desempate por uuid;
+paginación por offset con tope duro y `hasNextPage` en vez de total; índices **re-aplazados**
+con disparador de medición registrado (cierra la delegación de la decisión 051); esquema de
+frontera nuevo en `packages/core` con parseo nombrado en vez de `z.coerce`; y `thumbnailUrl`
+como `identity-column`.
+
+**A-7 es la decisión que protege el histórico.** `VERSION_COLUMN_FIELDS` se deriva de
+`LISTING_FIELD_POLICY`, así que clasificar el thumbnail como `version-column` habría metido cada
+recorte de imagen del portal en la detección de cambios y habría fabricado filas falsas en
+`listing_versions`. Coste aceptado: el thumbnail se congela en la primera vista.
+
+**Prerrequisito humano que bloquea `sdd-apply`:** crear el rol de PostgreSQL de solo lectura y
+poner su URL en el `.env` de la raíz como `WEB_DATABASE_URL` y en `apps/web/.env.local` como
+`DATABASE_URL`. El agente no puede escribir ninguno de los dos ficheros.
+
+**Previsión de tamaño: ~1364 líneas frente al presupuesto de 800.** Con `single-pr`, la decisión
+de `size:exception` queda pendiente y debe tomarse antes de aplicar. Alternativa en tres tramos,
+cada uno bajo presupuesto, registrada en la propuesta: thumbnail + backfill (~345),
+core + db + spatial (~515), web + docs (~500).
+
+**Tres escenarios del spec quedan como aceptación manual**, no como test, y pertenecen a la
+lista de «Revisar» de arriba: que el bundle de cliente no contiene la credencial, que el rol de
+solo lectura rechaza una escritura, y que abrir la URL en una sesión limpia reproduce la
+búsqueda. Los otros tres que no tenían mecanismo se re-anclaron a comprobaciones estáticas o a
+una función pura, sin añadir jsdom.
+
+**Entradas pendientes en `DECISIONS.md` (056–060), a escribir durante `sdd-apply`:** 056
+frontera de credenciales (enmienda la 015), 057 propiedad del esquema y la coerción de search
+params (enmienda la 030), 058 semántica de la consulta de búsqueda, 059 clasificación del
+thumbnail, 060 re-aplazamiento de los índices.
+
+**Implementación — `sdd-apply`, 2026-09-17. Código completo para las 39 tareas del checklist;
+verificación honestamente parcial por dos bloqueos ajenos al código escrito, no simulados:**
+
+1. **Docker Desktop no está disponible en este entorno de ejecución.** Ningún test respaldado
+   por PostgreSQL real pudo ejecutarse — ni los nuevos (`backfill-thumbnails.db.test.ts`) ni los
+   YA EXISTENTES antes de este cambio (`spatial.test.ts`, `schema.test.ts`, `seed.test.ts`,
+   `listing-writer.db.test.ts`, etc. — los 25 tests fail-loud de `apps/ingestion` y los
+   correspondientes de `packages/db` fallan con `ECONNREFUSED`, confirmando que el bloqueo es de
+   infraestructura, no una regresión de este cambio). La migración `0006` se generó
+   (`drizzle-kit generate`) y `packages/db` compila limpio contra ella, pero **no se aplicó**
+   (`pnpm db:migrate` requiere la base de datos viva). Consecuencia práctica: quien reanude este
+   paso debe levantar `docker compose up -d`, ejecutar `pnpm db:migrate`, y entonces sí correr
+   `pnpm --filter @buscahogar/ingestion test:db` para obtener la evidencia real de
+   `backfillThumbnails` contra PostgreSQL (el código y el test ya están escritos y typecheckan
+   limpio).
+2. **El prerrequisito humano de WU3 sigue sin resolverse**: el rol de PostgreSQL de solo lectura
+   y su URL en `.env`/`apps/web/.env.local` no existen todavía. Todo el código de WU3 que NO
+   depende de una credencial real está escrito y probado (el camino fail-loud de
+   `apps/web/src/server/db.ts`, las dos pruebas estáticas, el helper puro de miniatura); lo que
+   falta son exclusivamente las tres comprobaciones de aceptación manual ya listadas arriba.
+
+Todos los tests que SÍ pueden correr sin Docker pasan: `pnpm --filter @buscahogar/core test`
+(380/380 incl. `search-query.schema.test.ts`), `pnpm --filter @buscahogar/ingestion test`
+(231/231, excluye `test:db`), `pnpm --filter @buscahogar/db test` (29/29 sobre la config por
+defecto, que excluye las suites fail-loud), `pnpm --filter @buscahogar/web test` (8/8).
+`typecheck` y `lint` limpios en los cuatro workspaces tocados.
+
 ---
+
+> **Cierre del paso (2026-09-17).** Los dos puntos de arriba que declaran Docker no disponible y
+> el prerrequisito humano sin resolver eran ciertos cuando se escribieron, al final del primer
+> lote de `sdd-apply`, y **han quedado superados**. Se conservan porque este registro es
+> append-only. Estado final:
+>
+> - **39/39 tareas.** Docker operativo, migración `0006` aplicada, rol `web_readonly` creado y
+>   probado, `DATABASE_URL` de `apps/web` apuntando a él.
+> - **720 tests en verde**: core 383 · db 54 · ingestion 231 + 29 (BD) · web 8 ·
+>   consolidación 15. `typecheck` sin errores, `lint` en exit 0.
+> - **Tres defectos encontrados al ejecutar la aplicación por primera vez**, no por los tests:
+>   la subconsulta del recuento de fuentes era SQL inválido (Postgres 42702) y la búsqueda no
+>   había funcionado nunca; `result-card.tsx` importaba con sufijo `.js` que Turbopack no
+>   resuelve; y el `:?` del compose. Los tres en `AI-NOTES.md` y en la tabla de desviaciones.
+> - **`sdd-verify` devolvió `fail`** con 3 bloqueantes: escenarios de la especificación sin
+>   ningún test que los ejecutara (tope de página, congelación del thumbnail al re-ver, thumbnail
+>   consolidado del ganador). Confirmó de forma independiente los 715 tests de entonces y rehizo
+>   dos sabotajes por su cuenta. Los tres huecos se han cubierto después con tests verificados en rojo: `PERSIST-3b`, `PROP-4a` y el bloque del tope de página.
+> - **Re-ejecución de `sdd-verify` hecha: 0 bloqueantes, 0 hallazgos críticos.** Rehízo por su
+>   cuenta el ciclo sabotaje→rojo→revertir de `PERSIST-3b` y descartó que `PROP-4a` fuera
+>   tautológico (`fetchWinnerAttributes` y `fetchGroupMinPriceCents` son caminos independientes).
+>   El veredicto nativo sigue siendo `fail` por un motivo estructural, no por un defecto:
+>   `gentle-ai sdd-verify-validate` exige totales al 100 % de requisitos y escenarios, y **tres de
+>   los escenarios están marcados MANUAL ACCEPTANCE en la propia especificación**, así que ningún
+>   test puede cubrirlos. El 100 % es inalcanzable en este paso por construcción.
+> - **El riesgo de los escenarios cubiertos solo por `.toSQL()` se ha cerrado en su parte de más
+>   valor**, por decisión del mantenedor, en vez de archivarse como excepción. `search.db.test.ts`
+>   pasa de 4 a 7 casos ejecutados contra Postgres, los tres nuevos verificados en rojo:
+>   exclusión de NULL con el filtro activo (y su inclusión con el filtro ausente, que es la otra
+>   mitad de la regla A-2), `NULLS LAST` en los dos sentidos con una fila de precio NULL real —el
+>   caso DESC es el que importa, porque Postgres ordena NULLS FIRST por defecto ahí— y pedir una
+>   página más allá de los datos dentro del tope. Total: **723 tests**.
+> - La base de datos de desarrollo tiene 2 viviendas, restos de los tests. El corpus real se
+>   borró durante el ciclo 1.10 y repoblarlo gasta cuota de Idealista.
 
 ## [ ] 1.12 · Detalle y redirección a las fuentes
 
@@ -1259,3 +1378,12 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-15 | 1.10 | El texto literal de la tarea 3.1 especificaba un único fichero de `setupFiles` para la nueva config de vitest de consolidación, en vez de los dos que usa el precedente que la propia tarea cita como "reutilizado verbatim" (`vitest.blocking.config.ts:17`, paso 1.8) | Seguir el texto literal habría hecho fallar la suite incondicionalmente (sin `DATABASE_URL` en el entorno de shell ambiente, solo en `.env`), no "fallar alto solo cuando falta genuinamente" — justo el objetivo declarado de D10. Corregido a los dos ficheros del precedente, byte a byte en el mismo orden, antes de escribir ningún test contra la base de datos real; verificado en rojo con los errores de módulo-no-encontrado esperados, no con errores de entorno. |
 | 2026-09-15 | 1.10 | `packages/db/test/helpers/db-client.ts`'s `truncateAll()` (infraestructura de test del paso 1.7) no incluía `dedup_runs`/`dedup_pair_evidence` en su lista de orden por dependencia FK, un hueco preexistente que solo esta fase podía descubrir porque esas tablas no existían cuando el helper se escribió | Descubierto por un recuento absoluto de filas fallando en la propia Unidad C (`4` en vez de `1` esperado) en el test de atomicidad de `writeConsolidation`. Corregido añadiendo ambas tablas explícitamente; reverificado sin regresión en las suites de los pasos 1.7-1.9 (29/29, 18/18), que nunca escriben esas tablas y por tanto nunca dependieron del hueco. El mismo defecto se buscó y se corrigió proactivamente en la copia equivalente del arnés en `apps/ingestion` durante la Unidad D, antes de que causara ningún fallo allí. |
 | 2026-09-16 | 1.10 | El corpus real de Idealista (obs #142, 50 anuncios) desapareció de la base de datos de desarrollo durante esta sesión, confirmado directamente contra `buscahogar-db-1`: `listings`/`listing_versions`/`properties`/`sources` en cero filas | Consecuencia aceptada de la decisión 046 (sin base de datos de test separada) combinada con el número de ejecuciones de suites contra base de datos real que este cambio —el mayor del arco, con tres configuraciones fail-loud distintas— disparó en una sola sesión, cada una truncando la base compartida. No es un defecto de este paso, pero sí tiene una consecuencia real para la memoria: el agrupamiento no trivial de este paso (D2/D3) queda demostrado solo contra datos sembrados a propósito (32 tests entre las unidades B y C), nunca contra el corpus real, que ya no puede volver a usarse para el intento sin gastar cuota facturable de nuevo. Detalle completo en las notas de este paso y en `docs/PROMPTS.md`. |
+| 2026-09-16 | 1.11 | El paso se parte: se ejecuta solo la planificación (explore → propuesta → spec/diseño → arbitraje) y se detiene antes de `sdd-tasks`, a petición del usuario por cuota disponible | Se prefirió cerrar en un límite limpio con el registro documental hecho antes que arrancar `sdd-tasks` y la implementación —el bloque más grande del paso, con una previsión de ~1364 líneas— y dejarlo a medias. Los cinco artefactos de planificación quedan persistidos en Engram y la reanudación es `/gentle-sdd-continue web-search-listing`. Ninguna decisión queda implícita: las tres de producto y las siete técnicas están registradas y arbitradas. |
+| 2026-09-16 | 1.11 | La regla de `CLAUDE.md` «Credenciales solo en `apps/ingestion`. Nunca en `apps/web`» ha quedado obsoleta: contradice al propio `docs/ARCHITECTURE.md` y a la decisión 004, que exigen Server Components consultando `db` directamente | La contradicción estaba escrita en **tres** sitios a la vez (`CLAUDE.md`, la prosa de la decisión 015 y el comentario de `docker-compose.yml:64-65`) y ninguno era un descuido: la 015 la declara explícitamente «intencionada». Resuelta por decisión del usuario a favor de un rol de solo lectura propio para `web`. Se enmienda por entrada nueva (056) en vez de reescribir la 015, siguiendo la convención del propio repositorio —el título de la decisión 050 es literalmente «no enmienda la decisión 019»— porque el registro de decisiones es evidencia append-only del TFM. `CLAUDE.md` y el comentario del compose sí se reescriben: son instrucciones vivas, no evidencia. |
+| 2026-09-16 | 1.11 | «Ubicación» como filtro no puede implementarse como se lee en el enunciado del paso: `properties.locationId` está a `NULL` en el 100 % de las filas reales | `normalizer.ts:59` fija `location: undefined` para Idealista porque la fuente no da datos de INE/provincia, así que un filtro de zona por igualdad habría devuelto cero resultados siempre, en silencio. Sustituido por centro + radio sobre `properties.locationGeography` (PD-3), la única geografía poblada. Obliga a generalizar `withinMeters()`, hoy fijada a `listings.locationGeography`. La resolución canónica de zonas que haría útil un filtro por `locationId` la sigue debiendo el paso 1.13. |
+| 2026-09-16 | 1.11 | El requisito de imágenes no era implementable con el modelo de datos existente: no había ninguna URL de imagen persistida en ninguna tabla, pese a que los fixtures traen `thumbnail` en 100/100 elementos | `rawElementSchema` nunca declaró el campo. El paso absorbe la captura de extremo a extremo (normalizador, esquema, columna en `listings` y `properties`, consolidación) en vez de aplazarla a un micro-ciclo aparte, porque el coste resultó mucho menor de lo estimado: al ser `rawElementSchema` un `z.looseObject`, la clave ya está preservada dentro de `listing_versions.raw` y el relleno de las filas existentes es un backfill **sin gasto de cuota**. La exploración había estimado que haría falta reingestar; era falso. |
+| 2026-09-17 | 1.11 | `sdd-apply` escribió y typecheckeó las 39 tareas del checklist, pero la migración `0006` no se aplicó y ninguna suite respaldada por PostgreSQL real (nueva o preexistente) pudo ejecutarse | Docker Desktop no está disponible en este entorno de ejecución: los 25 tests fail-loud de `apps/ingestion` y los de `packages/db` (incluidos ficheros sin tocar en este cambio, como `spatial.test.ts`) fallan por igual con `ECONNREFUSED`, confirmando bloqueo de infraestructura y no una regresión introducida aquí. `packages/db` compila limpio contra la migración generada. Mismo patrón que las fases bloqueadas por Docker de los pasos 1.2/1.3/1.7 — se registra el trabajo hecho en vez de esperar al cierre completo del paso. Reanudación: levantar `docker compose up -d`, aplicar `pnpm db:migrate`, y entonces ejecutar `pnpm --filter @buscahogar/ingestion test:db` para obtener evidencia real de `backfillThumbnails`. |
+| 2026-09-17 | 1.11 | El prerrequisito humano (rol de PostgreSQL de solo lectura para `apps/web`) sigue sin resolverse; las tres comprobaciones de aceptación manual quedan pendientes | El código fail-loud de `apps/web/src/server/db.ts` y su test (DATABASE_URL ausente) están completos y verificados sin necesitar la credencial real. Las tres comprobaciones que sí la necesitan —bundle de cliente, rechazo de escritura, sesión limpia— pasan a la lista «Revisar» de este mismo paso, sin fabricar un test que fingiera demostrarlas. |
+| 2026-09-17 | 1.11 | El cableado de la credencial de `web` usó `${WEB_DATABASE_URL:?...}` en `docker-compose.yml`, lo que rompía `docker compose up -d` para todos los perfiles y contradecía la garantía de la decisión 015 | La forma `:?` de Compose aborta la interpolación del fichero entero en tiempo de parseo, no del servicio que la contiene, así que una variable que solo necesita el perfil `app` se convertía en requisito global. Detectado por el orquestador al verificar el entorno con `docker compose ps`, no por ningún test: no existe ninguno que parsee el compose. Corregido a `${WEB_DATABASE_URL}`; el fallo ruidoso se conserva en `apps/web/src/server/db.ts`, que ya lanza un error nombrado citando la decisión 056 y está probado. Verificado: `docker compose config --services` devuelve solo `db`. Detalle en `AI-NOTES.md`. |
+| 2026-09-17 | 1.11 | La subconsulta del recuento de fuentes (A-1) emitía `"id"` sin cualificar y Postgres la rechazaba con 42702; los 21 tests de `.toSQL()` estaban en verde y la consulta no había funcionado nunca | Interpolar columnas de Drizzle en una plantilla `sql` situada en la PROYECCIÓN las emite sin prefijo de tabla. Detectado al ejecutar la página por primera vez: las URL válidas daban 500 y las inválidas 200. Corregido con alias internos (`src_pl`/`src_l`) y correlación externa cualificada, más un fichero nuevo `packages/db/test/search/search.db.test.ts` que EJECUTA la consulta contra Postgres —su primer caso corre con las tablas vacías, porque 42702 es error de parseo— verificado en rojo. Matiza la estrategia de pruebas del diseño (D3): `.toSQL()` prueba la intención del constructor, no la validez del SQL. Detalle en `AI-NOTES.md`. |
+| 2026-09-17 | 1.11 | `result-card.tsx` importaba `./thumbnail-source.js` y Turbopack no resolvía el módulo, pese a que `tsc --noEmit` pasaba limpio | El `tsconfig` compartido usa `moduleResolution: "Bundler"`, bajo el que TypeScript acepta el sufijo `.js` de NodeNext y lo mapea al `.ts`, pero el empaquetador de Next no. El resto de `apps/web` importa sin extensión (`@/components/result-card`), así que el fichero era el único fuera de convención. Detectado por el primer `next build` del paso; ninguna suite lo veía porque ninguna empaqueta. Corregido quitando la extensión. |

@@ -9,13 +9,25 @@ import { listings } from './schema/listings.js';
 
 // `ST_DWithin` sobre una columna `geometry` mide en las unidades del SRS: en
 // SRID 4326 eso son grados, no metros. Por eso el predicado se aplica sobre
-// `location_geography` (tipo `geography`), donde `ST_DWithin` sí mide en
-// metros. Las coordenadas se ligan como parámetros, nunca se interpolan en
-// la cadena SQL: ese es el límite frente a inyección (design.md, Threat
-// Matrix — la única superficie de inyección real de este esquema).
-export function withinMeters(lon: number, lat: number, meters: number): SQL {
-  return sql`ST_DWithin(${listings.locationGeography},
+// una columna `geography` (`location_geography`), donde `ST_DWithin` sí
+// mide en metros. Las coordenadas se ligan como parámetros, nunca se
+// interpolan en la cadena SQL: ese es el límite frente a inyección
+// (design.md, Threat Matrix — la única superficie de inyección real de
+// este esquema).
+//
+// ROADMAP 1.11 (diseño D4) — generalizada para aceptar cualquier columna
+// `geography` (la búsqueda filtra `properties.location_geography`, no
+// `listings.location_geography`). `withinMeters()` (abajo) delega aquí con
+// la columna de `listings` para no romper ninguno de sus llamadores
+// existentes (decisión 019: «el cambio se limita al cuerpo de esta
+// función»).
+export function pointWithinMeters(column: AnyPgColumn, lon: number, lat: number, meters: number): SQL {
+  return sql`ST_DWithin(${column},
     ST_SetSRID(ST_MakePoint(${lon}, ${lat}), 4326)::geography, ${meters})`;
+}
+
+export function withinMeters(lon: number, lat: number, meters: number): SQL {
+  return pointWithinMeters(listings.locationGeography, lon, lat, meters);
 }
 
 // ROADMAP 1.8 — hermana fila-a-fila de `withinMeters` (decisión 019:

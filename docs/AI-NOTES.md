@@ -40,6 +40,228 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-17 — Un import con sufijo `.js` que `tsc` acepta y el empaquetador de Next no: typecheck verde, `next build` rojo
+
+**Contexto:** paso 1.11, `apps/web/src/components/result-card.tsx`.
+**Categoría:** patrón de otro sistema de módulos; código que compilaba y no empaquetaba.
+
+**Qué ocurrió:** el fichero importaba `from './thumbnail-source.js'`, el sufijo que exige
+`moduleResolution: NodeNext` y que el resto del monorepo usa en `packages/*`. Pero el `tsconfig`
+compartido fija `moduleResolution: "Bundler"`, bajo el cual TypeScript acepta ese sufijo y lo
+mapea al `.ts` real — así que `tsc --noEmit` pasaba limpio. Turbopack no hace ese mapeo, y
+`next build` fallaba con `Module not found: Can't resolve './thumbnail-source.js'`.
+
+Era además el único import relativo de todo `apps/web`: el resto usa el alias sin extensión
+(`@/components/result-card`), así que el fichero estaba solo fuera de convención.
+
+**Cómo se detectó:** el primer `next build` del paso. Ninguna suite podía verlo, porque ninguna
+empaqueta: los tests de `apps/web` corren en `node` sobre `.ts` y los resuelve vitest, no
+Turbopack.
+
+**Cómo se resolvió:** quitando la extensión.
+
+**Observación:** el hueco no es el sufijo, es que **nada entre el typecheck y el despliegue
+ejercitaba al empaquetador**. En un monorepo con dos resoluciones de módulos conviviendo
+—NodeNext en los paquetes, Bundler en la app— la comprobación que distingue una de otra es
+construir, y no estaba en ninguna puerta. Mismo patrón que el defecto de SQL del mismo día: la
+herramienta que valida no es la que ejecuta.
+
+
+### 2026-09-17 — 21 tests de `.toSQL()` en verde sobre una consulta que Postgres rechazaba: `column reference "id" is ambiguous`
+
+**Contexto:** paso 1.11, `buildPropertySearchQuery` (`packages/db/src/search.ts`), subconsulta
+del recuento de fuentes distintas (A-1, decisión 058).
+**Categoría:** código que compilaba, pasaba los tests y no funcionaba.
+
+**Qué ocurrió:** la subconsulta escalar correlacionada se escribió interpolando columnas de
+Drizzle dentro de una plantilla `sql`:
+
+```ts
+sql`(SELECT count(DISTINCT ${listings.sourceId})
+       FROM ${propertyListings}
+       JOIN ${listings} ON ${listings.id} = ${propertyListings.listingId}
+      WHERE ${propertyListings.propertyId} = ${properties.id})`
+```
+
+Drizzle emite esas columnas **sin prefijo de tabla** cuando la plantilla vive en la PROYECCIÓN
+de un `.select()`. El SQL resultante era `JOIN "listings" ON "id" = "listing_id" WHERE
+"property_id" = "id"`, y ese `"id"` es ambiguo entre `listings.id` y el `properties.id` de la
+consulta externa. Postgres lo rechaza con el código **42702**.
+
+La consulta nunca había funcionado. Ni una sola vez.
+
+**Cómo se detectó:** no lo detectó ningún test. Lo detectó ejecutar `next start` y pedir la
+página: las URL válidas devolvían **500** y las inválidas **200**, porque estas últimas ni
+llegaban a la base de datos — el rechazo nombrado de Zod las cortaba antes. Ese patrón invertido
+fue la pista.
+
+**Por qué los tests no podían verlo:** los 21 tests de `search.test.ts` comparan `.toSQL()`, es
+decir la **forma** del SQL emitido, sin conectar a ninguna base de datos. Una cadena SQL
+sintácticamente bien formada y semánticamente inválida es indistinguible por ese método. Se
+comprobó a propósito: con el bug reintroducido, los 4 tests nuevos fallan con 42702 y
+`search.test.ts` **sigue pasando 21/21**. Los mismos tests pasaban con el SQL roto y con el
+corregido.
+
+**Cómo se resolvió:** alias explícitos para el ámbito interno (`src_pl`, `src_l`) y correlación
+externa cualificada (`"properties"."id"`), todo en SQL literal dentro de la plantilla. Y, sobre
+todo, un fichero nuevo —`packages/db/test/search/search.db.test.ts`— que **ejecuta** la consulta
+contra Postgres. Su primer caso corre con las tablas vacías: 42702 es un error de PARSEO, así
+que se dispara sin necesidad de una sola fila. Verificado en rojo antes de dar nada por bueno.
+
+**Observación:** esto obliga a matizar la estrategia de pruebas del diseño (D3), que designaba
+`.toSQL()` como «la prueba vinculante» siguiendo el precedente de `CHK-PARTIAL-IDX` del paso 1.8.
+`.toSQL()` es una buena prueba de **intención** —que el constructor emite el predicado que
+pretendes, sin depender del planificador— pero no prueba nada sobre la **validez** de lo emitido.
+La regla que queda: toda consulta construida con fragmentos `sql` crudos necesita al menos un
+test que la ejecute, aunque sea contra tablas vacías. Cuesta una conexión y cubre una clase
+entera de fallos que la comparación de cadenas no puede ver.
+
+Es el tercer caso del proyecto de una prueba en verde que no probaba lo que decía probar, tras
+`CHK-GIST-SELFJOIN` (1.8) y la aserción vacua ADX-1a (1.9). Los tres comparten forma: la
+aserción era sobre el artefacto equivocado.
+
+
+### 2026-09-17 — `${WEB_DATABASE_URL:?...}` en el compose rompía `docker compose up -d` entero, no solo el servicio `web`
+
+**Contexto:** paso 1.11, `sdd-apply`, cableado de la credencial de `apps/web` (decisión 056).
+**Categoría:** código que parecía correcto y rompía una garantía de otra decisión.
+
+**Qué ocurrió:** la implementación escribió
+`DATABASE_URL: '${WEB_DATABASE_URL:?falta WEB_DATABASE_URL en .env}'` en el servicio `web`. La
+intención era buena —fallar ruidosamente si falta la credencial, en línea con D11— pero la forma
+`:?` de Docker Compose **aborta la interpolación del fichero entero en tiempo de parseo**, no del
+servicio que la contiene, y lo hace con independencia de los perfiles. El resultado es que
+`docker compose ps`, `docker compose config` y `docker compose up -d` fallaban todos con
+`required variable WEB_DATABASE_URL is missing a value`, incluso sin `--profile app`.
+
+Eso contradice directamente la garantía de la **decisión 015**: un `docker compose up -d` sin
+`--profile` debe levantar únicamente `db`. Con `:?`, un desarrollador que solo quiere la base de
+datos no podía arrancarla sin definir antes una credencial que su caso de uso no necesita.
+
+**Cómo se detectó:** el orquestador ejecutó `docker compose ps` al verificar el entorno antes de
+continuar, y falló. No lo detectó ningún test: no hay ninguno que parsee el `docker-compose.yml`,
+y las suites de base de datos se conectan por `DATABASE_URL` directamente, sin pasar por compose.
+
+**Cómo se resolvió:** sustituido por `'${WEB_DATABASE_URL}'`, que interpola a cadena vacía y emite
+un aviso. El fallo ruidoso no se pierde: vive donde le corresponde, en
+`apps/web/src/server/db.ts`, que lanza un error nombrado citando la decisión 056 cuando la
+variable falta o está vacía, y está probado en `apps/web/test/db.test.ts`. Verificado después del
+cambio: `docker compose config --services` devuelve solo `db`.
+
+**Observación:** el fallo ruidoso estaba en la capa equivocada. Compose no sabe qué perfil vas a
+pedir cuando interpola, así que cualquier `:?` en un servicio con `profiles:` es en realidad un
+requisito global disfrazado de local. La regla que queda: **una variable que solo necesita un
+perfil no puede validarse en tiempo de parseo del compose**; se valida en el proceso que la
+consume.
+
+
+### 2026-09-17 — Sabotaje de "verificar en rojo" apuntado al sitio equivocado para la aserción de `thumbnailUrl`
+
+**Contexto:** paso 1.11, `sdd-apply`, tarea 1.7 (`apps/ingestion/test/sweep-field-policy.test.ts`),
+la aserción `projectToVersionColumns(a)` deep-equals `projectToVersionColumns(b)` para dos
+`Listing` que solo difieren en `thumbnailUrl`.
+
+**Categoría:** test que validaría el comportamiento equivocado (aserción estructuralmente
+incapaz de fallar, detectada antes de reportar verde, no después).
+
+**Qué ocurrió:** el paso de "verificar en rojo" exigido para esta aserción (romper la
+implementación a propósito, confirmar el fallo, revertir) se intentó primero reclasificando
+`thumbnailUrl` de `identity-column` a `version-column` en `LISTING_FIELD_POLICY`
+(`listing-field-policy.ts`). La sabotaje no produjo ningún fallo: `projectToVersionColumns`
+(en `version-columns.ts`) construye su objeto de salida con una lista de campos escrita a
+mano, sin consultar `LISTING_FIELD_POLICY` ni `VERSION_COLUMN_FIELDS` en ningún punto —
+reclasificar el campo en la política no cambia en absoluto lo que esa función hace. La
+aserción, tal como estaba redactada en la tarea del checklist, habría quedado
+estructuralmente incapaz de fallar por esa vía, exactamente la clase de aserción vacua que
+esta misma sesión tenía la instrucción explícita de evitar (precedente: ROADMAP 1.8/1.9).
+
+**Cómo se detectó:** al ejecutar el sabotaje y observar que el test seguía en verde, antes de
+reportar ningún resultado — el propio protocolo de "verificar en rojo" hizo su trabajo.
+
+**Coste:** ~3 minutos: revertir la reclasificación y sabotear en su lugar
+`projectToVersionColumns` (añadiendo `thumbnailUrl` a su objeto de salida), que sí produjo el
+fallo esperado (`toEqual` con valores distintos) y se revirtió de nuevo tras confirmarlo.
+
+**Observación:** una aserción sobre "el campo X nunca entra en Y" solo es real si se sabotea
+el mecanismo que de verdad podría hacer que X entrara en Y — en este caso la función de
+proyección, no la tabla de clasificación de la que un lector asumiría (razonablemente, dado el
+resto del fichero) que todo se deriva. `VERSION_COLUMN_FIELDS` sí se deriva de la política;
+`projectToVersionColumns` no, y esa asimetría no es evidente sin leer ambos ficheros.
+
+### 2026-09-16 — Cuatro afirmaciones incorrectas en la cadena de planificación del 1.11, todas corregidas por la fase siguiente al volver al código fuente
+
+**Contexto:** paso 1.11, planificación completa (explore → propuesta → spec/diseño en paralelo).
+**Categoría:** afirmación incorrecta sobre el estado del código / estimación de coste errónea.
+
+**Qué ocurrió:** cuatro afirmaciones de un artefacto de planificación resultaron falsas o
+incompletas. Ninguna llegó a código.
+
+1. **La exploración dijo que capturar las imágenes exigiría reingestar.** Falso.
+   `rawElementSchema` es `z.looseObject`, así que las claves desconocidas del vendor se
+   preservan y el `thumbnail` ya está persistido dentro de `listing_versions.raw` para toda
+   fila ingerida. El backfill no gasta ni una petición de cuota. La exploración había leído el
+   fixture y visto el `thumbnail`, pero no comprobó qué hace el esquema con las claves que no
+   declara.
+2. **La propuesta especificó el recuento de fuentes como un join de tres tablas**
+   (`property_listings ⋈ listings ⋈ sources`). El diseño probó que el tercer join sobra:
+   `listings.sourceId` es `notNull().references(() => sources.id)`, luego
+   `count(DISTINCT listings.source_id)` da exactamente el mismo número con un join menos.
+3. **La propuesta dijo que la consolidación "tendrá que unir `listings`"** para recoger el
+   thumbnail del ganador. Ya lo hacía: `fetchWinnerAttributes` (`consolidation.ts:105-125`) une
+   `listings` desde el 1.10 para `locationId`/`location`. El coste real son tres líneas, no un
+   join nuevo.
+4. **La mitigación de la trampa de tipos de Next estaba a medias.** La propuesta proponía
+   reutilizar la ruta `/` para esquivar que `.next/types/routes.d.ts` solo declare
+   `type AppRoutes = "/"`. Correcto pero insuficiente: en un clon limpio ese fichero **no existe
+   en absoluto**, así que el global ambiental `PageProps` tampoco, y un `tsc --noEmit` pelado
+   seguiría fallando. El diseño añadió la declaración local de props, copiada de la forma
+   generada por el propio repo.
+
+**Cómo se detectó:** las cuatro por la fase siguiente, y siempre por el mismo método: volver al
+código fuente en lugar de razonar sobre el artefacto anterior. Ninguna era detectable releyendo
+el texto que la contenía, porque todas eran internamente coherentes.
+
+**Observación:** el patrón se repite lo bastante como para ser el dato, no la anécdota. Un
+artefacto de planificación es una afirmación *sobre el código*, y solo el código la falsa. Las
+dos que más coste habrían tenido (1 y 4) eran las dos que sonaban más rutinarias: "habrá que
+reingestar" y "reutiliza la ruta existente". Ambas se cayeron al abrir el fichero concreto.
+
+---
+
+### 2026-09-16 — La revisión 1 del spec del 1.11 se contradecía a sí misma sobre el recorte silencioso, y solo era visible desde fuera de los dos artefactos
+
+**Contexto:** paso 1.11, `sdd-spec` y `sdd-design` en paralelo.
+**Categoría:** contradicción interna en un artefacto, no detectada por su autor.
+
+**Qué ocurrió:** la revisión 1 del spec rechazaba recortar el offset de paginación con este
+argumento explícito: recortarlo "devolvería en silencio los datos de una página distinta de la
+que nombra la URL, rompiendo la garantía de compartibilidad". Dos requisitos más abajo, exigía
+que un `pageSize` por encima del máximo se **recortara en silencio** al máximo, "para no
+castigar un intento benigno". Recortar `pageSize=500` a 50 sirve un tamaño de página distinto
+del que nombra la URL: es el mismo fallo que el propio spec acababa de rechazar.
+
+El diseño, en paralelo, había resuelto que el tamaño de página es una constante fija de
+servidor (`PAGE_SIZE = 24`) y **no un parámetro de URL**, por un motivo independiente: un
+`limit` que fija el usuario es una palanca de trabajo no acotado. Eso hacía que el requisito del
+spec describiera el comportamiento de un parámetro que no iba a existir.
+
+**Cómo se detectó:** en el arbitraje del orquestador, al cruzar los 10 riesgos declarados por el
+diseño con los 5 supuestos declarados por el spec. No lo detectó ninguno de los dos agentes: el
+autor del spec no vio su propia incoherencia y el autor del diseño no podía leer el spec.
+
+**Cómo se resolvió:** única re-ejecución correctiva del spec (revisión 2). Se eliminó `pageSize`
+y su escenario de recorte, se conservó intacto el rechazo del offset fuera de rango con su
+razonamiento —que era el correcto— y se añadió un escenario que fija el nuevo comportamiento:
+un `pageSize` en la URL es una clave no reconocida y se ignora como cualquier otra.
+
+**Observación:** es la segunda vez que correr spec y diseño en paralelo produce una
+contradicción real (la primera fue el 1.10, sobre los singletons en `property_listings`). La
+diferencia es de dónde venía: en el 1.10 los dos artefactos eran coherentes y se contradecían
+entre sí; aquí el spec se contradecía **consigo mismo**, y el paralelismo solo sirvió de
+disparador para mirarlo desde fuera. De 15 puntos declarados entre ambos, 13 eran falsas
+alarmas: declarar supuestos por adelantado es barato y el cruce es donde está el valor.
+
+
 ### 2026-09-16 — `apps/ingestion` resuelve `@buscahogar/db` por su `dist/` compilado, no por su código fuente
 
 **Contexto:** paso 1.10, Unidad D (`sdd-apply`), primer intento de ejecutar
