@@ -43,6 +43,9 @@ export type { BlockingThresholds } from './schemas/blocking-thresholds.schema.js
 export { blockingThresholdsSchema } from './schemas/blocking-thresholds.schema.js';
 export type { SearchQuery, PropertySearchCriteria } from './schemas/search-query.schema.js'; // derivado con z.infer
 export { searchQuerySchema } from './schemas/search-query.schema.js';
+export type { PropertyDetailParams } from './schemas/property-detail-params.schema.js'; // derivado con z.infer
+export { propertyDetailParamsSchema } from './schemas/property-detail-params.schema.js';
+export { zoneQuerySchema, zoneSelectionSchema } from './schemas/zone-selection.schema.js';
 
 export type { DedupStrategy } from './contracts/dedup-strategy.js';
 export type { ListingNormalizer } from './contracts/listing-normalizer.js';
@@ -56,6 +59,7 @@ export type { PropertySource } from './contracts/property-source.js';
 // `../src/strategies/rule-based/...`, igual que el resto de tests de este
 // paquete (contracts.test.ts:3-9).
 export { haversineDistanceMeters } from './geo/distance.js';
+export { normalizeSearchName } from './normalize-search-name.js';
 export { ruleBasedDedupStrategy } from './strategies/rule-based/strategy.js';
 export { classify } from './strategies/rule-based/classify.js';
 export type { SimilarityBand } from './strategies/rule-based/classify.js';

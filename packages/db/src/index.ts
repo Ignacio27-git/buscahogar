@@ -23,6 +23,10 @@ export * from './blocking.js';
 export * from './hydration.js';
 export * from './consolidation.js';
 export * from './search.js';
+export * from './detail.js';
+export * from './locations-query.js';
+export * from './time.js';
+export * from './budget-ledger.js';
 export { createDb, type Database } from './db.js';
 
 export const DB_VERSION = '0.0.1';

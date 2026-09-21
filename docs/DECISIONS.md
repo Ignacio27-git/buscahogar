@@ -1811,6 +1811,248 @@ quien retome ROADMAP 1.11 o 2.4 (indexación y medición de rendimiento).
 
 ---
 
+---
+
+## 061 — URL de detalle duradera, keyed en un `listings.id` miembro
+
+**Estado:** aceptada
+
+**Decisión.** El segmento de la ruta de detalle de vivienda (`/properties/[listingId]`, paso 1.12)
+es un `listings.id` uuid, nunca `properties.id`. Resuelve a través del índice único
+`property_listings_listing_id_idx` (`property-listings.ts:52`) a la vivienda que actualmente
+contiene ese anuncio, con independencia de que `properties.id` se haya regenerado. Se cubre así el
+cuarto caso de 404 identificado durante el diseño (arbitraje obs #193, AR-2): un listing barrido
+después del último `reprocess-dedup` todavía no tiene fila `property_listings`, así que su URL
+resuelve a `notFound()` — reachable hoy en cada barrido entre dos reprocesos, pero contenido: la
+búsqueda solo lee `properties`/`property_listings`, así que ninguna tarjeta de resultado puede
+enlazar jamás a un listing sin consolidar.
+
+**Alternativa descartada.** `/properties/[id]` sobre `properties.id` directamente; un slug de clave
+natural `/properties/[source]/[externalId]`; un hash del conjunto de miembros; un esquema de
+generación intercambiada sobre `properties`.
+
+**Motivo.** `properties.id` no es estable entre reprocesos (decisión 054/Q6: cada reproceso borra y
+reconstruye `properties` con uuids nuevos), así que cualquier URL basada en él moriría en el
+siguiente reproceso — justo lo que ROADMAP 1.12 (R4) advertía como obligación pendiente desde el
+paso 1.11. `listings.id`, en cambio, es la identidad estable del anuncio-fuente (CLAUDE.md:
+"`listings` no se sobrescribe") y el índice único ya garantiza que resuelve a lo sumo una vivienda.
+Verificado contra el código real (design Q1, obs #191): ninguna etapa entre el bloqueo y la
+escritura de consolidación filtra por `listings.status`, así que un anuncio retirado conserva su
+fila `property_listings` y su URL sigue resolviendo — solo esa fuente se marca no disponible.
+
+**Consecuencia.** El resultado de búsqueda necesita un anuncio ancla por vivienda para poder
+construir el href sin una consulta extra por tarjeta — de ahí la proyección `anchorListingId` en
+`search.ts` (decisión ligada a esta). Cuatro casos de 404 quedan documentados y probados: uuid
+malformado, `listings` inexistente, listing barrido tras el último reproceso, y (no-404) fuente
+retirada.
+
+---
+
+## 062 — `numPhotos` como `identity-column`, fuera de `VERSION_COLUMN_FIELDS`
+
+**Estado:** aceptada
+
+**Decisión.** `numPhotos` (paso 1.12) se clasifica en `LISTING_FIELD_POLICY`
+(`apps/ingestion/src/sweep/listing-field-policy.ts`) como `identity-column`, igual que
+`thumbnailUrl` (decisión 059). Se escribe una sola vez, en la primera visión del anuncio, y nunca
+se sobrescribe en una re-visión posterior (`listing-writer.ts`, `onConflictDoUpdate.set` sin
+tocar esta columna). Al quedar fuera de `VERSION_COLUMN_FIELDS` (derivado de la política, nunca
+mantenido a mano, R2), tampoco participa en la comparación campo a campo que decide si una
+re-visión abre una versión nueva en `listing_versions`.
+
+**Alternativa descartada.** Clasificarla como `version-column`, comparándola igual que
+`priceCents` o `surfaceM2`.
+
+**Motivo.** Mismo argumento exacto que la decisión 059 para `thumbnailUrl`: un anuncio puede
+ganar o perder fotos entre dos barridos sin que ningún dato relevante para el histórico de
+precios haya cambiado, así que clasificarla como `version-column` fabricaría una fila nueva en
+`listing_versions` en cada barrido que el anunciante actualizara su galería — corrompiendo en
+silencio el histórico que esa tabla existe para preservar (CLAUDE.md: «`listings` no se
+sobrescribe»). Razón independiente, verificada en el diseño (obs #191, D5): `FieldPolicy`'s brazo
+`version-column` tipa `column: keyof VersionColumns`, así que clasificarla ahí exigiría además un
+campo nuevo en `VersionColumns` y una columna `listing_versions.num_photos` — un cambio
+estrictamente mayor además de incorrecto.
+
+**Consecuencia.** El recuento consolidado se congela en la primera vista de cada anuncio: si el
+número real de fotos cambia más adelante, ese cambio nunca llega a `listings.num_photos` salvo
+que se reingiera el anuncio desde cero. Coste aceptado y declarado (ROADMAP 1.12): la interfaz
+renderiza el recuento como una cifra observada en una fecha (`lastSeenAt`), nunca como un valor
+en vivo, precisamente porque puede haberse quedado desactualizado.
+
+---
+
+## 063 — Alcance de la galería: una imagen por fuente, nunca varias por anuncio; navegación por ancla propia de cada slide
+
+**Estado:** aceptada
+
+**Decisión.** `source-gallery.tsx` (paso 1.12) renderiza EXACTAMENTE una imagen por anuncio de
+origen (su `thumbnailUrl`), nunca varias fotos por listing. La navegación previa/siguiente no es
+un control global fijo: cada slide lleva su propio par de anclas `<a href="#source-slide-…">`
+apuntando al id del slide vecino que existe de verdad en el array — a N=1 no hay vecino, así que
+no se renderiza ningún ancla, nunca una que apunte a un id inventado.
+
+**Alternativa descartada.** Esperar a tener acceso a un endpoint de fotos por anuncio antes de
+enviar la galería (bloquearía todo el paso 1.12 en un acceso externo no concedido); un control
+previo/siguiente único y fijo (necesitaría saber cuál es el slide activo, algo que un Server
+Component no puede observar sin JavaScript).
+
+**Motivo.** obs #189 (investigación previa a este paso) documenta que no hay endpoint de fotos
+confirmado, cuota publicada ni licencia legible para Idealista — traer más de una foto por anuncio
+queda fuera de alcance por PD-2, con su propio paso de ROADMAP pendiente de esa aclaración fuera
+de banda. Enviar la galería con una imagen por fuente es más honesto que no enviar nada: el
+recuento de fotos fechado (decisión 062) y el enlace de salida de cada fuente (`source-list.tsx`)
+le dicen al usuario dónde ver el resto. Sobre la navegación: un ancla "anterior"/"siguiente" fija
+necesitaría conocer el slide actualmente visible para calcular su destino, y eso no es observable
+desde un Server Component ni desde CSS puro sin `:target` — en cambio, cada slide conociendo a sus
+propios vecinos en el array es información que el servidor sí tiene, así que el href nunca puede
+apuntar a un id que no exista.
+
+**Consecuencia.** Para un anuncio sin `thumbnailUrl`, ese anuncio simplemente no aporta slide (no
+se renderiza una `<Image>` rota). Si ninguna fuente tiene miniatura, `SourceGallery` no renderiza
+nada — degradación explícita, no un carrusel vacío con controles que no llevan a ningún sitio. El
+desplazamiento sin JavaScript (arrastre táctil / rueda + clic en las anclas) queda como MANUAL
+ACCEPTANCE (arbitraje obs #193 AR-9): no hay arnés de navegador en este stack, misma clase que el
+escenario "Fresh session reproduces the search" del paso 1.11 (obs #174).
+
+## 066 — Procedencia del catálogo importado, precedencia de la fusión, regla de no-truncación, y la definición de "hoy" del presupuesto diario
+
+**Estado:** aceptada
+
+**Decisión.** Cuatro reglas relacionadas, agrupadas en una única entrada porque las cuatro
+protegen la misma propiedad — que ningún dato de este cambio (ROADMAP 1.13) se fabrique ni se
+pierda en silencio — y porque el diseño (DD-25) las agrupó deliberadamente así, para no enterrar
+ninguna de las cuatro bajo un encabezado que no la nombre:
+
+1. **Forma del artefacto committeado.** El catálogo importado
+   (`packages/db/src/municipality-catalogue.generated.ts`) lleva SIEMPRE una cabecera de
+   procedencia (`apps/ingestion/src/catalogue/provenance.ts`): URLs de origen, fecha de descarga
+   suministrada por el operador (nunca inferida), nombres de fichero, checksum SHA-256, el
+   sistema de referencia declarado verbatim por el propio fichero (decisión 067), delimitador,
+   codificación, y los recuentos de import (filas de entrada/emitidas, con/sin centroide, por
+   tier de resolución, descartes por guarda de esparcimiento y por puerta de cordura). Una
+   cabecera con cualquier campo vacío hace fallar la construcción del artefacto
+   (`MissingProvenanceFieldError`) — nunca se emite un artefacto sin procedencia demostrable
+   (P5, COVERAGE-8).
+2. **Precedencia de la fusión (DD-2, arbitraje CR-15), nunca un accidente de orden de
+   inserción.** `mergeCatalogues(handCited, imported)` es una función PURA, ejecutada antes de la
+   transacción de siembra: identidad (nombre, provincia, comunidad autónoma) y la cita de fuente
+   vienen SIEMPRE de la entrada hand-cited; centroide y radio se rellenan desde el importado SOLO
+   si el hand-cited no trae ya uno propio; la fuente fusionada nombra ambas procedencias.
+   `seedReferenceData` sigue recibiendo exactamente una lista y su
+   `onConflictDoNothing({target: locations.ineCode})` (`seed.ts:62`) permanece byte-idéntico,
+   sirviendo solo para la idempotencia del re-seed — nunca como mecanismo de fusión.
+3. **Regla de no-truncación (DD-8, Q6).** Un `ine_code` de 6 dígitos aborta el join entero
+   (`MalformedIneCodeError`), nombrando el código ofensivo, salvo que el operador pase de forma
+   explícita `--ine-code-width=6`, en cuyo caso se truncan los 5 primeros dígitos y el recuento de
+   filas truncadas queda registrado en la cabecera de procedencia. No se inventa ningún algoritmo
+   de dígito de control (R4) — la bandera del operador ES la decisión registrada, nunca una
+   suposición del código.
+4. **La definición de "hoy" del presupuesto diario (DD-11, ROADMAP 1.13 Unit B).**
+   `packages/db/src/time.ts` expone `utcDayStart()` como el ÚNICO punto donde se expresa el
+   límite de día — día natural UTC, calculado siempre con el reloj del propio PostgreSQL
+   (`now() at time zone 'utc'`), nunca con el del proceso Node que llama. El ledger de
+   presupuesto (`budget-ledger.ts`, decisión futura 064/065 de Units C/D para su consumo en el
+   worker) y el contador de zonas nuevas del día (`coverage.ts`, Unit D) consumen la misma
+   función. El tope diario (columna `search_cap` de `daily_request_budget`) se guarda EN cada
+   fila, no como una constante fija en código — es el tope vigente en el momento en que la fila
+   se abrió, para que un tope cambiado a mitad de mes quede auditable. Su valor pretende derivarse
+   de la cuota mensual (`monthly_quota / 31`, menos una reserva), pero esa cifra mensual NO está
+   documentada por ningún fuente oficial (decisión 033 ya lo constató: "100 peticiones al mes" es
+   anecdótico, sin confirmación) — así que ni `packages/db` ni este cambio fabrican ese número:
+   `reserveDailyBudget(db, sourceId, reservation, searchCap)` recibe el tope como parámetro,
+   calculado por quien lo llame (Unit C, la raíz de composición del worker), nunca inventado aquí.
+
+**Alternativas descartadas.**
+- Sembrar el catálogo hand-cited y el importado por separado, dejando que `ON CONFLICT DO
+  NOTHING` decida por orden de inserción — pierde el centroide de Granada en un orden y su cita
+  verificada en el otro (ver detalle en el motivo de CR-15 abajo).
+- Inventar un algoritmo de dígito de control para aceptar un `ine_code` de 6 dígitos sin
+  intervención del operador.
+- Fijar el tope diario como una constante hardcodeada en código, en vez de una columna por fila.
+- Definir "hoy" como día natural en `Europe/Madrid` o como ventana móvil de 24 horas — ambas
+  descartadas por el motivo detallado abajo.
+
+**Motivo.**
+- **Sobre la fusión (CR-15):** `seed.ts:62` usa `onConflictDoNothing`, que NUNCA actualiza.
+  Sembrar el catálogo hand-cited primero hace que Granada (`ine_code` 18087) pierda en silencio
+  su centroide importado y se vuelva no barrible — una regresión en la única zona que funciona
+  hoy. Sembrar el importado primero le hace perder su cita hand-cited (evidencia P5/COVERAGE-8 de
+  que el código no se fabricó). Una fusión pura hace la precedencia una regla explícita y
+  testeada, nunca un accidente de orden.
+- **Sobre la definición de "hoy" (DD-11):** el reset horario real de Idealista no es públicamente
+  legible (obs #209 §Q6), así que no hay ningún límite de vendedor que espejar — el límite diario
+  es una decisión propia de racionamiento de una cuota MENSUAL. Entre las tres opciones
+  consideradas, el día natural UTC es la única determinista y testeable: sin transiciones de
+  horario de verano (que darían un día de 23h o de 25h en `Europe/Madrid`, un límite arbitrario de
+  por sí) y sin necesidad de base de datos de zonas horarias. Una ventana móvil de 24h se descartó
+  porque D6 exige poder anunciar una hora de reintento concreta cuando el tope se agota, y la
+  respuesta honesta de una ventana móvil es "progresivamente" — exactamente la forma de cola sin
+  ETA que D6 existe para evitar.
+- **Sobre no fabricar el tope mensual:** decisión 033 ya estableció el precedente — ningún
+  documento oficial de Idealista confirma una cifra de cuota mensual, y la investigación de este
+  cambio tampoco encontró ninguna. Guardar un número inventado como si fuera la cuota real sería
+  precisamente el tipo de hecho fabricado que CLAUDE.md prohíbe (P5).
+
+**Consecuencia.** La cifra real del tope diario queda como una decisión operativa pendiente,
+configurada por quien despliegue el worker (Unit C), no una constante de este cambio. Si en el
+futuro Idealista publica su cuota mensual real, el cambio queda confinado a ese punto de
+configuración — ni `packages/db/src/time.ts` ni `budget-ledger.ts` necesitan tocarse, porque
+ninguno de los dos conoce ni fabrica esa cifra.
+
+## 067 — Sin reproyección de coordenadas del catálogo NGMEP: juicio de ingeniería acotado por la precisión del centroide, no un hecho geodésico citado
+
+**Estado:** aceptada
+
+**Decisión.** El catálogo de municipios importado (ROADMAP 1.13, diseño DD-1/DD-3) almacena las
+coordenadas del NGMEP tal como las declara el propio fichero, **sin reproyectar** a ningún
+sistema de referencia distinto antes de guardarlas en `locations.centroid`
+(`geography(Point,4326)`). El sistema de referencia verbatim que declara el fichero de origen
+queda registrado, sin modificar, en la cabecera de procedencia del artefacto committeado
+(`packages/db/src/municipality-catalogue.generated.ts`, campo `source_crs_string`).
+
+**Alternativa descartada.** Reproyectar con una librería como `proj4` antes de escribir cada
+centroide, buscando una equivalencia geodésica citable con ETRS89/EPSG:4326.
+
+**Motivo.** Tres razones, ninguna dependiente de encontrar la cita que se buscó y no se
+encontró:
+
+1. **El fichero mezcla dos sistemas de referencia distintos** — ETRS89 para la península,
+   Baleares, Ceuta y Melilla, y **REGCAN95 para Canarias**. Una única transformación `proj4`
+   aplicada en bloque sería incorrecta para uno de los dos grupos; hacerlo bien exigiría una
+   atribución de sistema de referencia por fila que este cambio no ha verificado que el fichero
+   traiga. Reproyectar sin esa atribución es el riesgo mayor, no el menor.
+2. **La divergencia que una reproyección corregiría queda dominada, por uno o más órdenes de
+   magnitud, por un error que este mismo cambio ya acepta a propósito.** Cualquier discrepancia
+   ETRS89/REGCAN95↔WGS84 está acotada por la deriva tectónica desde la época de referencia de
+   mediados de los 90 — del orden de centímetros por año, así que como mucho unos pocos metros a
+   día de hoy. La elección de fila representante por municipio (decisión de diseño DD-4, Q2)
+   desplaza el punto almacenado cientos de metros o kilómetros respecto al centro real, y
+   `sweep_radius_m` opera a escala kilométrica. Un desplazamiento de datum a escala de metros no
+   puede cambiar qué anuncios entran en un círculo de ese tamaño.
+3. **La decisión es reversible sin volver a descargar nada.** La cabecera de procedencia guarda
+   el sistema de referencia de origen tal cual, así que un paso futuro que necesite precisión
+   sub-métrica puede reproyectar a partir del artefacto committeado, con constancia exacta de
+   desde qué sistema parte.
+
+**Declarado explícitamente, y esto es la parte que importa registrar:** no existe ninguna fuente
+geodésica autoritativa disponible para este proyecto que confirme un margen de error numérico
+para esta equivalencia. Lo anterior es un **juicio de ingeniería acotado por la precisión del
+propio centroide almacenado**, no un hecho citado — a diferencia del resto de las cifras de este
+documento, que sí llevan una fuente primaria verificable.
+
+**Disparador de falsificación.** Esta decisión se reabre en el momento en que cualquier
+funcionalidad exija una precisión sub-10-metros a partir de `locations.centroid` — en ese punto,
+la mezcla de sistemas de referencia deja de ser irrelevante frente al margen de error ya aceptado
+y la reproyección (con atribución de sistema de referencia verificada por fila) vuelve a ser
+necesaria.
+
+**Consecuencia.** Ningún centroide de este catálogo debe usarse, sin revisar esta decisión antes,
+para nada que exija una precisión mayor que la del propio radio de barrido (kilómetros). La
+cabecera de procedencia es la vía por la que un futuro paso puede reproyectar sin volver a
+descargar el fichero origen.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

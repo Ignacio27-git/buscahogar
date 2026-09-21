@@ -23,6 +23,10 @@ export function connectTestDb(): { db: Database; pool: Pool } {
 // añadido sus filas sobrevivían entre tests dentro del mismo fichero —
 // exactamente el fallo que detectó `test/consolidation/consolidation.test.ts`
 // (los recuentos absolutos de `dedup_runs` no cuadraban entre tests).
+//
+// ROADMAP 1.13 (diseño DD-12): `daily_request_budget` referencia `sources`
+// y nada más la referencia a ella — se añade antes de `sources` por la
+// misma razón que `coverage_jobs` se lista antes de `zones`/`sources`.
 const TABLES_IN_FK_ORDER = [
   'property_listings',
   'dedup_pair_evidence',
@@ -32,6 +36,7 @@ const TABLES_IN_FK_ORDER = [
   'listings',
   'properties',
   'dedup_runs',
+  'daily_request_budget',
   'zones',
   'sources',
   'locations',
