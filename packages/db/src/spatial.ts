@@ -38,3 +38,16 @@ export function withinMeters(lon: number, lat: number, meters: number): SQL {
 export function rowsWithinMeters(left: AnyPgColumn, right: AnyPgColumn, meters: number): SQL {
   return sql`ST_DWithin(${left}, ${right}, ${meters})`;
 }
+
+// ROADMAP 1.13 (diseño DD-1) — `locations.centroid` es una `geographyPoint()`
+// escrita directamente (a diferencia de `listings.location`/
+// `properties.location`, que son `geometry` y derivan su columna
+// `geography` mediante `generatedAlwaysAs`): aquí no existe una columna
+// geometry origen, el propio catálogo importado ES la fuente de la
+// coordenada. El tipo `geography` de PostGIS acepta WKT como entrada
+// (`POINT(lon lat)`); x = longitud, y = latitud — mismo orden que
+// `listings.ts:34-35` para no invertir el eje (España aparecería en el
+// océano Índico).
+export function geographyPointWkt(coordinates: { readonly latitude: number; readonly longitude: number }): string {
+  return `POINT(${String(coordinates.longitude)} ${String(coordinates.latitude)})`;
+}

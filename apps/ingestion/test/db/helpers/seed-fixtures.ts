@@ -4,8 +4,9 @@
 // packages/db/test/helpers/fixtures.ts (precedente, no reutilizado
 // directamente por la misma razón de D2: es un helper de test, no una
 // superficie exportada de packages/db).
-import { randomUUID } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 
+import { normalizeSearchName } from '@buscahogar/core';
 import { locations, sources, zones } from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
 
@@ -33,11 +34,16 @@ export async function insertLocation(
   const [location] = await db
     .insert(locations)
     .values({
-      ineCode: randomUUID().slice(0, 5),
+      // ROADMAP 1.13 (DD-1): `ine_code` lleva ahora CHECK `^[0-9]{5}$`
+      // (`locations_ine_code_check`) — un fragmento de uuid puede contener
+      // letras hexadecimales y violarlo, así que el código aleatorio de
+      // este fixture pasa a ser puramente numérico.
+      ineCode: String(randomInt(10_000, 100_000)),
       municipality: 'Granada',
       province: 'Granada',
       provinceCode: '18',
       autonomousCommunity: 'Andalucía',
+      searchName: normalizeSearchName('Granada'),
       ...overrides,
     })
     .returning({ id: locations.id });

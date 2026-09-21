@@ -18,6 +18,7 @@ function buildEntry(overrides: Partial<MunicipalitySeed> = {}): MunicipalitySeed
     province: 'Granada',
     provinceCode: '18',
     autonomousCommunity: 'Andalucía',
+    searchName: 'granada',
     source: 'INE — Registro de Entidades Locales, código de municipio 18087.',
     ...overrides,
   };

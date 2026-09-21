@@ -11,12 +11,23 @@
 //
 // Sin Zod (decisión 023: `packages/db` no usa Zod) — comprobaciones escritas
 // a mano.
+import { normalizeSearchName } from '@buscahogar/core';
+
+// ROADMAP 1.13 (diseño DD-1/DD-2) — `centroid`/`sweepRadiusM` opcionales:
+// nulos hasta que el catálogo importado (fase de conversión offline,
+// `apps/ingestion/scripts/import-municipality-catalogue.ts`) aporta una
+// coordenada que pasa la puerta de cordura. `searchName` es obligatorio:
+// toda entrada, incluida esta catalogación manual, necesita el nombre
+// plegado que consume el autocompletado (DD-22).
 export interface MunicipalitySeed {
   readonly ineCode: string;
   readonly municipality: string;
   readonly province: string;
   readonly provinceCode: string;
   readonly autonomousCommunity: string;
+  readonly centroid?: { readonly latitude: number; readonly longitude: number };
+  readonly sweepRadiusM?: number;
+  readonly searchName: string;
   // Cita de dónde sale el código INE — la evidencia de que no se ha
   // fabricado, no un campo decorativo.
   readonly source: string;
@@ -44,6 +55,7 @@ export const MUNICIPALITY_CATALOGUE: readonly MunicipalitySeed[] = [
     province: 'Granada',
     provinceCode: '18',
     autonomousCommunity: 'Andalucía',
+    searchName: normalizeSearchName('Granada'),
     source:
       'INE — Registro de Entidades Locales / Callejero, código de municipio 18087, confirmado por el responsable del proyecto (ROADMAP 1.7).',
   },

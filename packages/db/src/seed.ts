@@ -12,11 +12,25 @@ import { fileURLToPath } from 'node:url';
 
 import { eq } from 'drizzle-orm';
 
+import { mergeCatalogues } from './catalogue-merge.js';
 import { createDb } from './db.js';
 import type { Database } from './db.js';
+import { IMPORTED_MUNICIPALITY_CATALOGUE } from './municipality-catalogue.generated.js';
 import { assertValidMunicipality, MUNICIPALITY_CATALOGUE } from './seed-data.js';
 import type { MunicipalitySeed } from './seed-data.js';
+import { geographyPointWkt } from './spatial.js';
 import { locations, sources, zones } from './tables.js';
+
+// ROADMAP 1.13 (diseño DD-2, arbitraje CR-15) — catálogo por defecto: la
+// fusión PURA del hand-cited y el importado, nunca los dos sembrados por
+// separado (ver `mergeCatalogues` para el porqué). Mientras el placeholder
+// de `municipality-catalogue.generated.ts` siga vacío (R7), esto es una
+// fusión sin efecto — Granada se siembra exactamente igual que antes de
+// ROADMAP 1.13.
+const DEFAULT_CATALOGUE: readonly MunicipalitySeed[] = mergeCatalogues(
+  MUNICIPALITY_CATALOGUE,
+  IMPORTED_MUNICIPALITY_CATALOGUE
+);
 
 export class MissingDatabaseUrlError extends Error {
   constructor() {
@@ -40,7 +54,7 @@ export class MissingDatabaseUrlError extends Error {
 // todo o nada.
 export async function seedReferenceData(
   db: Database,
-  catalogue: readonly MunicipalitySeed[] = MUNICIPALITY_CATALOGUE
+  catalogue: readonly MunicipalitySeed[] = DEFAULT_CATALOGUE
 ): Promise<void> {
   catalogue.forEach(assertValidMunicipality);
 
@@ -58,6 +72,15 @@ export async function seedReferenceData(
           province: entry.province,
           provinceCode: entry.provinceCode,
           autonomousCommunity: entry.autonomousCommunity,
+          // ROADMAP 1.13 (DD-1) — nulo si la entrada no trae centroide
+          // (catalogación manual sin coordenada, o fila del catálogo
+          // importado que no pasó la puerta de cordura). `ON CONFLICT DO
+          // NOTHING` sigue sirviendo solo para la idempotencia del re-seed
+          // (arbitraje CR-15) — la fusión con el catálogo hand-cited es
+          // responsabilidad de `mergeCatalogues`, no de esta cláusula.
+          centroid: entry.centroid ? geographyPointWkt(entry.centroid) : null,
+          sweepRadiusM: entry.sweepRadiusM ?? null,
+          searchName: entry.searchName,
         })
         .onConflictDoNothing({ target: locations.ineCode });
 

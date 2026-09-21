@@ -1,7 +1,8 @@
 // Datos mínimos válidos para los tests de integración: solo cubren las
 // columnas NOT NULL que cada tabla exige. Cada test añade por encima lo que
 // necesite comprobar (versión, puntuación, ubicación...).
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
+import { normalizeSearchName } from '@buscahogar/core';
 import type { Database } from '../../src/db.js';
 import { listings, listingVersions, locations, sources } from '../../src/tables.js';
 
@@ -79,7 +80,13 @@ export async function insertListingWithCurrentVersion(
 }
 
 export async function insertLocation(db: Database): Promise<string> {
-  const ineCode = randomUUID().slice(0, 8);
+  // ROADMAP 1.13 (DD-1): `ine_code` ahora lleva CHECK `^[0-9]{5}$`
+  // (`locations_ine_code_check`), así que el identificador aleatorio de
+  // este fixture ya no puede ser un fragmento de uuid — debe ser
+  // exactamente 5 dígitos. `randomInt` de un rango amplio mantiene la
+  // misma propiedad de unicidad práctica entre llamadas que tenía el
+  // fragmento de uuid anterior.
+  const ineCode = String(randomInt(10_000, 100_000));
   const [location] = await db
     .insert(locations)
     .values({
@@ -88,6 +95,7 @@ export async function insertLocation(db: Database): Promise<string> {
       province: 'Madrid',
       provinceCode: '28',
       autonomousCommunity: 'Comunidad de Madrid',
+      searchName: normalizeSearchName('Madrid'),
     })
     .returning({ id: locations.id });
   if (!location) {

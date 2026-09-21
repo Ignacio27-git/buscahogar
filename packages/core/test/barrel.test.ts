@@ -30,6 +30,17 @@ describe('barril público de @buscahogar/core', () => {
     expect(typeof barrel.classify).toBe('function');
   });
 
+  it('ROADMAP 1.13 (DD-22): expone normalizeSearchName, comportamiento real no solo existencia', () => {
+    expect(typeof barrel.normalizeSearchName).toBe('function');
+    expect(barrel.normalizeSearchName('Málaga')).toBe('malaga');
+  });
+
+  it('ROADMAP 1.13 (A-11): expone zoneSelectionSchema y zoneQuerySchema, utilizables como validadores Zod', () => {
+    expect(barrel.zoneSelectionSchema.safeParse('18087').success).toBe(true);
+    expect(barrel.zoneSelectionSchema.safeParse('bad').success).toBe(false);
+    expect(barrel.zoneQuerySchema.safeParse('Granada').success).toBe(true);
+  });
+
   it('ROADMAP 1.10: expone buildPropertyGroups, selectWinningListing y countCompleteness', () => {
     expect(typeof barrel.buildPropertyGroups).toBe('function');
     expect(typeof barrel.selectWinningListing).toBe('function');

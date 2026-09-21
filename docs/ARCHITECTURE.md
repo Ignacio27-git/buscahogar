@@ -117,6 +117,17 @@ de colas externo.
 **Cuota.** Presupuesto diario de peticiones y tope de zonas nuevas por día y por sesión.
 Degradación explícita al alcanzarlo.
 
+## Atribución de datos geográficos
+
+El catálogo de municipios (centroide y radio de barrido por municipio, ROADMAP 1.13) se deriva
+del Nomenclátor Geográfico de Municipios y Entidades de Población (NGMEP), publicado por el
+Instituto Geográfico Nacional (IGN) a través del Centro Nacional de Información Geográfica
+(CNIG), bajo licencia **CC-BY 4.0**, según lo exige la Orden FOM/2807/2015. La atribución es
+visible al usuario en el pie de página de `apps/web` (`layout.tsx`, Server Component, sin coste
+de JavaScript) y queda registrada, con su procedencia exacta (URLs de origen, fecha de descarga,
+checksum, sistema de referencia verbatim del fichero), en la cabecera del propio artefacto de
+catálogo committeado (`packages/db/src/municipality-catalogue.generated.ts`).
+
 ## Refresco y retención
 
 - Zonas con consultas recientes: refresco semanal.

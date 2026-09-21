@@ -21,6 +21,7 @@ function buildInvalidEntry(overrides: Partial<MunicipalitySeed> = {}): Municipal
     province: 'Provincia de prueba',
     provinceCode: '18',
     autonomousCommunity: 'Comunidad de prueba',
+    searchName: 'municipio de prueba no verificado',
     source: 'test',
     ...overrides,
   };
