@@ -311,4 +311,29 @@ describe('listing-writer — PERSIST-1..8, D5', () => {
       .where(eq(listingVersions.listingId, listingRow.id));
     expect(versions).toHaveLength(1);
   });
+
+  // ROADMAP 1.12 (spec: "numPhotos-only change does not version") — hermano de
+  // PERSIST-3b: numPhotos es identity-column (decisión 062), así que una
+  // re-visión que solo cambia el recuento de fotos no debe abrir versión
+  // nueva y el valor persistido se congela en la primera vista.
+  it('PERSIST-3c: una re-visión que solo cambia numPhotos no crea versión nueva y congela el valor original', async () => {
+    const sourceUuid = await insertSource(db);
+    const externalId = `ext-numphotos-${randomUUID()}`;
+
+    await persistOne(sourceUuid, buildItem({ externalId, numPhotos: 30 }));
+    await persistOne(sourceUuid, buildItem({ externalId, numPhotos: 32 }));
+
+    const [row] = await db.select().from(listings).where(eq(listings.externalId, externalId));
+    const listingRow = requireRow(row, 'listings row no encontrada tras la re-visión');
+
+    // Columna de IDENTIDAD: se congela en la primera vista.
+    expect(listingRow.numPhotos).toBe(30);
+
+    // Lo que de verdad protege este test: ni una versión nueva.
+    const versions = await db
+      .select()
+      .from(listingVersions)
+      .where(eq(listingVersions.listingId, listingRow.id));
+    expect(versions).toHaveLength(1);
+  });
 });

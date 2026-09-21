@@ -42,6 +42,37 @@ const distinctSourceCount = sql<number>`(
     JOIN "listings" AS src_l ON src_l."id" = src_pl."listing_id"
    WHERE src_pl."property_id" = "properties"."id")`.mapWith(Number);
 
+// ROADMAP 1.12 (diseño D4; arbitraje AR-4, docs/DECISIONS.md decisión 061) —
+// anchor listing id para que un result card pueda construir un href
+// PD-1-compliant sin una consulta extra por tarjeta (A-8). Misma disciplina
+// EXACTA que `distinctSourceCount` arriba, DEFECT-1 (`search.ts:28-38`
+// original): nombres de tabla como literales SQL con alias (`anchor_pl`),
+// nunca `${propertyListings}` — interpolar una columna de Drizzle en la
+// PROYECCIÓN la emite SIN prefijo de tabla, y el `"id"` resultante sería
+// ambiguo entre `property_listings.id` y `properties.id`. Correlación
+// cualificada (`"properties"."id"`), nunca `${properties.id}`.
+//
+// SIN `.mapWith()`, a diferencia de `distinctSourceCount`: el valor
+// resultante ya es `uuid`, que node-postgres representa como cadena —
+// añadir `.mapWith(Number)` aquí produciría `NaN` en silencio.
+//
+// **Corrección frente al diseño (obs #191, D4), verificada contra Postgres
+// real**: el diseño proponía `min(anchor_pl."listing_id")` y documentaba
+// `ORDER BY … ASC LIMIT 1` como "el equivalente independiente de versión".
+// PostgreSQL 17 (`docker-compose.yml` fija `postgis/postgis:17-3.5`) rechazó
+// `min(uuid)` en tiempo de EJECUCIÓN con 42883 (`function min(uuid) does not
+// exist`): no es una cuestión de versión — `uuid` no tiene agregado MIN/MAX
+// nativo en ninguna versión de PostgreSQL, solo operadores de comparación
+// b-tree. Se usa el propio fallback nombrado por el diseño, que sí resuelve
+// mediante esos operadores de comparación (`<`), nunca un agregado.
+// `.toSQL()` no lo habría detectado — misma clase de fallo que DEFECT-1.
+const anchorListingId = sql<string | null>`(
+  SELECT anchor_pl."listing_id"
+    FROM "property_listings" AS anchor_pl
+   WHERE anchor_pl."property_id" = "properties"."id"
+   ORDER BY anchor_pl."listing_id" ASC
+   LIMIT 1)`;
+
 function buildFilters(criteria: PropertySearchCriteria): SQL[] {
   const filters: SQL[] = [];
 
@@ -117,6 +148,7 @@ export function buildPropertySearchQuery(db: Database, criteria: PropertySearchC
       thumbnailUrl: properties.thumbnailUrl,
       updatedAt: properties.updatedAt,
       distinctSourceCount,
+      anchorListingId,
     })
     .from(properties)
     .where(filters.length > 0 ? and(...filters) : undefined)
@@ -145,6 +177,7 @@ export interface PropertySearchResult {
   readonly thumbnailUrl: string | null;
   readonly updatedAt: Date;
   readonly distinctSourceCount: number;
+  readonly anchorListingId: string | null;
 }
 
 export interface PropertySearchPage {

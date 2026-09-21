@@ -23,6 +23,8 @@ export default defineConfig({
     // ROADMAP 1.10 (diseño D10): mismo motivo para la suite de
     // consolidación (vitest.consolidation.config.ts, script
     // `test:consolidation`) — también fail-loud.
-    exclude: ['test/blocking/**', 'test/consolidation/**'],
+    // ROADMAP 1.12: mismo motivo para la suite de detalle de vivienda
+    // (vitest.detail.config.ts, script `test:detail`) — también fail-loud.
+    exclude: ['test/blocking/**', 'test/consolidation/**', 'test/detail/**'],
   },
 });

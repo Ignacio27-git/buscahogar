@@ -1,10 +1,21 @@
 // ROADMAP 1.11 — tarjeta de resultado (diseño D9/D10). Server Component
 // puro: sin `'use client'`, sin estado — recibe ya los datos consolidados
 // de `PropertySearchResult` (packages/db/src/search.ts) y los renderiza.
+//
+// ROADMAP 1.12 (diseño D4/D9; arbitraje obs #193 AR-4) — `anchorListingId`
+// es `string | null` (`min(listingId)` sobre un conjunto de miembros vacío
+// da NULL en SQL, aunque en la práctica ningún `property_listings`
+// consolidado queda sin miembros): CON ancla, la tarjeta envuelve su
+// contenido en `<a href="/properties/{anchor}">`; SIN ancla, degrada
+// exactamente a la tarjeta de hoy — nunca un `<a>` con `href` vacío o roto.
+// `<a href>` normal, nunca `next/link` (D1: `typedRoutes` sigue sin activar
+// en `next.config.ts`).
 import Image from 'next/image';
 import type { ReactElement } from 'react';
 
 import type { PropertySearchResult } from '@buscahogar/db';
+
+import { buildPropertyDetailHref } from '@/lib/property-href';
 
 import { resolveThumbnailSource } from './thumbnail-source';
 
@@ -22,8 +33,8 @@ function formatPriceCents(cents: number | null): string {
 export function ResultCard({ result }: ResultCardProps): ReactElement {
   const thumbnail = resolveThumbnailSource(result.thumbnailUrl);
 
-  return (
-    <article>
+  const content = (
+    <>
       {thumbnail.kind === 'thumbnail' ? (
         <Image src={thumbnail.url} alt="" width={480} height={360} />
       ) : (
@@ -42,6 +53,16 @@ export function ResultCard({ result }: ResultCardProps): ReactElement {
       <p>
         Disponible en {result.distinctSourceCount} {result.distinctSourceCount === 1 ? 'fuente' : 'fuentes'}
       </p>
+    </>
+  );
+
+  if (result.anchorListingId === null) {
+    return <article>{content}</article>;
+  }
+
+  return (
+    <article>
+      <a href={buildPropertyDetailHref(result.anchorListingId)}>{content}</a>
     </article>
   );
 }

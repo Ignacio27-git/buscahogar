@@ -18,13 +18,16 @@
 // De ahí el primer caso: ejecutar la consulta contra Postgres, con las tablas
 // vacías, ya es la prueba vinculante de que el SQL es válido.
 import type { Pool } from 'pg';
-import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { PropertySearchCriteria } from '@buscahogar/core';
 
+import type { ConsolidationInput } from '../../src/consolidation.js';
+import { writeConsolidation } from '../../src/consolidation.js';
 import type { Database } from '../../src/db.js';
+import { getPropertyDetailHeader } from '../../src/detail.js';
 import { searchProperties } from '../../src/search.js';
-import { properties, propertyListings } from '../../src/tables.js';
+import { listingVersions, properties, propertyListings } from '../../src/tables.js';
 import { connectTestDb, truncateAll } from '../helpers/db-client.js';
 import { describeWithDb } from '../helpers/docker-gate.js';
 import { insertListing, insertSource } from '../helpers/fixtures.js';
@@ -190,5 +193,85 @@ describeWithDb('searchProperties contra Postgres real', () => {
 
     expect(page.results).toEqual([]);
     expect(page.hasNextPage).toBe(false);
+  });
+
+  // ROADMAP 1.12 (diseño D4/AR-4, docs/DECISIONS.md decisión 061) — la
+  // proyección del anchor listing id, EJECUTANDO contra Postgres real: mismo
+  // DEFECT-1 que `distinctSourceCount` arriba, evidencia vinculante
+  // obligatoria (`.toSQL()` sola no basta).
+  describe('anchorListingId — proyección correlacionada, EJECUTANDO (D4/AR-4)', () => {
+    it('el anchor es el mínimo de los 3 listingId miembro de la vivienda', async () => {
+      const sourceId = await insertSource(db);
+      const listingIds = [
+        await insertListing(db, sourceId),
+        await insertListing(db, sourceId),
+        await insertListing(db, sourceId),
+      ].sort();
+      await insertPropertyWithListings(db, listingIds);
+
+      const page = await searchProperties(db, BASE_CRITERIA);
+
+      expect(page.results).toHaveLength(1);
+      expect(page.results[0]?.anchorListingId).toBe(listingIds[0]);
+    });
+
+    it('el anchor sigue resolviendo tras un reproceso que mueve el listing anchor a otra vivienda', async () => {
+      const sourceId = await insertSource(db);
+      const anchorListing = await insertListing(db, sourceId);
+      const otherListing = await insertListing(db, sourceId);
+      await db
+        .insert(listingVersions)
+        .values({ listingId: anchorListing, version: 1, isCurrent: true, priceCents: 100_000_00, operation: 'sale' });
+      await db
+        .insert(listingVersions)
+        .values({ listingId: otherListing, version: 1, isCurrent: true, priceCents: 150_000_00, operation: 'sale' });
+
+      // Primer reproceso: los dos listings forman una única vivienda — el
+      // anchor es el mínimo de ambos. Un grupo de más de un miembro exige al
+      // menos una arista 'accept' hacia su propio grupo (invariante de
+      // buildPropertyGroups, packages/core).
+      const [pairA, pairB] = [anchorListing, otherListing].sort();
+      const baseInput: ConsolidationInput = {
+        strategyName: 'test',
+        strategyVersion: '1',
+        radiusMeters: 300,
+        priceBandCents: 2_500_000,
+        surfaceToleranceM2: 10,
+        listingsConsidered: 2,
+        pairs: [
+          {
+            listingAId: pairA as string,
+            listingBId: pairB as string,
+            band: 'accept',
+            score: 0.95,
+            signals: { exactAddress: { value: 1, weight: 0.7 } },
+          },
+        ],
+        groups: [{ listingIds: [anchorListing, otherListing].sort(), winnerId: anchorListing }],
+        refusedComponentsCount: 0,
+      };
+      await writeConsolidation(db, baseInput);
+
+      const beforePage = await searchProperties(db, BASE_CRITERIA);
+      const oldAnchorUrl = beforePage.results[0]?.anchorListingId;
+      expect(oldAnchorUrl).toBeDefined();
+
+      // Segundo reproceso: cada listing pasa a ser su propia vivienda
+      // (singleton) — el anchor original deja de estar en el mismo grupo.
+      await writeConsolidation(db, {
+        ...baseInput,
+        groups: [
+          { listingIds: [anchorListing], winnerId: anchorListing },
+          { listingIds: [otherListing], winnerId: otherListing },
+        ],
+      });
+
+      // La URL construida con el anchor ANTIGUO sigue resolviendo (a través
+      // de property-detail-route, que resuelve por listings.id, estable) a
+      // la vivienda que ahora lo contiene — aunque ya no sea la misma
+      // vivienda de antes.
+      const stillResolves = await getPropertyDetailHeader(db, oldAnchorUrl as string);
+      expect(stillResolves).toBeDefined();
+    });
   });
 });

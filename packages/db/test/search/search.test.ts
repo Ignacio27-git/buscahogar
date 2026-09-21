@@ -120,6 +120,24 @@ describe('buildPropertySearchQuery — recuento de fuentes: subconsulta correlac
   });
 });
 
+// ROADMAP 1.12 (diseño D4/AR-4) — guarda de regresión de FORMA, no de
+// validez: la evidencia vinculante de que esta proyección es SQL válido y
+// devuelve el valor correcto vive en `search.db.test.ts` (EJECUTANDO contra
+// Postgres real, D4). Esta guarda solo confirma que el `.toSQL()` de las 21
+// pruebas de arriba sigue emparejando FORMA tras añadir la columna.
+describe('buildPropertySearchQuery — anchorListingId: subconsulta correlacionada, alias interno, sin agregado MIN', () => {
+  it('la proyección incluye una subconsulta correlacionada sobre property_listings con alias interno', () => {
+    const { sql } = toSql(BASE);
+    expect(sql).toMatch(/"property_listings"\s+as\s+"?anchor_pl"?/i);
+    expect(sql).toMatch(/order by\s+anchor_pl\."listing_id"\s+asc/i);
+  });
+
+  it('la correlación externa referencia "properties"."id" de forma cualificada', () => {
+    const { sql } = toSql(BASE);
+    expect(sql).toMatch(/anchor_pl\."property_id"\s*=\s*"properties"\."id"/i);
+  });
+});
+
 describe('buildPropertySearchQuery — orden: NULLS LAST explícito en ambas direcciones, desempate por id', () => {
   it('sort=price/dir=desc ordena por min_price_cents desc nulls last, con properties.id asc de desempate', () => {
     const { sql } = toSql({ ...BASE, sort: 'price', dir: 'desc' });

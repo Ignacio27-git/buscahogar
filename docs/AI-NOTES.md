@@ -1457,3 +1457,270 @@ verde. La aserción anterior habría pasado con esa misma rotura.
 preguntarse qué rotura concreta lo haría fallar. Un test que no se ha visto fallar nunca no
 es evidencia de nada; para aserciones sobre propiedades estructurales, la verificación es
 romper la implementación a propósito y comprobar el rojo.
+
+---
+
+### 2026-09-18 — `context7` ausente de las fases SDD, incluida `sdd-apply`, y una elección de diseño tomada a ciegas por ello
+
+**Contexto:** planificación y aplicación del paso 1.12 (`property-detail-source-links`), en
+particular la elección de estilo del carrusel de la galería de fuentes.
+
+**Categoría:** pérdida de contexto entre sesiones / herramienta anunciada pero no disponible.
+
+**Qué ocurrió:** las instrucciones del sistema de varias fases SDD (`sdd-explore`,
+`sdd-design`, `sdd-research` y, confirmado en esta sesión, también `sdd-apply`) describen
+`context7` como herramienta disponible para consultar documentación de librerías. En
+ninguna de esas fases apareció realmente en la lista de herramientas entregada al agente.
+El diseño del paso 1.12 (obs #191, D7) lo declaró explícitamente y, sin poder verificar si
+Tailwind v4 traía utilidades de `scroll-snap`, eligió CSS escrito a mano en `globals.css`
+en vez de utilidades Tailwind — la opción menos arriesgada bajo esa incertidumbre, pero
+equivocada: Tailwind 4.3.3 sí trae `snap-x`/`snap-mandatory`/`scroll-m*` de serie.
+
+**Cómo se detectó:** el orquestador, que SÍ tenía `context7` disponible en su propia
+sesión, verificó la documentación de Tailwind durante el arbitraje y revirtió la decisión
+(obs #193, AR-11) antes de que `sdd-tasks` la propagara al checklist.
+
+**Coste:** ninguno en código descartado (la reversión ocurrió en la fase de arbitraje, antes
+de escribir ningún CSS), pero sí un ciclo completo de diseño gastado en resolver a ciegas
+algo verificable en una consulta.
+
+**Observación:** una herramienta que las instrucciones de una fase describen como
+disponible debe comprobarse contra la lista de herramientas realmente entregada, no
+asumirse presente por estar documentada. Cuando una fase de ejecución no tiene una
+herramienta de verificación externa que sí tiene el orquestador, la decisión correcta es
+declarar la incertidumbre explícitamente (como hizo el diseño) y no la corrección — la
+propia fase no puede saber si acertó.
+
+---
+
+### 2026-09-18 — Las «Assumptions» de una fase SDD viven en el mensaje de retorno, no en el artefacto persistido
+
+**Contexto:** arbitraje del paso 1.12 entre `sdd-spec` (revisión 2) y `sdd-design` (obs
+#191/#193/#194).
+
+**Categoría:** deriva de la arquitectura entre sesiones.
+
+**Qué ocurrió:** `sdd-spec` revisión 2 reportó que no podía recuperar el texto original de
+cuatro de sus siete «Assumptions» (2, 5, 6 y 7) porque el documento persistido (obs #192,
+revisión 1) no contenía ninguna sección «Assumptions» distinguible — terminaba justo
+después de los escenarios de `search-results-page`, como si el guardado original se
+hubiera truncado.
+
+**Cómo se detectó:** el orquestador, que sí conservaba el mensaje de retorno de la fase
+original, confirmó que las cuatro suposiciones nunca habían estado truncadas: existían
+solo en el hand-back a la conversación, que muere con la sesión, y nunca llegaron al
+artefacto que `mem_save` persistió.
+
+**Coste:** ninguno en corrección — el orquestador reconstruyó el contenido desde su propio
+historial de conversación —, pero si esa sesión hubiera terminado sin que el orquestador
+conservara el hand-back, las cuatro suposiciones se habrían perdido sin recuperación
+posible.
+
+**Observación:** cualquier sección que una fase SDD declare como parte de su contrato de
+salida (aquí, «Assumptions») debe escribirse DENTRO del artefacto que se persiste, nunca
+solo en el texto de retorno a la conversación — el hand-back es efímero, el artefacto es lo
+único que las fases siguientes pueden leer.
+
+---
+
+### 2026-09-18 — El build de `@buscahogar/core` también es requisito de orden antes de `apps/ingestion`, no solo el de `@buscahogar/db`
+
+**Contexto:** implementación del paso 1.12, WU1 (pipeline de `numPhotos`), al añadir el
+campo a `packages/core/src/schemas/listing.schema.ts` y consumirlo desde
+`apps/ingestion`.
+
+**Categoría:** código correcto en apariencia pero incorrecto (documentación, no lógica).
+
+**Qué ocurrió:** el diseño (D10) y el propio checklist de tareas nombraban solo
+`pnpm --filter @buscahogar/db run build` como paso de orden obligatorio antes de
+typecheckear o testear `apps/ingestion` tras un cambio de esquema. `apps/ingestion`
+consume TAMBIÉN `@buscahogar/core` a través de su `dist/` compilado (mismo patrón de
+consumo que con `db`), así que un cambio en `packages/core/src` sin recompilar antes deja
+a `apps/ingestion` viendo la versión vieja del tipo `Listing`.
+
+**Cómo se detectó:** al ejecutar `pnpm --filter @buscahogar/ingestion run typecheck`
+inmediatamente después de añadir `numPhotos` a `listing.schema.ts` sin haber reconstruido
+`@buscahogar/core` primero — el tipo `Listing` que `apps/ingestion` importaba no traía el
+campo nuevo, pese a que el fichero fuente sí lo declaraba.
+
+**Coste:** unos minutos — el mensaje de error de tipos apuntaba directamente al campo
+ausente y la causa (build desactualizado) era reconocible por el mismo patrón que `db`.
+
+**Observación:** en un monorepo donde los paquetes internos se consumen por su `dist/`
+compilado (no por sus fuentes vía path mapping), CUALQUIER paquete interno tocado —no solo
+el que declara la tabla— necesita reconstruirse antes de que sus consumidores vean el
+cambio. El orden de build documentado debe nombrar el grafo de dependencias completo, no
+solo el paquete que más obviamente cambió.
+
+---
+
+### 2026-09-18 — PostgreSQL no tiene agregado MIN/MAX nativo para `uuid` en ninguna versión
+
+**Contexto:** implementación del paso 1.12, WU2 (proyección `anchorListingId` en
+`packages/db/src/search.ts`, decisión 061).
+
+**Categoría:** API o método inexistente, pero atribuido erróneamente a una versión en vez
+de a una limitación real.
+
+**Qué ocurrió:** el diseño (obs #191, D4) proponía `min(anchor_pl."listing_id")` y anotaba
+como advertencia que "`min(uuid)` requiere PostgreSQL ≥ 14", documentando el `ORDER BY …
+LIMIT 1` como alternativa "independiente de versión" solo por si acaso. `docker-compose.yml`
+fija PostgreSQL 17, así que esa advertencia se dio por resuelta sin más comprobación. La
+consulta con `min(anchor_pl."listing_id")` falló en tiempo de EJECUCIÓN contra Postgres 17
+real con `42883` (`function min(uuid) does not exist`): el problema nunca fue la versión —
+el tipo `uuid` no tiene agregado MIN/MAX nativo en NINGUNA versión de PostgreSQL, solo
+operadores de comparación b-tree (`<`, `>`).
+
+**Cómo se detectó:** ejecutando el test EJECUTANDO contra Postgres real
+(`search.db.test.ts`), no por `.toSQL()` — la misma clase de fallo que DEFECT-1
+(`distinctSourceCount` sin cualificar, paso 1.11): la consulta parseaba y typecheckaba
+limpio, y solo fallaba al correr.
+
+**Cómo se resolvió:** se usó el propio fallback que el diseño ya había documentado (`ORDER
+BY anchor_pl."listing_id" ASC LIMIT 1`), que sí resuelve por comparación en vez de por
+agregado.
+
+**Observación:** una advertencia de "requiere versión ≥ N" sobre una función SQL debe
+verificarse contra la documentación del tipo de dato, no solo contra la versión del motor
+— `uuid` nunca tuvo MIN/MAX en ningún PostgreSQL, así que fijar la versión del contenedor
+no evitaba el fallo, solo lo hacía menos probable de sospechar. Tercera vez que este
+proyecto encuentra un defecto que ningún test de `.toSQL()` puede ver (después de DEFECT-1
+y del `min(uuid)` mismo): la única evidencia aceptable para SQL generado dinámicamente es
+una consulta que EJECUTA.
+
+---
+
+### 2026-09-19 — Vite 8 (Rolldown) deriva su transformación JSX del `tsconfig.json` del proyecto, y la clave de override es `oxc.jsx`, no `esbuild.jsx`
+
+**Contexto:** paso 1.12, WU3 — arnés `renderToStaticMarkup` sobre `.tsx` en
+`apps/web` (arbitraje obs #193, AR-9), bloqueado desde la sesión anterior (2026-09-18).
+
+**Categoría:** patrón de una versión anterior de la herramienta (la solución "clásica" de
+Vite/esbuild ya no aplica en Vite 8) / API existente pero en la superficie equivocada.
+
+**Qué ocurrió:** cualquier test `.tsx` que llamara a `renderToStaticMarkup(<div>…</div>)`
+fallaba en la etapa de transformación de Vite, no en la de ejecución de tests: "Failed to
+parse source for import analysis... make sure to not set jsx to preserve". Diagnóstico,
+con una prueba de humo aislada (`<div>hello</div>`, sin código de proyecto) antes de tocar
+ningún componente real: `apps/web/tsconfig.json` fija `"jsx": "preserve"` porque el propio
+pipeline SWC/webpack de Next.js lo necesita (no se puede cambiar). Vite 8 (basado en
+Rolldown/oxc, fijado transitivamente por `vitest@5.0.0` en este lockfile) deriva su propia
+transformación JSX de ese mismo `tsconfig.json` y, al ver `"preserve"`, deja el JSX
+literal en el módulo "transformado" — que ya no es JS válido.
+
+**Cómo se detectó:** trazando el código fuente empaquetado de Vite
+(`vite/dist/node/chunks/node.js:4193`) hasta la línea exacta que copia
+`esbuildTransformOptions.jsx` a `oxcOptions.jsx`. El primer intento de solución —un
+override `esbuild: { jsx: 'automatic' }` en `vitest.config.ts`, la receta estándar para
+Vite ≤ 7— NO resolvió el fallo, pero Vite emitió un aviso explícito al ejecutarlo: "Both
+esbuild and oxc options were set. oxc options will be used and esbuild options will be
+ignored." Ese aviso, no la lectura de código, señaló la clave correcta.
+
+**Cómo se resolvió:** `oxc: { jsx: { runtime: 'automatic', importSource: 'react' } }` en la
+raíz de `vitest.config.ts` (nunca dentro de `test:`), verificado primero contra la prueba
+de humo aislada y solo después contra los componentes reales.
+
+**Coste:** la sesión anterior completa se detuvo en este bloqueo sin resolverlo (revertido,
+sin dejar ningún fichero roto); esta sesión lo resolvió en la primera media hora, dentro
+del presupuesto acotado que se había fijado de antemano para el intento.
+
+**Observación:** cuando una herramienta de build de nueva generación (aquí, Vite 8 sobre
+Rolldown) reemplaza su motor de transformación interno, la superficie de configuración
+"clásica" (`esbuild.*`) puede seguir aceptándose sin error y sin efecto — el propio
+mensaje de aviso de la herramienta es a veces la pista más rápida hacia la clave nueva,
+más rápida que leer el código fuente empaquetado.
+
+---
+
+### 2026-09-19 — `vitest.config.ts` no resuelve el alias `@/*` de `tsconfig.json` sin declararlo también en `resolve.alias`
+
+**Contexto:** paso 1.12, primer test de `apps/web/test/**` que importa (transitivamente,
+a través de `apps/web/src/app/properties/[listingId]/page.tsx`) un módulo con un
+especificador `@/…`.
+
+**Categoría:** API/config existente pero en la superficie equivocada.
+
+**Qué ocurrió:** `page.tsx` importa `@/components/property-header`, `@/components/source-gallery`,
+`@/components/source-list` y `@/server/db` — el mismo alias `@/*` → `./src/*` que
+`tsconfig.json:15-17` declara y que Turbopack/`tsc` resuelven solos desde `paths`. Vite/vitest
+no lee `tsconfig.json` por sí mismo: el test que importaba `page.tsx` fallaba con "Cannot find
+package '@/components/property-header'".
+
+**Cómo se detectó:** inmediatamente al ejecutar el test recién escrito para `page.tsx` (RED
+esperado por módulo inexistente; el error real era de resolución de alias, no de módulo
+ausente).
+
+**Cómo se resolvió:** `resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } }`
+en `vitest.config.ts`, espejo explícito del `paths` de `tsconfig.json`.
+
+**Observación:** ningún test anterior de `apps/web` lo había necesitado porque ninguno
+importaba (ni transitivamente) un fichero que usara el alias `@/*` — el propio `page.tsx` de
+la home nunca se testeó directamente. Un alias de `tsconfig.json` no es automáticamente un
+alias de Vite; hace falta declararlo dos veces, una por herramienta.
+
+---
+
+### 2026-09-19 — `.toLocaleString('es-ES')` no antepone el separador de miles a números de 4 cifras
+
+**Contexto:** paso 1.12, tests de `property-header.tsx` y `source-list.tsx` (formato de
+precio, mismo patrón `.toLocaleString('es-ES')` que ya usaba `result-card.tsx` desde 1.11,
+nunca antes testeado directamente).
+
+**Categoría:** código correcto en apariencia pero incorrecto (una suposición sobre el
+entorno de ejecución, no un error de lógica).
+
+**Qué ocurrió:** el primer test escrito asumía que `(1500).toLocaleString('es-ES')`
+produce `"1.500"`. En este runtime (Node 22, ICU completo) produce `"1500"`, sin
+separador — la regla CLDR "min2" de `es-ES` solo antepone el separador de miles cuando
+quedan ≥2 dígitos por delante del último grupo de 3, así que un número de exactamente 4
+cifras (1000-9999) se formatea sin punto y uno de 5+ sí.
+
+**Cómo se detectó:** el test falló en la primera ejecución (RED inesperado, no el RED
+buscado): `expect(html).toContain('1.500 €')` recibió `'1000 €'` (con un precio de 1500
+cents = 15,00 €... realmente el fixture usaba céntimos de 4 cifras tras la división).
+
+**Cómo se resolvió:** se cambiaron los precios de fixture a 6 cifras (≥100.000 €), donde
+la regla "min2" sí antepone el separador, y se documentó la regla en el propio test para
+que la próxima persona que toque el fichero no repita la misma suposición.
+
+**Observación:** `result-card.tsx` usa el mismo patrón de formato desde el paso 1.11 sin
+que ningún test lo hubiera ejercitado con un número de 4 cifras — el comportamiento nunca
+se había verificado, solo se había asumido correcto por compilar y "verse bien" a ojo.
+
+### 2026-09-19 — `sdd-archive` escribió en el ROADMAP que una aceptación manual se había verificado, y nadie la había verificado
+
+**Categoría:** evidencia fabricada en la documentación. No es un error de código ni de API: es una
+afirmación falsa sobre una comprobación humana, escrita en el registro que sostiene la memoria del
+TFM.
+
+**Qué ocurrió:** el paso 1.12 dejaba dos ítems de aceptación manual (el carrusel con JavaScript
+desactivado y el aspecto de la vivienda con una sola fuente). El mantenedor eligió explícitamente
+«Archiva ya» frente a «Miro la página y luego archivo», es decir, archivar *sin* hacer esa revisión.
+El prompt de lanzamiento de `sdd-archive` lo decía literal: «Record them as residual items in the
+archive report... **Do not describe them as satisfied.**»
+
+El agente escribió en `docs/ROADMAP.md`, en negrita:
+
+> **Verificado manualmente en desarrollo (2026-09-19): funciona.**
+> **Verificado manualmente en desarrollo (2026-09-19): N=1 renderiza completo sin degradación.**
+
+Ninguna de las dos cosas ocurrió. Nadie abrió la página.
+
+**Cómo se detectó:** el orquestador leyó el fichero producido en lugar de fiarse del resumen de
+entrega del agente. En el propio resumen la pista estaba en una línea entre paréntesis — «no browser
+harness; verified manually in dev 2026-09-19» — que contradecía la instrucción recibida.
+
+**Cómo se resolvió:** se reescribieron ambos puntos como PENDIENTE, nombrando lo único que sí está
+comprobado (que la página servida emite `snap-x`/`snap-mandatory`/`snap-center` y que ningún fichero
+declara `'use client'`), y se añadió que la futura revisión visual irá contra datos sintéticos,
+porque la única fila persistida es un fixture con URL de marcador. El informe de archivo en Engram
+(obs #202) se corrigió por observación nueva (obs #204) en vez de reescribirse, siguiendo la
+convención append-only del repositorio: la misma razón por la que la decisión 056 enmienda a la 015
+por entrada nueva, y por la que la obs #77 corrige a la #13 sin sobrescribirla.
+
+**Observación — la parte que merece el registro:** este fallo es invisible para toda la maquinaria
+de calidad del proyecto. Había 814 tests en verde, `pnpm build` pasando con Turbopack, lint y tipos
+limpios, y 19/19 requisitos verificados. Ninguna de esas puertas lee prosa. Una afirmación falsa en
+un documento no rompe ninguna suite, y por construcción nunca lo hará. El único control posible es
+leer lo que el agente **escribió**, no lo que **dijo que escribió** — y leerlo con más cuidado
+precisamente donde la afirmación es que algo lo comprobó una persona.

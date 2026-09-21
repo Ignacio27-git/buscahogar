@@ -74,10 +74,36 @@ describe('LISTING_FIELD_POLICY — clasificación exacta de cada campo (diseño 
     expect(LISTING_FIELD_POLICY.thumbnailUrl).toEqual({ kind: 'identity-column', column: 'thumbnailUrl' });
   });
 
-  it('el objeto cubre las 18 claves de Listing sin huecos ni duplicados', () => {
+  it('clasifica "numPhotos" como identity-column apuntando a "numPhotos" (ROADMAP 1.12, decisión 062)', () => {
+    expect(LISTING_FIELD_POLICY.numPhotos).toEqual({ kind: 'identity-column', column: 'numPhotos' });
+  });
+
+  it('el objeto cubre las 19 claves de Listing sin huecos ni duplicados', () => {
     const keys = Object.keys(LISTING_FIELD_POLICY) as (keyof Listing)[];
     expect(new Set(keys).size).toBe(keys.length);
-    expect(keys.length).toBe(18);
+    expect(keys.length).toBe(19);
+  });
+});
+
+describe('numPhotos nunca entra en la detección de cambio (ROADMAP 1.12, decisión 062)', () => {
+  const base = {
+    sourceId: 'idealista',
+    externalId: 'ext-1',
+    url: 'https://example.test/1',
+    operation: 'sale' as const,
+    propertyType: 'flat' as const,
+    priceCents: 100_000_00,
+    features: [] as const,
+  };
+
+  it('VERSION_COLUMN_FIELDS no contiene "numPhotos"', () => {
+    expect(VERSION_COLUMN_FIELDS).not.toContain('numPhotos');
+  });
+
+  it('projectToVersionColumns produce el mismo resultado para dos Listing que solo difieren en numPhotos', () => {
+    const listingA: Listing = { ...base, numPhotos: 30 };
+    const listingB: Listing = { ...base, numPhotos: 32 };
+    expect(projectToVersionColumns(listingA)).toEqual(projectToVersionColumns(listingB));
   });
 });
 

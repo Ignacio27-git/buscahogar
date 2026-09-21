@@ -51,6 +51,14 @@ describe('IdealistaListingNormalizer — sobre datos reales (ambas fixtures, D3 
     }
   });
 
+  it('numPhotos se mapea desde raw.numPhotos (ROADMAP 1.12, decisión 062)', () => {
+    for (const element of loadElements('search-homes-2026-09-10.json')) {
+      const listing = normalizer.normalize(element);
+      expect(listing.numPhotos).toBe(element.numPhotos);
+      expect(typeof listing.numPhotos).toBe('number');
+    }
+  });
+
   it('features es siempre un array vacío (D8, catálogo diferido a un paso posterior)', () => {
     const [element] = loadElements('search-homes-2026-09-10.json');
     expect(element).toBeDefined();

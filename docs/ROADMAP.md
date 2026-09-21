@@ -1169,7 +1169,7 @@ defecto, que excluye las suites fail-loud), `pnpm --filter @buscahogar/web test`
 > - La base de datos de desarrollo tiene 2 viviendas, restos de los tests. El corpus real se
 >   borró durante el ciclo 1.10 y repoblarlo gasta cuota de Idealista.
 
-## [ ] 1.12 · Detalle y redirección a las fuentes
+## [x] 1.12 · Detalle y redirección a las fuentes
 
 ```text
 Implementa la página de detalle de una vivienda: datos consolidados, galería de
@@ -1179,7 +1179,78 @@ Cuando una vivienda proceda de varias fuentes, debe verse con claridad cuáles s
 y qué precio ofrece cada una.
 ```
 
-**Notas:**
+**Revisar.**
+
+- **MANUAL ACCEPTANCE (sin mecanismo de test, arbitraje obs #193 AR-9):** el carrusel de
+  `source-gallery.tsx` se desplaza correctamente con JavaScript deshabilitado (arrastre táctil /
+  rueda + clic en las anclas `#source-slide-…`). Ninguna prueba de navegador en este stack lo
+  observa; `renderToStaticMarkup` produce markup estático, no una interacción de scroll real.
+  **PENDIENTE — nadie lo ha comprobado.** El paso se archivó sin esta revisión, por decisión
+  explícita del mantenedor (2026-09-19). Lo único verificado es estructural: la página servida
+  emite las utilidades `snap-x`, `snap-mandatory` y `snap-center` de Tailwind, y ningún fichero de
+  `apps/web/src` declara `'use client'`. Que el desplazamiento funcione de verdad con JavaScript
+  desactivado sigue sin observarse.
+- **MANUAL ACCEPTANCE (misma arbitración):** el tono/maquetación de N=1 (una sola fuente) no se
+  ve como una versión degradada de N>1. La mitad estructural (ninguna rama JSX condicionada a
+  `sources.length === 1`) SÍ está cubierta por un test estático
+  (`apps/web/test/no-single-source-branch.test.ts`); la mitad de percepción visual no.
+  **PENDIENTE — nadie lo ha mirado.** El paso se archivó sin esta revisión, por decisión explícita
+  del mantenedor (2026-09-19). La percepción visual no se ha juzgado. Además, cuando se juzgue será
+  contra datos sintéticos: la única fila persistida es un fixture con URL de marcador
+  (`https://example.test/anuncio`), porque el corpus real de 50 anuncios se perdió en el paso 1.10 y
+  recuperarlo cuesta cuota facturable.
+
+**Notas:** El paso se completó a través de dos sesiones de `sdd-apply`:
+
+**Sesión 1 (2026-09-18)**: WU1 (numPhotos) y WU2 (capa de consulta) completos, 28/54 tareas. Se
+completó con evidencia contra Postgres real (88 tests en verde entre core, db, ingestion). Se
+detectó un bloqueo de infraestructura AR-9 (Vite/Rolldown rechazando JSX en `.tsx`) pero no se
+resolvió en esa sesión.
+
+**Sesión 2 (2026-09-19)**: WU3 (23/23 tareas: página, galería, lista, header) completado. El
+bloqueo AR-9 se resolvió añadiendo `oxc.jsx: { runtime: 'automatic' }` a la configuración de
+vitest (la clave correcta en Vite 8, que ignora `esbuild.jsx` cuando `oxc` está presente). Se
+verificó primero con una prueba de humo aislada (`<div>hello</div>`) antes de tocar componentes
+reales. Docker Desktop no estuvo disponible durante esta sesión, así que las cuatro puertas
+fail-loud de `packages/db` no se pudieron re-ejecutar, pero se reportó honestamente como "no
+ejecutado" (no "en verde").
+
+**Sesión 3 (2026-09-19, `sdd-verify`)**: Independientemente de `sdd-apply`, la fase de verificación
+re-ejecutó la suite completa en una máquina con Docker disponible:
+
+- `pnpm test` → 739 tests (core 394, db 62, web 40, ingestion 243)
+- `pnpm --filter @buscahogar/db run test:blocking` → 18 tests
+- `pnpm --filter @buscahogar/db run test:consolidation` → 15 tests
+- `pnpm --filter @buscahogar/db run test:detail` → 10 tests (nuevo en 1.12)
+- `pnpm --filter @buscahogar/ingestion run test:db` → 32 tests
+
+**Total: 814 tests, 0 fallos, 0 saltados.** Build `pnpm build` exitoso (next build con Turbopack).
+`pnpm -r lint` y `pnpm -r typecheck` limpios. Todos los requerimientos de la spec (19 requisitos,
+29 escenarios) verificados compliant. Todas las decisiones de arbitraje (obs #193/#194) verificadas
+en código contra fuente, no contra narrativa. Ambas subconsultas correlacionadas ejecutadas contra
+Postgres real (no `.toSQL()` solo) — misma lección que el paso 1.11 de DEFECT-1.
+
+**Lo que se DECIDIÓ no entregar:**
+
+La tarea pide "galería de imágenes" (`ROADMAP.md:1175`). La `developers.idealista.com` está tras
+solicitud de socio (inaccesible 2026-09-19), sin endpoint de detalle documentado, sin términos de
+licencia legibles, sin cuota conocida. Obs #189 (exploración del paso 1.5) capturó dos clientes
+independientes de código abierto contra el endpoint real: ambos exponen solo `thumbnail` (URL única)
++ `numPhotos` (conteo), nunca un listado de fotos. **Que eso se implementa requiere el consentimiento
+del socio de Idealista y constituye su propio paso en la hoja de ruta, no una responsabilidad del
+detalle de 1.12.**
+
+Lo que SÍ se entregó: un carrusel de una imagen por fuente + recuento de fotos (fechado, porque se
+capturó en la primera sighting) + enlace de redirección a cada anuncio de origen. Decisión 063
+registra el alcance real vs. la expectativa del enunciado.
+
+**Estado de tareas:** 54/54 del checklist original, más 2 pruebas estáticas añadidas como evidencia
+(confirmación de `notFound()` y ausencia de rama por `sources.length === 1`) — 814 tests en verde.
+Dos escenarios permanecen como MANUAL ACCEPTANCE por diseño (arriba) — genuina limitación de
+interacción de navegador, no un hueco.
+
+El paso está **ARCHIVADO y CERRADO** per obs #202 (`sdd/property-detail-source-links/archive-report`).
+La entrega ordinaria (commit/push/PR) sigue siendo decisión de política de repositorio.
 
 ---
 
@@ -1387,3 +1458,6 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-17 | 1.11 | El cableado de la credencial de `web` usó `${WEB_DATABASE_URL:?...}` en `docker-compose.yml`, lo que rompía `docker compose up -d` para todos los perfiles y contradecía la garantía de la decisión 015 | La forma `:?` de Compose aborta la interpolación del fichero entero en tiempo de parseo, no del servicio que la contiene, así que una variable que solo necesita el perfil `app` se convertía en requisito global. Detectado por el orquestador al verificar el entorno con `docker compose ps`, no por ningún test: no existe ninguno que parsee el compose. Corregido a `${WEB_DATABASE_URL}`; el fallo ruidoso se conserva en `apps/web/src/server/db.ts`, que ya lanza un error nombrado citando la decisión 056 y está probado. Verificado: `docker compose config --services` devuelve solo `db`. Detalle en `AI-NOTES.md`. |
 | 2026-09-17 | 1.11 | La subconsulta del recuento de fuentes (A-1) emitía `"id"` sin cualificar y Postgres la rechazaba con 42702; los 21 tests de `.toSQL()` estaban en verde y la consulta no había funcionado nunca | Interpolar columnas de Drizzle en una plantilla `sql` situada en la PROYECCIÓN las emite sin prefijo de tabla. Detectado al ejecutar la página por primera vez: las URL válidas daban 500 y las inválidas 200. Corregido con alias internos (`src_pl`/`src_l`) y correlación externa cualificada, más un fichero nuevo `packages/db/test/search/search.db.test.ts` que EJECUTA la consulta contra Postgres —su primer caso corre con las tablas vacías, porque 42702 es error de parseo— verificado en rojo. Matiza la estrategia de pruebas del diseño (D3): `.toSQL()` prueba la intención del constructor, no la validez del SQL. Detalle en `AI-NOTES.md`. |
 | 2026-09-17 | 1.11 | `result-card.tsx` importaba `./thumbnail-source.js` y Turbopack no resolvía el módulo, pese a que `tsc --noEmit` pasaba limpio | El `tsconfig` compartido usa `moduleResolution: "Bundler"`, bajo el que TypeScript acepta el sufijo `.js` de NodeNext y lo mapea al `.ts`, pero el empaquetador de Next no. El resto de `apps/web` importa sin extensión (`@/components/result-card`), así que el fichero era el único fuera de convención. Detectado por el primer `next build` del paso; ninguna suite lo veía porque ninguna empaqueta. Corregido quitando la extensión. |
+| 2026-09-18 | 1.12 | Sesión de `sdd-apply` partida: WU1 (numPhotos) y WU2 (capa de consulta) completos y verificados en verde contra Postgres real (28/54 tareas), WU3 (página web) detenida a las 4/23 tareas — solo dos ayudantes puros, nada de la ruta ni los componentes de renderizado | Instrucción explícita de conservar cuota a mitad de sesión: mismo precedente que la fase 3 del 1.11 (Docker caído) — se registra el trabajo hecho en vez de forzar un cierre completo a medias. A diferencia del 1.11, aquí no hubo bloqueo de entorno: Docker estuvo sano toda la sesión. Se descubrió además un bloqueo real de infraestructura para el arnés `renderToStaticMarkup` del arbitraje AR-9 — Vite/Rolldown rechaza JSX en `.tsx` porque `apps/web/tsconfig.json` exige `jsx: "preserve"` para el propio pipeline de Next — diagnosticado con una prueba de humo aislada, no resuelto, sin ningún fichero roto dejado en el árbol. Dos correcciones de diseño detectadas solo por ejecución real, ninguna por `.toSQL()`: el build de `@buscahogar/core` (no solo `@buscahogar/db`) es requisito de orden antes de testear `apps/ingestion`; la proyección de anchor con `min(uuid)` que proponía el diseño no existe en ningún PostgreSQL — se usó el propio fallback `ORDER BY … LIMIT 1` que el diseño ya documentaba sin saber que era obligatorio. Detalle completo en Engram `sdd/property-detail-source-links/apply-progress`. |
+| 2026-09-19 | 1.12 | Sesión de `sdd-apply` reanudada: WU3 completo (23/23) y Fase 4 parcial. `Docker Desktop no estuvo disponible en esta máquina desde el arranque de la sesión`, así que las cuatro puertas fail-loud y la suite por defecto de `packages/db` no se pudieron re-ejecutar; se reporta como "no ejecutado", nunca como "en verde" | Mismo patrón que las fases bloqueadas por Docker de los pasos 1.2/1.3/1.7/1.11: se prioriza el trabajo que no depende de infraestructura (todo `apps/web`, que corre sobre node puro) y se deja constancia explícita de lo que queda sin re-confirmar. El bloqueo AR-9 heredado de la sesión anterior SÍ se resolvió, con presupuesto acotado: la clave correcta en Vite 8 (basado en Rolldown) es `oxc.jsx`, no `esbuild.jsx` — Vite 8 ignora las opciones de `esbuild` cuando `oxc` está presente, algo que el mensaje de aviso de la propia herramienta reveló al primer intento fallido. Verificado primero con una prueba de humo aislada (`<div>hello</div>` sin código de proyecto), antes de tocar ningún componente real — evitó re-diagnosticar el arnés desde dentro de un test con lógica de negocio. Un segundo hallazgo de infraestructura, menor: `vitest.config.ts` tampoco resuelve el alias `@/*` de `tsconfig.json` sin declararlo también en `resolve.alias` — ningún test lo había necesitado hasta que `page.tsx` (primer fichero bajo `test/**` que importa transitivamente algo con ese especificador) lo expuso. Detalle completo en `docs/AI-NOTES.md` y en Engram `sdd/property-detail-source-links/apply-progress` (revisión 4). |
+| 2026-09-19 | 1.12 | Sesión de `sdd-verify` (independiente de `sdd-apply`): re-ejecución de 814 tests contra Postgres real en máquina con Docker disponible. Veredicto: **PASS** (0 fallos, 0 saltados). El paso se archiva y cierra per obs #202. | Docker Desktop estuvo inactivo durante `sdd-apply` en esta máquina, impidiendo re-confirmar las cuatro puertas fail-loud; la fase de verificación las re-ejecutó de forma independiente con éxito completo. Todas las subconsultas correlacionadas verificadas EJECUTANDO (no `.toSQL()` solo); ambas rulings de arbitraje realizadas con código/fuente (obs #193/#194). La galería de imágenes no se implementa deliberadamente: Idealista partner docs inaccesibles, sin endpoint de detalle documentado ni términos legibles — obs #189 documenta la evidencia; es su propio paso futuro. Lo que se envía: carousel de una imagen por fuente + conteo de fotos (fechado) + enlace a cada anuncio. Dos MANUAL ACCEPTANCE items permanecen como residuales por diseño (carrusel sin JS, N=1 tono visual), no como brechas. |

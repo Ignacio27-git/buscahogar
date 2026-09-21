@@ -43,6 +43,10 @@ export const listingSchema = z.object({
   // campo `thumbnail` de las fixtures reales (docs/DECISIONS.md, decisión
   // 059).
   thumbnailUrl: z.string().optional(),
+  // ROADMAP 1.12 — .optional(), nunca .nullable(): mismo criterio que
+  // thumbnailUrl (docs/DECISIONS.md, decisión 062). Entero no negativo: un
+  // recuento de fotos nunca es fraccional ni negativo.
+  numPhotos: z.int().nonnegative().optional(),
 
   features: z.array(appliedFeatureSchema).readonly().default([]),
 });

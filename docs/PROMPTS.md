@@ -806,3 +806,64 @@ reestructurada). Dos añadidos no listados pero necesarios para que la cadena pa
 > falso: el registro npm estaba accesible y nunca se ejecutó `pnpm install`. `react` se
 > fijó en una RC inventada, faltaba `.env.example`, y el paso se marcó `[x]` sin verificar
 > nada. Ver `AI-NOTES.md`, entrada 2026-09-04.
+
+### 2026-09-18 — Implementación de property-detail-source-links (1.12), sesión parcial
+
+**Tipo de tarea:** implementación (SDD `sdd-apply`)
+**Forma de especificación:** spec (rev 2) + diseño + arbitraje + addendum, los cuatro vinculantes
+**Resultado:** con retoques — WU1 y WU2 completos y verificados en verde contra Postgres real;
+WU3 parcial (4/23 tareas), detenido en un límite limpio por instrucción explícita de conservar
+cuota, sin ningún fichero a medio escribir.
+
+**Prompt:** ejecutar el checklist de tareas de ROADMAP 1.12 (54 tareas en 4 fases: pipeline de
+`numPhotos`, capa de consulta de detalle, página web con galería y lista de fuentes, cierre),
+en modo TDD estricto, con `delivery_strategy: exception-ok` ya aceptado por el mantenedor.
+
+**Observación:** las dos primeras fases (28 tareas) se completaron íntegramente con evidencia
+real contra PostgreSQL, sin desviaciones de alcance. Dos correcciones reales de diseño, ambas
+detectadas solo por ejecución real y no por `.toSQL()`: (1) `pnpm --filter @buscahogar/core run
+build` es tan necesario como el de `@buscahogar/db` antes de typecheckear/testear
+`apps/ingestion`, algo que ni las tareas ni el diseño D10 nombraban; (2) la proyección de anchor
+de búsqueda propuesta por el diseño (`min(uuid)`) no existe en NINGUNA versión de PostgreSQL —
+el diseño la atribuyó erróneamente a un requisito de versión y ya traía su propio fallback
+correcto (`ORDER BY … LIMIT 1`) sin saber que era obligatorio, no alternativo. La fase 3 quedó
+detenida tras descubrir un bloqueo genuino de infraestructura para el arnés de renderizado del
+arbitraje AR-9: Vite/Rolldown rechaza el JSX de cualquier fichero `.tsx` de test porque el
+`tsconfig.json` de `apps/web` fija `"jsx": "preserve"` (imprescindible para el propio pipeline de
+Next, no se puede tocar). Diagnosticado con una prueba de humo aislada (`<div>hello</div>` sin
+código de proyecto), no resuelto en esta sesión. Detalle completo, con la traza exacta hasta el
+fichero fuente de Vite responsable, en Engram `sdd/property-detail-source-links/apply-progress`
+(revisión 3) y pendiente de trasladar a `docs/AI-NOTES.md` cuando se retome el paso.
+
+### 2026-09-19 — Implementación de property-detail-source-links (1.12), cierre de WU3 y fase 4 parcial
+
+**Tipo de tarea:** implementación (SDD `sdd-apply`, reanudación)
+**Forma de especificación:** spec (rev 2) + diseño + arbitraje + addendum, los cuatro vinculantes;
+más el diagnóstico y el candidato de solución sin verificar dejados por la sesión anterior en
+Engram `sdd/property-detail-source-links/apply-progress` (revisión 3).
+**Resultado:** con retoques — WU3 completo (23/23) y fase 4 parcial. Docker Desktop no estuvo
+disponible durante esta sesión, así que las puertas fail-loud respaldadas por PostgreSQL no se
+pudieron re-ejecutar; reportado explícitamente como "no ejecutado", nunca como verde.
+
+**Prompt:** resolver primero el bloqueo AR-9 con un presupuesto acotado (reproducir con una
+prueba de humo aislada antes de tocar componentes reales; si no se resuelve en ese presupuesto,
+reabrir AR-9 honestamente y degradar a MANUAL ACCEPTANCE en vez de bloquear el resto de la
+sesión), y luego completar las tareas 3.6-3.23 y el cierre de fase 4 en el mismo orden en que las
+dejó la sesión anterior.
+
+**Observación:** el bloqueo AR-9 se resolvió dentro del presupuesto: la clave correcta en Vite 8
+(basado en Rolldown) es `oxc.jsx`, no `esbuild.jsx` — el propio Vite avisó explícitamente de que
+ignoraba las opciones de `esbuild` al detectar `oxc` presente, señal más rápida que rastrear el
+código fuente empaquetado. Verificado primero contra la prueba de humo aislada, luego contra cada
+componente real, sin volver a re-diagnosticar desde dentro de un test con lógica de negocio. Un
+segundo bloqueo de infraestructura, menor y no anticipado por ningún artefacto de planificación:
+`vitest.config.ts` tampoco resuelve el alias `@/*` de `tsconfig.json` sin declararlo también en
+`resolve.alias` — ningún test anterior de `apps/web` lo había necesitado porque ninguno importaba,
+ni transitivamente, un fichero con ese especificador; el primero en hacerlo fue el test de la
+propia página de detalle. Una suposición incorrecta sobre el entorno, detectada por el primer test
+que la ejercitó: `.toLocaleString('es-ES')` no antepone el separador de miles a números de
+exactamente 4 cifras (regla CLDR "min2") — `result-card.tsx` usa el mismo patrón desde el paso
+1.11 sin que ningún test lo hubiera verificado con un precio de esa magnitud. Las cinco entradas
+que la sesión anterior dejó pendientes para `docs/AI-NOTES.md`, más estas tres nuevas, están
+escritas allí. Detalle completo en Engram `sdd/property-detail-source-links/apply-progress`
+(revisión 4).

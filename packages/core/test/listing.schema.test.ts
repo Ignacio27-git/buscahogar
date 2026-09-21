@@ -128,6 +128,42 @@ describe('listingSchema — coordinatesObfuscated es tri-estado (decisión 026)'
   });
 });
 
+describe('listingSchema — numPhotos es entero no negativo opcional (ROADMAP 1.12, decisión 062)', () => {
+  it('acepta un numPhotos entero no negativo', () => {
+    const result = listingSchema.safeParse({ ...minimalValid, numPhotos: 46 });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.numPhotos).toBe(46);
+    }
+  });
+
+  it('acepta cero', () => {
+    const result = listingSchema.safeParse({ ...minimalValid, numPhotos: 0 });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.numPhotos).toBe(0);
+    }
+  });
+
+  it('es válido sin numPhotos, y el valor resultante es undefined (nunca null)', () => {
+    const result = listingSchema.safeParse(minimalValid);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.numPhotos).toBeUndefined();
+    }
+  });
+
+  it('rechaza un numPhotos negativo', () => {
+    const result = listingSchema.safeParse({ ...minimalValid, numPhotos: -1 });
+    expect(result.success).toBe(false);
+  });
+
+  it('rechaza un numPhotos no entero', () => {
+    const result = listingSchema.safeParse({ ...minimalValid, numPhotos: 4.5 });
+    expect(result.success).toBe(false);
+  });
+});
+
 describe('listingSchema — thumbnailUrl es .optional(), nunca .nullable() (ROADMAP 1.11, decisión 059)', () => {
   it('acepta un thumbnailUrl con formato de URL', () => {
     const result = listingSchema.safeParse({

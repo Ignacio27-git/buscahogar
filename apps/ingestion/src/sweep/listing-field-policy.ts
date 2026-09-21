@@ -28,7 +28,7 @@ export type FieldPolicy =
   | { readonly kind: 'version-column'; readonly column: keyof VersionColumns }
   | {
       readonly kind: 'identity-column';
-      readonly column: 'url' | 'location' | 'locationId' | 'coordinatesObfuscated' | 'thumbnailUrl';
+      readonly column: 'url' | 'location' | 'locationId' | 'coordinatesObfuscated' | 'thumbnailUrl' | 'numPhotos';
     }
   | { readonly kind: 'identity-key' }
   | { readonly kind: 'not-persisted'; readonly reason: string };
@@ -58,6 +58,11 @@ export const LISTING_FIELD_POLICY: { readonly [K in keyof Listing]-?: FieldPolic
   // recorte de imagen del portal nunca debe fabricar una versión nueva
   // (docs/DECISIONS.md, decisión 059; A-7).
   thumbnailUrl: { kind: 'identity-column', column: 'thumbnailUrl' },
+  // ROADMAP 1.12 — identity-column, fuera de VERSION_COLUMN_FIELDS: un
+  // recuento de fotos por sí solo nunca debe fabricar una versión nueva
+  // (docs/DECISIONS.md, decisión 062; mismo argumento que thumbnailUrl,
+  // decisión 059).
+  numPhotos: { kind: 'identity-column', column: 'numPhotos' },
   features: {
     kind: 'not-persisted',
     reason: 'catálogo de Feature diferido (1.6 D8); esta fuente emite siempre [] — cero filas en listing_features.',

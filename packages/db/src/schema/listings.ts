@@ -8,6 +8,7 @@ import {
   check,
   geometry,
   index,
+  integer,
   pgTable,
   text,
   timestamp,
@@ -47,6 +48,10 @@ export const listings = pgTable(
     // congela en la primera vista, igual que `url`/`location`. Nullable, sin
     // índice: no participa en ningún filtro ni bloqueo.
     thumbnailUrl: text('thumbnail_url'),
+    // ROADMAP 1.12 — identity-column (docs/DECISIONS.md, decisión 062): se
+    // congela en la primera vista, igual que `thumbnail_url`. Nullable, sin
+    // índice: no participa en ningún filtro ni bloqueo.
+    numPhotos: integer('num_photos'),
     status: text('status').notNull().default('active'),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),

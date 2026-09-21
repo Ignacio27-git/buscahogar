@@ -39,6 +39,10 @@ export const rawElementSchema = z.looseObject({
   // (docs/DECISIONS.md, decisión 059). Cero nulos JSON en 100/100 elementos
   // de ambas fixtures, de ahí `.optional()`, nunca `.nullable()`.
   thumbnail: z.string().optional(),
+  // ROADMAP 1.12 — recuento de fotos del anuncio (docs/DECISIONS.md, decisión
+  // 062). Presente en 100/100 elementos de ambas fixtures, `.optional()`,
+  // nunca `.nullable()`, mismo criterio que `thumbnail` arriba.
+  numPhotos: z.number().int().nonnegative().optional(),
 });
 
 export type IdealistaElement = z.infer<typeof rawElementSchema>;

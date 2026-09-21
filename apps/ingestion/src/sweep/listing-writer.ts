@@ -99,6 +99,10 @@ export function createListingWriter(db: Database): ListingWriter {
             // `onConflictDoUpdate.set` de abajo NO incluye thumbnailUrl
             // (PERSIST-3, sin cambios): una re-visión nunca lo sobrescribe.
             ...(listing.thumbnailUrl !== undefined ? { thumbnailUrl: listing.thumbnailUrl } : {}),
+            // ROADMAP 1.12 — identity-column (decisión 062): mismo
+            // tratamiento que thumbnailUrl; `onConflictDoUpdate.set` de abajo
+            // tampoco incluye numPhotos.
+            ...(listing.numPhotos !== undefined ? { numPhotos: listing.numPhotos } : {}),
             // `listing.location` (ineCode/municipio…) → `listings.location_id`
             // FK: siempre `undefined` desde esta fuente (diseño D4/D9) — no
             // hay resolución ine_code→locations.id que implementar aquí
