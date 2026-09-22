@@ -21,6 +21,7 @@ import { z } from 'zod';
 import { OPERATION_TYPES } from '../types/operation-type.js';
 import { PROPERTY_TYPES } from '../types/property-type.js';
 import { areaQuerySchema } from './area-query.schema.js';
+import { zoneSelectionSchema } from './zone-selection.schema.js';
 
 // Un entero decimal sin signo: la ausencia de `-?` es lo que rechaza un
 // umbral negativo (minRooms=-1) sin necesitar una comprobación aparte.
@@ -66,9 +67,32 @@ const rawSearchQuerySchema = z
     // Nunca declarado: cualquier `pageSize` en la URL cae en la rama de
     // clave desconocida de `z.object()` (strip por defecto) y se ignora
     // (Uniform Validation Policy — «no MUST NOT trigger a rejection»).
+    //
+    // ROADMAP 1.13 Unit D (diseño DD-21) — segunda forma de indicar una zona
+    // geográfica, además de lat/lng/radius. Reutiliza `zoneSelectionSchema`
+    // (decisión 057) en vez de duplicar su regex: una sola definición del
+    // patrón de código INE.
+    zone: zoneSelectionSchema.optional(),
   })
   .superRefine((data, ctx) => {
-    const present = [data.lat, data.lng, data.radius].filter((value) => value !== undefined).length;
+    // CR-6 (arbitraje) — `zone` junto con CUALQUIER parte de lat/lng/radius
+    // es un rechazo NOMBRADO, nunca una precedencia silenciosa: mismo
+    // idioma que este propio fichero ya declara en su cabecera («nunca un
+    // valor por defecto silencioso»). Comprobado ANTES del bloque
+    // todo-o-nada de abajo, así que un trío incompleto junto a `zone`
+    // también se nombra por este motivo, no por el de abajo.
+    const geoPresent = [data.lat, data.lng, data.radius].filter((value) => value !== undefined).length;
+    if (data.zone !== undefined && geoPresent > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'zone no puede combinarse con lat/lng/radius: son dos formas distintas de indicar la misma zona geográfica (usa solo una).',
+        path: ['zone'],
+      });
+      return;
+    }
+
+    const present = geoPresent;
     if (present === 0) {
       return;
     }
@@ -115,6 +139,7 @@ export const searchQuerySchema = rawSearchQuerySchema.transform(
     ...(data.lat !== undefined && data.lng !== undefined && data.radius !== undefined
       ? { geo: { lon: data.lng, lat: data.lat, radiusMeters: data.radius } }
       : {}),
+    ...(data.zone !== undefined ? { zone: data.zone } : {}),
     // D2: absent ≠ malformed — default descendente por fecha de
     // actualización cuando no se pide ningún `sort`.
     sort: data.sort ?? 'updated',
@@ -135,6 +160,12 @@ export interface PropertySearchCriteria {
   readonly minRooms?: number;
   readonly minBathrooms?: number;
   readonly geo?: { readonly lon: number; readonly lat: number; readonly radiusMeters: number };
+  // ROADMAP 1.13 Unit D (DD-21) — código INE resuelto, consumido por
+  // `apps/web/src/app/page.tsx` (resolución de zona) para derivar `geo` en
+  // un paso posterior; `buildPropertySearchQuery` (packages/db/src/search.ts)
+  // ignora este campo — no es una columna de `properties`, no filtra nada
+  // por sí solo.
+  readonly zone?: string;
   readonly sort: 'price' | 'surface' | 'updated';
   readonly dir: 'asc' | 'desc';
   readonly page: number;

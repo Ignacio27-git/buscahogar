@@ -34,5 +34,17 @@ export default defineConfig({
     // Este workspace todavía no tiene lógica que probar. Se prefiere no tener
     // tests a tener tests tautológicos que den un verde sin valor.
     passWithNoTests: true,
+    // ROADMAP 1.13 Unit D — carga `DATABASE_URL`/`WEB_COVERAGE_DATABASE_URL`
+    // desde el `.env` de la raíz antes de cada fichero (test/setup-env.ts,
+    // mismo patrón que packages/db/vitest.config.ts). Las pruebas DB-backed
+    // de esta unidad (`test/db/*.test.ts`) se OMITEN por sí solas
+    // (describeWithDb/describeWithCoverageDb) cuando la variable
+    // correspondiente no está definida — nunca fallan por su ausencia.
+    setupFiles: ['./test/setup-env.ts'],
+    // Las pruebas DB-backed de esta unidad comparten el mismo contenedor de
+    // PostgreSQL; ejecutarlas en paralelo interferiría de forma no
+    // determinista sobre los mismos datos — mismo motivo que
+    // packages/db/vitest.config.ts.
+    fileParallelism: false,
   },
 });

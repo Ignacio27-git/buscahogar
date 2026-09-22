@@ -1914,6 +1914,85 @@ desplazamiento sin JavaScript (arrastre táctil / rueda + clic en las anclas) qu
 ACCEPTANCE (arbitraje obs #193 AR-9): no hay arnés de navegador en este stack, misma clase que el
 escenario "Fresh session reproduces the search" del paso 1.11 (obs #174).
 
+---
+
+## 064 — Segundo rol de PostgreSQL, INSERT-only sobre `coverage_jobs`; enmienda a la decisión 056 igual que la 056 enmendó la 015
+
+**Estado:** aceptada
+
+**Decisión.** `apps/web` gana un SEGUNDO cliente de base de datos, `getCoverageDb()`
+(`apps/web/src/server/coverage-db.ts`), hermano deliberado de `getDb()` (`apps/web/src/server/db.ts`,
+decisión 056) y NUNCA fusionado con él. Lee una variable de entorno distinta
+(`WEB_COVERAGE_DATABASE_URL`), cachea en una clave de `globalThis` distinta
+(`buscahogarCoverageDb`, nunca `buscahogarDb`) y lanza su propia clase de error
+(`MissingCoverageDatabaseUrlError`) cuando la credencial falta. El rol de PostgreSQL que respalda
+esa variable tiene `INSERT` sobre `coverage_jobs` y nada más — ni `SELECT`, ni `UPDATE`, ni
+`DELETE`, ni acceso a ninguna otra tabla.
+
+**Alternativa descartada.** Reutilizar el rol de solo lectura de la decisión 056, ampliándolo con
+`INSERT` sobre `coverage_jobs`; o un único cliente compartido con el privilegio más amplio de los
+dos usos.
+
+**Motivo.** La decisión 056 enmendó la 015 para dar a `apps/web` su propia credencial de solo
+lectura, de forma que un `INSERT`/`UPDATE`/`DELETE` accidental en un camino de lectura lo rechace
+PostgreSQL mismo, no la revisión de código. Un único handle compartido — o un rol de lectura
+ampliado con escritura — borraría exactamente esa propiedad: cualquier bug en la ruta de búsqueda
+que intentara escribir tendría éxito en silencio. Dos roles estrechos, cada uno con el mínimo
+privilegio que su propio camino necesita, mantienen la garantía original de la 056 intacta para la
+lectura Y la extienden a la escritura.
+
+**Consecuencia — R3, sin resolver por ningún agente.** El rol INSERT-only real todavía no existe:
+provisionarlo (`CREATE ROLE`, `GRANT INSERT ON coverage_jobs TO ...`) y escribir
+`WEB_COVERAGE_DATABASE_URL` en el `.env` de la raíz es una tarea EXCLUSIVA del mantenedor — ningún
+agente tiene permiso para crear roles de PostgreSQL ni para leer/escribir `.env`. La prueba
+negativa que demuestra el rechazo real (`apps/web/test/db/coverage-role-privileges.test.ts`) está
+escrita y lista, gateada en `WEB_COVERAGE_DATABASE_URL` (se omite, nunca falla, mientras la
+variable no exista) — no se ha ejecutado en verde ni una sola vez todavía. El propio índice único
+TOTAL de `coverage_jobs(zone_id, source_id)` (diseño DD-16, ver el comentario en
+`packages/db/src/schema/coverage-jobs.ts`) es lo que hace segura una inserción `ON CONFLICT DO
+NOTHING` sin `target` desde este rol: cualquier conflicto de unicidad —contra el índice parcial
+heredado del paso 1.7 o contra este nuevo índice total— se trata como éxito, sin que el rol
+necesite `SELECT` para comprobar nada antes de escribir.
+
+## 065 — `no-client-directive.test.ts` se estrecha a un allowlist de UN fichero, no se elimina
+
+**Estado:** aceptada
+
+**Decisión.** La regla que ROADMAP 1.11 fijó (ningún fichero de `apps/web/src` declara `'use
+client'`) deja de ser absoluta: `apps/web/src/components/coverage-status.tsx` es el ÚNICO fichero
+permitido a declararla, y el propio test lo hace explícito con TRES aserciones — ninguno fuera del
+allowlist la declara, cada entrada del allowlist existe de verdad en disco, y cada entrada SÍ
+contiene la directiva. La cabecera del fichero se reescribe para describir la regla estrechada, no
+la original.
+
+**Alternativas descartadas.** (1) Meta-refresh (`<meta http-equiv="refresh">`) — recarga la página
+completa a intervalo fijo, perdiendo cualquier estado de scroll/formulario, y no puede detenerse
+cuando el barrido termina (un job `done` seguiría recargando indefinidamente). (2) Un enlace
+manual únicamente, sin ningún refresco automático — dado como baseline sin JS (ya cubierto por el
+enlace `href` plano de `page.tsx`), pero deja al usuario con JS habilitado sin ninguna mejora sobre
+quien tiene JS deshabilitado, cuando la mejora es barata y bien acotada. (3) Streaming de Server
+Component (`Suspense` + revalidación) — exigiría reestructurar `page.tsx` en torno a un límite de
+streaming nuevo para un caso de uso (un job que tarda minutos, no milisegundos) que no encaja en
+el modelo de streaming de Next.js, pensado para latencia de carga inicial, no para sondeo
+prolongado.
+
+**Motivo.** DD-19 lo argumenta con aritmética, no con intuición: un `<datalist>` con los ~8.131
+municipios del catálogo es ~8.131 × ~40 B ≈ 325 KB de marcado en CADA carga de la página de
+búsqueda, para un control que se usa una vez. La autocompletación de zona (DD-19) por eso queda
+enteramente sin JavaScript de cliente — una lista de sugerencias servida por el servidor, un enlace
+`<a href="/?zone=...">` plano por coincidencia — y es el estado de un barrido EN CURSO (DD-23),
+nunca la autocompletación, lo que necesita refresco automático: `router.refresh()` en un intervalo
+acotado tres veces (estado terminal, techo de refrescos, intervalo fijo). El hueco que esto abre en
+la regla de 1.11 queda del ancho mínimo posible — un fichero, con su propia prueba de
+autoverificación para que una entrada obsoleta falle en voz alta en vez de ensanchar el hueco en
+silencio.
+
+**Consecuencia.** Cualquier cambio futuro que quiera declarar `'use client'` en otro fichero debe
+añadirlo al allowlist explícitamente y argumentar por qué en su propio registro de decisión — el
+hueco no crece por accidente.
+
+---
+
 ## 066 — Procedencia del catálogo importado, precedencia de la fusión, regla de no-truncación, y la definición de "hoy" del presupuesto diario
 
 **Estado:** aceptada

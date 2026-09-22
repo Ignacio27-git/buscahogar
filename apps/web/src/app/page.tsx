@@ -1,10 +1,14 @@
 import type { ReactElement } from 'react';
 
-import { searchQuerySchema } from '@buscahogar/core';
-import { searchProperties } from '@buscahogar/db';
+import { normalizeSearchName, searchQuerySchema, zoneQuerySchema } from '@buscahogar/core';
+import { resolveZoneGeometry, searchProperties, suggestZones } from '@buscahogar/db';
+import type { ZoneSuggestion } from '@buscahogar/db';
 
+import { CoverageStatus } from '@/components/coverage-status';
 import { ResultCard } from '@/components/result-card';
+import { getCoverageDb } from '@/server/coverage-db';
 import { getDb } from '@/server/db';
+import { resolveCoverageForZone, resolveNewZonesDailyCap } from '@/server/coverage';
 import { WEB_VERSION } from '@/version';
 
 // ROADMAP 1.11 (diseño D9) — reutiliza la ruta `/` en vez de crear una
@@ -21,6 +25,11 @@ import { WEB_VERSION } from '@/version';
 interface HomePageProps {
   readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
+
+// ROADMAP 1.13 Unit D (DD-19) — techo de sugerencias por consulta de
+// autocompletado. Constante de servidor, nunca un parámetro de URL — mismo
+// principio que `PAGE_SIZE` en `packages/db/src/search.ts`.
+const ZONE_SUGGESTION_LIMIT = 10;
 
 function buildPageHref(
   params: Record<string, string | string[] | undefined>,
@@ -43,10 +52,95 @@ function buildPageHref(
   return `/?${query.toString()}`;
 }
 
+// ROADMAP 1.13 Unit D (DD-19) — el enlace de cada sugerencia sustituye
+// `zoneQuery` por `zone=<ineCode>` y reinicia `page` (una zona nueva es un
+// conjunto de resultados distinto de la página que se venía viendo),
+// preservando cualquier otro filtro ya presente en la URL.
+function buildZoneSelectionHref(params: Record<string, string | string[] | undefined>, ineCode: string): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (key === 'page' || key === 'zoneQuery' || key === 'zone' || value === undefined) {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        query.append(key, entry);
+      }
+    } else {
+      query.append(key, value);
+    }
+  }
+  query.set('zone', ineCode);
+  return `/?${query.toString()}`;
+}
+
+// ROADMAP 1.13 Unit D (D8/A-7) — enlace de recarga PLANO: la misma URL
+// actual, un `href` real, sin JavaScript. `<CoverageStatus/>` (el único
+// componente 'use client') es una MEJORA sobre este enlace, nunca la única
+// vía de comprobar el estado.
+function buildCurrentHref(params: Record<string, string | string[] | undefined>): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined) {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        query.append(key, entry);
+      }
+    } else {
+      query.append(key, value);
+    }
+  }
+  return `/?${query.toString()}`;
+}
+
+function firstStringValue(value: string | string[] | undefined): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function ZoneSuggestions({
+  suggestions,
+  rawSearchParams,
+}: {
+  readonly suggestions: readonly ZoneSuggestion[];
+  readonly rawSearchParams: Record<string, string | string[] | undefined>;
+}): ReactElement {
+  return (
+    <section aria-label="Sugerencias de zona">
+      {suggestions.length === 0 ? (
+        <p>Ningún municipio coincide con esa búsqueda.</p>
+      ) : (
+        <ul>
+          {suggestions.map((suggestion) => (
+            <li key={suggestion.ineCode}>
+              <a href={buildZoneSelectionHref(rawSearchParams, suggestion.ineCode)}>
+                {suggestion.municipality} ({suggestion.province})
+              </a>
+              {/* CR-12 (arbitraje, DD-5): un municipio sin centroide APARECE
+                  igual, marcado — nunca oculto. */}
+              {!suggestion.sweepable ? ' — sin cobertura disponible' : ''}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function formatJobStatus(status: string): string {
+  if (status === 'pending') return 'pendiente';
+  if (status === 'running') return 'en curso';
+  if (status === 'done') return 'completado';
+  if (status === 'failed') return 'falló, reintento pendiente';
+  return status;
+}
+
 // Server Component puro (D9/D10): `await props.searchParams` es una Dynamic
 // API que por sí sola fuerza el renderizado por petición — sin
 // `export const dynamic`, sin `revalidate`, sin `cacheComponents` en
-// next.config.ts. Ningún `'use client'` en este cambio (D10).
+// next.config.ts. El único `'use client'` de este cambio es
+// `<CoverageStatus/>` (DD-23), importado más abajo — nunca este fichero.
 export default async function HomePage(props: HomePageProps): Promise<ReactElement> {
   const rawSearchParams = await props.searchParams;
   const parsed = searchQuerySchema.safeParse(rawSearchParams);
@@ -66,12 +160,88 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
   // un rechazo nombrado, nunca un error 500.
   const criteria = parsed.data;
   const db = getDb();
-  const { results, hasNextPage } = await searchProperties(db, criteria);
+
+  // ROADMAP 1.13 Unit D (DD-19, CR-10) — la lista de sugerencias vive en la
+  // MISMA respuesta que los resultados, nunca en una ruta separada:
+  // decisión del mantenedor D6 exige que la notificación/sugerencia y los
+  // resultados ya-cubiertos aparezcan JUNTOS.
+  const rawZoneQuery = firstStringValue(rawSearchParams.zoneQuery);
+  const zoneQueryParsed = rawZoneQuery !== undefined ? zoneQuerySchema.safeParse(rawZoneQuery) : undefined;
+  const suggestions =
+    zoneQueryParsed?.success === true
+      ? await suggestZones(db, normalizeSearchName(zoneQueryParsed.data), ZONE_SUGGESTION_LIMIT)
+      : null;
+
+  // ROADMAP 1.13 Unit D — resolución de zona y de cobertura. `criteria.zone`
+  // y cualquiera de lat/lng/radius son mutuamente excluyentes (CR-6, ya
+  // rechazado más arriba si ambos llegaran juntos), así que `criteria.geo`
+  // solo puede venir de una zona resuelta y CUBIERTA — para cualquier otro
+  // caso (no cubierta, sin centroide, tope agotado, desconocida) la
+  // búsqueda se degrada a un resultado sin filtro geográfico, nunca a cero
+  // resultados silenciosos (D6).
+  let coverageNotice: ReactElement | null = null;
+  let coverageStatusSection: ReactElement | null = null;
+  let effectiveCriteria = criteria;
+
+  if (criteria.zone !== undefined) {
+    const zoneGeometry = await resolveZoneGeometry(db, criteria.zone);
+
+    if (zoneGeometry === null) {
+      coverageNotice = (
+        <p role="status">No se ha encontrado ningún municipio con el código {criteria.zone}.</p>
+      );
+    } else if (zoneGeometry.state === 'covered' && zoneGeometry.centroid !== null) {
+      effectiveCriteria = {
+        ...criteria,
+        geo: {
+          lon: zoneGeometry.centroid.longitude,
+          lat: zoneGeometry.centroid.latitude,
+          radiusMeters: zoneGeometry.sweepRadiusM ?? 0,
+        },
+      };
+    } else {
+      const newZonesDailyCap = resolveNewZonesDailyCap();
+      const outcome = await resolveCoverageForZone(db, getCoverageDb, zoneGeometry, newZonesDailyCap);
+
+      if (outcome.kind === 'not-sweepable') {
+        coverageNotice = (
+          <p role="status">
+            No hay cobertura disponible para {zoneGeometry.municipality} en este momento (sin datos de
+            ubicación suficientes para barrer la zona).
+          </p>
+        );
+      } else if (outcome.kind === 'cap-exhausted') {
+        coverageNotice = (
+          <p role="status">
+            No se ha podido programar el barrido de {zoneGeometry.municipality}: se ha alcanzado el límite
+            diario de zonas nuevas. El límite se restablece a las 00:00 UTC — vuelve a intentarlo mañana.
+          </p>
+        );
+      } else if (outcome.kind === 'registered' && outcome.job !== null) {
+        const job = outcome.job;
+        coverageStatusSection = (
+          <section aria-label="Estado del barrido">
+            <p role="status">
+              Barrido de {zoneGeometry.municipality}: {formatJobStatus(job.status)}
+              {job.startedAt !== null ? ` · iniciado ${job.startedAt.toISOString()}` : ''}
+            </p>
+            <a href={buildCurrentHref(rawSearchParams)}>Comprobar de nuevo</a>
+            <CoverageStatus job={job} />
+          </section>
+        );
+      }
+    }
+  }
+
+  const { results, hasNextPage } = await searchProperties(db, effectiveCriteria);
 
   return (
     <main>
       <h1>Agregador inmobiliario</h1>
       <p>Esqueleto del monorepo · v{WEB_VERSION}</p>
+      {suggestions !== null ? <ZoneSuggestions suggestions={suggestions} rawSearchParams={rawSearchParams} /> : null}
+      {coverageNotice}
+      {coverageStatusSection}
       <p>
         {results.length} {results.length === 1 ? 'resultado' : 'resultados'} en esta página
         {criteria.page > 1 ? ` · página ${String(criteria.page)}` : ''}

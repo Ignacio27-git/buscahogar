@@ -143,6 +143,54 @@ describe('searchQuerySchema — operation opcional (arbitraje R-1 falso alarma 5
 // de `page` es lo que acota el offset máximo (D2: 1..100, offset máximo 2376),
 // así que rechazarlo es lo que impide servir en silencio una página distinta de
 // la que nombra la URL — la garantía de compartibilidad.
+// ROADMAP 1.13 Unit D (diseño DD-21, arbitraje CR-6) — `zone` es la segunda
+// forma de indicar una zona geográfica, además de lat/lng/radius. Mismo
+// patrón nombrado que `zoneSelectionSchema` en `packages/core` (decisión
+// 057): regex explícita, nunca `z.coerce`.
+describe('searchQuerySchema — zone (DD-21): código INE de 5 dígitos, nunca combinado con lat/lng/radius', () => {
+  it('acepta un envío solo con zone y lo resuelve vía zone-resolution', () => {
+    const result = searchQuerySchema.safeParse({ zone: '18087' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.zone).toBe('18087');
+    }
+  });
+
+  it('rechaza un zone malformado (no 5 dígitos) antes de que corra ninguna consulta', () => {
+    expect(searchQuerySchema.safeParse({ zone: '1808' }).success).toBe(false);
+    expect(searchQuerySchema.safeParse({ zone: 'abcde' }).success).toBe(false);
+    expect(searchQuerySchema.safeParse({ zone: '180877' }).success).toBe(false);
+  });
+
+  it('zone ausente se refleja como undefined, nunca como cadena vacía', () => {
+    const result = searchQuerySchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.zone).toBeUndefined();
+    }
+  });
+
+  // CR-6 (arbitraje): un rechazo NOMBRADO, nunca una precedencia silenciosa
+  // — mismo idioma que el bloque geo todo-o-nada de arriba.
+  it('CR-6: zone junto con lat/lng/radius completos es un rechazo nombrado, nunca zone silenciosamente preferido', () => {
+    const result = searchQuerySchema.safeParse({ zone: '18087', lat: '40.4168', lng: '-3.7038', radius: '2000' });
+    expect(result.success).toBe(false);
+  });
+
+  it('CR-6: zone junto con SOLO uno de lat/lng/radius (trío incompleto) también es un rechazo nombrado', () => {
+    expect(searchQuerySchema.safeParse({ zone: '18087', radius: '2000' }).success).toBe(false);
+  });
+
+  it('zone sin ningún parámetro geográfico coexiste con normalidad con otros filtros', () => {
+    const result = searchQuerySchema.safeParse({ zone: '18087', operation: 'sale' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.zone).toBe('18087');
+      expect(result.data.operation).toBe('sale');
+    }
+  });
+});
+
 describe('searchQuerySchema — tope de página (escenario «Beyond the max-offset cap»)', () => {
   it('acepta la última página válida', () => {
     const result = searchQuerySchema.safeParse({ page: '100' });

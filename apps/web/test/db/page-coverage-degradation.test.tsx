@@ -1,0 +1,177 @@
+// ROADMAP 1.13 Unit D (tareas 12.5-12.10; spec «coverage-degradation»,
+// «Three Honest Cases, Never Silence» D6; arbitraje CR-10/CR-12) — prueba
+// DB-backed que renderiza `HomePage` de verdad (mismo patrón que
+// `property-detail-page.test.tsx`: invocación directa de la función
+// exportada, `renderToStaticMarkup` sobre el elemento ya resuelto) contra
+// datos reales sembrados en Postgres. `NEW_ZONES_DAILY_CAP` se fija en el
+// propio test (nunca inventado en código de producción — ver
+// `coverage-env.test.ts`).
+import { randomInt } from 'node:crypto';
+import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
+import { renderToStaticMarkup } from 'react-dom/server';
+
+import type { Database } from '@buscahogar/db';
+import { geographyPointWkt, locations, sources, zones } from '@buscahogar/db';
+import { registerCoverageJob } from '@buscahogar/db';
+
+import { connectTestDb, truncateAll } from '../helpers/db-client.js';
+import { describeWithDb } from '../helpers/db-gate.js';
+
+// DD-23/CR-9 (diseño, confirmado empíricamente al escribir esta prueba):
+// `<CoverageStatus/>` llama a `useRouter()`, que exige un contexto de
+// router que `renderToStaticMarkup` NO provee ("invariant expected app
+// router to be mounted") — exactamente la razón por la que el diseño deja
+// el componente SIN prueba de render directa y prueba en su lugar el
+// módulo puro `coverage-status-policy.ts` (`coverage-status-policy.test.ts`).
+// Mismo patrón que `property-detail-page.test.tsx` ya usa (`vi.mock('@/server/db', ...)`):
+// se sustituye el ÚNICO componente 'use client' por un doble inerte, para
+// que esta prueba se centre en lo que SÍ puede observar sin un arnés de
+// navegador — el markup SERVER-RENDERED (D8: el baseline sin JS es
+// completo, este componente es una mejora, nunca la única vía).
+vi.mock('@/components/coverage-status', () => ({
+  CoverageStatus: (): null => null,
+}));
+
+const { default: HomePage } = await import('../../src/app/page.js');
+
+async function insertMunicipality(
+  db: Database,
+  overrides: {
+    readonly ineCode: string;
+    readonly municipality: string;
+    readonly searchName: string;
+    readonly state?: string;
+    readonly centroid?: { readonly latitude: number; readonly longitude: number };
+  }
+): Promise<{ readonly locationId: string; readonly zoneId: string }> {
+  const [location] = await db
+    .insert(locations)
+    .values({
+      ineCode: overrides.ineCode,
+      municipality: overrides.municipality,
+      province: 'Granada',
+      provinceCode: '18',
+      autonomousCommunity: 'Andalucía',
+      searchName: overrides.searchName,
+      centroid: overrides.centroid ? geographyPointWkt(overrides.centroid) : null,
+      sweepRadiusM: overrides.centroid ? 4500 : null,
+    })
+    .returning({ id: locations.id });
+  if (!location) {
+    throw new Error('No se pudo insertar la localización de prueba');
+  }
+  const [zone] = await db
+    .insert(zones)
+    .values({ locationId: location.id, state: overrides.state ?? 'uncovered' })
+    .returning({ id: zones.id });
+  if (!zone) {
+    throw new Error('No se pudo insertar la zona de prueba');
+  }
+  return { locationId: location.id, zoneId: zone.id };
+}
+
+function randomIneCode(): string {
+  return String(randomInt(10_000, 100_000));
+}
+
+async function renderHome(searchParams: Record<string, string>): Promise<string> {
+  const element = await HomePage({ searchParams: Promise.resolve(searchParams) });
+  return renderToStaticMarkup(element);
+}
+
+describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14, CR-10, CR-12)', () => {
+  let db: Database;
+  let pool: import('../helpers/db-client.js').TestDbHandle['pool'];
+  const originalCap = process.env.NEW_ZONES_DAILY_CAP;
+
+  beforeAll(() => {
+    ({ db, pool } = connectTestDb());
+  });
+
+  afterAll(async () => {
+    await pool.end();
+    if (originalCap !== undefined) {
+      process.env.NEW_ZONES_DAILY_CAP = originalCap;
+    } else {
+      delete process.env.NEW_ZONES_DAILY_CAP;
+    }
+  });
+
+  beforeEach(async () => {
+    await truncateAll(pool);
+    await db.insert(sources).values({ key: 'idealista', name: 'Idealista', kind: 'api' });
+    process.env.NEW_ZONES_DAILY_CAP = '10';
+  });
+
+  afterEach(() => {
+    delete process.env.NEW_ZONES_DAILY_CAP;
+  });
+
+  it('zona covered: renderiza resultados SIN ninguna notificación de cobertura', async () => {
+    const ineCode = randomIneCode();
+    await insertMunicipality(db, { ineCode, municipality: 'Zona Cubierta', searchName: 'zona cubierta', state: 'covered', centroid: { latitude: 37.1, longitude: -3.6 } });
+
+    const html = await renderHome({ zone: ineCode });
+    expect(html).not.toMatch(/no hay cobertura|límite diario|no se ha encontrado ningún municipio/i);
+  });
+
+  it('zona uncovered con job YA registrado: markup server-rendered muestra el estado Y un enlace de recarga plano con href real', async () => {
+    const ineCode = randomIneCode();
+    const { zoneId } = await insertMunicipality(db, {
+      ineCode,
+      municipality: 'Zona Pendiente',
+      searchName: 'zona pendiente',
+      centroid: { latitude: 37.1, longitude: -3.6 },
+    });
+    const [sourceRow] = await db.select({ id: sources.id }).from(sources);
+    if (!sourceRow) throw new Error('sin source');
+    await registerCoverageJob(db, zoneId, sourceRow.id);
+
+    const html = await renderHome({ zone: ineCode });
+    expect(html).toMatch(/pendiente/i);
+    expect(html).toMatch(/href="\/\?zone=/);
+  });
+
+  it('DD-14: tope de zonas nuevas agotado: notificación NOMBRADA, cero filas nuevas en coverage_jobs', async () => {
+    process.env.NEW_ZONES_DAILY_CAP = '1';
+    // Consume la única plaza del tope con una zona ya registrada hoy.
+    const already = await insertMunicipality(db, {
+      ineCode: randomIneCode(),
+      municipality: 'Ya Abierta',
+      searchName: 'ya abierta',
+      centroid: { latitude: 37.1, longitude: -3.6 },
+    });
+    const [sourceRow] = await db.select({ id: sources.id }).from(sources);
+    if (!sourceRow) throw new Error('sin source');
+    await registerCoverageJob(db, already.zoneId, sourceRow.id);
+
+    const ineCode = randomIneCode();
+    await insertMunicipality(db, { ineCode, municipality: 'Sin Plaza', searchName: 'sin plaza', centroid: { latitude: 37.2, longitude: -3.7 } });
+
+    const html = await renderHome({ zone: ineCode });
+    expect(html).toMatch(/límite diario/i);
+  });
+
+  it('CR-12: municipio SIN centroide seleccionado por zone -> notificación NOMBRADA distinta, nunca un registro', async () => {
+    const ineCode = randomIneCode();
+    await insertMunicipality(db, { ineCode, municipality: 'Sin Centroide', searchName: 'sin centroide' });
+
+    const html = await renderHome({ zone: ineCode });
+    expect(html).toMatch(/no hay cobertura disponible/i);
+  });
+
+  it('código INE bien formado pero desconocido: notificación distinta de la anterior', async () => {
+    const html = await renderHome({ zone: '00000' });
+    expect(html).toMatch(/no se ha encontrado ningún municipio/i);
+  });
+
+  it('CR-10/DD-19: ?zoneQuery= renderiza sugerencias JUNTO a los resultados existentes, en la MISMA respuesta', async () => {
+    await insertMunicipality(db, { ineCode: randomIneCode(), municipality: 'Granada', searchName: 'granada', centroid: { latitude: 37.1, longitude: -3.6 } });
+    await insertMunicipality(db, { ineCode: randomIneCode(), municipality: 'Granada Sin Centroide', searchName: 'granada sin centroide' });
+
+    const html = await renderHome({ zoneQuery: 'gran' });
+    expect(html).toMatch(/Granada/);
+    // CR-12 en la lista de sugerencias: el municipio sin centroide aparece IGUAL, marcado.
+    expect(html).toMatch(/sin cobertura/i);
+  });
+});

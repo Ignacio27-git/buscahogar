@@ -27,6 +27,7 @@ export * from './detail.js';
 export * from './locations-query.js';
 export * from './time.js';
 export * from './budget-ledger.js';
+export * from './coverage.js';
 export { createDb, type Database } from './db.js';
 
 export const DB_VERSION = '0.0.1';

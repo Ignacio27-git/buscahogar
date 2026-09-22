@@ -1,15 +1,28 @@
-// ROADMAP 1.11 — prueba estática (diseño D10; spec, escenario "Works
-// without client-side JavaScript"): ningún fichero de `apps/web/src`
-// tocado por este cambio declara `'use client'`. Server Components puros,
-// server-rendered, sin ningún fetching en cliente.
+// ROADMAP 1.11 (diseño D10) → ROADMAP 1.13 Unit D (diseño DD-19/DD-20,
+// decisión 065) — NINGÚN fichero de `apps/web/src` declara `'use client'`,
+// EXCEPTO el allowlist explícito de abajo. La autocompletación de zona
+// (DD-19) no necesita JavaScript de cliente en absoluto — solo el estado de
+// un barrido en curso lo necesita (DD-23, refresco automático vía
+// `router.refresh()`), así que el hueco que esta prueba abre queda de UN
+// fichero de ancho, nunca más.
 //
-// Recorrido manual con `readdirSync` en vez de `fs.globSync` (solo estable
-// desde Node 22): el `engines` declarado del monorepo es `>=20.11.0`.
-import { readFileSync, readdirSync } from 'node:fs';
+// Tres aserciones, no una (DD-20):
+//   1. Ningún fichero FUERA del allowlist declara la directiva — la regla
+//      original, sin cambios en su fuerza.
+//   2. Cada entrada del allowlist EXISTE de verdad en disco — una entrada
+//      obsoleta (que apuntara a un fichero borrado) ensancharía el hueco en
+//      silencio; esta aserción lo hace fallar en voz alta.
+//   3. Cada entrada del allowlist SÍ contiene la directiva — una entrada
+//      que no hiciera falta sería hueco abierto para nada.
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const SRC_DIR = fileURLToPath(new URL('../src/', import.meta.url));
+
+// Rutas EXACTAS, relativas a `src/`. Ningún patrón/glob: cada entrada se
+// verifica una a una (aserción 2).
+const CLIENT_COMPONENT_ALLOWLIST = ['components/coverage-status.tsx'] as const;
 
 function collectSourceFiles(dir: string): string[] {
   const files: string[] = [];
@@ -24,14 +37,35 @@ function collectSourceFiles(dir: string): string[] {
   return files;
 }
 
-describe('apps/web/src — ningún fichero declara "use client" (D10)', () => {
-  it('ninguno de los .ts/.tsx tocados en este cambio abre con la directiva "use client"', () => {
+function declaresUseClient(source: string): boolean {
+  return /^\s*['"]use client['"]/m.test(source);
+}
+
+describe('apps/web/src — "use client" solo en el allowlist explícito (D10, DD-20)', () => {
+  it('ningún fichero FUERA del allowlist declara "use client"', () => {
+    const allowlistAbsolutePaths = new Set(CLIENT_COMPONENT_ALLOWLIST.map((relative) => `${SRC_DIR}${relative}`));
     const files = collectSourceFiles(SRC_DIR);
 
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
+      if (allowlistAbsolutePaths.has(file)) {
+        continue;
+      }
       const source = readFileSync(file, 'utf8');
       expect(source).not.toMatch(/^\s*['"]use client['"]/m);
+    }
+  });
+
+  it('cada entrada del allowlist existe de verdad en disco — una entrada obsoleta falla en voz alta', () => {
+    for (const relative of CLIENT_COMPONENT_ALLOWLIST) {
+      expect(existsSync(`${SRC_DIR}${relative}`)).toBe(true);
+    }
+  });
+
+  it('cada entrada del allowlist SÍ contiene la directiva "use client"', () => {
+    for (const relative of CLIENT_COMPONENT_ALLOWLIST) {
+      const source = readFileSync(`${SRC_DIR}${relative}`, 'utf8');
+      expect(declaresUseClient(source)).toBe(true);
     }
   });
 });
