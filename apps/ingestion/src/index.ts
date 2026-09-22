@@ -68,9 +68,18 @@ export {
 
 export const INGESTION_VERSION = '0.0.1';
 
+// ROADMAP 1.13 Unit C (diseño CR-1, arbitraje vinculante) — el placeholder
+// que este `main()` llevaba ("Esperando implementación en los pasos
+// posteriores") se sustituye por un banner de una línea que nombra el
+// entrypoint REAL: `scripts/coverage-worker.ts`. Este fichero sigue siendo
+// el barril del paquete (`export *`/reexports nombrados arriba) — nunca
+// gana una lectura de `process.env` ni un `pg.Pool` propios, porque eso
+// haría `import '@buscahogar/ingestion'` side-effectful y rompería la regla
+// que `scripts/sweep-zone.ts` fijó a propósito: los composition roots viven
+// en `scripts/` y son los únicos lectores de `process.env`.
 export function main(): void {
   console.log(`Ingestion worker v${INGESTION_VERSION}`);
-  console.log('Esperando implementación en los pasos posteriores de la hoja de ruta');
+  console.log('Entrypoint real: pnpm --filter @buscahogar/ingestion run worker (scripts/coverage-worker.ts).');
 }
 
 // Se ejecuta solo como entrypoint (pnpm dev / start), no al importarlo desde los

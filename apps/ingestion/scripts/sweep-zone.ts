@@ -18,7 +18,6 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
 import { createDb } from '@buscahogar/db';
-import type { Database } from '@buscahogar/db';
 
 import {
   createHttpSearchPort,
@@ -27,14 +26,13 @@ import {
   IdealistaListingNormalizer,
 } from '../src/sources/idealista/index.js';
 import { areaFingerprint, buildArea } from '../src/sweep/area.js';
-import { createCoverageStore } from '../src/sweep/coverage-store.js';
-import { createListingWriter } from '../src/sweep/listing-writer.js';
+import { composeStore } from '../src/sweep/compose-store.js';
 import { parseSweepArgs } from '../src/sweep/options.js';
 import type { SweepOptions } from '../src/sweep/options.js';
 import { buildReport } from '../src/sweep/report.js';
 import { resolveSourceUuid, resolveZoneByIneCode } from '../src/sweep/reference-store.js';
 import { runSweep } from '../src/sweep/sweep-runner.js';
-import type { ClaimedJob, SweepStore } from '../src/sweep/store.js';
+import type { ClaimedJob } from '../src/sweep/store.js';
 
 export interface SweepEnv {
   readonly apiKey: string;
@@ -70,24 +68,6 @@ export function readEnv(env: Readonly<Record<string, string | undefined>>): Swee
 
 export interface SweepIo {
   log(line: string): void;
-}
-
-// Compone las dos mitades de SweepStore (store.ts, fase 1): listing-writer.ts
-// escribe listings/listing_versions, coverage-store.ts gestiona
-// coverage_jobs/zones. sweep-runner.ts depende solo del puerto combinado,
-// nunca de Database directamente (diseño D1).
-function composeStore(db: Database): SweepStore {
-  const listingWriter = createListingWriter(db);
-  const coverageStore = createCoverageStore(db);
-  // Reenvío explícito por llamada, no una referencia directa al método: una
-  // propiedad de función tomada de un objeto (`listingWriter.persistPage`)
-  // se considera "unbound" por el linter (no puede probar que el método
-  // ignora `this`), así que se envuelve en su propia función flecha.
-  return {
-    persistPage: (input) => listingWriter.persistPage(input),
-    claimJob: (zoneId, sourceId, fingerprint) => coverageStore.claimJob(zoneId, sourceId, fingerprint),
-    finishJob: (jobId, outcome) => coverageStore.finishJob(jobId, outcome),
-  };
 }
 
 export async function runSweepZone(options: SweepOptions, env: SweepEnv, io: SweepIo): Promise<number> {

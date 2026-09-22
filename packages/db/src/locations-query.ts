@@ -87,3 +87,43 @@ export async function resolveZoneGeometry(db: Database, ineCode: string): Promis
     sweepRadiusM: row.sweepRadiusM,
   };
 }
+
+// ROADMAP 1.13 Unit C (diseño §5 interfaces, CoverageWorkerPorts.resolveZoneGeometry)
+// — hermana de `resolveZoneGeometry`, misma proyección, distinta clave.
+// `coverage_jobs.zone_id` (el FK real que el worker recorre para
+// seleccionar un trabajo) es un uuid, nunca un ine_code — la web resuelve
+// por código INE porque así llega en la URL (DD-21), el worker resuelve por
+// uuid porque así llega en la fila de `coverage_jobs`. Ninguna de las dos
+// consultas se deriva de la otra por composición (un JOIN adicional sobre
+// el resultado de `resolveZoneGeometry` sería una consulta extra sin
+// necesidad); se repite la proyección explícitamente, igual que
+// `resolveZoneGeometry` y `suggestZones` ya repiten cada una la suya.
+export async function resolveZoneGeometryById(db: Database, zoneId: string): Promise<ZoneGeometry | null> {
+  const [row] = await db
+    .select({
+      zoneId: zones.id,
+      ineCode: locations.ineCode,
+      municipality: locations.municipality,
+      state: zones.state,
+      longitude: sql<number | null>`ST_X(${locations.centroid}::geometry)`,
+      latitude: sql<number | null>`ST_Y(${locations.centroid}::geometry)`,
+      sweepRadiusM: locations.sweepRadiusM,
+    })
+    .from(zones)
+    .innerJoin(locations, eq(zones.locationId, locations.id))
+    .where(eq(zones.id, zoneId));
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    zoneId: row.zoneId,
+    ineCode: row.ineCode,
+    municipality: row.municipality,
+    state: row.state,
+    centroid:
+      row.latitude !== null && row.longitude !== null ? { latitude: row.latitude, longitude: row.longitude } : null,
+    sweepRadiusM: row.sweepRadiusM,
+  };
+}

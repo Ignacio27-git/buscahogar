@@ -16,7 +16,7 @@ import type { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 
 import type { Database } from '../src/db.js';
-import { resolveZoneGeometry, suggestZones } from '../src/locations-query.js';
+import { resolveZoneGeometry, resolveZoneGeometryById, suggestZones } from '../src/locations-query.js';
 import { geographyPointWkt } from '../src/spatial.js';
 import { locations, zones } from '../src/tables.js';
 import { connectTestDb, truncateAll } from './helpers/db-client.js';
@@ -183,5 +183,57 @@ describeWithDb('resolveZoneGeometry (§5 interfaces) — geometría necesaria pa
 
     const [zoneRow] = await db.select().from(zones).where(eq(zones.id, zoneId));
     expect(zoneRow).toBeDefined();
+  });
+});
+
+// ROADMAP 1.13 Unit C (diseño DD-17/DD-18, CoverageWorkerPorts.resolveZoneGeometry) —
+// `coverage_jobs.zone_id` es el FK real que el worker recorre, nunca un
+// ine_code: el worker necesita resolver geometría A PARTIR del uuid de zona,
+// no del código INE que `resolveZoneGeometry` (arriba) ya sirve para la web.
+// Misma consulta, distinta clave — hermana deliberada, no una reescritura.
+describeWithDb('resolveZoneGeometryById (§5 interfaces, CoverageWorkerPorts) — geometría a partir del uuid de zona', () => {
+  let db: Database;
+  let pool: Pool;
+
+  beforeAll(() => {
+    ({ db, pool } = connectTestDb());
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  beforeEach(async () => {
+    await truncateAll(pool);
+  });
+
+  it('una zona con centroide, buscada por su uuid, devuelve latitude/longitude/sweepRadiusM no nulos', async () => {
+    const { zoneId } = await insertMunicipality(db, {
+      ineCode: '18087',
+      municipality: 'Granada',
+      searchName: 'granada',
+      centroid: { latitude: 37.177336, longitude: -3.598557 },
+      sweepRadiusM: 4500,
+    });
+
+    const geometry = await resolveZoneGeometryById(db, zoneId);
+    expect(geometry?.zoneId).toBe(zoneId);
+    expect(geometry?.centroid?.latitude).toBeCloseTo(37.177336, 4);
+    expect(geometry?.centroid?.longitude).toBeCloseTo(-3.598557, 4);
+    expect(geometry?.sweepRadiusM).toBe(4500);
+  });
+
+  it('una zona SIN centroide resuelve por uuid pero la geometría es null — nunca lanza, nunca inventa una coordenada', async () => {
+    const { zoneId } = await insertMunicipality(db, { ineCode: '99999', municipality: 'Sin Centroide', searchName: 'sin centroide' });
+
+    const geometry = await resolveZoneGeometryById(db, zoneId);
+    expect(geometry?.ineCode).toBe('99999');
+    expect(geometry?.centroid).toBeNull();
+    expect(geometry?.sweepRadiusM).toBeNull();
+  });
+
+  it('un uuid de zona sin ninguna fila devuelve null, nunca lanza', async () => {
+    const geometry = await resolveZoneGeometryById(db, '00000000-0000-0000-0000-000000000000');
+    expect(geometry).toBeNull();
   });
 });

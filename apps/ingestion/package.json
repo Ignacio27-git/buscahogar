@@ -20,6 +20,7 @@
     "sweep": "node --env-file=../../.env --import tsx scripts/sweep-zone.ts",
     "calibrate": "node --env-file=../../.env --import tsx scripts/calibrate-blocking.ts",
     "reprocess": "node --env-file=../../.env --import tsx scripts/reprocess-dedup.ts",
+    "worker": "node --env-file=../../.env --import tsx scripts/coverage-worker.ts",
     "backfill-thumbnails": "node --env-file=../../.env --import tsx scripts/backfill-thumbnails.ts"
   },
   "dependencies": {

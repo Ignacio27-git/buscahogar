@@ -2053,6 +2053,49 @@ descargar el fichero origen.
 
 ---
 
+## 068 — La deduplicación tras un barrido dirigido por el worker sigue siendo GLOBAL, sin acotar por zona; el bloqueo permisivo de `blocking.ts` no se estrecha
+
+**Estado:** aceptada
+
+**Decisión.** El worker de cobertura bajo demanda (ROADMAP 1.13, diseño DD-10/DD-18) reutiliza,
+sin ningún cambio, el mismo reproceso de deduplicación GLOBAL que `scripts/reprocess-dedup.ts`
+introdujo en ROADMAP 1.10: bloqueo sobre el corpus completo (`blocking.ts`,
+`fetchAllListingIds`), sin filtrar por zona, por fuente ni por el barrido que originó cada
+anuncio. El worker coalesce las llamadas — como mucho un reproceso completo por ciclo de sondeo,
+solo cuando algo se completó de verdad en ese ciclo (`src/sweep/coverage-worker.ts`, paso 12 de
+la tabla del diseño) — pero **nunca** estrecha qué se compara.
+
+**Alternativa descartada.** Un reproceso de deduplicación acotado a la zona recién barrida (o a
+las zonas colindantes), para abaratar cada ciclo del worker.
+
+**Motivo.**
+
+1. **CLAUDE.md fija que un falso positivo (agrupar dos viviendas distintas) es peor error que un
+   falso negativo (no detectar un duplicado real).** Acotar el bloqueo por zona fabrica
+   exactamente el segundo error a propósito: una vivienda cuyas coordenadas caen a un lado y otro
+   de una frontera administrativa (R5) nunca se compararía contra su duplicado real si el bloqueo
+   quedara restringido a una sola zona.
+2. `fetchAllListingIds` (`apps/ingestion/src/dedup/reprocess-core.ts`, extraído sin cambios desde
+   `scripts/reprocess-dedup.ts` en esta misma unidad) no lleva ninguna cláusula `WHERE` — su
+   propio comentario, verbatim desde 1.10, ya declara la intención: el reproceso debe ser tan
+   permisivo como el bloqueo que reutiliza. El worker no reabre esa decisión.
+3. **El coste de la permisividad cae en el eje equivocado para preocuparse por él aquí.** El
+   reproceso gasta CPU y tiempo de base de datos — cero peticiones a Idealista. El recurso escaso
+   de este proyecto es la cuota, no el cómputo; cambiar CPU por una entrada de deduplicación
+   garantizada-completa es el intercambio correcto bajo la prioridad que el propio CLAUDE.md fija.
+4. **Coalescer ya elimina el crecimiento por zona sin estrechar nada.** El reproceso es idempotente
+   sobre el corpus completo y no depende del orden; N reprocesos tras N barridos completados
+   equivalen a uno solo. El worker fija un indicador de "trabajo pendiente" en cada resultado
+   `completed` y ejecuta como mucho un reproceso por ciclo, después del barrido, nunca dentro de
+   su transacción.
+
+**Consecuencia.** `blocking.ts:4-6` permanece exactamente como 1.8/1.10 lo dejaron: sin ningún
+parámetro de zona, sin ningún filtro por origen del anuncio. Cualquier cambio futuro que quiera
+acotar el bloqueo por zona debe reabrir esta decisión explícitamente, no colarse como una
+optimización de rendimiento del worker.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
