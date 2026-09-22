@@ -40,6 +40,214 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-22 — Una cadena de conexión en `.env.local` no es un rol de PostgreSQL: verificado directamente contra la base, el segundo rol de la unidad D nunca se creó
+
+**Contexto:** cierre del paso 1.13, tareas 10.5/10.6 (segundo rol `INSERT`-only sobre
+`coverage_jobs`, unidad D).
+**Categoría:** deriva entre lo reportado y lo real; verificable solo desde el lado de la base de
+datos, no desde `.env`.
+
+**Qué ocurrió:** se reportó que la credencial de cobertura se había añadido a `.env.local`. Eso
+no implica que el rol de PostgreSQL restringido exista: son dos cosas distintas, y solo la
+segunda es lo que hace `INSERT`-only una garantía real en vez de una cadena de conexión que
+apunta a nada o a un rol con permisos de más.
+
+**Cómo se detectó:** `.env`/`.env.local` son ilegibles para cualquier agente de este proyecto
+(restricción ya registrada en pasos 1.2/1.5/1.7/1.11/1.13), así que la cadena de conexión no se
+puede inspeccionar directamente. Los roles de PostgreSQL sí son inspeccionables incluso sin leer
+`.env`: `docker compose exec db … psql … -c "SELECT rolname FROM pg_roles …"` devuelve
+únicamente `buscahogar` (el rol propietario) y `web_readonly` (decisión 056). **Ningún rol
+adicional de escritura restringida existe en la base de datos en este momento.**
+
+**Cómo se resolvió:** no se resuelve aquí — confirma que la tarea 10.5 sigue genuinamente sin
+hacer, tal y como ya reportaba `sdd/on-demand-coverage/apply-progress-3` (obs #226), y que la
+tarea 10.6 (el test de privilegio negativo) seguirá saltándose hasta que el rol exista de
+verdad.
+
+**Observación:** la comprobación útil aquí no fue leer `.env` — imposible por permiso — sino
+consultar `information_schema.table_privileges`/`pg_roles` directamente, que sigue siendo
+inspeccionable incluso cuando `.env` no lo es. Regla general para verificar cualquier
+prerrequisito de rol de base de datos en este proyecto: preguntar a la base de datos, no al
+fichero de configuración.
+
+### 2026-09-22 — Ejecutar en paralelo las suites respaldadas por Docker produce un fallo de clave foránea espurio: comparten la misma base de datos
+
+**Contexto:** cierre del paso 1.13, gates finales — `db` `test:blocking`/`test:consolidation`/
+`test:detail` e `ingestion` `test:db`.
+**Categoría:** test que valida el comportamiento equivocado (en este caso, un fallo que no era
+del código sino del propio arnés de ejecución).
+
+**Qué ocurrió:** al lanzar las cuatro suites Docker-gated **a la vez**, `test:detail` falló con
+`23503 — Key (source_id) is not present in table "sources"`, como si una fila insertada hubiera
+desaparecido a media prueba. El resto pasó en verde, pero de forma no fiable: sin una base de
+datos de test separada (decisión 046), cada suite trunca y siembra la misma base compartida
+(`buscahogar-db-1`); ejecutarlas en paralelo hace que el `TRUNCATE` de una interfiera con el
+`INSERT` de otra que asumía datos de referencia ya sembrados por ella misma.
+
+**Cómo se detectó:** re-ejecutando `test:detail` en solitario inmediatamente después — 10/10 en
+verde, sin tocar ni una línea de código. Confirmado repitiendo las otras tres también en
+solitario: mismos recuentos, mismo resultado en verde.
+
+**Cómo se resolvió:** ejecutar las cuatro suites Docker-gated **secuencialmente**, nunca en
+paralelo, mientras no exista una base de datos de test separada (pendiente de decidir, ver
+`docs/DECISIONS.md`, sección «Pendientes de decidir»).
+
+**Observación:** no se reportó como fallo real precisamente por releer la salida antes de darla
+por buena — la propia decisión 046 ya avisa de que la base se comparte, pero no de que eso
+también invalida la paralelización de los propios gates de cierre. Regla para sesiones futuras
+de verificación: los comandos con `test:*` respaldados por Postgres de este proyecto se lanzan
+uno detrás de otro, nunca con `run_in_background` simultáneo.
+
+### 2026-09-21 — El tope del presupuesto diario no se aplicaba en la primera reserva del día: el hueco ya estaba en el SQL literal del propio diseño
+
+**Contexto:** paso 1.13, unidad de trabajo B, `packages/db/src/budget-ledger.ts` —
+`reserveDailyBudget`.
+**Categoría:** código correcto en apariencia pero incorrecto; deriva entre diseño e
+implementación.
+
+**Qué ocurrió:** `reserveDailyBudget` implementó exactamente el SQL que especifica DD-12 en el
+artefacto de diseño (obs #215): un único `INSERT ... VALUES (...) ON CONFLICT (day, source_id)
+DO UPDATE SET ... WHERE <tope> RETURNING ...`. PostgreSQL solo evalúa el predicado `WHERE` de un
+`ON CONFLICT ... DO UPDATE` en la rama de conflicto. La **primera** llamada de cualquier proceso
+para un `(day, source_id)` en un día UTC nuevo golpea un `INSERT` liso, sin fila con la que
+entrar en conflicto, así que ese `WHERE` nunca se ejecuta — una reserva que supera el tope se
+concedía igualmente, en silencio, exactamente el primer día de cada `(día, fuente)`. Es el fallo
+de agotamiento de cuota que este componente existe para hacer estructuralmente imposible
+(`CLAUDE.md`, decisión 001). El comentario de código que acompañaba la primera entrega afirmaba
+además, incorrectamente, que DD-12 «aceptaba» este hueco como compromiso deliberado — el
+artefacto de diseño no dice eso en ningún sitio.
+
+**Cómo se detectó:** verificación independiente del orquestador, leyendo el SQL generado, no
+ejecutando los tests — **todos los tests estaban en verde**. Un test RED dedicado reprodujo el
+defecto después, contra Postgres real: una reserva de 20 contra un tope de 10, primera del día,
+devolvía `{searchRequests: 20, tokenRequests: 0}` en vez de `null`, e insertaba una fila real.
+
+**Cómo se resolvió:** tres cambios, en este orden. (1) `CHECK (search_requests <= search_cap)`
+en el esquema — el mismo idioma que ya usan `zones_state_check`/`locations_ine_code_check` —
+como respaldo estructural que protege la tabla de cualquier escritor, no solo de esta función.
+(2) Reescritura de la sentencia a `INSERT ... SELECT ... WHERE <tope> ... ON CONFLICT ... DO
+UPDATE ... WHERE <tope>`: una fuente `SELECT` con `WHERE` produce cero filas cuando el tope no
+se cumple, así que el caso esperado («la reserva es demasiado grande») nunca llega a disparar el
+`CHECK`, y sigue siendo una única sentencia atómica. (3) **Un segundo defecto, independiente,
+salió al probar la propia corrección contra Postgres real, no al razonar sobre el SQL**: el nuevo
+`SELECT ... WHERE $a <= $b`, con ambos parámetros sin tipar y sin ninguna columna de la que
+inferir un tipo, hacía que PostgreSQL comparara como TEXTO — `'2' <= '10'` es FALSO
+(lexicográfico), aunque `2 <= 10` sea matemáticamente cierto. Verificado empíricamente
+(`select $1 where $1 <= $2` no devuelve fila para `(2, 10)`; con `::integer` explícito, sí).
+Corregido con `::integer` en ambos operandos de esa comparación concreta.
+
+**Coste:** una migración nueva (`0010_wakeful_patriot.sql`), dos tests nuevos, y una reescritura
+de la función ya entregada — dentro de la misma unidad de trabajo, antes de asentarla.
+
+**Observación:** la causa raíz no es solo de implementación — **el hueco ya estaba en el SQL
+literal de DD-12**, así que copiar el diseño con fidelidad reprodujo el defecto del diseño.
+`sdd-verify` y cualquier lectura futura de DD-12 deben tratar su SQL como necesitado de esta
+misma corrección, no como fuente de verdad de la que rederivar la sentencia original (rota).
+Mismo patrón que la entrada de 2026-09-17 sobre la subconsulta sin cualificar: 21 tests en verde
+que comparaban forma de SQL, no comportamiento contra una base real, y la ejecución real fue lo
+que encontró el fallo.
+
+### 2026-09-22 — `drizzle-kit@0.31.10` vuelve a entrecomillar `geography` como identificador: segunda recurrencia, ya sistemática
+
+**Contexto:** paso 1.13, unidad A, migración `0008_tired_ironclad.sql`
+(`packages/db/src/schema/locations.ts`, columna `centroid`).
+**Categoría:** API o método inexistente; patrón ya documentado que se repite.
+
+**Qué ocurrió:** exactamente el mismo defecto que la entrada de 2026-09-09
+(`SQLSTATE 42704: type "geography(Point,4326)" does not exist`): `drizzle-kit@0.31.10` no
+reconoce `geography` en su lista de tipos nativos y entrecomilla la cadena que devuelve el
+`customType` de `geographyPoint()`, convirtiéndola en un identificador SQL inválido.
+
+**Cómo se detectó:** aplicando la migración `0008` contra `buscahogar-db-1` (base de desarrollo
+vacía, 0 filas — aplicación limpia sin riesgo de pérdida de datos).
+
+**Cómo se resolvió:** mismo precedente exacto que en 2026-09-09 — se corrigió a mano la
+cláusula generada a `geography(Point,4326)` sin entrecomillar, documentado inline en el propio
+fichero de migración.
+
+**Observación:** esta es la **segunda vez** que este defecto concreto aparece en este proyecto.
+Dos recurrencias convierten el patrón en sistemático, no incidental: **cualquier migración
+futura que añada una columna `geographyPoint()` debe esperar este mismo fallo** y aplicar la
+misma corrección manual — no vale tratarlo cada vez como un hallazgo nuevo que exige
+diagnóstico desde cero. Vale la pena evaluar, fuera de esta sesión, si fijar una versión más
+reciente de `drizzle-kit` resuelve el reconocimiento del tipo de forma definitiva.
+
+### 2026-09-22 — Migración `0008` añade `search_name NOT NULL` sin valor por defecto ni backfill: defecto abierto, sin corregir en esta sesión
+
+**Contexto:** paso 1.13, unidad A, `packages/db/migrations/0008_tired_ironclad.sql`
+(`locations.search_name`).
+**Categoría:** código correcto en apariencia pero incorrecto; deriva de la arquitectura entre
+sesiones.
+
+**Qué ocurrió:** la migración `0008` añade `search_name` a `locations` como `NOT NULL`, sin
+valor por defecto y sin ninguna sentencia de backfill para las filas ya existentes. Aplicó sin
+fallos en esta sesión únicamente porque la base de datos de desarrollo estaba vacía (0 filas en
+`locations`) en el momento de aplicarla. **Cualquier base de datos que ya tuviera datos
+sembrados** — que inserta al menos la fila de Granada del catálogo con cita manual — no puede
+aplicar esta migración tal cual: fallaría por la restricción `NOT NULL` sobre filas existentes
+sin valor.
+
+**Cómo se detectó:** inspección del propio fichero de migración generado, no ejecución — el
+fallo es invisible contra una base de datos limpia (como esta) y cierto contra una ya sembrada.
+
+**Cómo se resolvió:** **no se ha resuelto.** Se deja registrado aquí como defecto abierto, tal y
+como pide la tarea 15.6, para que `sdd-verify` lo evalúe explícitamente en vez de descubrirlo
+tarde en un entorno con datos reales.
+
+**Observación:** el riesgo es asimétrico y silencioso — funciona siempre en un clon nuevo y
+falla siempre en cualquier entorno que ya haya sembrado datos, que es exactamente el tipo de
+defecto que una sesión de desarrollo con base de datos vacía no puede detectar por sí sola.
+
+### 2026-09-19 — Engram `mem_save` trunca a 50.000 caracteres en silencio: hay que partir los artefactos SDD largos antes de escribirlos
+
+**Contexto:** paso 1.13, artefacto de diseño (`sdd/on-demand-coverage/design`, obs #215).
+**Categoría:** pérdida de contexto en tareas largas.
+
+**Qué ocurrió:** `mem_save` corta el contenido almacenado a 50.000 caracteres sin avisar — la
+observación se crea y se reporta como guardada, pero la cola simplemente desaparece, marcada con
+un `[truncated]` literal dentro del propio texto guardado. Sin error y sin aviso en el resultado
+de la llamada. Se comió la lista completa de contradicciones CR-1..CR-14 de la sección §5 del
+diseño.
+
+**Cómo se detectó:** al releer la propia observación guardada para verificarla, no al escribirla.
+
+**Cómo se resolvió:** se reanudó al agente autor y se le pidió la sección que faltaba como una
+observación separada (`sdd/on-demand-coverage/design-addendum`, obs #216). Detalle completo del
+límite en Engram `sdd/on-demand-coverage/*` (obs #218, entrada de descubrimiento dedicada).
+
+**Observación:** la regla para el resto del proyecto — **partir cualquier artefacto largo antes
+de escribirlo, y releer siempre lo que se acaba de guardar** en vez de asumir que el contenido
+enviado es el contenido persistido. Esta misma sesión de cierre aplicó la regla de forma
+preventiva: el progreso de `sdd-apply` de este cambio se guardó en cuatro observaciones
+separadas (`apply-progress`, `-2`, `-3`, `-4`) precisamente por este límite.
+
+### 2026-09-21 — Un primer intento invirtió la dirección de dependencias del paquete: `scripts/` importando hacia `src/`
+
+**Contexto:** paso 1.13, unidad C, `apps/ingestion/src/sweep/coverage-worker-ports.ts`.
+**Categoría:** deriva de la arquitectura entre sesiones.
+
+**Qué ocurrió:** el primer intento de reutilizar `composeStore` (definido en
+`scripts/sweep-zone.ts`) desde el nuevo `src/sweep/coverage-worker-ports.ts` lo importó
+directamente de `scripts/`. Esto invierte la dirección de dependencia que todo el paquete ya
+establece: `scripts/**` consume `src/**`, nunca al revés — es el patrón que sigue cada raíz de
+composición existente en `apps/ingestion`.
+
+**Cómo se detectó:** revisión propia, antes de ejecutar ningún test contra ese código. No llegó
+a correr en ningún estado intermedio.
+
+**Cómo se resolvió:** se movió la lógica reutilizable (`composeStore`) a un módulo nuevo dentro
+de `src/sweep/compose-store.ts`; `scripts/sweep-zone.ts` pasó a importarla desde ahí, quedando
+como una raíz de composición delgada. Regresión verificada con la suite preexistente de
+`sweep-zone.ts`, sin cambio de comportamiento.
+
+**Coste:** menor — corregido en la misma sesión de trabajo, sin llegar a manchar ningún test en
+rojo por esta causa.
+
+**Observación:** se anota aunque el resultado final sea correcto, porque el fallo intermedio es
+el dato interesante que pide `CLAUDE.md`: la tentación de «solo exportar y listo» desde el
+fichero existente es más corta que localizar la dirección de dependencia correcta del paquete,
+y hay que revisar esa dirección explícitamente antes de escribir el import, no después.
+
 ### 2026-09-17 — Un import con sufijo `.js` que `tsc` acepta y el empaquetador de Next no: typecheck verde, `next build` rojo
 
 **Contexto:** paso 1.11, `apps/web/src/components/result-card.tsx`.

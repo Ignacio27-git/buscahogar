@@ -434,9 +434,17 @@ paso.
 **Lo que queda pendiente para pasos posteriores, deliberadamente**: el rango de `score`
 (0–1 / 0–100 / sin acotar) se difiere a ROADMAP 1.9; 8 de los 11 miembros de `PropertyType`
 siguen sin confirmar contra datos reales (la sonda solo cubrió dos filtros y una zona,
-`other` es la válvula); ROADMAP 1.13 hereda dos obligaciones sobre `AreaQuery` (seleccionar
-las claves relevantes de los search params antes de parsear, y convertir string→number él
-mismo, ver decisión 030).
+`other` es la válvula).
+
+**Nota corregida al cerrar el paso 1.13** (2026-09-22): este párrafo decía que ROADMAP 1.13
+heredaba dos obligaciones sobre `AreaQuery` — seleccionar las claves relevantes de los search
+params antes de parsear, y convertir string→number él mismo. Es incorrecto: ambas quedaron
+cerradas por la **decisión 057**, durante el propio paso 1.11, no por 1.13. Verificado contra
+`packages/core/src/schemas/search-query.schema.ts:50-94`: el `z.object()` no estricto de
+`searchQuerySchema` selecciona las claves relevantes y `intParam`/`decimalParam` hacen la
+conversión string→number. Se corrige la nota en vez de borrarla, como constancia de que
+estaba equivocada — no queda ninguna obligación de `AreaQuery` pendiente para 1.13 por este
+motivo.
 
 **Cierre del reordenamiento 1.4 ↔ 1.5.** El paso 1.4 se detuvo deliberadamente a las puertas
 de la propuesta para adelantar el 1.5 (sonda de la API), documentado más abajo. Con el 1.4
@@ -1254,7 +1262,7 @@ La entrega ordinaria (commit/push/PR) sigue siendo decisión de política de rep
 
 ---
 
-## [ ] 1.13 · Cobertura bajo demanda
+## [~] 1.13 · Cobertura bajo demanda
 
 ```text
 Implementa el mecanismo de cobertura bajo demanda de docs/ARCHITECTURE.md:
@@ -1275,6 +1283,88 @@ Implementa el mecanismo de cobertura bajo demanda de docs/ARCHITECTURE.md:
 descontrolada agote el mes.
 
 **Notas:**
+
+Paso **iniciado** el 2026-09-19 con el ciclo SDD completo (`/gentle-sdd-new`, cambio
+`on-demand-coverage`): explore → research → propose → `sdd-spec`/`sdd-design` en paralelo →
+arbitraje del orquestador → `sdd-tasks` → `sdd-apply` en cuatro unidades de trabajo
+secuenciales (A→B→C→D, orden de seguridad, no de preferencia). **El paso queda en `[~]`,
+no `[x]`**: dos tareas exclusivas del responsable del proyecto siguen sin hacer (10.5/10.6,
+más abajo) y `sdd-verify` todavía no se ha ejecutado sobre el conjunto.
+
+`sdd-spec` y `sdd-design` se ejecutaron en paralelo y produjeron cinco contradicciones reales
+entre ambos artefactos, arbitradas por el orquestador antes de `sdd-tasks` a favor del diseño
+en los cinco casos — el diseño había leído el código real, la especificación había razonado
+desde la prosa de la propuesta. Detalle completo, con las cinco reglas y el porqué de cada
+una, en Engram `sdd/on-demand-coverage/arbitration` (obs #217); ver también la tabla de
+desviaciones más abajo para la más peligrosa de las cinco (CR-15).
+
+**Unidad A — catálogo de zonas** (migración `0008`, fases 1-5). Añade `centroid`,
+`sweep_radius_m` y `search_name` a `locations`, un índice único completo en `coverage_jobs`,
+y los módulos puros de conversión del catálogo INE+NGMEP (`apps/ingestion/src/catalogue/`).
+**El catálogo importado real (~8.100 municipios) sigue sin existir**: ningún agente puede
+descargar los ficheros NGMEP/INE reales (restricción R7 de la propuesta), así que
+`packages/db/src/municipality-catalogue.generated.ts` se entrega como un placeholder
+honestamente vacío. La fusión (`mergeCatalogues`) con un catálogo importado vacío es un
+no-op, así que Granada sigue sembrándose exactamente como antes de este cambio. El
+responsable del proyecto debe ejecutar
+`apps/ingestion/scripts/import-municipality-catalogue.ts` contra los ficheros reales, tras
+rellenar `NGMEP_FIELD_MAP`/`INE_REGISTER_FIELD_MAP` según las cuatro comprobaciones que cita
+la cabecera de `ngmep-parse.ts`, para que el catálogo deje de estar vacío. Atribución
+CC-BY/IGN añadida en `apps/web/src/app/layout.tsx` y `docs/ARCHITECTURE.md` (decisión 067).
+
+**La duda que la decisión 036 dejaba aplazada queda respondida.** Esa decisión no sabía si el
+código de entidad del nomenclátor IGN/CNIG era compatible con el código INE de 5 dígitos de
+`locations.ine_code` o un esquema paralelo incompatible. Fuente primaria (página de ayuda del
+propio nomenclátor del INE, `https://www.ine.es/nomenclator/ayuda.htm`, obs #209 §Q3): el
+código jerárquico completo es `provincia(2) + municipio(3) + EC + ES + NUC` — **el mismo
+código de municipio de 5 dígitos, con hijos añadidos detrás**, no un esquema paralelo. El
+hueco que quedaba abierto desde el paso 1.7 sí es resoluble; lo que queda pendiente es
+exclusivamente la importación que debe ejecutar el responsable del proyecto (párrafo
+anterior), no ninguna duda de compatibilidad de esquema.
+
+**Unidad B — presupuesto diario persistente** (migraciones `0009`/`0010`, fases 6-7).
+`reserveDailyBudget`/`reconcileDailyBudget` en `packages/db/src/budget-ledger.ts`, ledger
+`daily_request_budget` que sobrevive a un reinicio del proceso. **Corregida tras
+verificación independiente del orquestador, antes de asentar el trabajo**: la primera
+versión no aplicaba el tope en la primera reserva de cada día UTC — ver
+`docs/AI-NOTES.md`, entrada de esta misma fecha, para el relato completo con la causa
+raíz (un hueco del propio diseño, DD-12) y la segunda corrección anidada que salió al
+probar la primera contra Postgres real.
+
+**Unidad C — worker de cobertura** (fases 8-9). `apps/ingestion/src/sweep/coverage-worker.ts`
+sustituye el `main()` placeholder; reutiliza `composeStore`/`runSweep`/`buildReport` tal cual
+los usa la CLI de un solo barrido, sin reescribirlos. Presupuesto comprobado antes de
+reclamar el job (nunca infla `attempts` de un job nunca intentado). Deduplicación global tras
+cada barrido, coalescida a lo sumo una vez por ciclo (decisión 068).
+
+**Unidad D — disparador web** (fases 10-14). Autocompletado server-rendered sobre zonas
+canónicas (sin JavaScript de cliente salvo el único componente ya permitido para el estado
+del job), registro de `coverage_job` por un segundo rol de PostgreSQL `INSERT`-only
+(decisión 064), degradación explícita con aviso nombrado cuando el tope de zonas nuevas del
+día está agotado (decisión 065 para el estrechamiento del test de directivas de cliente).
+**34/36 tareas hechas.** Las dos que faltan son exclusivas del responsable del proyecto y
+ningún agente tiene permiso para completarlas: **10.5**, aprovisionar el segundo rol de
+PostgreSQL (`INSERT` solo sobre `coverage_jobs`) y escribir `WEB_COVERAGE_DATABASE_URL` en
+el `.env` de la raíz; y **10.6**, ejecutar en verde el test de privilegio negativo que lo
+comprueba (`apps/web/test/db/coverage-role-privileges.test.ts`, 7 casos, escrito y gateado
+pero nunca ejecutado — su resultado real es desconocido hasta entonces).
+
+Registro completo de evidencia TDD, ficheros cambiados y desviaciones (todas explícitas,
+ninguna oculta) por unidad en Engram: `sdd/on-demand-coverage/apply-progress` (obs #220,
+unidades A y B), `apply-progress-2` (obs #223, unidad C), `apply-progress-3` (obs #226,
+unidad D). Decisiones registradas: 064 a 068 (`docs/DECISIONS.md`), cinco entradas
+consecutivas tras la 063.
+
+**Gates finales de esta sesión de cierre** (`docker compose ps` comprobado en vivo al empezar,
+no heredado de una sesión anterior — `buscahogar-db-1`, sana): `pnpm lint` limpio en los cinco
+workspaces; `pnpm typecheck` limpio en los cinco; `pnpm -r test` en verde — core 416, db 112,
+ingestion 294, web 74 pasados + 7 saltados (896 en total, cero llamadas reales a la API de
+Idealista). Las cuatro suites respaldadas por Docker (`db` `test:blocking`/`test:consolidation`/
+`test:detail`, `ingestion` `test:db`) pasaron en verde ejecutadas **una a una**, tras detectar
+que ejecutarlas en paralelo contra la base de datos compartida (decisión 046: no hay base de
+datos de test separada) produce un fallo de clave foránea espurio por condición de carrera entre
+suites que truncan y siembran la misma base — no un defecto real. Resultado final, secuencial:
+18/18 + 15/15 + 10/10 + 44/44, todo en verde.
 
 ---
 
@@ -1461,3 +1551,8 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-18 | 1.12 | Sesión de `sdd-apply` partida: WU1 (numPhotos) y WU2 (capa de consulta) completos y verificados en verde contra Postgres real (28/54 tareas), WU3 (página web) detenida a las 4/23 tareas — solo dos ayudantes puros, nada de la ruta ni los componentes de renderizado | Instrucción explícita de conservar cuota a mitad de sesión: mismo precedente que la fase 3 del 1.11 (Docker caído) — se registra el trabajo hecho en vez de forzar un cierre completo a medias. A diferencia del 1.11, aquí no hubo bloqueo de entorno: Docker estuvo sano toda la sesión. Se descubrió además un bloqueo real de infraestructura para el arnés `renderToStaticMarkup` del arbitraje AR-9 — Vite/Rolldown rechaza JSX en `.tsx` porque `apps/web/tsconfig.json` exige `jsx: "preserve"` para el propio pipeline de Next — diagnosticado con una prueba de humo aislada, no resuelto, sin ningún fichero roto dejado en el árbol. Dos correcciones de diseño detectadas solo por ejecución real, ninguna por `.toSQL()`: el build de `@buscahogar/core` (no solo `@buscahogar/db`) es requisito de orden antes de testear `apps/ingestion`; la proyección de anchor con `min(uuid)` que proponía el diseño no existe en ningún PostgreSQL — se usó el propio fallback `ORDER BY … LIMIT 1` que el diseño ya documentaba sin saber que era obligatorio. Detalle completo en Engram `sdd/property-detail-source-links/apply-progress`. |
 | 2026-09-19 | 1.12 | Sesión de `sdd-apply` reanudada: WU3 completo (23/23) y Fase 4 parcial. `Docker Desktop no estuvo disponible en esta máquina desde el arranque de la sesión`, así que las cuatro puertas fail-loud y la suite por defecto de `packages/db` no se pudieron re-ejecutar; se reporta como "no ejecutado", nunca como "en verde" | Mismo patrón que las fases bloqueadas por Docker de los pasos 1.2/1.3/1.7/1.11: se prioriza el trabajo que no depende de infraestructura (todo `apps/web`, que corre sobre node puro) y se deja constancia explícita de lo que queda sin re-confirmar. El bloqueo AR-9 heredado de la sesión anterior SÍ se resolvió, con presupuesto acotado: la clave correcta en Vite 8 (basado en Rolldown) es `oxc.jsx`, no `esbuild.jsx` — Vite 8 ignora las opciones de `esbuild` cuando `oxc` está presente, algo que el mensaje de aviso de la propia herramienta reveló al primer intento fallido. Verificado primero con una prueba de humo aislada (`<div>hello</div>` sin código de proyecto), antes de tocar ningún componente real — evitó re-diagnosticar el arnés desde dentro de un test con lógica de negocio. Un segundo hallazgo de infraestructura, menor: `vitest.config.ts` tampoco resuelve el alias `@/*` de `tsconfig.json` sin declararlo también en `resolve.alias` — ningún test lo había necesitado hasta que `page.tsx` (primer fichero bajo `test/**` que importa transitivamente algo con ese especificador) lo expuso. Detalle completo en `docs/AI-NOTES.md` y en Engram `sdd/property-detail-source-links/apply-progress` (revisión 4). |
 | 2026-09-19 | 1.12 | Sesión de `sdd-verify` (independiente de `sdd-apply`): re-ejecución de 814 tests contra Postgres real en máquina con Docker disponible. Veredicto: **PASS** (0 fallos, 0 saltados). El paso se archiva y cierra per obs #202. | Docker Desktop estuvo inactivo durante `sdd-apply` en esta máquina, impidiendo re-confirmar las cuatro puertas fail-loud; la fase de verificación las re-ejecutó de forma independiente con éxito completo. Todas las subconsultas correlacionadas verificadas EJECUTANDO (no `.toSQL()` solo); ambas rulings de arbitraje realizadas con código/fuente (obs #193/#194). La galería de imágenes no se implementa deliberadamente: Idealista partner docs inaccesibles, sin endpoint de detalle documentado ni términos legibles — obs #189 documenta la evidencia; es su propio paso futuro. Lo que se envía: carousel de una imagen por fuente + conteo de fotos (fechado) + enlace a cada anuncio. Dos MANUAL ACCEPTANCE items permanecen como residuales por diseño (carrusel sin JS, N=1 tono visual), no como brechas. |
+| 2026-09-21 | 1.13 | El tope por sesión que pide el enunciado del paso («y por sesión») **no se implementa, deliberadamente** — decisión de mantenimiento D5 | No existe ningún mecanismo de autenticación, cookie ni sesión en ningún punto del monorepo (grepado explícitamente: ningún paquete de sesión en ningún `package.json`, ningún middleware que lea una cookie). Un contador por proceso no significaría nada entre usuarios concurrentes reales. Publicar un tope que no hace nada, en silencio, es peor que no publicarlo y decirlo así. El presupuesto diario persistente (unidad B) sí es significativo y vive en la base de datos. |
+| 2026-09-21 | 1.13 | `sdd-spec` y `sdd-design` corrieron en paralelo y produjeron **cinco contradicciones reales**, arbitradas por el orquestador (obs #217) a favor del diseño en los cinco casos, siempre porque el diseño había leído el código real y la especificación había razonado desde la prosa de la propuesta | La más peligrosa, CR-15: bajo `ON CONFLICT DO NOTHING` como mecanismo de fusión del catálogo (tal y como lo daba por hecho la especificación), el escenario de Granada de la propia especificación habría **probado la regresión que debía impedir** — Granada conserva su fila pero nunca gana centroide, la única zona que funciona hoy deja de ser barrible en silencio, y el test habría pasado en verde. Detalle completo de las cinco reglas en Engram `sdd/on-demand-coverage/arbitration` (obs #217). |
+| 2026-09-21/22 | 1.13 | El ledger de intentos (`gentle-ai sdd-attempt`) bloqueó **dos veces** por contabilidad de líneas cambiadas, porque no se commiteó nada entre unidades de trabajo y cada intento nuevo se cobraba las líneas de las unidades ya terminadas | Requirió un `reset` autorizado explícitamente por el responsable del proyecto en ambas ocasiones. Lección para el proceso, registrada aquí para no repetirla: cada unidad de trabajo debe commitearse antes de adquirir el siguiente token de intento, no acumular varias unidades sin commitear en el mismo árbol de trabajo. |
+| 2026-09-22 | 1.13 | La unidad de trabajo D (interfaz web) cerró en aproximadamente **4.200 líneas** frente a una previsión de ~1.050 en el desglose de `sdd-tasks`; el alcance no se comprimió para ajustar la cifra | Cubierto por la `size:exception` ya aceptada para el cambio completo (`delivery_strategy: exception-ok`, obs #211). El presupuesto constriñe cómo se trocea el trabajo, nunca el propio código: recortar comentarios, tests o alcance real solo para acercarse a la cifra estimada habría sido peor que reportar la cifra real y por qué no baja más. |
+| 2026-09-22 | 1.13 | Las tareas 10.5 y 10.6 (aprovisionar el segundo rol de PostgreSQL `INSERT`-only sobre `coverage_jobs`, y ejecutar en verde el test de privilegio negativo que lo comprueba) quedan sin hacer; el paso se marca `[~]`, no `[x]` | Ningún agente tiene permiso para crear roles de PostgreSQL ni para leer o escribir `.env`. El test negativo (`apps/web/test/db/coverage-role-privileges.test.ts`, 7 casos) está escrito y gateado con `describeWithCoverageDb` (salta en silencio sin `WEB_COVERAGE_DATABASE_URL`, confirmado saltado esta sesión) pero **nunca se ha ejecutado en verde ni una sola vez** — su resultado real es desconocido hasta que el responsable del proyecto complete el aprovisionamiento. |

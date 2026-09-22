@@ -30,6 +30,48 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-19/22 — Cobertura bajo demanda (1.13), ciclo SDD completo en cuatro unidades de trabajo secuenciales
+
+**Tipo de tarea:** interfaz + consulta SQL + migración de esquema + worker/daemon + importador de
+datos geográficos + esquema Zod
+**Forma de especificación:** ciclo SDD completo — explore → research → propose → `sdd-spec` y
+`sdd-design` en paralelo → arbitraje del orquestador → `sdd-tasks` → `sdd-apply` en cuatro
+unidades secuenciales (catálogo → presupuesto → worker → interfaz web)
+**Resultado:** utilizable con retoques — una re-ejecución correctiva real (unidad B) y una ronda
+de arbitraje con cinco contradicciones reales entre especificación y diseño
+**Prompt:**
+
+> Implementa el mecanismo de cobertura bajo demanda de `docs/ARCHITECTURE.md`: resolución de la
+> ubicación introducida a un identificador canónico de zona, para que distintas formulaciones de
+> la misma zona no generen barridos duplicados; autocompletado de ubicación en la interfaz sobre
+> zonas canónicas, en lugar de texto libre; si la zona no está cubierta, se registra un
+> `coverage_job` y la interfaz muestra el estado del proceso hasta que termina; el worker consulta
+> `coverage_jobs` periódicamente y ejecuta barrido, normalización y deduplicación de la zona;
+> presupuesto diario de peticiones y tope de zonas nuevas por día y por sesión, con degradación
+> explícita al alcanzarlo.
+
+**Observación:** el cambio más grande del proyecto hasta la fecha, en cuatro paquetes a la vez y
+sin precedente propio para tres de sus piezas (importación geográfica masiva, worker de larga
+duración, presupuesto persistente entre invocaciones). `sdd-spec` y `sdd-design` se ejecutaron en
+paralelo y produjeron cinco contradicciones reales, no falsos conflictos, arbitradas por el
+orquestador (obs #217) a favor del diseño en los cinco casos — siempre porque el diseño había
+leído el código real y la especificación había razonado desde la prosa de la propuesta. La más
+seria (CR-15): el escenario de Granada que la especificación proponía habría probado la propia
+regresión que debía impedir bajo el mecanismo de fusión real del catálogo.
+
+La unidad B (presupuesto diario) necesitó una **re-ejecución correctiva real**, no cosmética: la
+verificación independiente del orquestador, antes de asentar el trabajo, encontró que el tope no
+se aplicaba en la primera reserva de cada día UTC — el propio hueco ya estaba en el SQL literal
+del diseño (DD-12), no solo en la implementación. Corregido con evidencia contra Postgres real,
+incluido un segundo defecto anidado (comparación de parámetros sin tipar como texto) hallado al
+probar la primera corrección. Detalle completo en `docs/AI-NOTES.md`, misma fecha.
+
+Las cuatro unidades quedan completas salvo dos tareas exclusivas del responsable del proyecto
+(aprovisionar un segundo rol de PostgreSQL y ejecutar el test que lo comprueba), por lo que el
+paso se cierra en `[~]`, no `[x]`, y `sdd-verify` queda como siguiente fase. Detalle de tareas,
+evidencia TDD y desviaciones por unidad en Engram: `sdd/on-demand-coverage/tasks` (obs #219),
+`apply-progress` (obs #220), `apply-progress-2` (obs #223), `apply-progress-3` (obs #226).
+
 ### 2026-09-17 — Búsqueda y listado en Next (1.11), cierre: ejecutar la aplicación encuentra lo que 715 tests en verde no encontraban
 
 **Tipo de tarea:** corrección + test
