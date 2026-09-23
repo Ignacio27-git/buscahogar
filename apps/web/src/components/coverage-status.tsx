@@ -19,7 +19,7 @@ import { useRouter } from 'next/navigation';
 
 import type { CoverageJobState } from '@buscahogar/db';
 
-import { REFRESH_INTERVAL_MS, shouldKeepRefreshing } from './coverage-status-policy.js';
+import { REFRESH_INTERVAL_MS, shouldKeepRefreshing } from './coverage-status-policy';
 
 export interface CoverageStatusProps {
   readonly job: CoverageJobState;

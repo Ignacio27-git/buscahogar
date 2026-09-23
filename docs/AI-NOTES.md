@@ -40,6 +40,43 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-23 — `pnpm typecheck` en verde no prueba que la app compile: cuatro unidades de aplicación y un cierre de documentación nunca ejecutaron `pnpm build`
+
+**Contexto:** paso 1.13, corrección posterior a `sdd-verify` (obs #231, hallazgo C1) —
+`apps/web/src/components/coverage-status.tsx` importaba `./coverage-status-policy.js`, pero el
+fichero real en disco es `coverage-status-policy.ts`.
+**Categoría:** código correcto en apariencia pero incorrecto; hueco en la propia secuencia de
+puertas de calidad del proyecto, no en el código verificado por ellas.
+
+**Qué ocurrió:** el especificador `.js` sobre un fichero `.ts` es válido para la resolución de
+módulos `bundler`/`NodeNext` de TypeScript — `tsc --noEmit` lo tolera y lo mapea al `.ts` real,
+así que `pnpm typecheck` salía en verde. Turbopack, el bundler real que usa `next build`, no
+hace esa tolerancia: resuelve contra el sistema de ficheros tal cual, y `Cant resolve
+./coverage-status-policy.js` hace fallar la build de producción en seco. El defecto sobrevivió
+cuatro unidades de aplicación completas (A-D) y una sesión de cierre de documentación —
+`docs/ROADMAP.md`, `apply-progress` 1-4 — todas reportando "todas las puertas en verde", porque
+ninguna ejecutó `pnpm build` (workspace completo): solo se ejecutaba
+`pnpm --filter @buscahogar/db run build`, que nunca toca `next build`.
+
+**Cómo se detectó:** `sdd-verify` (obs #231) ejecutó `pnpm build` explícitamente, algo que
+ninguna sesión de aplicación anterior había hecho, y lo reprodujo de forma determinista dos
+veces.
+
+**Cómo se resolvió:** una línea — se retiró la extensión `.js` del import relativo, alineando el
+fichero con la convención ya existente en `apps/web/src` (todo import relativo local es sin
+extensión; `packages/*` es la única excepción legítima, por resolución `NodeNext`). No se movió
+ni se creó ningún fichero.
+
+**Observación:** `pnpm typecheck` y `pnpm build` verifican cosas distintas — el primero, tipos;
+el segundo, que el grafo de módulos real resuelva bajo el bundler de producción. Un typecheck en
+verde nunca es evidencia de que la app compile. El propio comando `pnpm build` ya existe en la
+raíz (`"build": "pnpm -r build"`), pero no hay en este repositorio ni configuración de CI ni un
+script agregado ni una lista de comprobación documentada que lo incluya junto a `lint`/
+`typecheck`/`test` como secuencia estándar — no existe ningún sitio natural al que
+"engancharlo" automáticamente. Regla para toda sesión de aplicación o de cierre de este
+proyecto: `pnpm build` (workspace completo) es una puerta obligatoria más, nunca sustituible por
+`pnpm --filter @buscahogar/db run build` ni por `pnpm typecheck`.
+
 ### 2026-09-22 — Una cadena de conexión en `.env.local` no es un rol de PostgreSQL: verificado directamente contra la base, el segundo rol de la unidad D nunca se creó
 
 **Contexto:** cierre del paso 1.13, tareas 10.5/10.6 (segundo rol `INSERT`-only sobre
