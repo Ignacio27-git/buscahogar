@@ -10,7 +10,7 @@
 // `apps/web` ni `apps/ingestion` (por eso no se exporta desde `src/index.ts`).
 import { fileURLToPath } from 'node:url';
 
-import { eq } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 
 import { mergeCatalogues } from './catalogue-merge.js';
 import { createDb } from './db.js';
@@ -56,40 +56,80 @@ export async function seedReferenceData(
   db: Database,
   catalogue: readonly MunicipalitySeed[] = DEFAULT_CATALOGUE
 ): Promise<void> {
+  // COVERAGE-8a: la validación ocurre ANTES de abrir la transacción, así que
+  // un catálogo inválido no llega a escribir nada, ni siquiera `sources`.
   catalogue.forEach(assertValidMunicipality);
+
+  // ROADMAP 1.13 — el catálogo por defecto pasó de 1 entrada a 8132 al
+  // importar el NGMEP real. El bucle original hacía TRES viajes por
+  // municipio (insert → select id → insert), ~24 000 en total: ~25 s de
+  // reloj, por encima de los tiempos de vitest y con la transacción en vuelo
+  // bloqueando el `TRUNCATE` del test siguiente. Se inserta por lotes.
+  //
+  // El tamaño de lote existe por el límite del protocolo de PostgreSQL:
+  // 65 535 parámetros por sentencia. `locations` liga 8 columnas por fila,
+  // así que 8132 filas de golpe serían ~65 000 parámetros — justo en el
+  // borde. 500 filas por lote deja margen de sobra sin renunciar al
+  // rendimiento.
+  const BATCH_SIZE = 500;
 
   await db.transaction(async (tx) => {
     await tx.insert(sources).values({ key: 'idealista', name: 'Idealista', kind: 'api' }).onConflictDoNothing({
       target: sources.key,
     });
 
-    for (const entry of catalogue) {
+    if (catalogue.length === 0) {
+      return;
+    }
+
+    const filas = catalogue.map((entry) => ({
+      ineCode: entry.ineCode,
+      municipality: entry.municipality,
+      province: entry.province,
+      provinceCode: entry.provinceCode,
+      autonomousCommunity: entry.autonomousCommunity,
+      // ROADMAP 1.13 (DD-1) — nulo si la entrada no trae centroide
+      // (catalogación manual sin coordenada, o fila del catálogo importado
+      // que no pasó la puerta de cordura). `ON CONFLICT DO NOTHING` sigue
+      // sirviendo solo para la idempotencia del re-seed (arbitraje CR-15):
+      // la fusión con el catálogo hand-cited es responsabilidad de
+      // `mergeCatalogues`, no de esta cláusula.
+      centroid: entry.centroid ? geographyPointWkt(entry.centroid) : null,
+      sweepRadiusM: entry.sweepRadiusM ?? null,
+      searchName: entry.searchName,
+    }));
+
+    for (let i = 0; i < filas.length; i += BATCH_SIZE) {
       await tx
         .insert(locations)
-        .values({
-          ineCode: entry.ineCode,
-          municipality: entry.municipality,
-          province: entry.province,
-          provinceCode: entry.provinceCode,
-          autonomousCommunity: entry.autonomousCommunity,
-          // ROADMAP 1.13 (DD-1) — nulo si la entrada no trae centroide
-          // (catalogación manual sin coordenada, o fila del catálogo
-          // importado que no pasó la puerta de cordura). `ON CONFLICT DO
-          // NOTHING` sigue sirviendo solo para la idempotencia del re-seed
-          // (arbitraje CR-15) — la fusión con el catálogo hand-cited es
-          // responsabilidad de `mergeCatalogues`, no de esta cláusula.
-          centroid: entry.centroid ? geographyPointWkt(entry.centroid) : null,
-          sweepRadiusM: entry.sweepRadiusM ?? null,
-          searchName: entry.searchName,
-        })
+        .values(filas.slice(i, i + BATCH_SIZE))
         .onConflictDoNothing({ target: locations.ineCode });
+    }
 
-      const [location] = await tx.select({ id: locations.id }).from(locations).where(eq(locations.ineCode, entry.ineCode));
-      if (!location) {
-        throw new Error(`No se pudo resolver locations.id para ine_code="${entry.ineCode}" recién sembrado.`);
-      }
+    // Los ids se resuelven en bloque: una fila por `ine_code` del catálogo,
+    // tanto las recién insertadas como las que ya existían por un re-seed.
+    const codigos = catalogue.map((entry) => entry.ineCode);
+    const encontradas: { id: string; ineCode: string }[] = [];
+    for (let i = 0; i < codigos.length; i += BATCH_SIZE) {
+      const lote = await tx
+        .select({ id: locations.id, ineCode: locations.ineCode })
+        .from(locations)
+        .where(inArray(locations.ineCode, codigos.slice(i, i + BATCH_SIZE)));
+      encontradas.push(...lote);
+    }
 
-      await tx.insert(zones).values({ locationId: location.id }).onConflictDoNothing({ target: zones.locationId });
+    const idPorCodigo = new Map(encontradas.map((fila) => [fila.ineCode, fila.id]));
+    const faltante = codigos.find((codigo) => !idPorCodigo.has(codigo));
+    if (faltante !== undefined) {
+      throw new Error(`No se pudo resolver locations.id para ine_code="${faltante}" recién sembrado.`);
+    }
+
+    const zonasNuevas = codigos.map((codigo) => ({ locationId: idPorCodigo.get(codigo) as string }));
+    for (let i = 0; i < zonasNuevas.length; i += BATCH_SIZE) {
+      await tx
+        .insert(zones)
+        .values(zonasNuevas.slice(i, i + BATCH_SIZE))
+        .onConflictDoNothing({ target: zones.locationId });
     }
   });
 }

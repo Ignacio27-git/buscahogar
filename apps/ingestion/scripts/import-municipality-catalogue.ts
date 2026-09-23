@@ -1,64 +1,69 @@
-// ROADMAP 1.13 (diseño DD-3, "Data flow") — composition root del conversor
-// del catálogo municipal. Humano-ejecutado, una sola vez, offline (A-2): lee
-// los dos ficheros LOCALES (nunca red — `apps/ingestion/test/setup-no-network.ts`
+// ROADMAP 1.13 (diseño DD-3, "Data flow") + adaptación al fichero real
+// (continuación 1.13) — composition root del conversor del catálogo
+// municipal. Humano-ejecutado, una sola vez, offline (A-2): lee los dos
+// ficheros LOCALES (nunca red — `apps/ingestion/test/setup-no-network.ts`
 // haría lanzar cualquier intento de `fetch` en el conjunto de tests, pero
 // este script ni siquiera lo intenta), decodifica con la codificación
 // declarada explícitamente (R7 — nunca asumida `,`/UTF-8 por defecto), y
 // cablea las piezas PURAS ya probadas por separado
-// (ngmep-parse/ine-register/join/sanity/geo/provenance/import-report) sin
-// lógica propia más allá del propio cableado.
+// (ngmep-parse/provincias-parse/join/sanity/geo/provenance/import-report)
+// sin lógica propia más allá del propio cableado.
 //
 // Sin test dedicado — mismo precedente que `scripts/sweep-zone.ts:9-15`: es
 // el shell de orquestación de módulos que YA están testeados por separado.
 //
-// R7, precondición de APLICACIÓN que ningún agente puede saltarse: antes de
-// rellenar `NGMEP_FIELD_MAP`/`INE_REGISTER_FIELD_MAP` con los nombres reales
-// de columna, el operador verifica contra el fichero real en mano:
-//   1. presencia/ausencia de una columna de código INE de 5 dígitos;
-//   2. la ortografía exacta de la cabecera;
-//   3. si latitud/longitud vienen en grados decimales o en DMS (este script
-//      asume SIEMPRE grados decimales — si el fichero real usa DMS, el
-//      parser de coordenadas debe extenderse antes de ejecutar contra datos
-//      reales, nunca asumir la conversión);
-//   4. el delimitador y la codificación reales.
+// R7, resuelto contra `docs/BD_Municipios-Entidades/MUNICIPIOS.csv` +
+// `PROVINCIAS.csv` (202603_NGMEP.mdb, IGN/CNIG, marzo 2026): `NGMEP_FIELD_MAP`
+// y `PROVINCIAS_FIELD_MAP` ya llevan la cabecera real. Diccionario26.xlsx
+// (INE, "Relación de municipios y códigos... a 1 de enero de 2026") queda
+// deliberadamente SIN usar aquí: es redundante para construir el catálogo —
+// `MUNICIPIOS.csv` ya trae código, nombre y provincia — y no se referencia
+// como segunda fuente de verdad porque cruzarlo añadiría una dependencia sin
+// aportar una comprobación que `PROVINCIAS.csv` (comunidad autónoma) o el
+// propio guarda de 5 dígitos (join.ts) no cubran ya.
+//
+// `join.ts` (adaptación real) ya no desambigua tiers: `MUNICIPIOS.csv` es
+// una fila por municipio, así que cada fila de entrada es, en los términos
+// del diseño original, su propia fila "tier-1" (autoritativa, sin hermanas
+// que comparar) — de ahí `tier: 'tier-1'`, `siblingCoordinates: []`
+// constantes al llamar a `checkSanity`.
 //
 // Límite declarado y no fabricado (mismo principio que R7): este script NO
 // trae una tabla de cajas delimitadoras provinciales — verificar 52 límites
 // geográficos reales está fuera del alcance de lo que este proyecto puede
 // comprobar sin arriesgarse a fabricar un dato incorrecto. `provinceBounds`
-// se recibe vacío por defecto (la comprobación de provincia se OMITE para
-// cada municipio, nunca se adivina) y el operador puede rellenarlo por
-// provincia cuando disponga de una fuente verificable.
+// se recibe vacío por defecto (esa mitad de la comprobación de provincia se
+// sigue OMITIENDO para cada municipio); la otra mitad — `COD_PROV`
+// declarado frente al prefijo del código derivado — SÍ se activa, con
+// `PROVINCIAS.csv` como tabla maestra (sanity.ts, 'province-code-mismatch').
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { deriveSweepRadiusM, RADIUS_CEILING_M, RADIUS_FLOOR_M } from '../src/catalogue/geo.js';
-import { INE_REGISTER_FIELD_MAP, parseIneRegisterCsv } from '../src/catalogue/ine-register.js';
-import type { IneRegisterFieldMap } from '../src/catalogue/ine-register.js';
 import { buildImportReport } from '../src/catalogue/import-report.js';
 import { joinCatalogue } from '../src/catalogue/join.js';
-import type { MunicipalityTier } from '../src/catalogue/join.js';
 import { NGMEP_FIELD_MAP, parseNgmepCsv } from '../src/catalogue/ngmep-parse.js';
 import type { NgmepFieldMap } from '../src/catalogue/ngmep-parse.js';
 import { buildProvenanceHeader } from '../src/catalogue/provenance.js';
 import type { ProvenanceHeader } from '../src/catalogue/provenance.js';
+import { PROVINCIAS_FIELD_MAP, parseProvinciasCsv } from '../src/catalogue/provincias-parse.js';
+import type { ProvinciasFieldMap } from '../src/catalogue/provincias-parse.js';
 import { checkSanity } from '../src/catalogue/sanity.js';
 import type { BoundingBox } from '../src/catalogue/sanity.js';
 
 export interface ImportMunicipalityCatalogueOptions {
   readonly ngmepPath: string;
-  readonly ineRegisterPath: string;
+  readonly provinciasPath: string;
   readonly outputPath: string;
   readonly delimiter: string;
   readonly encoding: BufferEncoding;
   readonly downloadDate: string;
   readonly sourceUrls: readonly string[];
   readonly sourceCrsString: string;
-  readonly ineCodeWidth?: 5 | 6;
   readonly provinceBounds?: Readonly<Record<string, BoundingBox>>;
   readonly ngmepFieldMap?: NgmepFieldMap;
-  readonly ineRegisterFieldMap?: IneRegisterFieldMap;
+  readonly provinciasFieldMap?: ProvinciasFieldMap;
 }
 
 interface ResolvedMunicipality {
@@ -68,7 +73,6 @@ interface ResolvedMunicipality {
   readonly provinceCode: string;
   readonly autonomousCommunity: string;
   readonly searchName: string;
-  readonly tier: MunicipalityTier;
   readonly centroid: { readonly latitude: number; readonly longitude: number } | null;
   readonly sweepRadiusM: number | null;
 }
@@ -82,28 +86,20 @@ export function importMunicipalityCatalogue(options: ImportMunicipalityCatalogue
   readonly provenance: ProvenanceHeader;
 } {
   const ngmepText = readFileSync(options.ngmepPath, { encoding: options.encoding });
-  const ineText = readFileSync(options.ineRegisterPath, { encoding: options.encoding });
+  const provinciasText = readFileSync(options.provinciasPath, { encoding: options.encoding });
 
-  const ngmepRows = parseNgmepCsv(ngmepText, options.delimiter, options.ngmepFieldMap ?? NGMEP_FIELD_MAP);
-  const ineRows = parseIneRegisterCsv(ineText, options.delimiter, options.ineRegisterFieldMap ?? INE_REGISTER_FIELD_MAP);
+  const municipioRows = parseNgmepCsv(ngmepText, options.delimiter, options.ngmepFieldMap ?? NGMEP_FIELD_MAP);
+  const provinciaRows = parseProvinciasCsv(
+    provinciasText,
+    options.delimiter,
+    options.provinciasFieldMap ?? PROVINCIAS_FIELD_MAP
+  );
 
-  const { municipalities, truncatedCount } = joinCatalogue(ineRows, ngmepRows, {
-    ineCodeWidth: options.ineCodeWidth ?? 5,
-  });
+  const joined = joinCatalogue(municipioRows, provinciaRows);
 
-  let tier1Count = 0;
-  let tier2Count = 0;
-  let tier3Count = 0;
-  let unmatchedCount = 0;
-  let spreadGuardDrops = 0;
   let sanityGateDrops = 0;
 
-  const resolved: ResolvedMunicipality[] = municipalities.map((candidate) => {
-    if (candidate.tier === 'tier-1') tier1Count += 1;
-    else if (candidate.tier === 'tier-2') tier2Count += 1;
-    else if (candidate.tier === 'tier-3') tier3Count += 1;
-    else unmatchedCount += 1;
-
+  const resolved: ResolvedMunicipality[] = joined.map((candidate) => {
     const base = {
       ineCode: candidate.ineCode,
       municipality: candidate.municipality,
@@ -111,31 +107,28 @@ export function importMunicipalityCatalogue(options: ImportMunicipalityCatalogue
       provinceCode: candidate.provinceCode,
       autonomousCommunity: candidate.autonomousCommunity,
       searchName: candidate.searchName,
-      tier: candidate.tier,
     };
 
-    if (candidate.centroidCandidate === null) {
-      return { ...base, centroid: null, sweepRadiusM: null };
-    }
-
     const provinceBounds = options.provinceBounds?.[candidate.provinceCode] ?? null;
-    // DD-4: la guarda de esparcimiento solo aplica a tier-2/tier-3;
-    // checkSanity ya lo sabe por el campo `tier` — 'unmatched' nunca llega
-    // aquí (ya se filtró por centroidCandidate === null arriba).
     const sanity = checkSanity({
-      tier: candidate.tier === 'tier-1' ? 'tier-1' : candidate.tier === 'tier-2' ? 'tier-2' : 'tier-3',
+      // MUNICIPIOS.csv es una fila por municipio: cada fila es, en los
+      // términos del diseño original, su propia fila autoritativa — nunca
+      // hay hermanas que comparar (la guarda de esparcimiento queda inerte
+      // aquí a propósito, igual que provinceBounds).
+      tier: 'tier-1',
       centroid: candidate.centroidCandidate,
-      siblingCoordinates: candidate.siblingCoordinates,
+      siblingCoordinates: [],
       provinceBounds,
+      declaredProvinceCode: candidate.declaredProvinceCode,
+      expectedProvinceCode: candidate.expectedProvinceCode,
     });
 
     if (!sanity.passed) {
-      if (sanity.reason === 'spread-guard') spreadGuardDrops += 1;
-      else sanityGateDrops += 1;
+      sanityGateDrops += 1;
       return { ...base, centroid: null, sweepRadiusM: null };
     }
 
-    const sweepRadiusM = deriveSweepRadiusM(candidate.centroidCandidate, candidate.siblingCoordinates);
+    const sweepRadiusM = deriveSweepRadiusM(candidate.superficieHectares);
     return { ...base, centroid: candidate.centroidCandidate, sweepRadiusM };
   });
 
@@ -144,24 +137,28 @@ export function importMunicipalityCatalogue(options: ImportMunicipalityCatalogue
   const provenance = buildProvenanceHeader({
     sourceUrls: options.sourceUrls,
     downloadDate: options.downloadDate,
-    sourceFileNames: [options.ngmepPath, options.ineRegisterPath],
-    sourceSha256: [sha256Hex(ngmepText), sha256Hex(ineText)],
+    sourceFileNames: [options.ngmepPath, options.provinciasPath],
+    sourceSha256: [sha256Hex(ngmepText), sha256Hex(provinciasText)],
     sourceCrsString: options.sourceCrsString,
     delimiter: options.delimiter,
     encoding: options.encoding,
-    inputRowCount: ineRows.length,
+    inputRowCount: municipioRows.length,
     emittedRowCount: resolved.length,
     centroidCount: report.centroidCount,
     centroidlessCount: report.centroidlessCount,
-    tier1Count,
-    tier2Count,
-    tier3Count,
-    unmatchedCount,
-    spreadGuardDrops,
+    // Adaptación real: MUNICIPIOS.csv ya es una fila por municipio, así que
+    // cada una es su propia fila "tier-1" (join.ts ya no resuelve niveles) —
+    // estos campos de procedencia se conservan por compatibilidad con
+    // provenance.ts, ahora como una medición constante, no una resolución.
+    tier1Count: resolved.length,
+    tier2Count: 0,
+    tier3Count: 0,
+    unmatchedCount: 0,
+    spreadGuardDrops: 0,
     sanityGateDrops,
     radiusFloorM: RADIUS_FLOOR_M,
     radiusCeilingM: RADIUS_CEILING_M,
-    importerVersion: '1.0.0',
+    importerVersion: '2.0.0',
   });
 
   if (report.centroidlessCount > 0) {
@@ -173,9 +170,6 @@ export function importMunicipalityCatalogue(options: ImportMunicipalityCatalogue
       `Import: ${String(report.centroidlessCount)} municipios sin centroide de ${String(report.totalRows)} — ` +
         `códigos INE: ${report.centroidlessIneCodes.join(', ')}`
     );
-  }
-  if (truncatedCount > 0) {
-    console.log(`Import: ${String(truncatedCount)} código(s) INE de 6 dígitos truncados por --ine-code-width=6`);
   }
 
   writeFileSync(options.outputPath, renderGeneratedCatalogueFile(resolved, provenance), 'utf8');
@@ -200,7 +194,7 @@ function renderMunicipalityLiteral(row: ResolvedMunicipality): string {
     `    searchName: ${JSON.stringify(row.searchName)},\n` +
     `    centroid: ${centroidLiteral},\n` +
     `    sweepRadiusM: ${sweepRadiusLiteral},\n` +
-    `    source: ${JSON.stringify(`NGMEP/INE, tier=${row.tier}, importado ${new Date().toISOString().slice(0, 10)}`)},\n` +
+    `    source: ${JSON.stringify(`NGMEP/INE, tier=tier-1, importado ${new Date().toISOString().slice(0, 10)}`)},\n` +
     `  },`
   );
 }
@@ -212,7 +206,7 @@ function renderMunicipalityLiteral(row: ResolvedMunicipality): string {
 function renderGeneratedCatalogueFile(rows: readonly ResolvedMunicipality[], provenance: ProvenanceHeader): string {
   const header =
     `// GENERADO — apps/ingestion/scripts/import-municipality-catalogue.ts (ROADMAP 1.13, DD-2/DD-6).\n` +
-    `// NO editar a mano: vuelve a ejecutar el conversor contra el fichero fuente.\n` +
+    `// NO editar a mano: vuelve a ejecutar el conversor contra los ficheros fuente reales.\n` +
     `//\n` +
     `// Procedencia:\n` +
     `//   fuentes: ${provenance.sourceUrls.join(', ')}\n` +
@@ -223,19 +217,17 @@ function renderGeneratedCatalogueFile(rows: readonly ResolvedMunicipality[], pro
     `//   delimitador/codificación: "${provenance.delimiter}" / ${provenance.encoding}\n` +
     `//   filas de entrada/emitidas: ${String(provenance.inputRowCount)} / ${String(provenance.emittedRowCount)}\n` +
     `//   con centroide / sin centroide: ${String(provenance.centroidCount)} / ${String(provenance.centroidlessCount)}\n` +
-    `//   tier 1/2/3/sin emparejar: ${String(provenance.tier1Count)} / ${String(provenance.tier2Count)} / ` +
-    `${String(provenance.tier3Count)} / ${String(provenance.unmatchedCount)}\n` +
-    `//   descartes por guarda de esparcimiento / puerta de cordura: ${String(provenance.spreadGuardDrops)} / ` +
-    `${String(provenance.sanityGateDrops)}\n` +
+    `//   descartes por puerta de cordura: ${String(provenance.sanityGateDrops)}\n` +
     `//   radio suelo/techo (m): ${String(provenance.radiusFloorM)} / ${String(provenance.radiusCeilingM)}\n` +
     `//   ${provenance.attribution}\n` +
     `import type { MunicipalitySeed } from './seed-data.js';\n\n` +
     `export const IMPORTED_MUNICIPALITY_CATALOGUE: readonly MunicipalitySeed[] = [\n`;
 
-  const body = rows
-    .filter((row) => row.tier !== 'unmatched') // Q2: una fila sin ninguna entidad NGMEP hermana no aporta coordenada ni fuente citable — se reporta (import-report), no se siembra.
-    .map(renderMunicipalityLiteral)
-    .join('\n');
+  // Adaptación real: ya no existe la fila 'unmatched' del diseño original
+  // (MUNICIPIOS.csv es una fila por municipio, siempre con su propia
+  // coordenada) — cada fila de entrada se emite, con o sin centroide según
+  // la puerta de cordura.
+  const body = rows.map(renderMunicipalityLiteral).join('\n');
 
   return `${header}${body}\n];\n`;
 }
@@ -250,18 +242,18 @@ function main(): void {
   };
 
   const ngmepPath = get('ngmep');
-  const ineRegisterPath = get('ine-register');
+  const provinciasPath = get('provincias');
   const outputPath = get('output') ?? '../../packages/db/src/municipality-catalogue.generated.ts';
   const delimiter = get('delimiter') ?? ';';
   const encoding = (get('encoding') ?? 'latin1') as BufferEncoding;
   const downloadDate = get('download-date');
   const sourceCrsString = get('source-crs');
-  const ineCodeWidthArg = get('ine-code-width');
 
-  if (!ngmepPath || !ineRegisterPath || !downloadDate || !sourceCrsString) {
+  if (!ngmepPath || !provinciasPath || !downloadDate || !sourceCrsString) {
     console.error(
-      'Uso: import-municipality-catalogue --ngmep=<path> --ine-register=<path> --download-date=<YYYY-MM-DD> ' +
-        '--source-crs=<cadena verbatim> [--output=<path>] [--delimiter=;] [--encoding=latin1] [--ine-code-width=5|6]'
+      'Uso: import-municipality-catalogue --ngmep=<path a MUNICIPIOS.csv> --provincias=<path a PROVINCIAS.csv> ' +
+        '--download-date=<YYYY-MM-DD> --source-crs=<cadena verbatim> [--output=<path>] [--delimiter=;] ' +
+        '[--encoding=latin1]'
     );
     process.exitCode = 2;
     return;
@@ -269,14 +261,13 @@ function main(): void {
 
   importMunicipalityCatalogue({
     ngmepPath,
-    ineRegisterPath,
+    provinciasPath,
     outputPath,
     delimiter,
     encoding,
     downloadDate,
-    sourceUrls: [ngmepPath, ineRegisterPath],
+    sourceUrls: [ngmepPath, provinciasPath],
     sourceCrsString,
-    ...(ineCodeWidthArg === '6' ? { ineCodeWidth: 6 as const } : {}),
   });
 }
 

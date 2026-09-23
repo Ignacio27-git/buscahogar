@@ -909,3 +909,56 @@ exactamente 4 cifras (regla CLDR "min2") — `result-card.tsx` usa el mismo patr
 que la sesión anterior dejó pendientes para `docs/AI-NOTES.md`, más estas tres nuevas, están
 escritas allí. Detalle completo en Engram `sdd/property-detail-source-links/apply-progress`
 (revisión 4).
+
+---
+
+### 2026-09-23 — Adaptación del conversor de catálogo municipal al fichero NGMEP real (paso 1.13, continuación), implementación directa
+
+**Tipo de tarea:** implementación directa (no SDD) — sub-agente delegado, alcance explícito y
+cerrado en el propio prompt, sin fases de propuesta/diseño/tareas
+**Forma de especificación:** prompt largo, muy prescriptivo, con la cabecera y fila de muestra
+del fichero real verbatim, la fórmula exacta del radio, y coordenadas de referencia a verificar
+**Resultado:** con retoques — conversor adaptado y catálogo real importado (8132/8132
+municipios, 0 sin centroide), gates de código (`build`/`lint`/`typecheck`/las cuatro suites
+Docker) en verde, pero `pnpm -r test` global queda en ROJO por un hallazgo real y no corregido
+en `packages/db/test/seed.test.ts` (ver abajo y la tabla de desviaciones de ROADMAP 1.13)
+
+**Prompt:** adaptar `apps/ingestion/src/catalogue/*` a `MUNICIPIOS.csv`/`PROVINCIAS.csv` reales
+(entregados por el responsable del proyecto, antes solo existían como fixtures), con énfasis
+explícito en un detalle crítico verificable de antemano: el fichero usa coma decimal en
+coordenadas y superficie, que `parseFloat`/`Number` truncan o rechazan mal en silencio. Pedía
+test-first para esa pieza antes de tocar el parser, eliminar o sustituir la lógica de
+desambiguación ES/NUC (ya no aplica: el fichero real es una fila por municipio), derivar el
+radio de barrido de la superficie publicada en vez de estimarlo, activar la comprobación de
+`COD_PROV`, correr el import real, re-sembrar la base de datos desde cero, y verificar contra
+coordenadas reales conocidas (Granada obligatoria, dos más a elección).
+
+**Observación.** El detalle crítico se confirmó real: `Number('-2,512507724')` da `NaN` (no
+`-2` como predecía el prompt con `parseFloat`, pero el riesgo de fondo — coma mal interpretada
+— era el mismo); `apps/ingestion/src/catalogue/numeric.ts` (`parseCommaDecimal`) se escribió
+test-first, RED confirmado (módulo inexistente) antes de existir. El resto de la adaptación
+(`ngmep-parse.ts`, `provincias-parse.ts` nuevo, `join.ts`, `geo.ts`, `sanity.ts`, composition
+root) se hizo test-first módulo a módulo, con RED confirmado en `geo.ts`/`sanity.ts`/`join.ts`
+reescribiendo primero el test contra la implementación vieja y viéndolo fallar por el motivo
+correcto (firma incompatible o comprobación ausente) antes de reescribir el módulo. Única
+desviación de disciplina TDD estricta, reconocida explícitamente: `ngmep-parse.ts` se editó
+(cabecera/tipo nuevos) antes de escribir su test reescrito, así que no hay una confirmación RED
+independiente para ese módulo — su corrección se apoya en que `numeric.ts`, del que depende,
+ya estaba en GREEN, y en el resultado final (6/6 tests, import real correcto). El detalle más
+importante del prompt (Granada ≈ -3.60/37.18) se confirmó exacto (-3.598691013/37.17428891),
+igual que los dos spot-checks elegidos (A Coruña, Donostia/San Sebastián, ambos con encoding
+Latin-1 verificado end-to-end hasta PostgreSQL). `docs/diccionario26.xlsx` se juzgó redundante
+(estructura inspeccionada: `CODAUTO;CPRO;CMUN;DC;NOMBRE`, sin cruce exhaustivo de las 8132
+filas) — decisión 070. **Hallazgo real no anticipado por el prompt:** poblar
+`DEFAULT_CATALOGUE` con 8132 filas reales (antes 1 fila placeholder) expone un cuello de
+botella preexistente en `packages/db/src/seed.ts` — inserción fila a fila, ~24k idas y vueltas
+secuenciales dentro de una transacción — que excede los timeouts por defecto de vitest en
+`packages/db/test/seed.test.ts` y produce un deadlock real de PostgreSQL en cascada. Confirmado
+aislado a ese único fichero (ningún otro test llama a `seedReferenceData()` sin catálogo
+explícito); no corregido, por estar fuera del alcance acotado del conversor — reportado como
+hallazgo, no ocultado ni parcheado con un cambio de `seed.ts` no solicitado. El presupuesto de
+~600 líneas se superó (~1078 líneas hand-authored, sin contar el artefacto generado de 8132
+filas ni los datos crudos): el fichero real resultó más simple en un eje (una fila por
+municipio, sin niveles que resolver) y exigió más módulos nuevos de los previstos (`numeric.ts`,
+`provincias-parse.ts`) en otro. Detalle completo, decisiones 070, y tabla de desviaciones en
+`docs/ROADMAP.md`, paso 1.13.

@@ -103,4 +103,47 @@ describe('checkSanity (CR-11, DD-4, DD-5) — un único camino de código para l
   it('SPAIN_BBOX incluye Canarias (longitud mínima más occidental que la península)', () => {
     expect(SPAIN_BBOX.minLon).toBeLessThan(-9);
   });
+
+  // Adaptación al fichero real (continuación 1.13) — mitad de la puerta de
+  // cordura que llevaba inerte desde que se escribió: antes no existía
+  // ninguna tabla de provincias contra la que comprobar `COD_PROV`. Ahora
+  // `PROVINCIAS.csv` la aporta, así que se activa: el `COD_PROV` declarado
+  // por la fila de MUNICIPIOS.csv debe coincidir con el prefijo de 2 dígitos
+  // del código de municipio ya derivado (join.ts). Es una comprobación de
+  // INTEGRIDAD de datos (comparación de strings), no geográfica — por eso
+  // es ortogonal a `provinceBounds` (que sigue inerte: sin cajas
+  // delimitadoras reales de las 52 provincias, nunca fabricadas).
+  it('COD_PROV declarado distinto del prefijo del código derivado: falla con reason="province-code-mismatch"', () => {
+    const result = checkSanity({
+      tier: 'tier-1',
+      centroid: GRANADA,
+      siblingCoordinates: [],
+      provinceBounds: null,
+      declaredProvinceCode: '29', // Málaga, pero el código derivado es 18087 (Granada)
+      expectedProvinceCode: '18',
+    });
+    expect(result).toEqual({ passed: false, reason: 'province-code-mismatch' });
+  });
+
+  it('COD_PROV declarado coincide con el prefijo derivado: pasa', () => {
+    const result = checkSanity({
+      tier: 'tier-1',
+      centroid: GRANADA,
+      siblingCoordinates: [],
+      provinceBounds: null,
+      declaredProvinceCode: '18',
+      expectedProvinceCode: '18',
+    });
+    expect(result).toEqual({ passed: true, reason: null });
+  });
+
+  it('sin declaredProvinceCode/expectedProvinceCode (compatibilidad hacia atrás): la comprobación se OMITE, nunca se adivina', () => {
+    const result = checkSanity({
+      tier: 'tier-1',
+      centroid: GRANADA,
+      siblingCoordinates: [],
+      provinceBounds: null,
+    });
+    expect(result).toEqual({ passed: true, reason: null });
+  });
 });

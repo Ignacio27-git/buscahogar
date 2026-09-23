@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { mergeCatalogues } from '../src/catalogue-merge.js';
+import { IMPORTED_MUNICIPALITY_CATALOGUE } from '../src/municipality-catalogue.generated.js';
 import { MUNICIPALITY_CATALOGUE } from '../src/seed-data.js';
 import type { MunicipalitySeed } from '../src/seed-data.js';
 
@@ -93,5 +94,31 @@ describe('mergeCatalogues (DD-2, CR-15) — Granada conserva su cita Y gana el c
   it('un catálogo importado vacío es una fusión SIN efecto — el hand-cited pasa intacto (estado real del placeholder R7)', () => {
     const merged = mergeCatalogues(MUNICIPALITY_CATALOGUE, []);
     expect(merged).toEqual(MUNICIPALITY_CATALOGUE);
+  });
+
+  // Adaptación al fichero real (continuación 1.13) — R7 ya no es un
+  // placeholder: `IMPORTED_MUNICIPALITY_CATALOGUE` lleva ahora las 8132
+  // filas reales de MUNICIPIOS.csv. Este test es el escenario que R7 dejaba
+  // pendiente desde el principio (Q2 del diseño original): Granada YA
+  // aparece en ambos catálogos, y la regla de precedencia se prueba contra
+  // el dato real importado, no contra un fixture sintético.
+  it('con el catálogo importado REAL: Granada conserva su cita hand-cited Y gana el centroide/radio real de MUNICIPIOS.csv', () => {
+    const merged = mergeCatalogues(MUNICIPALITY_CATALOGUE, IMPORTED_MUNICIPALITY_CATALOGUE);
+
+    const granada = merged.find((entry) => entry.ineCode === '18087');
+    expect(granada).toBeDefined();
+    expect(granada?.source).toContain('confirmado por el responsable del proyecto'); // cita hand-cited (P5)
+    expect(granada?.source).toContain('NGMEP/INE'); // cita del importado, fusionada
+    // Granada real (COD_INE 18087000000, MUNICIPIOS.csv): centroide
+    // verificado independientemente por el orquestador antes de esta tarea.
+    expect(granada?.centroid?.latitude).toBeCloseTo(37.18, 1);
+    expect(granada?.centroid?.longitude).toBeCloseTo(-3.6, 1);
+    expect(granada?.sweepRadiusM).toBeGreaterThan(0);
+  });
+
+  it('con el catálogo importado REAL: el resultado tiene 8132 municipios (todas las filas de MUNICIPIOS.csv, más ningún duplicado de Granada)', () => {
+    const merged = mergeCatalogues(MUNICIPALITY_CATALOGUE, IMPORTED_MUNICIPALITY_CATALOGUE);
+    expect(merged).toHaveLength(IMPORTED_MUNICIPALITY_CATALOGUE.length);
+    expect(merged.filter((entry) => entry.ineCode === '18087')).toHaveLength(1);
   });
 });

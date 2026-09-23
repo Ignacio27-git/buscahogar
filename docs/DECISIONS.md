@@ -2231,6 +2231,70 @@ recreación de la base de datos — el script no se dispara solo.
 
 ---
 
+## 070 — Adaptación del conversor de catálogo al fichero real: se elimina la resolución de niveles ES/NUC, el radio de barrido se deriva de la superficie publicada, se activa la mitad de integridad de la puerta de provincia, y `diccionario26.xlsx` queda sin usar
+
+**Estado:** aceptada
+
+**Decisión.** El responsable del proyecto entregó los ficheros reales del NGMEP
+(`docs/BD_Municipios-Entidades/MUNICIPIOS.csv`, `PROVINCIAS.csv`, marzo 2026): 8132 filas, una
+por municipio. Frente al diseño de la decisión 066 (pensado para `ENTIDADES.csv`, ~150k filas,
+con varias entidades por municipio a desambiguar), se toman cuatro decisiones nuevas:
+
+1. La resolución de niveles tier-1/2/3 (`join.ts`, "ES/NUC") se ELIMINA, no se deja inerte.
+   `MUNICIPIOS.csv` ya es una fila por municipio: no hay ninguna entidad hermana que
+   desambiguar, así que ninguna rama tier-2/tier-3 podría ejecutarse jamás contra el fichero
+   real — mantenerla habría sido código muerto. Se sustituye por: derivar el código de 5
+   dígitos de los 5 primeros caracteres de `COD_INE` (11 dígitos), y resolver la provincia
+   (nombre + comunidad autónoma) contra `PROVINCIAS.csv`. Ambos pasos abortan explícito,
+   nombrando el valor ofensivo, si el resultado no es válido — nunca se trunca ni se fabrica en
+   silencio (mismo principio que el guarda de anti-truncamiento original).
+2. El radio de barrido (`geo.ts`, `deriveSweepRadiusM`) se deriva ahora de `SUPERFICIE`
+   (hectáreas, publicada por el propio fichero): `radio = sqrt(superficie_m2 / π)`, acotado por
+   el mismo suelo/techo que antes. Sustituye a la heurística de esparcimiento entre entidades
+   hermanas, que ya no hay forma de calcular sin `ENTIDADES.csv`.
+3. Se activa la mitad de INTEGRIDAD de la puerta de provincia (`sanity.ts`): `COD_PROV`
+   declarado por la fila debe coincidir con el prefijo de 2 dígitos del código derivado, con
+   `PROVINCIAS.csv` como tabla maestra — nuevo motivo de fallo `'province-code-mismatch'`,
+   ortogonal al `'province-mismatch'` geográfico existente (comparación de strings, no cajas
+   delimitadoras). La mitad GEOGRÁFICA (`provinceBounds`) sigue inerte: ninguna fuente
+   disponible en este proyecto puede verificar las 52 cajas delimitadoras reales sin arriesgarse
+   a fabricar un dato incorrecto (mismo principio que R7) — no se fabrican aquí tampoco.
+4. `docs/diccionario26.xlsx` (registro INE, "Relación de municipios y códigos... a 1 de enero de
+   2026": `CODAUTO;CPRO;CMUN;DC;NOMBRE`) queda JUZGADO REDUNDANTE y sin usar en el import real.
+   `MUNICIPIOS.csv` ya trae código, nombre y provincia; `PROVINCIAS.csv` aporta la comunidad
+   autónoma que falta. Cruzar el dictionary como segunda fuente de verdad añadiría una
+   dependencia sin aportar ninguna comprobación que `PROVINCIAS.csv` o el propio guarda de 5
+   dígitos no cubran ya.
+
+**Alternativas descartadas.** (1) Mantener `join.ts`/`ine-register.ts` sin tocar y adaptar
+`MUNICIPIOS.csv` a la forma de `ENTIDADES.csv` (una fila = una entidad ficticia con sufijo
+`000000`) — descartada: habría conservado ~200 líneas de lógica de desambiguación que nunca
+podría ejercitarse, y el propio fichero de test (`join.test.ts`) habría quedado probando un
+camino muerto. (2) Cruzar `diccionario26.xlsx` como segunda fuente de verdad de todos modos, "por
+si acaso" — descartada: sin una comprobación concreta que aporte y no exista ya, es peso muerto
+que el import real tendría que arrastrar y mantener en sincronía con el resto del pipeline. (3)
+Reutilizar `provinceBounds` (cajas geográficas) para la comprobación de `COD_PROV`, calculando una
+caja aproximada a partir de los propios centroides del fichero — descartada: fabricaría un dato
+geográfico "verificado" a partir de los mismos datos que se están verificando, un razonamiento
+circular que no detectaría un error sistemático del propio fichero.
+
+**Motivo.** El diseño original de la decisión 066 no podía saber la forma exacta del fichero real
+(R7, precondición nunca verificable sin el fichero en mano); al llegar el fichero real, la forma
+resultó ser más simple de lo previsto (una fila por municipio, no una jerarquía de entidades) y
+más rica en un eje (superficie publicada, tabla de provincias) — cada decisión de esta entrada usa
+esa forma real en vez de forzar el fichero a encajar en el diseño hipotético anterior.
+
+**Consecuencia.** `apps/ingestion/src/catalogue/join.ts` pierde el concepto de `tier`/hermanas por
+completo; `import-municipality-catalogue.ts` pasa `tier: 'tier-1'` y `siblingCoordinates: []`
+constantes a `checkSanity` (cada fila de `MUNICIPIOS.csv` es, en los términos del diseño
+original, su propia fila autoritativa). El import real (8132/8132 filas, 0 sin centroide, 0
+descartes de la puerta de cordura) confirma que ninguna de las dos mitades inertes
+(`provinceBounds` geográfico, tier-2/3) hacía falta para cubrir el fichero real. Verificación
+completa (spot-checks de coordenadas, RED→GREEN por módulo, salida de gates) en
+`docs/PROMPTS.md`, entrada de esta fecha.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

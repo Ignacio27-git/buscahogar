@@ -1,45 +1,51 @@
-// ROADMAP 1.13 (diseño DD-3, R7) — R7 es una precondición de APLICACIÓN que
-// ningún agente de este proyecto puede saltarse: nadie puede descargar el
-// ZIP del NGMEP (Nomenclátor Geográfico de Municipios y Entidades de
-// Población, CNIG) ni leer su fila de cabecera real. Este módulo PURO nunca
-// referencia un nombre de columna literal en su lógica: resuelve la
-// cabecera a través de UNA ÚNICA constante exportada, `NGMEP_FIELD_MAP`, que
-// el operador rellena una sola vez desde el fichero real en mano, tras
-// verificar exactamente estas cuatro cosas (nota para la tarea de apply,
-// nunca asumidas aquí):
-//   1. presencia/ausencia de una columna de código INE de 5 dígitos frente
-//      al código de entidad completo de 11 (provincia+municipio+EC+ES+NUC);
-//   2. la ortografía exacta de la cabecera;
-//   3. si latitud/longitud vienen en grados decimales o en DMS;
-//   4. el delimitador y la codificación — un CSV del CNIG es plausiblemente
-//      `;`+Latin-1, nunca asumido `,`+UTF-8 por defecto.
+// ROADMAP 1.13 (diseño DD-3, R7) + adaptación al fichero real (continuación
+// 1.13) — R7 exigía verificar cuatro cosas contra el fichero real antes de
+// rellenar `NGMEP_FIELD_MAP`; ya están verificadas contra
+// `docs/BD_Municipios-Entidades/MUNICIPIOS.csv` (202603_NGMEP.mdb, IGN/CNIG,
+// marzo 2026):
+//   1. `COD_INE` tiene 11 dígitos (no 5): el código de municipio real son
+//      sus 5 primeros caracteres — la derivación vive en `join.ts`, nunca
+//      aquí (este módulo sigue sin truncar nada en silencio);
+//   2. cabecera verbatim: `COD_INE;ID_REL;COD_GEO;COD_PROV;PROVINCIA;
+//      NOMBRE_ACTUAL;POBLACION_MUNI;SUPERFICIE;PERIMETRO;COD_INE_CAPITAL;
+//      CAPITAL;POBLACION_CAPITAL;HOJA_MTN25;LONGITUD_ETRS89_REGCAN95;
+//      LATITUD_ETRS89_REGCAN95;ORIGENCOOR;ALTITUD;ORIGENALTITUD`;
+//   3. grados decimales, con COMA decimal (`-2,512507724`) — nunca DMS, pero
+//      tampoco el punto que `Number`/`parseFloat` esperan (ver
+//      `numeric.ts`: `parseFloat('-2,512507724')` trunca a `-2` en
+//      silencio, de ahí `parseCommaDecimal`);
+//   4. delimitador `;`, codificación Latin-1 (ISO-8859-1), CRLF — confirmado
+//      con `file(1)`, decodificado en la capa IO
+//      (`scripts/import-municipality-catalogue.ts`), nunca aquí.
 //
-// Los puntos 3 y 4 son responsabilidad de la capa IO
-// (`scripts/import-municipality-catalogue.ts`, sin test dedicado, mismo
-// precedente que `scripts/sweep-zone.ts:9-15`): decodifica el fichero con la
-// codificación declarada y pasa el delimitador explícito a esta función.
-// Esta función PURA recibe siempre un `string` de JavaScript ya decodificado
-// y espera coordenadas en grados decimales — el punto 3 se resuelve
-// verificando el fichero real antes de escribir un mapa de campos que
-// asuma DMS sin comprobarlo.
-export type NgmepFieldKey = 'entityCode' | 'name' | 'latitude' | 'longitude';
+// MUNICIPIOS.csv ya es una fila por municipio (8132 filas): a diferencia del
+// diseño original (pensado para ENTIDADES.csv, ~150k filas, con varias
+// "entidades" por municipio a desambiguar), no hace falta guardar
+// "entidades hermanas" — `SUPERFICIE` sustituye a la heurística de
+// esparcimiento entre hermanas para el radio de barrido (`geo.ts`).
+import { parseCommaDecimal } from './numeric.js';
+
+export type NgmepFieldKey = 'entityCode' | 'name' | 'provinceCode' | 'superficieHectares' | 'latitude' | 'longitude';
 
 export type NgmepFieldMap = Readonly<Record<NgmepFieldKey, string>>;
 
-// Valores placeholder DELIBERADAMENTE implausibles: si este mapa por
-// defecto se usa contra un fichero real sin que el operador lo haya
-// rellenado, DEBE fallar ruidoso (columna ausente) en vez de encontrar por
-// casualidad la columna equivocada.
+// Cabecera REAL de MUNICIPIOS.csv, verificada contra el fichero en mano
+// (R7). `entityCode` es `COD_INE` (11 dígitos, se deriva a 5 en join.ts,
+// nunca aquí).
 export const NGMEP_FIELD_MAP: NgmepFieldMap = {
-  entityCode: 'REPLACE_WITH_REAL_NGMEP_HEADER__entityCode',
-  name: 'REPLACE_WITH_REAL_NGMEP_HEADER__name',
-  latitude: 'REPLACE_WITH_REAL_NGMEP_HEADER__latitude',
-  longitude: 'REPLACE_WITH_REAL_NGMEP_HEADER__longitude',
+  entityCode: 'COD_INE',
+  name: 'NOMBRE_ACTUAL',
+  provinceCode: 'COD_PROV',
+  superficieHectares: 'SUPERFICIE',
+  longitude: 'LONGITUD_ETRS89_REGCAN95',
+  latitude: 'LATITUD_ETRS89_REGCAN95',
 };
 
 export interface NgmepRow {
   readonly entityCode: string;
   readonly name: string;
+  readonly provinceCode: string;
+  readonly superficieHectares: number;
   readonly latitude: number;
   readonly longitude: number;
 }
@@ -113,8 +119,13 @@ export function parseNgmepCsv(
     return {
       entityCode: (cells[columnIndex.entityCode] ?? '').trim(),
       name: (cells[columnIndex.name] ?? '').trim(),
-      latitude: Number(cells[columnIndex.latitude]),
-      longitude: Number(cells[columnIndex.longitude]),
+      provinceCode: (cells[columnIndex.provinceCode] ?? '').trim(),
+      // Coma decimal (`-2,512507724`, `8806,81`): parseCommaDecimal nunca
+      // trunca en la coma en silencio (numeric.ts) — a diferencia del
+      // `Number(...)` anterior, que ni siquiera truncaba: devolvía NaN.
+      superficieHectares: parseCommaDecimal(cells[columnIndex.superficieHectares] ?? ''),
+      latitude: parseCommaDecimal(cells[columnIndex.latitude] ?? ''),
+      longitude: parseCommaDecimal(cells[columnIndex.longitude] ?? ''),
     };
   });
 }

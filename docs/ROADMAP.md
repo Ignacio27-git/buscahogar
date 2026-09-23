@@ -1395,6 +1395,32 @@ sobre `coverage_jobs` y nada más, y que `web_readonly` conserva `SELECT` sobre
 `ALTER DEFAULT PRIVILEGES` alcanza tablas posteriores) y ninguna escritura —
 `information_schema`/`\dp` vetados por este entorno, `has_table_privilege()` no.
 
+**Continuación 2026-09-23 — catálogo importado real, deja de ser el placeholder vacío.** El
+responsable del proyecto entregó los ficheros reales del NGMEP
+(`docs/BD_Municipios-Entidades/MUNICIPIOS.csv` + `PROVINCIAS.csv`, 202603_NGMEP.mdb, marzo
+2026; nunca commiteados, ver `.gitignore`). El conversor (`apps/ingestion/src/catalogue/`) se
+adaptó a su forma real (decisión 070: se elimina la resolución de niveles ES/NUC, el radio se
+deriva de `SUPERFICIE`, se activa la mitad de integridad `COD_PROV` de la puerta de provincia,
+`diccionario26.xlsx` queda sin usar por redundante) y se ejecutó contra ellos:
+`packages/db/src/municipality-catalogue.generated.ts` ya no es el placeholder vacío — **8132/8132
+municipios, con centroide, 0 descartes de la puerta de cordura**. Detalle crítico verificado
+test-first antes de tocar el parser: el fichero real usa coma decimal
+(`LONGITUD_ETRS89_REGCAN95=-2,512507724`), que `Number`/`parseFloat` interpretan mal en
+silencio — `apps/ingestion/src/catalogue/numeric.ts` (`parseCommaDecimal`) lo aísla y fue el
+primer RED→GREEN de la sesión. Spot-checks contra coordenadas reales conocidas: Granada
+(18087, -3.598691013/37.17428891), A Coruña (15030, -8.395825599/43.37149478, prueba de
+codificación Latin-1 con nombre bilingüe) y Donostia/San Sebastián (20069, -1.985720943/
+43.32152279). Base de datos re-sembrada desde cero (residuo de test purgado primero):
+`locations`/`zones` = 8132/8132, 0 sin centroide, 0 coordenadas fuera de la caja de España.
+El test real de fusión (`packages/db/test/catalogue-merge.test.ts`) confirma contra el dato
+importado de verdad, no un fixture sintético, que Granada conserva su cita hand-cited Y gana
+el centroide/radio reales. Gates: `pnpm build`/`lint`/`typecheck` limpios en los cinco
+workspaces; `pnpm -r test` — core 416, ingestion 310, web 88 en verde; **`packages/db`
+en ROJO** (4-5 de los 6 tests de `seed.test.ts`, ver tabla de desviaciones — hallazgo real,
+no corregido, fuera del alcance del conversor); las cuatro suites Docker, en secuencia:
+18/18 + 15/15 + 10/10 + 44/44, todas en verde (ninguna llama a `seedReferenceData()` sin
+catálogo explícito). Detalle completo en `docs/PROMPTS.md`, entrada de esta fecha.
+
 ---
 
 ## [ ] 1.14 · Segunda fuente
@@ -1588,3 +1614,5 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-23 | 1.13 | `sdd-verify` (primera pasada, obs #231) encontró **dos hallazgos CRÍTICOS reales**, ninguno relacionado con 10.5/10.6: (C1) `apps/web/src/components/coverage-status.tsx` importaba `./coverage-status-policy.js` — extensión inexistente en disco — y rompía `next build` en seco; (C2) la migración `0008` añadía `search_name text NOT NULL` sin valor por defecto ni backfill, y fallaría contra cualquier base de datos ya sembrada | Ninguna sesión de aplicación anterior había ejecutado `pnpm build` (workspace completo) ni probado la migración `0008` contra una base de datos con filas preexistentes — ver `docs/AI-NOTES.md`, entradas 2026-09-23 y 2026-09-22. Corregidos en una ronda acotada de 57 líneas (3 ficheros): se retiró la extensión `.js` del import (C1); la migración se reescribió en tres sentencias — `ADD COLUMN` nullable, `UPDATE` de backfill con plegado de acentos, `SET NOT NULL` (C2). Detalle completo, con la reproducción de ambos `RED` contra PostgreSQL real, en Engram `sdd/on-demand-coverage/apply-progress-5` (obs #232). |
 | 2026-09-23 | 1.13 | `sdd-verify` (obs #231) encontró que los `GRANT` de `web_readonly`/`web_coverage` no existían en ningún fichero versionado del repositorio (hallazgo W5), y que recrear la base de datos para probar C2 los había borrado en silencio sin que ningún test lo detectara | Ambos roles conectan solo desde la suite de integración cuando la variable de entorno correspondiente está definida; toda la suite conecta como el propietario el resto del tiempo, así que la pérdida de un `GRANT` per-database no tiene ninguna puerta de calidad que la note. Corregido con un script de bootstrap committeado e idempotente, `packages/db/sql/bootstrap-roles-grants.sql` (decisión 069), aplicado y verificado contra la base viva con `has_table_privilege()` en esta misma sesión de cierre. |
 | 2026-09-23 | 1.13 | `sdd-verify` (obs #231) confirmó explícitamente que el test de privilegio negativo de `web_coverage`, escrito en el paso 1.13 y jamás ejecutado hasta esa sesión, **no habría podido pasar tal y como estaba escrito**: su propio caso positivo sembraba un `coverage_job` pendiente que colisionaba con el índice único parcial (`23505`) antes de que el permiso llegara a evaluarse | Un test nunca ejecutado puede llevar un defecto real invisible a la inspección — el mismo riesgo que la primera pasada de `sdd-verify` ya había nombrado explícitamente como pendiente. Corregido borrando la fila sembrada con la conexión propietaria antes del intento de `INSERT` del rol de cobertura; el propio caso NEGATIVO de `DELETE` de la suite es la prueba de que el rol de cobertura no podría haber hecho ese borrado él mismo. Detalle en `sdd/on-demand-coverage/apply-progress-5` (obs #232) y en `docs/AI-NOTES.md`, entrada 2026-09-23. |
+| 2026-09-23 | 1.13 | Continuación — adaptación del conversor al fichero real: **~1078 líneas cambiadas** en código/tests hand-authored (sin contar el artefacto generado ni los datos crudos) frente al presupuesto de ~600 de la tarea | El fichero real resultó tener una forma distinta a la prevista por el diseño de la decisión 066 (una fila por municipio, no una jerarquía de entidades), lo que obligó a reescribir cinco módulos existentes (`ngmep-parse`, `join`, `geo`, `sanity`, el composition root) y añadir dos nuevos (`numeric.ts` para la coma decimal, `provincias-parse.ts`) con su propio test-first cada uno (decisión 070). El presupuesto no se recortó a costa de tests o de alcance real; se reporta la cifra real. |
+| 2026-09-23 | 1.13 | Continuación — `packages/db/test/seed.test.ts` (4-5 de sus 6 tests) queda en ROJO dentro de `pnpm -r test` tras poblar el catálogo real; **no corregido en esta sesión, deliberadamente fuera de alcance** | `seedReferenceData(db)` sin catálogo explícito usa ahora `DEFAULT_CATALOGUE` = 8132 filas reales (antes, 1 fila placeholder). `seedReferenceData` inserta fila a fila con `INSERT`+`SELECT`+`INSERT` secuenciales dentro de una única transacción (`packages/db/src/seed.ts`) — con 8132 filas son ~24k idas y vueltas, ~20-35 s reales (confirmado ejecutando `pnpm --filter @buscahogar/db run seed` de verdad: 23,8 s, éxito). Eso excede el timeout por defecto de vitest (5 s test / 10 s hook); el test abandonado deja una transacción en vuelo que colisiona con el `TRUNCATE` del siguiente `beforeEach` y produce un deadlock real de PostgreSQL en pasadas posteriores. Es un cuello de botella de escalado preexistente en `seed.ts`, invisible mientras el catálogo tenía 1 fila, expuesto por primera vez al poblarlo de verdad — ortogonal al conversor (`apps/ingestion/src/catalogue/`), que es el alcance de esta tarea. Las cuatro suites respaldadas por Docker y el resto de `pnpm -r test` (core/ingestion/web) no se ven afectadas: ningún otro fichero de test llama a `seedReferenceData()` sin catálogo explícito. Queda para que el responsable del proyecto decida el remedio (lote de inserción en `seed.ts`, o que estos tests concretos usen un catálogo sintético pequeño en vez del real). |
