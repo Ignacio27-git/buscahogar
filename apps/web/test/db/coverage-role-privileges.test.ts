@@ -83,7 +83,16 @@ describeWithCoverageDb('rol INSERT-only de coverage_jobs — rechazo negativo re
   });
 
   it('INSERT en coverage_jobs (con zone/source reales) SÍ está permitido', async () => {
-    const { zoneId, sourceId } = await seedZoneAndSource(ownerDb);
+    const { zoneId, sourceId, jobId } = await seedZoneAndSource(ownerDb);
+    // `seedZoneAndSource` deja un job 'pending' para este mismo par
+    // (zone_id, source_id) porque los casos NEGATIVOS necesitan un `jobId`
+    // al que apuntar. Aquí estorba: el índice único parcial
+    // `coverage_jobs_zone_source_pending_idx` (DD-16/CR-3) rechazaría el
+    // insert con 23505 antes de que el permiso llegue siquiera a evaluarse,
+    // y el caso positivo nunca podría pasar. Se borra con la conexión
+    // PROPIETARIA — el rol de cobertura no tiene DELETE, que es justo lo
+    // que comprueba el caso negativo de más abajo.
+    await ownerPool.query('delete from coverage_jobs where id = $1', [jobId]);
 
     await expect(
       coveragePool.query(
