@@ -40,6 +40,47 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-23 — Un test nunca ejecutado no puede darse por bueno: su propio caso positivo sembraba la fila que hacía imposible su propia aserción
+
+**Contexto:** paso 1.13, segunda pasada de `sdd-verify` (obs #231) tras el aprovisionamiento
+del rol `web_coverage` por el responsable del proyecto (tarea 10.5). Fichero:
+`apps/web/test/db/coverage-role-privileges.test.ts` (tarea 10.6, decisión 064) — escrito y
+gateado desde el paso 1.13, `describe.skip` mientras `WEB_COVERAGE_DATABASE_URL` no existiera,
+y por tanto nunca ejecutado en verde ni una sola vez hasta esta sesión.
+
+**Categoría:** test que valida el comportamiento equivocado; código correcto en apariencia
+pero incorrecto.
+
+**Qué ocurrió:** el caso positivo de la suite (`'INSERT en coverage_jobs (con zone/source
+reales) SÍ está permitido'`) usaba `seedZoneAndSource`, que sembraba con el rol propietario un
+`coverage_job` en estado `'pending'` para el mismo par `(zone_id, source_id)` que el propio
+caso intentaba insertar a continuación con el rol restringido. El índice único parcial
+`coverage_jobs_zone_source_pending_idx` (DD-16/CR-3, ROADMAP 1.13 Unidad A) rechaza ese
+segundo `INSERT` con `23505` (violación de unicidad) **antes** de que PostgreSQL llegue
+siquiera a evaluar el privilegio del rol — así que, tal y como estaba escrita, la propia
+aserción positiva de la suite no podía pasar nunca, independientemente de si el rol tenía o
+no el permiso correcto. Un defecto real, invisible a cualquier revisión de código porque
+compila, tipa y lee bien: solo la ejecución contra PostgreSQL real lo revela.
+
+**Cómo se detectó:** al ejecutar la suite por primera vez, en `sdd-verify` (obs #231), tras
+el aprovisionamiento del rol. No por inspección ni por `.toSQL()`.
+
+**Cómo se resolvió (en esa misma sesión, no en esta):** se borra la fila sembrada con la
+conexión PROPIETARIA justo antes del intento de `INSERT` del rol de cobertura — el propio caso
+NEGATIVO de `DELETE`, más abajo en la misma suite, es la prueba de que el rol de cobertura no
+podría haber hecho ese borrado él mismo, así que el arreglo no oculta el permiso que la suite
+existe para comprobar.
+
+**Observación — la parte que merece el registro:** esta es exactamente la advertencia que la
+PRIMERA pasada de `sdd-verify` ya había dejado por escrito, en prosa, como riesgo residual
+antes de que nadie la ejecutara: un test que nunca corre no es evidencia de nada, ni siquiera
+de que esté bien escrito. La suite paralela nueva de este mismo cierre,
+`readonly-role-privileges.test.ts` (hallazgo W5, decisión 069), evita esta trampa a propósito:
+sus casos de rechazo de `INSERT` usan identificadores de fila sin sembrar, porque el rechazo
+por privilegio ocurre en la fase de comprobación de permisos, antes de cualquier restricción
+de clave foránea o de índice único — así que no dependen de que ninguna fila previa exista ni
+colisione, y no heredan el mismo defecto por construcción.
+
 ### 2026-09-23 — `pnpm typecheck` en verde no prueba que la app compile: cuatro unidades de aplicación y un cierre de documentación nunca ejecutaron `pnpm build`
 
 **Contexto:** paso 1.13, corrección posterior a `sdd-verify` (obs #231, hallazgo C1) —

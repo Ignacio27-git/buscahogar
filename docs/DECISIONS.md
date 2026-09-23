@@ -2175,6 +2175,62 @@ optimización de rendimiento del worker.
 
 ---
 
+## 069 — Los GRANT de `web_readonly`/`web_coverage` se versionan como un script de bootstrap committeado; el rol y la credencial siguen siendo tarea manual del responsable del proyecto
+
+**Estado:** aceptada
+
+**Decisión.** Los `GRANT` que dan forma a los dos roles de superficie acotada de `apps/web`
+(decisiones 056 y 064) se versionan como un script SQL idempotente y committeado,
+`packages/db/sql/bootstrap-roles-grants.sql`, que el responsable del proyecto puede re-ejecutar
+en cualquier momento tras aprovisionar los roles o tras recrear la base de datos. El script
+emite exactamente los cinco `GRANT`/`ALTER DEFAULT PRIVILEGES` que ya regían en la base de datos
+viva (`CONNECT`, `USAGE` sobre `public`, `SELECT` sobre todas las tablas para `web_readonly`,
+`INSERT` sobre `coverage_jobs` para `web_coverage`, y el privilegio por defecto que extiende
+`SELECT` a cualquier tabla futura). **El script NUNCA crea los roles (`CREATE ROLE`) ni fija
+ninguna contraseña** — aprovisionar los roles y su credencial sigue siendo una tarea EXCLUSIVA
+del responsable del proyecto (ROADMAP 1.13, tarea 10.5), y ninguna credencial se escribe jamás
+en este repositorio; el propio fichero lo declara en su cabecera, en español, como frontera
+deliberada.
+
+**Alternativas descartadas.** (1) No versionar nada, dejando los `GRANT` solo en la memoria del
+responsable del proyecto y en la prosa de la decisión 064 — el estado que este cambio demostró
+insuficiente (ver el motivo, abajo). (2) Documentar únicamente un runbook en prosa con los
+`GRANT` exactos, sin ningún fichero ejecutable — más barato, pero no inspeccionable por `diff` ni
+re-ejecutable sin volver a teclear cada sentencia a mano, exactamente el tipo de paso manual
+propenso a error que ya falló una vez en esta misma sesión de verificación. (3) Expresar los
+`GRANT` como una migración de `drizzle-kit` en `packages/db/migrations/` — descartada: las
+migraciones aplican el ESQUEMA como el rol propietario en el momento del despliegue, mientras que
+estos `GRANT` son aprovisionamiento del ENTORNO, condicionado a una decisión operativa (si los
+roles ya existen) que `drizzle-kit` no tiene forma de expresar; además, el propio contenido
+llevaría un hash de migración rastreado por `drizzle-kit`, que fallaría en cualquier entorno
+donde los roles todavía no existan — el mismo tipo de acoplamiento indebido que la decisión 066
+ya evitó para el catálogo importado.
+
+**Motivo.** Demostrado por accidente en esta misma sesión de verificación (`sdd-verify`, obs
+#231/#232): recrear la base de datos (`DROP DATABASE` + `CREATE DATABASE`) para probar la
+corrección de la migración `0008` (hallazgo C2) borró los `GRANT` per-database de AMBOS roles
+—`CREATE ROLE` es de nivel de servidor y los roles sobrevivieron, pero `GRANT ON` es por base de
+datos y no— y ningún test lo detectó: toda la suite de integración de este proyecto conecta como
+el propietario, nunca como `web_readonly` ni como `web_coverage`. Los `GRANT` se reemitieron a
+mano, fuera de banda, y quedaron correctos — verificado de forma independiente contra
+`information_schema.role_table_grants` — pero sin ningún artefacto versionado, un responsable de
+proyecto que recupere un servicio caído bajo presión no tiene más referencia que esta prosa, y
+podría sobre-conceder por error, erosionando en silencio exactamente la propiedad de seguridad
+que la decisión 056 existe para proteger. Un script inspeccionable y re-ejecutable convierte esa
+recuperación en un comando, no en una improvisación.
+
+**Consecuencia.** La propiedad de seguridad de la decisión 056 —que `web_readonly` nunca puede
+escribir— tiene ahora, además del script de bootstrap, su propia prueba negativa automática
+(`apps/web/test/db/readonly-role-privileges.test.ts`), extendiendo a este rol el mismo patrón que
+la decisión 064 ya exigía para `web_coverage` (`coverage-role-privileges.test.ts`). Antes de esta
+entrada, la propiedad de la decisión 056 llevaba vigente desde el paso 1.11 sin ninguna prueba
+automática que la comprobara contra PostgreSQL real; ahora ambos roles tienen la suya. Cualquier
+tabla nueva que el esquema añada en el futuro queda cubierta por el `ALTER DEFAULT PRIVILEGES`
+del script sin tocar el propio script, pero SÍ requiere volver a ejecutarlo tras cualquier
+recreación de la base de datos — el script no se dispara solo.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

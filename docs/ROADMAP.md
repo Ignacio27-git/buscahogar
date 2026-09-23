@@ -1262,7 +1262,7 @@ La entrega ordinaria (commit/push/PR) sigue siendo decisión de política de rep
 
 ---
 
-## [~] 1.13 · Cobertura bajo demanda
+## [x] 1.13 · Cobertura bajo demanda
 
 ```text
 Implementa el mecanismo de cobertura bajo demanda de docs/ARCHITECTURE.md:
@@ -1287,9 +1287,15 @@ descontrolada agote el mes.
 Paso **iniciado** el 2026-09-19 con el ciclo SDD completo (`/gentle-sdd-new`, cambio
 `on-demand-coverage`): explore → research → propose → `sdd-spec`/`sdd-design` en paralelo →
 arbitraje del orquestador → `sdd-tasks` → `sdd-apply` en cuatro unidades de trabajo
-secuenciales (A→B→C→D, orden de seguridad, no de preferencia). **El paso queda en `[~]`,
-no `[x]`**: dos tareas exclusivas del responsable del proyecto siguen sin hacer (10.5/10.6,
-más abajo) y `sdd-verify` todavía no se ha ejecutado sobre el conjunto.
+secuenciales (A→B→C→D, orden de seguridad, no de preferencia) → cierre de documentación →
+`sdd-verify` (dos pasadas) → ronda correctiva → cierre final. **Paso cerrado el 2026-09-23**:
+`sdd-verify` se ejecutó dos veces (Engram `sdd/on-demand-coverage/verify-report`, obs #231).
+La primera pasada devolvió `FAIL` con dos hallazgos CRÍTICOS reales, ninguno relacionado con
+las tareas 10.5/10.6; ambos se corrigieron en una ronda acotada (57 líneas, 3 ficheros) y la
+segunda pasada devolvió `PASS WITH WARNINGS` — 0 bloqueantes, 0 críticos, 31/31 requisitos,
+46/46 escenarios, 990/990 tests en verde sin ningún salto. Detalle completo de ambos
+hallazgos críticos, de las cinco advertencias abiertas (W1-W3, W5, W6) y de la única
+sugerencia (S1) en la propia obs #231; ver también la tabla de desviaciones más abajo.
 
 `sdd-spec` y `sdd-design` se ejecutaron en paralelo y produjeron cinco contradicciones reales
 entre ambos artefactos, arbitradas por el orquestador antes de `sdd-tasks` a favor del diseño
@@ -1342,18 +1348,27 @@ canónicas (sin JavaScript de cliente salvo el único componente ya permitido pa
 del job), registro de `coverage_job` por un segundo rol de PostgreSQL `INSERT`-only
 (decisión 064), degradación explícita con aviso nombrado cuando el tope de zonas nuevas del
 día está agotado (decisión 065 para el estrechamiento del test de directivas de cliente).
-**34/36 tareas hechas.** Las dos que faltan son exclusivas del responsable del proyecto y
-ningún agente tiene permiso para completarlas: **10.5**, aprovisionar el segundo rol de
+**36/36 tareas hechas.** Las dos últimas, exclusivas del responsable del proyecto y que
+ningún agente podía completar, ya están cerradas: **10.5**, aprovisionar el segundo rol de
 PostgreSQL (`INSERT` solo sobre `coverage_jobs`) y escribir `WEB_COVERAGE_DATABASE_URL` en
-el `.env` de la raíz; y **10.6**, ejecutar en verde el test de privilegio negativo que lo
-comprueba (`apps/web/test/db/coverage-role-privileges.test.ts`, 7 casos, escrito y gateado
-pero nunca ejecutado — su resultado real es desconocido hasta entonces).
+el `.env` de la raíz — hecho por el responsable del proyecto fuera de banda; y **10.6**,
+ejecutar en verde el test de privilegio negativo que lo comprueba
+(`apps/web/test/db/coverage-role-privileges.test.ts`, 7 casos) — ejecutado por primera vez en
+la segunda pasada de `sdd-verify`, 7/7 en verde. Esa misma pasada encontró que el rol de solo
+lectura de la decisión 056, vigente desde el paso 1.11, nunca había tenido una prueba
+equivalente (hallazgo W5); esta sesión de cierre añade
+`apps/web/test/db/readonly-role-privileges.test.ts` (7 casos, `INSERT`/`UPDATE`/`DELETE`
+rechazados con `42501` sobre `coverage_jobs` y `listings`) y versiona ambos conjuntos de
+`GRANT` como un script de bootstrap committeado, `packages/db/sql/bootstrap-roles-grants.sql`
+(decisión 069) — nunca crea roles ni contraseñas, sigue siendo tarea manual del responsable
+del proyecto aprovisionarlos.
 
 Registro completo de evidencia TDD, ficheros cambiados y desviaciones (todas explícitas,
 ninguna oculta) por unidad en Engram: `sdd/on-demand-coverage/apply-progress` (obs #220,
 unidades A y B), `apply-progress-2` (obs #223, unidad C), `apply-progress-3` (obs #226,
-unidad D). Decisiones registradas: 064 a 068 (`docs/DECISIONS.md`), cinco entradas
-consecutivas tras la 063.
+unidad D), `apply-progress-5` (obs #232, ronda correctiva de `sdd-verify`) y
+`apply-progress-6` (cierre del hallazgo W5). Decisiones registradas: 064 a 069
+(`docs/DECISIONS.md`), seis entradas consecutivas tras la 063.
 
 **Gates finales de esta sesión de cierre** (`docker compose ps` comprobado en vivo al empezar,
 no heredado de una sesión anterior — `buscahogar-db-1`, sana): `pnpm lint` limpio en los cinco
@@ -1365,6 +1380,20 @@ que ejecutarlas en paralelo contra la base de datos compartida (decisión 046: n
 datos de test separada) produce un fallo de clave foránea espurio por condición de carrera entre
 suites que truncan y siembran la misma base — no un defecto real. Resultado final, secuencial:
 18/18 + 15/15 + 10/10 + 44/44, todo en verde.
+
+**Gates de la sesión de cierre final (2026-09-23, cierre del hallazgo W5)**:
+`docker compose ps` sana en vivo. `pnpm build` (workspace completo) en verde. `pnpm lint`/
+`pnpm typecheck` limpios en los cinco workspaces. `pnpm -r test`: core 416, db 112,
+ingestion 294, web 88, **cero saltos** (910 en total, sube desde 903 por los 7 casos nuevos
+de `readonly-role-privileges.test.ts`). Las cuatro suites Docker, en secuencia: 18/18 + 15/15
++ 10/10 + 44/44. **Total: 997/997, cero fallos, cero saltos** — sube desde el baseline 990/990
+de `sdd-verify` por esos mismos 7 casos. `packages/db/sql/bootstrap-roles-grants.sql`
+(decisión 069) se aplicó contra la base viva (`GRANT`×4 + `ALTER DEFAULT PRIVILEGES`×1, sin
+error) y `has_table_privilege()` confirmó que `web_coverage` conserva exactamente `INSERT`
+sobre `coverage_jobs` y nada más, y que `web_readonly` conserva `SELECT` sobre
+`coverage_jobs`/`listings`/`daily_request_budget` (prueba directa de que
+`ALTER DEFAULT PRIVILEGES` alcanza tablas posteriores) y ninguna escritura —
+`information_schema`/`\dp` vetados por este entorno, `has_table_privilege()` no.
 
 ---
 
@@ -1555,4 +1584,7 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-21 | 1.13 | `sdd-spec` y `sdd-design` corrieron en paralelo y produjeron **cinco contradicciones reales**, arbitradas por el orquestador (obs #217) a favor del diseño en los cinco casos, siempre porque el diseño había leído el código real y la especificación había razonado desde la prosa de la propuesta | La más peligrosa, CR-15: bajo `ON CONFLICT DO NOTHING` como mecanismo de fusión del catálogo (tal y como lo daba por hecho la especificación), el escenario de Granada de la propia especificación habría **probado la regresión que debía impedir** — Granada conserva su fila pero nunca gana centroide, la única zona que funciona hoy deja de ser barrible en silencio, y el test habría pasado en verde. Detalle completo de las cinco reglas en Engram `sdd/on-demand-coverage/arbitration` (obs #217). |
 | 2026-09-21/22 | 1.13 | El ledger de intentos (`gentle-ai sdd-attempt`) bloqueó **dos veces** por contabilidad de líneas cambiadas, porque no se commiteó nada entre unidades de trabajo y cada intento nuevo se cobraba las líneas de las unidades ya terminadas | Requirió un `reset` autorizado explícitamente por el responsable del proyecto en ambas ocasiones. Lección para el proceso, registrada aquí para no repetirla: cada unidad de trabajo debe commitearse antes de adquirir el siguiente token de intento, no acumular varias unidades sin commitear en el mismo árbol de trabajo. |
 | 2026-09-22 | 1.13 | La unidad de trabajo D (interfaz web) cerró en aproximadamente **4.200 líneas** frente a una previsión de ~1.050 en el desglose de `sdd-tasks`; el alcance no se comprimió para ajustar la cifra | Cubierto por la `size:exception` ya aceptada para el cambio completo (`delivery_strategy: exception-ok`, obs #211). El presupuesto constriñe cómo se trocea el trabajo, nunca el propio código: recortar comentarios, tests o alcance real solo para acercarse a la cifra estimada habría sido peor que reportar la cifra real y por qué no baja más. |
-| 2026-09-22 | 1.13 | Las tareas 10.5 y 10.6 (aprovisionar el segundo rol de PostgreSQL `INSERT`-only sobre `coverage_jobs`, y ejecutar en verde el test de privilegio negativo que lo comprueba) quedan sin hacer; el paso se marca `[~]`, no `[x]` | Ningún agente tiene permiso para crear roles de PostgreSQL ni para leer o escribir `.env`. El test negativo (`apps/web/test/db/coverage-role-privileges.test.ts`, 7 casos) está escrito y gateado con `describeWithCoverageDb` (salta en silencio sin `WEB_COVERAGE_DATABASE_URL`, confirmado saltado esta sesión) pero **nunca se ha ejecutado en verde ni una sola vez** — su resultado real es desconocido hasta que el responsable del proyecto complete el aprovisionamiento. |
+| 2026-09-22 | 1.13 | Las tareas 10.5 y 10.6 (aprovisionar el segundo rol de PostgreSQL `INSERT`-only sobre `coverage_jobs`, y ejecutar en verde el test de privilegio negativo que lo comprueba) quedan sin hacer; el paso se marca `[~]`, no `[x]` | Ningún agente tiene permiso para crear roles de PostgreSQL ni para leer o escribir `.env`. El test negativo (`apps/web/test/db/coverage-role-privileges.test.ts`, 7 casos) está escrito y gateado con `describeWithCoverageDb` (salta en silencio sin `WEB_COVERAGE_DATABASE_URL`, confirmado saltado esta sesión) pero **nunca se ha ejecutado en verde ni una sola vez** — su resultado real es desconocido hasta que el responsable del proyecto complete el aprovisionamiento. **Nota corregida (2026-09-23, tras la segunda pasada de `sdd-verify`, obs #231): esta fila ya no describe el estado real.** El responsable del proyecto completó el aprovisionamiento, y el test citado se ejecutó por primera vez esa sesión — 7/7 en verde, no "nunca". Se corrige en el sitio, sin borrar, como constancia de que la fila era correcta cuando se escribió y dejó de serlo; ver las filas siguientes para el relato completo del cierre. |
+| 2026-09-23 | 1.13 | `sdd-verify` (primera pasada, obs #231) encontró **dos hallazgos CRÍTICOS reales**, ninguno relacionado con 10.5/10.6: (C1) `apps/web/src/components/coverage-status.tsx` importaba `./coverage-status-policy.js` — extensión inexistente en disco — y rompía `next build` en seco; (C2) la migración `0008` añadía `search_name text NOT NULL` sin valor por defecto ni backfill, y fallaría contra cualquier base de datos ya sembrada | Ninguna sesión de aplicación anterior había ejecutado `pnpm build` (workspace completo) ni probado la migración `0008` contra una base de datos con filas preexistentes — ver `docs/AI-NOTES.md`, entradas 2026-09-23 y 2026-09-22. Corregidos en una ronda acotada de 57 líneas (3 ficheros): se retiró la extensión `.js` del import (C1); la migración se reescribió en tres sentencias — `ADD COLUMN` nullable, `UPDATE` de backfill con plegado de acentos, `SET NOT NULL` (C2). Detalle completo, con la reproducción de ambos `RED` contra PostgreSQL real, en Engram `sdd/on-demand-coverage/apply-progress-5` (obs #232). |
+| 2026-09-23 | 1.13 | `sdd-verify` (obs #231) encontró que los `GRANT` de `web_readonly`/`web_coverage` no existían en ningún fichero versionado del repositorio (hallazgo W5), y que recrear la base de datos para probar C2 los había borrado en silencio sin que ningún test lo detectara | Ambos roles conectan solo desde la suite de integración cuando la variable de entorno correspondiente está definida; toda la suite conecta como el propietario el resto del tiempo, así que la pérdida de un `GRANT` per-database no tiene ninguna puerta de calidad que la note. Corregido con un script de bootstrap committeado e idempotente, `packages/db/sql/bootstrap-roles-grants.sql` (decisión 069), aplicado y verificado contra la base viva con `has_table_privilege()` en esta misma sesión de cierre. |
+| 2026-09-23 | 1.13 | `sdd-verify` (obs #231) confirmó explícitamente que el test de privilegio negativo de `web_coverage`, escrito en el paso 1.13 y jamás ejecutado hasta esa sesión, **no habría podido pasar tal y como estaba escrito**: su propio caso positivo sembraba un `coverage_job` pendiente que colisionaba con el índice único parcial (`23505`) antes de que el permiso llegara a evaluarse | Un test nunca ejecutado puede llevar un defecto real invisible a la inspección — el mismo riesgo que la primera pasada de `sdd-verify` ya había nombrado explícitamente como pendiente. Corregido borrando la fila sembrada con la conexión propietaria antes del intento de `INSERT` del rol de cobertura; el propio caso NEGATIVO de `DELETE` de la suite es la prueba de que el rol de cobertura no podría haber hecho ese borrado él mismo. Detalle en `sdd/on-demand-coverage/apply-progress-5` (obs #232) y en `docs/AI-NOTES.md`, entrada 2026-09-23. |
