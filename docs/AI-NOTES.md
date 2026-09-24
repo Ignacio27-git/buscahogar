@@ -40,6 +40,29 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-24 — Una prueba que necesitaba el rol `web_coverage` fallaba en vez de omitirse sin él
+
+**Contexto:** paso 1.15 (PR2), `apps/web/test/db/page-coverage-degradation.test.tsx`, caso
+`client-cap-exhausted`.
+
+**Categoría:** código que compilaba pero no hacía lo correcto.
+
+**Qué ocurrió:** el caso nuevo consume la cuota por cliente con el handle de escritura, pero
+quedó dentro del guard general `describeWithDb` (solo exige `DATABASE_URL`). Sin
+`WEB_COVERAGE_DATABASE_URL`, las demás pruebas del rol se omiten y esta fallaba con "no está
+definida". Corregido con `it.skipIf(!process.env.WEB_COVERAGE_DATABASE_URL)`.
+
+**Cómo se detectó:** comportamiento en ejecución: al añadir el bloque de `.env.example` también a
+`.env`, una línea vacía duplicada anuló el valor real de la variable. Ni `sdd-apply` ni el
+validador de la PR2 lo vieron, porque en su entorno la variable siempre estaba definida.
+
+**Coste:** ~5 minutos.
+
+**Observación:** una prueba que depende de una credencial opcional debe usar el mismo guard que
+el resto de pruebas de esa credencial; ejecutar la suite con la variable vacía lo habría revelado.
+
+---
+
 ### 2026-09-24 — Tarea marcada `[x]` sin cumplir el diseño: el limitador del proxy indexaba por la IP cruda, nunca por su HMAC
 
 **Contexto:** paso 1.15 (PR2, `apps/web/src/proxy.ts`), validación independiente de `sdd-apply`

@@ -180,7 +180,10 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
   // CUARTO caso honesto de degradación, distinto de los tres de #214: el
   // tope GLOBAL tiene hueco (NEW_ZONES_DAILY_CAP='10', beforeEach), pero el
   // cliente concreto ya agotó SU tope (dailyCap=1, agotado de antemano).
-  it('spec #261: client-cap-exhausted -> notificación DISTINTA de "límite diario" (D6, decisión 079)', async () => {
+  // Necesita el rol `web_coverage` (la cuota se consume con el handle de
+  // escritura): sin WEB_COVERAGE_DATABASE_URL se OMITE, como el resto de
+  // pruebas de ese rol (helpers/coverage-db-gate.ts), nunca falla.
+  it.skipIf(!process.env.WEB_COVERAGE_DATABASE_URL)('spec #261: client-cap-exhausted -> notificación DISTINTA de "límite diario" (D6, decisión 079)', async () => {
     process.env.CLIENT_IP_HEADER = 'x-forwarded-for';
     process.env.CLIENT_IP_HMAC_KEY = 'a'.repeat(32);
     // cap=1: coincide con el consumeClientQuota(..., 1) de abajo que agota
