@@ -1,0 +1,7 @@
+{
+  "provenance": "hand-authored-from-spec",
+  "spec": "https://help.kyero.com/estate-agents/xml-import-specification",
+  "specVersion": "3.9",
+  "specDate": "2024-09-03",
+  "gaps": ["G1", "G2", "G3", "G4"]
+}

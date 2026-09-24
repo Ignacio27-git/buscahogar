@@ -20,6 +20,10 @@ export default [
       'scripts/probe-idealista.ts',
       'src/sources/idealista/http-client.ts',
       'src/sources/idealista/idealista-source.ts',
+      // Paso 1.14 (diseño D14) — mismo criterio: superficies que orquestan
+      // la única petición del adaptador de Kyero.
+      'src/sources/kyero/kyero-source.ts',
+      'src/sources/kyero/http-feed-fetcher.ts',
     ],
     rules: {
       'no-restricted-syntax': [
