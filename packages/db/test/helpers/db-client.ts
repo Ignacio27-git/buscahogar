@@ -27,6 +27,11 @@ export function connectTestDb(): { db: Database; pool: Pool } {
 // ROADMAP 1.13 (diseño DD-12): `daily_request_budget` referencia `sources`
 // y nada más la referencia a ella — se añade antes de `sources` por la
 // misma razón que `coverage_jobs` se lista antes de `zones`/`sources`.
+//
+// ROADMAP 1.15 (security-hardening): `coverage_client_quota` no referencia
+// ninguna otra tabla (su PK es `(key_hash, day)`, ninguna FK) — se añade
+// aquí sin ninguna restricción de orden real, junto a los otros contadores
+// independientes de `sources`/`zones`.
 const TABLES_IN_FK_ORDER = [
   'property_listings',
   'dedup_pair_evidence',
@@ -37,6 +42,7 @@ const TABLES_IN_FK_ORDER = [
   'properties',
   'dedup_runs',
   'daily_request_budget',
+  'coverage_client_quota',
   'zones',
   'sources',
   'locations',

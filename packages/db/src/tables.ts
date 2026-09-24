@@ -4,6 +4,7 @@
 // veces y podría duplicarla en la migración generada (docs/DECISIONS.md,
 // decisión de módulos D1 del diseño).
 export { coverageJobStatus } from './schema/enums.js';
+export { coverageClientQuota } from './schema/coverage-client-quota.js';
 export { coverageJobs } from './schema/coverage-jobs.js';
 export { dailyRequestBudget } from './schema/daily-request-budget.js';
 export { dedupPairEvidence } from './schema/dedup-pair-evidence.js';

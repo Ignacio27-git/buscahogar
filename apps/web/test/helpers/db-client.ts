@@ -23,7 +23,12 @@ export function connectTestDb(): TestDbHandle {
   return createDb(process.env.DATABASE_URL ?? '');
 }
 
-const TABLES_IN_FK_ORDER = ['coverage_jobs', 'zones', 'sources', 'locations'] as const;
+// ROADMAP 1.15 (security-hardening): `coverage_client_quota` se añade aquí
+// junto a `coverage_jobs` — es la segunda tabla que `apps/web` escribe tras
+// esta unidad (rol `web_coverage`, decisión 069/D1c). Ninguna FK propia
+// (PK `(key_hash, day)`), así que su posición en esta lista no importa para
+// el orden de claves foráneas.
+const TABLES_IN_FK_ORDER = ['coverage_jobs', 'coverage_client_quota', 'zones', 'sources', 'locations'] as const;
 
 export async function truncateAll(pool: TestDbHandle['pool']): Promise<void> {
   const tableList = TABLES_IN_FK_ORDER.map((table) => `"${table}"`).join(', ');

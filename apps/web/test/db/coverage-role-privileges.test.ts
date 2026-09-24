@@ -6,9 +6,9 @@
 // MAINTAINER-ONLY, ningún agente puede crear roles de PostgreSQL ni tocar
 // el `.env` de la raíz).
 //
-// **Esta suite nunca se ha ejecutado en verde. Queda escrita y lista para
-// correr en cuanto el mantenedor provisione el rol y añada la variable —
-// nunca simulada, nunca su ausencia convertida en un fallo del pipeline.**
+// Ejecutada en verde contra el rol real el 2026-09-24 (ROADMAP 1.15), con la
+// migración 0011 y `bootstrap-roles-grants.sql` aplicados. Sin la variable
+// sigue omitida, nunca simulada ni convertida en un fallo del pipeline.
 //
 // Sembrado con el owner (`DATABASE_URL`, mismo patrón que el resto de la
 // suite de integración); la conexión bajo prueba es EXCLUSIVAMENTE
@@ -146,3 +146,81 @@ describeWithCoverageDb('rol INSERT-only de coverage_jobs — rechazo negativo re
     ).rejects.toMatchObject({ code: '42501' });
   });
 });
+
+// ROADMAP 1.15 (security-hardening, spec #261 "The Per-Client Limiter's Role
+// Can Touch Only Its Own Table", decisión 077) — segunda tabla, mismo rol
+// `web_coverage`: el UPSERT atómico de `consumeClientQuota` necesita
+// SELECT+INSERT+UPDATE (el propio upsert y su `WHERE`/`RETURNING`) y DELETE
+// (purga de ventana cerrada, decisión 076) — los cuatro, únicamente sobre
+// esta tabla. El rechazo sobre CUALQUIER otra tabla ya queda probado arriba
+// (coverage_jobs solo admite INSERT; zones/locations/sources rechazan
+// cualquier escritura) — coverage_client_quota no tiene ninguna FK, así que
+// estos casos no necesitan sembrar zone/source primero.
+describeWithCoverageDb(
+  'web_coverage sobre coverage_client_quota — SELECT/INSERT/UPDATE/DELETE permitidos (ROADMAP 1.15, spec #261, decisión 077)',
+  () => {
+    let ownerPool: import('../helpers/db-client.js').TestDbHandle['pool'];
+    let coveragePool: import('../helpers/db-client.js').TestDbHandle['pool'];
+
+    beforeAll(() => {
+      ({ pool: ownerPool } = connectTestDb());
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- describeWithCoverageDb ya garantiza que la variable existe
+      ({ pool: coveragePool } = createDb(process.env.WEB_COVERAGE_DATABASE_URL!));
+    });
+
+    afterAll(async () => {
+      await ownerPool.end();
+      await coveragePool.end();
+    });
+
+    beforeEach(async () => {
+      await truncateAll(ownerPool);
+    });
+
+    afterEach(async () => {
+      await truncateAll(ownerPool);
+    });
+
+    it('INSERT en coverage_client_quota SÍ está permitido', async () => {
+      await expect(
+        coveragePool.query(
+          'insert into coverage_client_quota (key_hash, day, registrations) values ($1, current_date, 1)',
+          ['a'.repeat(64)]
+        )
+      ).resolves.toBeDefined();
+    });
+
+    it('SELECT en coverage_client_quota SÍ está permitido (lo exige el WHERE de ON CONFLICT y el RETURNING del upsert atómico)', async () => {
+      await ownerPool.query(
+        'insert into coverage_client_quota (key_hash, day, registrations) values ($1, current_date, 1)',
+        ['b'.repeat(64)]
+      );
+
+      await expect(coveragePool.query('select * from coverage_client_quota limit 1')).resolves.toBeDefined();
+    });
+
+    it('UPDATE en coverage_client_quota SÍ está permitido (parte del propio UPSERT atómico, decisión 077)', async () => {
+      await ownerPool.query(
+        'insert into coverage_client_quota (key_hash, day, registrations) values ($1, current_date, 1)',
+        ['c'.repeat(64)]
+      );
+
+      await expect(
+        coveragePool.query('update coverage_client_quota set registrations = registrations + 1 where key_hash = $1', [
+          'c'.repeat(64),
+        ])
+      ).resolves.toBeDefined();
+    });
+
+    it('DELETE en coverage_client_quota SÍ está permitido (purga de ventana cerrada, decisión 076)', async () => {
+      await ownerPool.query(
+        "insert into coverage_client_quota (key_hash, day, registrations) values ($1, current_date - interval '1 day', 1)",
+        ['d'.repeat(64)]
+      );
+
+      await expect(
+        coveragePool.query('delete from coverage_client_quota where key_hash = $1', ['d'.repeat(64)])
+      ).resolves.toBeDefined();
+    });
+  }
+);

@@ -51,6 +51,15 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO web_readonly;
 -- nada más.
 GRANT INSERT ON TABLE coverage_jobs TO web_coverage;
 
+-- `web_coverage` (ROADMAP 1.15, security-hardening, spec #261 "The Per-
+-- Client Limiter's Role Can Touch Only Its Own Table") — el UPSERT atómico
+-- de `consumeClientQuota` (decisión 077) necesita SELECT (lo exige la
+-- cláusula `WHERE` de `ON CONFLICT ... DO UPDATE` y el propio `RETURNING`),
+-- INSERT y UPDATE para el upsert en sí, y DELETE para la purga de ventana
+-- cerrada (decisión 076) que la misma función ejecuta en cada consumición.
+-- Ningún otro privilegio, ninguna otra tabla.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE coverage_client_quota TO web_coverage;
+
 -- Privilegio por defecto para tablas FUTURAS creadas por el propietario:
 -- sin esto, una tabla nueva de una migración posterior (por ejemplo,
 -- `daily_request_budget`) no sería legible por `web_readonly` hasta
