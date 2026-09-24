@@ -1501,7 +1501,7 @@ hallazgos para `AI-NOTES.md`; la verificación lo detectó.
 
 ---
 
-## [~] 1.15 · Seguridad y cierre de fase
+## [x] 1.15 · Seguridad y cierre de fase
 
 ```text
 Repasa la aplicación contra la sección de seguridad de docs/ARCHITECTURE.md y
@@ -1567,14 +1567,13 @@ indexaba por la IP cruda en vez de por su HMAC pese a que la tarea correspondien
 marcada `[x]` (cableado añadido, con test de regresión nuevo). Detalle completo de ambos en
 `docs/AI-NOTES.md`.
 
-**Estado real.** 50/51 tareas de `sdd-tasks` completas. La única pendiente, 3.12
-(`.env.example`), queda deliberadamente sin tocar: ningún agente de esta sesión tiene permiso
-para leer ni escribir ficheros `.env*` — mismo bloqueo exacto que las tareas 10.5/10.6 del paso
-1.13. El bloque de variables nuevas a añadir (`CLIENT_IP_HEADER`, `CLIENT_IP_HMAC_KEY`,
-`COVERAGE_PER_CLIENT_DAILY_CAP`, `PROXY_RATE_LIMIT_MAX`, `PROXY_RATE_LIMIT_WINDOW_SECONDS`,
-`WEB_COVERAGE_DATABASE_URL`) quedó en el informe de la sesión de `sdd-apply` para que el
-responsable del proyecto lo pegue directamente. El paso se marca `[~]`, no `[x]`, por esa única
-tarea pendiente.
+**Estado real.** 51/51 tareas completas. La 3.12 (`.env.example`) la aplicó el responsable del
+proyecto, porque ningún agente tiene permiso sobre ficheros `.env*` (mismo bloqueo que las
+tareas 10.5/10.6 del paso 1.13); se comprobó solo por `git status`, sin leer el contenido.
+Al copiar el mismo bloque también en `.env`, una línea vacía duplicada anuló
+`WEB_COVERAGE_DATABASE_URL` y destapó una prueba que fallaba en vez de omitirse (ver
+`docs/AI-NOTES.md`); corregida. `sdd-verify` independiente: PASS, 11/11 requisitos, 25/25
+escenarios, `pnpm test` 1104/1104 contra PostgreSQL real, typecheck, lint y `next build` limpios.
 
 ---
 
