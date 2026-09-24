@@ -1,0 +1,22 @@
+# Configuración del ciclo SDD (spec-driven development).
+#
+# Declara dónde viven los artefactos del ciclo (propuesta, spec, diseño, tareas,
+# informes). En este proyecto viven en memoria persistente, no en ficheros: esta
+# carpeta contiene solo esta declaración, nunca artefactos.
+#
+# Sin esta línea el binario asume `openspec`, no encuentra `openspec/changes/` y
+# da todos los artefactos por ausentes, que es indistinguible de «este paso no se
+# ha empezado». Ese desajuste ya obligó a corregir a mano tres fases seguidas del
+# paso 1.2. Ver docs/AI-NOTES.md.
+#
+# Cuidado al editar: una clave mal escrita NO da error, se ignora en silencio y
+# se vuelve a `openspec`. Las formas válidas comprobadas son `sdd.artifact_store`
+# (esta), `artifact_store` a nivel raíz y `artifactStore`. En cambio `store:`,
+# `persistence:` y `artifact_store: { mode: ... }` se descartan sin avisar.
+#
+# El nombre del proyecto se deduce del remoto de git, no del directorio.
+
+schema: spec-driven
+
+sdd:
+  artifact_store: engram

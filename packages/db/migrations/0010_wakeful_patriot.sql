@@ -1,0 +1,1 @@
+ALTER TABLE "daily_request_budget" ADD CONSTRAINT "daily_request_budget_search_requests_check" CHECK ("daily_request_budget"."search_requests" <= "daily_request_budget"."search_cap");

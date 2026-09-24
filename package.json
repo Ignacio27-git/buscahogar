@@ -16,7 +16,9 @@
     "test": "pnpm -r test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "db:migrate": "pnpm --filter @buscahogar/db run migrate"
+    "db:generate": "pnpm --filter @buscahogar/db run generate",
+    "db:migrate": "pnpm --filter @buscahogar/db run migrate",
+    "db:seed": "pnpm --filter @buscahogar/db run seed"
   },
   "devDependencies": {
     "@buscahogar/config": "workspace:*",

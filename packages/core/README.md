@@ -29,17 +29,48 @@ Este paquete contiene:
 
 ```
 src/
-  index.ts           Exporta el API público
-  types/             Tipos e interfaces
-  schemas/           Esquemas Zod
-  strategies/        Contratos (PropertySource, ListingNormalizer, etc.)
+  index.ts           Superficie pública (reexports explícitos, no `export *`)
+  types/             Tipos e interfaces escritos a mano
+  schemas/           Esquemas Zod (Listing, AreaQuery) + tipos derivados con z.infer
+  contracts/         Contratos intercambiables (PropertySource, ListingNormalizer, DedupStrategy)
+  strategies/        Implementaciones concretas de DedupStrategy (rule-based/, ROADMAP 1.9)
+  consolidation/     Agrupación (D3) y selección del ganador (D4) — puro, sin ORM (ROADMAP 1.10)
 ```
+
+`contracts/` sustituye a la propuesta original de `strategies/` (paso 1.4): `strategies/`
+queda reservado para las implementaciones concretas de 1.9+, y `contracts/` es el contrato
+del que dependen, un directorio distinto para no mezclar la interfaz con una implementación
+de esa interfaz en la misma carpeta.
+
+**Convención mixta deliberada.** `Listing` y `AreaQuery` se derivan del esquema Zod
+correspondiente con `z.infer`, porque ambos cruzan una frontera externa real (salida del
+normalizador; entrada de CLI y de search params) donde la deriva entre tipo y validación es
+cara. El resto de tipos están escritos a mano: nunca se parsean, así que esquematizarlos
+añadiría maquinaria de validación sin entrada externa que validar (decisión 023). El
+razonamiento completo, con ejemplo, vive en `src/index.ts`.
 
 ## Crecimiento esperado
 
-Los pasos iniciales de la hoja de ruta poblán este paquete con:
-
-- 1.4: tipos de Listing, Location, Feature, PropertyType, OperationType, AreaQuery, SourcePage, SimilarityResult
-- 1.4: interfaces PropertySource, ListingNormalizer, DedupStrategy
-- 1.4: esquemas Zod para tipos que cruzan fronteras externas
-- 1.9+: implementaciones concretas de estrategias de deduplicación
+- **1.4 — hecho.** Tipos de dominio (`Listing`, `Location`, `Feature`, `PropertyType`,
+  `OperationType`, `AreaQuery`, `SourcePage`, `SimilarityResult`), las interfaces
+  `PropertySource`, `ListingNormalizer` y `DedupStrategy`, los esquemas Zod de `Listing` y
+  `AreaQuery`, y la regla de frontera `no-restricted-imports` de este paquete.
+- **1.8 — hecho.** `blockingThresholdsSchema` (radio, banda de precio, margen de superficie)
+  y `CandidatePair` (tipo escrito a mano, sin campo de decisión) para el bloqueo de
+  candidatos que consume `packages/db`.
+- **1.9 — hecho.** Primera `DedupStrategy` basada en reglas sobre datos estructurados
+  (`ruleBasedDedupStrategy`, `strategies/rule-based/`): distancia pura (`geo/`), señales
+  de precio/superficie/habitaciones/baños, normalización de direcciones en dos niveles
+  (fuerte/zona) y bandeado `accept`/`undecided`/`reject` (`classify`) con un veto de solo
+  rechazo sobre `propertyType`/`operation`. Corpus de 24 pares etiquetados
+  (`packages/core/test/dedup-corpus.ts`) que prueba mecánica, no calibración — pesos y
+  umbrales quedan sin validar a escala hasta ROADMAP 1.10.
+- **1.10 — hecho (parcial: algoritmos puros).** `consolidation/grouping.ts` —
+  `buildPropertyGroups`, cierre transitivo sobre aristas `accept` con chequeo de conflicto
+  sobre la partición ya completa; un componente con un `reject` interno real se rechaza
+  entero (nunca se divide), y todo listing recibido termina en exactamente un grupo, incluso
+  sin ningún par que lo mencione. `consolidation/winner.ts` — `selectWinningListing` y
+  `countCompleteness`, comparador de tres claves (completitud DESC, recencia de cambio de
+  contenido DESC, `listingId` ASC como desempate final total). Ambos puros, sin ORM, sin
+  Next, sin efectos secundarios; consumidos por la hidratación y el escritor transaccional de
+  `packages/db` (resto de 1.10, aún pendiente en este paquete).

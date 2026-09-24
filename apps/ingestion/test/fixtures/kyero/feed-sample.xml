@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Paso 1.14 — fixture hand-authored a partir de la especificación S1
+  (https://help.kyero.com/estate-agents/xml-import-specification, V3.9,
+  2024-09-03). Sin captura real: Kyero no ofrece un feed de referencia
+  público descargable (docs/DECISIONS.md, decisión 071). Cada propiedad
+  cubre un caso del checklist (tarea 1.2):
+
+    P1 (id=1001)  — sale, imagen única, EUR (ausente = EUR), dentro del radio
+    P2 (id=00123) — rent (price_freq=month), 3 imágenes, id con cero a la
+                    izquierda (debe seguir siendo el string "00123"), EUR
+                    explícito, dentro del radio
+    P3 (id=1003)  — type="Yurt" (sin mapeo, cae a 'other'), sale, EUR, radio
+    P4 (id=1004)  — currency="GBP" (excluida por moneda, no por distancia)
+    P5 (id=1005)  — sin latitude/longitude en ningún sitio (excluida)
+    P6 (id=1006)  — coordenadas válidas pero fuera del radio (~5 km del centro)
+    P7 (id=1007)  — sin <price> (inválida: falla el esquema Zod por-propiedad)
+
+  Centro de prueba usado en los tests: lat=36.5298, lon=-4.6499 (radio típico
+  1000 m). P1-P4 quedan a decenas/pocos cientos de metros; P6 a ~5 km.
+-->
+<kyero>
+  <feed_generation>1727176800</feed_generation>
+  <property>
+    <id>1001</id>
+    <ref>AG-1001</ref>
+    <date>2026-09-01 10:00:00</date>
+    <price>185000</price>
+    <type>Apartment</type>
+    <town>Fuengirola</town>
+    <province>Malaga</province>
+    <!-- G2: nesting anidado <location><latitude/><longitude/></location> -->
+    <location>
+      <latitude>36.5300</latitude>
+      <longitude>-4.6495</longitude>
+    </location>
+    <!-- G2: surface_area como objeto built/plot -->
+    <surface_area>
+      <built>85</built>
+      <plot>120</plot>
+    </surface_area>
+    <beds>2</beds>
+    <baths>1</baths>
+    <!-- G1: desc multilenguaje como objeto lang->texto -->
+    <desc>
+      <es>Bonito piso cerca de la playa</es>
+      <en>Nice flat close to the beach</en>
+    </desc>
+    <!-- G1b: url también admite la forma localizada -->
+    <url>
+      <en>https://example-kyero.test/property/1001</en>
+    </url>
+    <!-- G3: imagen única -> isArray debe forzarla a array de longitud 1 -->
+    <images>
+      <image id="1">
+        <url>https://example-kyero.test/images/1001-1.jpg</url>
+      </image>
+    </images>
+  </property>
+  <property>
+    <id>00123</id>
+    <ref>AG-00123</ref>
+    <date>2026-09-01 10:05:00</date>
+    <price>950</price>
+    <currency>EUR</currency>
+    <price_freq>month</price_freq>
+    <type>Villa</type>
+    <town>Marbella</town>
+    <province>Malaga</province>
+    <!-- G2: forma plana (sin <location>), debe tolerarse igual -->
+    <latitude>36.5310</latitude>
+    <longitude>-4.6510</longitude>
+    <surface_area>
+      <built>210</built>
+    </surface_area>
+    <beds>3</beds>
+    <baths>2</baths>
+    <url>https://example-kyero.test/property/00123</url>
+    <!-- G3: 3 imágenes -->
+    <images>
+      <image id="1"><url>https://example-kyero.test/images/00123-1.jpg</url></image>
+      <image id="2"><url>https://example-kyero.test/images/00123-2.jpg</url></image>
+      <image id="3"><url>https://example-kyero.test/images/00123-3.jpg</url></image>
+    </images>
+  </property>
+  <property>
+    <id>1003</id>
+    <date>2026-09-01 10:10:00</date>
+    <price>320000</price>
+    <currency>EUR</currency>
+    <price_freq>sale</price_freq>
+    <type>Yurt</type>
+    <town>Mijas</town>
+    <province>Malaga</province>
+    <location>
+      <latitude>36.5290</latitude>
+      <longitude>-4.6480</longitude>
+    </location>
+    <url>https://example-kyero.test/property/1003</url>
+  </property>
+  <property>
+    <id>1004</id>
+    <date>2026-09-01 10:15:00</date>
+    <price>275000</price>
+    <currency>GBP</currency>
+    <price_freq>sale</price_freq>
+    <type>Flat</type>
+    <town>Fuengirola</town>
+    <province>Malaga</province>
+    <latitude>36.5295</latitude>
+    <longitude>-4.6500</longitude>
+    <url>https://example-kyero.test/property/1004</url>
+  </property>
+  <property>
+    <id>1005</id>
+    <date>2026-09-01 10:20:00</date>
+    <price>150000</price>
+    <currency>EUR</currency>
+    <price_freq>sale</price_freq>
+    <type>Land</type>
+    <town>Coin</town>
+    <province>Malaga</province>
+    <url>https://example-kyero.test/property/1005</url>
+  </property>
+  <property>
+    <id>1006</id>
+    <date>2026-09-01 10:25:00</date>
+    <price>410000</price>
+    <currency>EUR</currency>
+    <price_freq>sale</price_freq>
+    <type>House</type>
+    <town>Alhaurin</town>
+    <province>Malaga</province>
+    <location>
+      <latitude>36.5700</latitude>
+      <longitude>-4.6000</longitude>
+    </location>
+    <url>https://example-kyero.test/property/1006</url>
+  </property>
+  <property>
+    <id>1007</id>
+    <date>2026-09-01 10:30:00</date>
+    <currency>EUR</currency>
+    <price_freq>sale</price_freq>
+    <type>Apartment</type>
+    <town>Fuengirola</town>
+    <province>Malaga</province>
+    <location>
+      <latitude>36.5298</latitude>
+      <longitude>-4.6499</longitude>
+    </location>
+    <url>https://example-kyero.test/property/1007</url>
+  </property>
+</kyero>

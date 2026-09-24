@@ -11,16 +11,30 @@
     "start": "node dist/index.js",
     "lint": "eslint .",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "test:db": "vitest run -c vitest.db.config.ts",
+    "typecheck": "tsc --noEmit",
+    "probe": "node --env-file=../../.env --import tsx scripts/probe-idealista.ts",
+    "probe:homes": "node --env-file=../../.env --import tsx scripts/probe-idealista.ts --profile homes",
+    "probe:premises": "node --env-file=../../.env --import tsx scripts/probe-idealista.ts --profile premises",
+    "probe:analyse": "node --import tsx scripts/probe-idealista.ts --analyse",
+    "sweep": "node --env-file=../../.env --import tsx scripts/sweep-zone.ts",
+    "calibrate": "node --env-file=../../.env --import tsx scripts/calibrate-blocking.ts",
+    "reprocess": "node --env-file=../../.env --import tsx scripts/reprocess-dedup.ts",
+    "worker": "node --env-file=../../.env --import tsx scripts/coverage-worker.ts",
+    "backfill-thumbnails": "node --env-file=../../.env --import tsx scripts/backfill-thumbnails.ts"
   },
   "dependencies": {
     "@buscahogar/core": "workspace:*",
     "@buscahogar/db": "workspace:*",
+    "drizzle-orm": "0.45.2",
+    "fast-xml-parser": "5.11.1",
+    "pg": "8.23.0",
     "zod": "4.5.4"
   },
   "devDependencies": {
     "@buscahogar/config": "workspace:*",
     "@types/node": "22.20.1",
+    "@types/pg": "8.23.1",
     "eslint": "10.9.1",
     "prettier": "3.9.6",
     "tsx": "4.23.13",

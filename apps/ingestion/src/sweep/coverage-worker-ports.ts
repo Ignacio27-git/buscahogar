@@ -1,0 +1,148 @@
+// ROADMAP 1.13 Unit C (diseño DD-17, DD-18, CR-1, CR-2) — implementación
+// REAL de `CoverageWorkerPorts` (coverage-worker.ts): la única pieza de
+// este cambio que toca PostgreSQL y el adaptador de Idealista de verdad.
+// `scripts/coverage-worker.ts` (composition root, único lector de
+// `process.env`) construye sus dependencias y llama a
+// `createRealCoverageWorkerPorts` una vez; el resultado se pasa tal cual a
+// `runCoverageWorker` (coverage-worker.ts, driver puro).
+//
+// CR-2 (arbitraje, vinculante): reutiliza `runSweep` + `composeStore` +
+// `createIdealistaSource` + `buildReport` SIN CAMBIOS — nunca
+// `runSweepZone` completo, que abre su propio pool por invocación y se
+// resuelve por un `--zone` de CLI (la propia acoplación que 1.13 elimina).
+import type { AreaQuery, BlockingThresholds } from '@buscahogar/core';
+import {
+  purgeExpiredClientQuota,
+  reconcileDailyBudget,
+  reserveDailyBudget,
+  resolveZoneGeometryById,
+} from '@buscahogar/db';
+import type { BudgetReservation, BudgetSnapshotLike, Database, LedgerState, ZoneGeometry } from '@buscahogar/db';
+
+import { runReprocessCore } from '../dedup/reprocess-core.js';
+import type { ReprocessIo } from '../dedup/reprocess-core.js';
+import { createIdealistaSource, IdealistaListingNormalizer } from '../sources/idealista/index.js';
+import type { IdealistaSearchPort, IdealistaTokenPort } from '../sources/idealista/ports.js';
+import { composeStore } from './compose-store.js';
+import type { CoverageWorkerPorts, SweepTickResult } from './coverage-worker.js';
+import { markJobFailedWithoutClaim, selectNextClaimableJob } from './job-selection.js';
+import type { PollJob } from './job-selection.js';
+import { buildReport } from './report.js';
+import { runSweep } from './sweep-runner.js';
+
+export interface CoverageWorkerRealDeps {
+  readonly db: Database;
+  // Resuelto UNA vez por el composition root (resolveSourceUuid(db,
+  // 'idealista'), mismo idioma que runSweepZone), no por trabajo: multi-fuente
+  // queda fuera de alcance de este cambio (spec, "Out of scope").
+  readonly sourceUuid: string;
+  readonly searchPort: IdealistaSearchPort;
+  readonly tokenPort: IdealistaTokenPort;
+  readonly maxSearchRequestsPerSweep: number;
+  readonly maxAttempts: number;
+  readonly dailySearchCap: number;
+  readonly blockingThresholds: BlockingThresholds;
+  readonly io: ReprocessIo;
+}
+
+function realSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): CoverageWorkerPorts {
+  // UNA instancia compartida por el proceso — composeStore ya es la misma
+  // composición reutilizada por scripts/sweep-zone.ts (CR-2).
+  const store = composeStore(deps.db);
+
+  return {
+    selectNextJob(): Promise<PollJob | null> {
+      return selectNextClaimableJob(deps.db, deps.maxAttempts);
+    },
+
+    async resolveZoneGeometry(zoneId: string): Promise<ZoneGeometry> {
+      const geometry = await resolveZoneGeometryById(deps.db, zoneId);
+      if (!geometry) {
+        // Invariante de FK: coverage_jobs.zone_id referencia siempre una
+        // fila real de zones (schema/coverage-jobs.ts). Si esto salta, la
+        // base de datos dejó de cumplir esa referencia — un error de
+        // programación, nunca un caso de negocio esperado.
+        throw new Error(`resolveZoneGeometry: no existe ninguna zona con id="${zoneId}" (¿violación de FK?).`);
+      }
+      return geometry;
+    },
+
+    failJob(jobId: string, reason: string): Promise<void> {
+      return markJobFailedWithoutClaim(deps.db, jobId, reason);
+    },
+
+    reserveBudget(reservation: BudgetReservation): Promise<LedgerState | null> {
+      return reserveDailyBudget(deps.db, deps.sourceUuid, reservation, deps.dailySearchCap);
+    },
+
+    reconcileBudget(reserved: BudgetReservation, actual: BudgetSnapshotLike): Promise<void> {
+      return reconcileDailyBudget(deps.db, deps.sourceUuid, reserved, actual);
+    },
+
+    // ROADMAP 1.15 (security-hardening, decisión #263 D9) — purga
+    // programada sobre el MISMO pool propietario del proceso worker
+    // (`deps.db`), reutilizando `purgeExpiredClientQuota` sin ningún
+    // adaptador propio: la purga es una simple DELETE, no necesita
+    // credenciales aparte de las que este proceso ya tiene.
+    async purgeClientQuota(): Promise<void> {
+      await purgeExpiredClientQuota(deps.db);
+    },
+
+    async claimAndSweep(job: PollJob, area: AreaQuery, fingerprint: string): Promise<SweepTickResult> {
+      const claimed = await store.claimJob(job.zoneId, job.sourceId, fingerprint);
+
+      const source = createIdealistaSource({
+        searchPort: deps.searchPort,
+        tokenPort: deps.tokenPort,
+        maxSearchRequestsPerSweep: deps.maxSearchRequestsPerSweep,
+      });
+      const normalizer = new IdealistaListingNormalizer();
+
+      const result = await runSweep({
+        source,
+        normalizer,
+        store,
+        area,
+        job: claimed,
+        sourceUuid: job.sourceId,
+        fingerprint,
+      });
+
+      // Mismo formato que runSweepZone (R2): el informe es la evidencia de
+      // qué área se barrió y con qué resultado, a coste facturable.
+      const report = buildReport({
+        area,
+        outcome: result.outcome,
+        inserted: result.inserted,
+        versioned: result.versioned,
+        unchanged: result.unchanged,
+        rejectedCount: result.rejectedCount,
+        resumeCursor: result.resumeCursor,
+        error: result.error,
+        requestsSpent: source.diagnostics().budget.search,
+      });
+      deps.io.log(JSON.stringify(report, null, 2));
+
+      return { outcome: result.outcome, actual: source.diagnostics().budget };
+    },
+
+    async runDedup(): Promise<void> {
+      // DD-10/CR-2: el MISMO núcleo de reproceso global que
+      // scripts/reprocess-dedup.ts, sin filtro de zona — blocking.ts:4-6
+      // queda sin estrechar (decisión 068).
+      await runReprocessCore(deps.db, deps.blockingThresholds, deps.io);
+    },
+
+    sleep: realSleep,
+
+    log(line: string): void {
+      deps.io.log(line);
+    },
+  };
+}

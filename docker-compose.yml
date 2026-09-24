@@ -1,0 +1,111 @@
+# Entorno de desarrollo local. Solo se levanta la base de datos: `web` e `ingestion`
+# se ejecutan en local (`pnpm dev:web`, `pnpm dev:ingestion`). Ver README, «Base de datos».
+
+# Nombre de proyecto explícito: sin él, Compose lo deriva del nombre del directorio, así
+# que un worktree con otro nombre crearía contenedores y volúmenes distintos en silencio.
+name: buscahogar
+
+services:
+  db:
+    image: postgis/postgis:17-3.5
+    restart: unless-stopped
+    environment:
+      # Sin valor por defecto a propósito: si falta la variable, Compose falla al
+      # instante. Postgres, en cambio, arrancaría con sus valores por defecto y
+      # crearía una base de datos distinta de la esperada, con PostGIS en el sitio
+      # equivocado; el error no aparecería hasta la primera conexión de la aplicación.
+      POSTGRES_USER: '${POSTGRES_USER:?falta POSTGRES_USER en .env}'
+      POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en .env}'
+      POSTGRES_DB: '${POSTGRES_DB:?falta POSTGRES_DB en .env}'
+    ports:
+      # Asimetría intencionada: el lado del host es configurable, el del contenedor es
+      # siempre 5432 porque el entrypoint de postgres no lee POSTGRES_PORT. No
+      # "corregir" a ${POSTGRES_PORT}:${POSTGRES_PORT}. DATABASE_URL debe apuntar al
+      # puerto del host.
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      # Ruta correcta para las etiquetas 14-17. A partir de la 18 la imagen movió el
+      # volumen a /var/lib/postgresql (sin /data): revisarla al subir de versión.
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # $$ escapa la interpolación de Compose para que las variables las expanda la
+      # shell del contenedor, no Compose.
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      interval: 10s
+      timeout: 5s
+      # start_period cubre el primer arranque: sobre un volumen vacío la imagen crea
+      # el cluster y la extensión PostGIS antes de aceptar conexiones. Los fallos
+      # dentro de esta ventana no cuentan como reintentos.
+      start_period: 30s
+      retries: 5
+
+  # web e ingestion se declaran para dejar constancia de los tres servicios de
+  # docs/ARCHITECTURE.md, pero durante el desarrollo NO se levantan con Docker: se
+  # ejecutan en local con `pnpm dev:web` y `pnpm dev:ingestion`, y solo la base de datos
+  # corre en contenedor. Por eso quedan fuera del perfil por defecto: `docker compose
+  # up -d` levanta solo db. Todavía no existe ningún Dockerfile; se construirán con
+  # `docker compose --profile app up` cuando existan.
+  web:
+    profiles: ['app']
+    build:
+      # Contexto en la raíz: es un monorepo pnpm y la construcción necesita el
+      # lockfile y los packages compartidos, no solo apps/web.
+      context: .
+      dockerfile: apps/web/Dockerfile
+    # ROADMAP 1.11, docs/DECISIONS.md decisión 056 (enmienda la 015): `web`
+    # recibe SU PROPIA credencial de solo lectura, nunca `env_file` (que le
+    # daría también la credencial de escritura de `ingestion` y las de las
+    # fuentes). `WEB_DATABASE_URL` vive en el `.env` de la raíz junto a la de
+    # `ingestion`, bajo un nombre distinto para que no colisionen; nunca una
+    # variable `NEXT_PUBLIC_*`.
+    environment:
+      # Sin `:?`: esa forma aborta la interpolación del fichero ENTERO, también
+      # para `docker compose up -d` sin `--profile`, que la decisión 015
+      # garantiza que levanta solo `db`. El fallo ruidoso vive donde toca, en
+      # `apps/web/src/server/db.ts`: lanza un error nombrado citando la decisión
+      # 056 cuando falta la variable, y está probado en `apps/web/test/db.test.ts`.
+      DATABASE_URL: '${WEB_DATABASE_URL}'
+      # ROADMAP 1.15 (security-hardening, decisión 064/069) — credencial de
+      # escritura ACOTADA (`web_coverage`, solo `coverage_jobs` +
+      # `coverage_client_quota`), nunca la de `ingestion` (`env_file`
+      # completo, más abajo). Igual que `WEB_DATABASE_URL`: sin `:?`, mismo
+      # motivo — el fallo ruidoso vive en `apps/web/src/server/coverage-db.ts`.
+      WEB_COVERAGE_DATABASE_URL: '${WEB_COVERAGE_DATABASE_URL}'
+      # Tope de zonas nuevas por día (DD-14) — decisión de operación, nunca
+      # inventado en código (`apps/web/src/server/env.ts`).
+      NEW_ZONES_DAILY_CAP: '${NEW_ZONES_DAILY_CAP}'
+      # ROADMAP 1.15 (spec #261 "request-rate-limiting", decisión 075/078) —
+      # AUSENTE o vacía = ambos limitadores por IP deshabilitados (D1a): por
+      # eso son `${VAR:-}`, nunca `${VAR:?}` — el kill switch de rollback es
+      # una única variable, documentado en design #262 "Migration / Rollout".
+      CLIENT_IP_HEADER: '${CLIENT_IP_HEADER:-}'
+      # Requerida SOLO cuando CLIENT_IP_HEADER está definida
+      # (`apps/web/src/server/env.ts`, `readClientLimitConfig`); el fallo
+      # ruidoso vive ahí, nunca en Compose.
+      CLIENT_IP_HMAC_KEY: '${CLIENT_IP_HMAC_KEY:-}'
+      COVERAGE_PER_CLIENT_DAILY_CAP: '${COVERAGE_PER_CLIENT_DAILY_CAP:-}'
+      PROXY_RATE_LIMIT_MAX: '${PROXY_RATE_LIMIT_MAX:-}'
+      PROXY_RATE_LIMIT_WINDOW_SECONDS: '${PROXY_RATE_LIMIT_WINDOW_SECONDS:-}'
+    depends_on:
+      db:
+        condition: service_healthy
+
+  ingestion:
+    profiles: ['app']
+    build:
+      context: .
+      dockerfile: apps/ingestion/Dockerfile
+    # Las credenciales de escritura y las de las fuentes viven solo aquí.
+    # `web` (arriba) recibe una `environment:` propia y acotada, nunca este
+    # `env_file` completo (docs/DECISIONS.md, decisión 056).
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    # Nombre fijado explícitamente para que `docker volume rm buscahogar_postgres_data`
+    # funcione igual desde cualquier directorio o worktree.
+    name: buscahogar_postgres_data

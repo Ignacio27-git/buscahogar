@@ -27,7 +27,8 @@ Adaptador           respuesta cruda → RawListing
       ↓
 Normalizador        RawListing → Listing
       ↓
-tabla listings      un registro por anuncio y versión
+tablas listings +   identidad del anuncio (listings) + instantáneas de precio y
+listing_versions    contenido (listing_versions), una por versión
       ↓
 Deduplicación       bloqueo + puntuación
       ↓
@@ -42,9 +43,9 @@ lanzarse por separado sobre datos ya persistidos, sin gastar cuota.
 ## Contratos
 
 ```typescript
-interface PropertySource {
+interface PropertySource<T = unknown> {
   readonly id: string;
-  fetchArea(area: AreaQuery, cursor?: string): Promise<SourcePage>;
+  fetchArea(area: AreaQuery, cursor?: string): Promise<SourcePage<T>>;
 }
 
 interface ListingNormalizer<T> {
@@ -53,19 +54,30 @@ interface ListingNormalizer<T> {
 
 interface DedupStrategy {
   readonly name: string;
+  readonly version: string;
   score(a: Listing, b: Listing): SimilarityResult;
 }
 ```
 
-`SourcePage` incluye el cursor siguiente para poder reanudar un barrido interrumpido sin
-repetir peticiones.
+`SourcePage<T = unknown>` incluye `nextCursor`, el cursor siguiente, para poder reanudar un
+barrido interrumpido sin repetir peticiones. `T` es siempre el payload crudo de la fuente,
+antes de normalizar — nunca un `Listing`.
+
+`DedupStrategy.version` acompaña a `name` porque `property_listings.strategy_version` es
+`NOT NULL` y no existe otra fuente de dominio para ese valor (decisión 020).
 
 `SimilarityResult` incluye la puntuación total **y el desglose por señal**.
 
 ## Modelo de datos
 
-- **`listings`** — un registro por anuncio y fuente, normalizado. En la práctica inmutable:
-  un cambio de precio genera una versión nueva.
+- **`listings`** — identidad estable de un anuncio: un registro por anuncio y fuente,
+  nunca sobrescrito.
+- **`listing_versions`** — histórico de instantáneas de un anuncio, en orden de aparición:
+  cada cambio de precio o contenido añade una versión nueva en lugar de modificar la
+  existente. La versión vigente se marca con `is_current`.
+- **`listing_features`** — amenities de una versión concreta de un anuncio (relación con
+  `features`); cuelga de la versión, no de la identidad, porque una versión es una
+  instantánea completa.
 - **`properties`** — vivienda canónica; agrupación de uno o varios listings.
 - **`property_listings`** — relación, con puntuación, desglose por señal y estrategia que
   produjo la decisión.
@@ -105,6 +117,17 @@ de colas externo.
 **Cuota.** Presupuesto diario de peticiones y tope de zonas nuevas por día y por sesión.
 Degradación explícita al alcanzarlo.
 
+## Atribución de datos geográficos
+
+El catálogo de municipios (centroide y radio de barrido por municipio, ROADMAP 1.13) se deriva
+del Nomenclátor Geográfico de Municipios y Entidades de Población (NGMEP), publicado por el
+Instituto Geográfico Nacional (IGN) a través del Centro Nacional de Información Geográfica
+(CNIG), bajo licencia **CC-BY 4.0**, según lo exige la Orden FOM/2807/2015. La atribución es
+visible al usuario en el pie de página de `apps/web` (`layout.tsx`, Server Component, sin coste
+de JavaScript) y queda registrada, con su procedencia exacta (URLs de origen, fecha de descarga,
+checksum, sistema de referencia verbatim del fichero), en la cabecera del propio artefacto de
+catálogo committeado (`packages/db/src/municipality-catalogue.generated.ts`).
+
 ## Refresco y retención
 
 - Zonas con consultas recientes: refresco semanal.
@@ -139,9 +162,23 @@ Fuera del alcance: colas externas, Redis, caché distribuida, autenticación.
 
 ## Seguridad
 
-- Validación con Zod de toda entrada externa, search params incluidos.
-- Credenciales de fuentes solo en `ingestion`, nunca en variables públicas.
+- Validación con Zod de toda entrada externa: search params, variables de entorno de `apps/web`
+  (`env.ts`, un lector Zod por cada grupo de variables, parseado en tiempo de llamada) y argumentos/filas CSV del conversor
+  del catálogo municipal (`apps/ingestion`).
+- Credenciales de fuentes solo en `ingestion`, nunca en variables públicas. `apps/web` usa dos
+  credenciales de PostgreSQL de alcance mínimo, ninguna de propietario: lectura y una escritura
+  restringida al rol `web_coverage` (pasos 1.13 y 1.15, `CLAUDE.md`).
 - Consultas parametrizadas vía ORM.
-- Rate limiting en endpoints públicos y presupuesto de cuota frente a fuentes externas.
-- Cabeceras de seguridad y política de contenido.
+- Rate limiting en endpoints públicos: cuota diaria por cliente en PostgreSQL para el registro de
+  cobertura bajo demanda (clave HMAC-SHA256, nunca la IP cruda) más un limitador de ventana fija
+  en memoria en `apps/web/src/proxy.ts` para el resto de peticiones — **deshabilitado por
+  defecto**, activo solo cuando `CLIENT_IP_HEADER` está configurado detrás de un proxy inverso de
+  confianza que sobrescriba ese header. Presupuesto de cuota frente a fuentes externas sin
+  cambios (`apps/ingestion`).
+- Cabeceras de seguridad y política de contenido: CSP estática sin nonces + conjunto OWASP
+  (HSTS, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors 'none'`/
+  `X-Frame-Options: DENY`, COOP, CORP, sin COEP) vía `headers()` en `next.config.ts`; sin
+  `X-Powered-By`.
+- Módulos de `apps/web/src/server` con handles de base de datos o secretos guardados con
+  `import 'server-only'`, para que un import accidental desde código de cliente falle en build.
 - Secretos en variables de entorno, fuera del control de versiones.
