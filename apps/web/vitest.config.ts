@@ -13,6 +13,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // ROADMAP 1.15 (security-hardening, diseño decisión 081) — el
+      // paquete real `server-only` lanza fuera del runtime de servidor de
+      // Next.js; este alias lo sustituye por un doble vacío
+      // (`test/stubs/server-only.ts`) solo para el pipeline de vitest.
+      'server-only': fileURLToPath(new URL('./test/stubs/server-only.ts', import.meta.url)),
     },
   },
   // `apps/web/tsconfig.json` fija `jsx: "preserve"` porque el propio pipeline

@@ -6,7 +6,13 @@
 // `zones.state` — ambas comprobaciones (centroide, tope diario) viven aquí,
 // contra el rol de SOLO LECTURA, ANTES de intentar cualquier escritura.
 // Cableada en `apps/web/src/app/page.tsx` (fase 12 de esta misma unidad).
+//
+// ROADMAP 1.15 (security-hardening, diseño decisión 081): guardado con
+// `import 'server-only'` — este módulo consume ambos handles de DB.
+import 'server-only';
+
 import {
+  consumeClientQuota,
   countZonesOpenedToday,
   getCoverageJobState,
   registerCoverageJob,
@@ -23,22 +29,14 @@ const IDEALISTA_SOURCE_KEY = 'idealista';
 
 // ROADMAP 1.13 Unit D — el tope de zonas nuevas por día (DD-14, CR-4) NUNCA
 // se inventa en código (mismo principio que decisión 066: `searchCap` es un
-// parámetro suministrado por quien opera, nunca un número mágico). `apps/web`
-// SÍ puede leer `process.env` (comentario de `./db.ts`), así que esta es la
-// única capa donde puede vivir esta lectura.
-export class MissingNewZonesDailyCapError extends Error {}
-
-export function resolveNewZonesDailyCap(): number {
-  const raw = process.env.NEW_ZONES_DAILY_CAP;
-  const parsed = raw !== undefined ? Number(raw) : NaN;
-  if (raw === undefined || raw === '' || !Number.isInteger(parsed) || parsed <= 0) {
-    throw new MissingNewZonesDailyCapError(
-      'NEW_ZONES_DAILY_CAP no está definida o no es un entero positivo: el tope de zonas ' +
-        'nuevas por día (DD-14) es una decisión de operación, nunca un valor inventado en código.'
-    );
-  }
-  return parsed;
-}
+// parámetro suministrado por quien opera, nunca un número mágico).
+//
+// ROADMAP 1.15 (security-hardening, diseño decisión 078): la validación
+// Zod vive ahora en `./env.js` (lector canónico compartido);
+// `MissingNewZonesDailyCapError` y `resolveNewZonesDailyCap` se RE-EXPORTAN
+// desde aquí para que ningún import existente (`test/coverage-env.test.ts`,
+// `src/app/page.tsx`) cambie.
+export { MissingNewZonesDailyCapError, readNewZonesDailyCap as resolveNewZonesDailyCap } from './env';
 
 export type CoverageOutcome =
   | { readonly kind: 'covered' }
@@ -52,7 +50,22 @@ export type CoverageOutcome =
   // worker vía DD-12, Unit C) — check-then-insert no transaccional,
   // aceptado a propósito.
   | { readonly kind: 'cap-exhausted' }
+  // ROADMAP 1.15 (spec #261 "A Per-Client Limit Hit Is The Distinct
+  // Outcome client-cap-exhausted, Never cap-exhausted", diseño decisión
+  // 079) — DISTINTO de 'cap-exhausted' (D6): el tope global bloquea a
+  // TODOS los clientes, este bloquea solo UNO.
+  | { readonly kind: 'client-cap-exhausted' }
   | { readonly kind: 'registered'; readonly job: CoverageJobState | null };
+
+// ROADMAP 1.15 (diseño decisión 079) — identidad y tope YA resueltos por el
+// llamador (`apps/web/src/server/coverage-client.ts`): este módulo nunca
+// lee `next/headers` ni `CLIENT_IP_HMAC_KEY` por sí mismo, solo recibe el
+// `key_hash` opaco y el tope numérico — mismo principio que ya aplica a
+// `newZonesDailyCap`.
+export interface ClientLimit {
+  readonly keyHash: string;
+  readonly dailyCap: number;
+}
 
 // `getWriteDb` es una fábrica PEREZOSA, nunca un `Database` ya resuelto:
 // `getCoverageDb()` (DD-15) falla alto en la PRIMERA llamada si
@@ -64,7 +77,8 @@ export async function resolveCoverageForZone(
   readDb: Database,
   getWriteDb: () => Database,
   zoneGeometry: ZoneGeometry,
-  newZonesDailyCap: number
+  newZonesDailyCap: number,
+  clientLimit?: ClientLimit | null
 ): Promise<CoverageOutcome> {
   if (zoneGeometry.state === 'covered') {
     return { kind: 'covered' };
@@ -93,9 +107,24 @@ export async function resolveCoverageForZone(
     return { kind: 'registered', job: existingJob };
   }
 
+  // ROADMAP 1.15 (spec #261 "Three Checks, In Order — Global Cap
+  // (Read-Only) Before Per-Client Consume (Write)", diseño decisión 079,
+  // SUPERA el orden previo de la spec) — el tope GLOBAL se comprueba
+  // PRIMERO, de solo lectura: así ningún registro que vaya a ser rechazado
+  // por el tope global consume nunca la cuota de un cliente concreto, y el
+  // handle de escritura perezoso sigue sin abrirse en esta rama.
   const openedToday = await countZonesOpenedToday(readDb);
   if (openedToday >= newZonesDailyCap) {
     return { kind: 'cap-exhausted' };
+  }
+
+  // Solo se alcanza con hueco en el tope global — el tope por cliente es la
+  // SEGUNDA comprobación, y la única que ESCRIBE (decisión 076/077).
+  if (clientLimit) {
+    const allowed = await consumeClientQuota(getWriteDb(), clientLimit.keyHash, clientLimit.dailyCap);
+    if (!allowed) {
+      return { kind: 'client-cap-exhausted' };
+    }
   }
 
   await registerCoverageJob(getWriteDb(), zoneGeometry.zoneId, sourceId);

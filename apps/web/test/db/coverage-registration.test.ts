@@ -13,7 +13,15 @@
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 
 import type { Database } from '@buscahogar/db';
-import { geographyPointWkt, locations, sources, zones } from '@buscahogar/db';
+import {
+  consumeClientQuota,
+  coverageClientQuota,
+  coverageJobs,
+  geographyPointWkt,
+  locations,
+  sources,
+  zones,
+} from '@buscahogar/db';
 
 import { resolveZoneGeometry } from '@buscahogar/db';
 import { resolveCoverageForZone } from '../../src/server/coverage.js';
@@ -135,5 +143,53 @@ describeWithDb('resolveCoverageForZone (DD-14, CR-12) — guarda de aplicación'
 
     const second = await resolveCoverageForZone(db, () => db, geometry, 1); // re-visita, tope ya consumido
     expect(second.kind).toBe('registered'); // NUNCA cap-exhausted para un job que ya existe
+  });
+
+  // ROADMAP 1.15 (security-hardening, spec #261 "Three Checks, In Order —
+  // Global Cap (Read-Only) Before Per-Client Consume (Write)", diseño
+  // decisión 079) — el orden es la propiedad de seguridad central: el tope
+  // GLOBAL se comprueba PRIMERO, de solo lectura, así que ningún registro
+  // que vaya a ser rechazado por él consume nunca la cuota de un cliente.
+  it('spec #261: tope global agotado bloquea el registro y NUNCA toca la cuota por cliente', async () => {
+    const alreadyOpened = '18007';
+    await insertZone(db, { ineCode: alreadyOpened, state: 'uncovered', centroid: { latitude: 37.1, longitude: -3.6 } });
+    const openedGeometry = await resolveZoneGeometry(db, alreadyOpened);
+    if (!openedGeometry) throw new Error('geometry inesperadamente null');
+    await resolveCoverageForZone(db, () => db, openedGeometry, 1); // tope=1, consume la única plaza
+
+    const ineCode = '18008';
+    await insertZone(db, { ineCode, state: 'uncovered', centroid: { latitude: 37.2, longitude: -3.7 } });
+    const geometry = await resolveZoneGeometry(db, ineCode);
+    if (!geometry) throw new Error('geometry inesperadamente null');
+
+    const keyHash = 'e'.repeat(64);
+    const outcome = await resolveCoverageForZone(db, () => db, geometry, 1, { keyHash, dailyCap: 5 });
+    expect(outcome).toEqual({ kind: 'cap-exhausted' });
+
+    // La cuota del cliente NUNCA se tocó: ni siquiera una fila con
+    // registrations=0 debería existir — el write path no se invocó.
+    const quotaRows = await db.select().from(coverageClientQuota);
+    expect(quotaRows.filter((row) => row.keyHash === keyHash)).toHaveLength(0);
+  });
+
+  it('spec #261: tope por cliente agotado bloquea el registro SOLO cuando el tope global tiene hueco', async () => {
+    const keyHash = 'f'.repeat(64);
+    // Agota la cuota del cliente de forma independiente, sin consumir el
+    // tope global (que sigue con hueco de sobra, cap=10).
+    await consumeClientQuota(db, keyHash, 1);
+
+    const ineCode = '18009';
+    await insertZone(db, { ineCode, state: 'uncovered', centroid: { latitude: 37.3, longitude: -3.8 } });
+    const geometry = await resolveZoneGeometry(db, ineCode);
+    if (!geometry) throw new Error('geometry inesperadamente null');
+
+    const outcome = await resolveCoverageForZone(db, () => db, geometry, 10, { keyHash, dailyCap: 1 });
+    expect(outcome).toEqual({ kind: 'client-cap-exhausted' });
+    expect(outcome.kind).not.toBe('cap-exhausted'); // distinto del outcome global (D6)
+
+    // Cero filas nuevas en coverage_jobs para esta zona: registerCoverageJob
+    // nunca se invocó porque el tope por cliente lo bloqueó antes.
+    const allJobs = await db.select().from(coverageJobs);
+    expect(allJobs.filter((job) => job.zoneId === geometry.zoneId)).toHaveLength(0);
   });
 });

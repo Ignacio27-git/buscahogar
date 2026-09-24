@@ -11,11 +11,12 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vite
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import type { Database } from '@buscahogar/db';
-import { geographyPointWkt, locations, sources, zones } from '@buscahogar/db';
+import { consumeClientQuota, geographyPointWkt, locations, sources, zones } from '@buscahogar/db';
 import { registerCoverageJob } from '@buscahogar/db';
 
 import { connectTestDb, truncateAll } from '../helpers/db-client.js';
 import { describeWithDb } from '../helpers/db-gate.js';
+import { hmacClientKey } from '../../src/server/client-identity.js';
 
 // DD-23/CR-9 (diseño, confirmado empíricamente al escribir esta prueba):
 // `<CoverageStatus/>` llama a `useRouter()`, que exige un contexto de
@@ -31,6 +32,15 @@ import { describeWithDb } from '../helpers/db-gate.js';
 vi.mock('@/components/coverage-status', () => ({
   CoverageStatus: (): null => null,
 }));
+
+// ROADMAP 1.15 (security-hardening, validador notes obs #263) — "page test
+// asserts the next/headers mock is NOT called when CLIENT_IP_HEADER is
+// unset". `CLIENT_IP_HEADER` se borra en el `beforeEach` de abajo, así que
+// los seis casos YA EXISTENTES de este fichero siguen ejerciendo la ruta
+// deshabilitada (D1a) — este mock permite comprobar que, en esa ruta,
+// `next/headers` nunca se invoca.
+const headersMock = vi.fn();
+vi.mock('next/headers', () => ({ headers: headersMock }));
 
 const { default: HomePage } = await import('../../src/app/page.js');
 
@@ -101,10 +111,20 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     await truncateAll(pool);
     await db.insert(sources).values({ key: 'idealista', name: 'Idealista', kind: 'api' });
     process.env.NEW_ZONES_DAILY_CAP = '10';
+    // D1a: deshabilitado por defecto en cada caso — los seis casos
+    // EXISTENTES de abajo nunca configuran el limitador por cliente, así
+    // que deben seguir ejerciendo la ruta deshabilitada, nunca `next/headers`.
+    delete process.env.CLIENT_IP_HEADER;
+    headersMock.mockReset();
   });
 
   afterEach(() => {
     delete process.env.NEW_ZONES_DAILY_CAP;
+    delete process.env.CLIENT_IP_HEADER;
+    delete process.env.CLIENT_IP_HMAC_KEY;
+    delete process.env.COVERAGE_PER_CLIENT_DAILY_CAP;
+    delete process.env.PROXY_RATE_LIMIT_MAX;
+    delete process.env.PROXY_RATE_LIMIT_WINDOW_SECONDS;
   });
 
   it('zona covered: renderiza resultados SIN ninguna notificación de cobertura', async () => {
@@ -150,6 +170,45 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
 
     const html = await renderHome({ zone: ineCode });
     expect(html).toMatch(/límite diario/i);
+    // validador notes obs #263: con CLIENT_IP_HEADER sin definir,
+    // resolveCoverageClientLimit() nunca invoca next/headers.
+    expect(headersMock).not.toHaveBeenCalled();
+  });
+
+  // ROADMAP 1.15 (security-hardening, spec #261 "A Per-Client Limit Hit Is
+  // The Distinct Outcome client-cap-exhausted...", diseño decisión 079) —
+  // CUARTO caso honesto de degradación, distinto de los tres de #214: el
+  // tope GLOBAL tiene hueco (NEW_ZONES_DAILY_CAP='10', beforeEach), pero el
+  // cliente concreto ya agotó SU tope (dailyCap=1, agotado de antemano).
+  it('spec #261: client-cap-exhausted -> notificación DISTINTA de "límite diario" (D6, decisión 079)', async () => {
+    process.env.CLIENT_IP_HEADER = 'x-forwarded-for';
+    process.env.CLIENT_IP_HMAC_KEY = 'a'.repeat(32);
+    // cap=1: coincide con el consumeClientQuota(..., 1) de abajo que agota
+    // la cuota de antemano — un cap distinto entre el pre-consumo directo y
+    // el que lee resolveCoverageClientLimit() dejaría hueco de sobra.
+    process.env.COVERAGE_PER_CLIENT_DAILY_CAP = '1';
+    process.env.PROXY_RATE_LIMIT_MAX = '10';
+    process.env.PROXY_RATE_LIMIT_WINDOW_SECONDS = '60';
+
+    const clientIp = '9.9.9.9';
+    headersMock.mockResolvedValue({
+      get: (name: string): string | null => (name === 'x-forwarded-for' ? clientIp : null),
+    });
+    const keyHash = hmacClientKey(clientIp, process.env.CLIENT_IP_HMAC_KEY);
+    await consumeClientQuota(db, keyHash, 1); // agota de antemano el tope=1 de este cliente
+
+    const ineCode = randomIneCode();
+    await insertMunicipality(db, {
+      ineCode,
+      municipality: 'Con Cliente Agotado',
+      searchName: 'con cliente agotado',
+      centroid: { latitude: 37.1, longitude: -3.6 },
+    });
+
+    const html = await renderHome({ zone: ineCode });
+    expect(html).toMatch(/límite personal/i);
+    expect(html).not.toMatch(/límite diario/i);
+    expect(headersMock).toHaveBeenCalledTimes(1);
   });
 
   it('CR-12: municipio SIN centroide seleccionado por zone -> notificación NOMBRADA distinta, nunca un registro', async () => {

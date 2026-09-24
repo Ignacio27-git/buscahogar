@@ -7,10 +7,22 @@
 // nunca un valor por defecto, nunca una lista de resultados vacía que un
 // usuario confundiría con "sin viviendas" cuando la verdad es "sin
 // credencial", un falso verde en producción.
+//
+// ROADMAP 1.15 (security-hardening, diseño decisión 078): la validación
+// Zod de `DATABASE_URL` vive ahora en `./env.js` (lector canónico
+// compartido); `MissingDatabaseUrlError` se RE-EXPORTA desde aquí para que
+// ningún import existente (`test/db.test.ts`) cambie. Guardado con
+// `import 'server-only'` (diseño decisión 081): este módulo posee un handle
+// de DB, un import accidental desde código de cliente debe fallar en
+// build, no colar en silencio.
+import 'server-only';
+
 import { createDb } from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
 
-export class MissingDatabaseUrlError extends Error {}
+import { readDatabaseUrl } from './env';
+
+export { MissingDatabaseUrlError } from './env';
 
 // Singleton a nivel de módulo cacheado en `globalThis`, narrowed sin `any`
 // (CLAUDE.md): Next en desarrollo reevalúa módulos en cada HMR, y
@@ -20,14 +32,7 @@ const globalForDb = globalThis as unknown as { buscahogarDb?: ReturnType<typeof 
 
 export function getDb(): Database {
   if (globalForDb.buscahogarDb === undefined) {
-    const connectionString = process.env.DATABASE_URL;
-    if (connectionString === undefined || connectionString === '') {
-      throw new MissingDatabaseUrlError(
-        'DATABASE_URL no está definida: apps/web necesita su propio rol de solo lectura ' +
-          '(docs/DECISIONS.md, decisión 056).'
-      );
-    }
-    globalForDb.buscahogarDb = createDb(connectionString);
+    globalForDb.buscahogarDb = createDb(readDatabaseUrl());
   }
   return globalForDb.buscahogarDb.db;
 }

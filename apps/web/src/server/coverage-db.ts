@@ -21,10 +21,21 @@
 // `coverage_jobs` todavía no existe — lo provisiona el mantenedor (tarea
 // 10.5). La prueba negativa de privilegios (tarea 10.6) vive en
 // `test/db/coverage-role-privileges.test.ts`, omitida hasta entonces.
+//
+// ROADMAP 1.15 (security-hardening, diseño decisión 078): la validación
+// Zod de `WEB_COVERAGE_DATABASE_URL` vive ahora en `./env.js` (lector
+// canónico compartido); `MissingCoverageDatabaseUrlError` se RE-EXPORTA
+// desde aquí para que ningún import existente (`test/coverage-db.test.ts`)
+// cambie. Guardado con `import 'server-only'` (diseño decisión 081): este
+// módulo posee un handle de DB de escritura.
+import 'server-only';
+
 import { createDb } from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
 
-export class MissingCoverageDatabaseUrlError extends Error {}
+import { readCoverageDatabaseUrl } from './env';
+
+export { MissingCoverageDatabaseUrlError } from './env';
 
 const globalForCoverageDb = globalThis as unknown as {
   buscahogarCoverageDb?: ReturnType<typeof createDb>;
@@ -32,15 +43,7 @@ const globalForCoverageDb = globalThis as unknown as {
 
 export function getCoverageDb(): Database {
   if (globalForCoverageDb.buscahogarCoverageDb === undefined) {
-    const connectionString = process.env.WEB_COVERAGE_DATABASE_URL;
-    if (connectionString === undefined || connectionString === '') {
-      throw new MissingCoverageDatabaseUrlError(
-        'WEB_COVERAGE_DATABASE_URL no está definida: el registro de barridos bajo demanda ' +
-          'necesita su propio rol INSERT-only sobre coverage_jobs, distinto del rol de solo ' +
-          'lectura de DATABASE_URL (docs/DECISIONS.md, decisión 064).'
-      );
-    }
-    globalForCoverageDb.buscahogarCoverageDb = createDb(connectionString);
+    globalForCoverageDb.buscahogarCoverageDb = createDb(readCoverageDatabaseUrl());
   }
   return globalForCoverageDb.buscahogarCoverageDb.db;
 }

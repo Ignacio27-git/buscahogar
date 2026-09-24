@@ -6,6 +6,7 @@ import type { ZoneSuggestion } from '@buscahogar/db';
 
 import { CoverageStatus } from '@/components/coverage-status';
 import { ResultCard } from '@/components/result-card';
+import { resolveCoverageClientLimit } from '@/server/coverage-client';
 import { getCoverageDb } from '@/server/coverage-db';
 import { getDb } from '@/server/db';
 import { resolveCoverageForZone, resolveNewZonesDailyCap } from '@/server/coverage';
@@ -201,7 +202,12 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       };
     } else {
       const newZonesDailyCap = resolveNewZonesDailyCap();
-      const outcome = await resolveCoverageForZone(db, getCoverageDb, zoneGeometry, newZonesDailyCap);
+      // ROADMAP 1.15 (security-hardening, diseño decisión 079): resuelto
+      // ANTES de resolveCoverageForZone — cuando el limitador por cliente
+      // está deshabilitado (D1a), devuelve `null` sin llamar a
+      // `next/headers` en absoluto (validador notes obs #263).
+      const clientLimit = await resolveCoverageClientLimit();
+      const outcome = await resolveCoverageForZone(db, getCoverageDb, zoneGeometry, newZonesDailyCap, clientLimit);
 
       if (outcome.kind === 'not-sweepable') {
         coverageNotice = (
@@ -215,6 +221,16 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
           <p role="status">
             No se ha podido programar el barrido de {zoneGeometry.municipality}: se ha alcanzado el límite
             diario de zonas nuevas. El límite se restablece a las 00:00 UTC — vuelve a intentarlo mañana.
+          </p>
+        );
+      } else if (outcome.kind === 'client-cap-exhausted') {
+        // spec #261 "A Per-Client Limit Hit Is The Distinct Outcome
+        // client-cap-exhausted, Never cap-exhausted" (D6): mensaje DISTINTO
+        // del anterior — este bloquea a UN cliente, no a todos.
+        coverageNotice = (
+          <p role="status">
+            No se ha podido programar el barrido de {zoneGeometry.municipality}: has alcanzado tu límite
+            personal de solicitudes de hoy. Vuelve a intentarlo mañana.
           </p>
         );
       } else if (outcome.kind === 'registered' && outcome.job !== null) {
