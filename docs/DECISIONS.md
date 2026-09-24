@@ -2295,6 +2295,130 @@ completa (spot-checks de coordenadas, RED→GREEN por módulo, salida de gates) 
 
 ---
 
+## 071 — Fixtures del feed de Kyero hand-authored a partir de la especificación (S1), no capturadas
+
+**Estado:** aceptada
+
+**Decisión.** `apps/ingestion/test/fixtures/kyero/feed-sample.xml` (paso 1.14) se escribe a
+mano a partir de la especificación pública S1
+(https://help.kyero.com/estate-agents/xml-import-specification, V3.9, 2024-09-03), no a partir
+de una captura real de un feed en producción. `feed-sample.meta.json` registra la procedencia
+(`"provenance": "hand-authored-from-spec"`), la versión y fecha de la especificación citada, y
+los huecos de la investigación que quedan sin confirmar contra un feed real (G1-G4: anidado de
+`desc`/`url` multilenguaje, anidado de coordenadas y de `surface_area`, forma de `image`).
+
+**Alternativa descartada.** Esperar a conseguir acceso a un feed Kyero real (de un agente
+suscrito) antes de escribir ningún test, igual que se hizo para Idealista (paso 1.5, sondeo
+contra la API real antes de fijar `raw-element.schema.ts`).
+
+**Motivo.** Kyero es un formato de sindicación de terceros: no existe un endpoint de prueba
+público ni una cuenta de agente disponible en este proyecto para obtener un dump real (a
+diferencia de Idealista, donde la propuesta original incluía credenciales de API). El paso
+1.14 declaró explícitamente en su prompt que el objetivo es validar la abstracción
+`PropertySource<T>`, no integrar un proveedor de datos concreto en producción — bloquear la
+tarea hasta conseguir un acceso que no está previsto habría contradicho ese objetivo. El
+research (obs Engram `sdd/second-property-source/research`) documenta la especificación citada
+con evidencia de alta confianza para la forma general del feed, y grado medio para los cuatro
+huecos de anidado (G1-G4), resueltos en el diseño con esquemas Zod tolerantes
+(`z.looseObject`, uniones `string | objeto`) en vez de asumir una única forma rígida.
+
+**Consecuencia.** Cualquier divergencia real entre la forma asumida (anidado de `desc`/`url`/
+`location`/`images`) y un feed de producción real quedará sin detectar hasta que se conecte una
+fuente real — el research ya registra ese riesgo (R1). Los esquemas tolerantes (uniones,
+`.optional()`, `z.looseObject`) están diseñados para degradar sin lanzar ante una forma no
+prevista en vez de rechazar la propiedad completa, mitigando el coste de un hueco no cubierto.
+
+---
+
+## 072 — Clasificación de Kyero: `sourceId`/`kind` = `'api'`, sin fila en `sources`, sin `thumbnailUrl` ni `address`
+
+**Estado:** aceptada
+
+**Decisión.** El adaptador de Kyero (paso 1.14) usa `sourceId`/`PropertySource.id` = `'kyero'`.
+La columna `sources.kind` (ya existente, con CHECK `'api' | 'scrape'` en
+`packages/db/src/schema/sources.ts`; ningún cambio en `packages/db` en este paso) clasificaría
+esta fuente como `'api'` — obtención programática por HTTP de un feed, no scraping de HTML —
+aunque ningún código del repositorio lee hoy ese valor. No se inserta
+ninguna fila en `sources` (sin escritura en base de datos en absoluto, alcance de la propuesta).
+El normalizador (`KyeroListingNormalizer`) deja `Listing.thumbnailUrl` y `Listing.address`
+siempre `undefined`.
+
+**Alternativa descartada.** Clasificar la fuente como `'scrape'`; insertar la fila de
+`sources` ahora, por adelantado a la integración real; poblar `thumbnailUrl` desde la primera
+imagen del feed; poblar `address` desde `town`/`province`.
+
+**Motivo.** Kyero se consulta por HTTP a un endpoint de feed (no se parsea HTML de una página),
+así que `'scrape'` describiría mal el mecanismo de acceso cuando se inserte su fila. La
+fila de `sources` y la conexión a la base de datos son responsabilidad de un paso posterior de
+integración real (fuera de alcance de la propuesta, que es minimal-scope: validar la
+abstracción, no conectar el proveedor); insertarla ahora sin ese contexto sería especulativo.
+`thumbnailUrl` no se puebla porque `apps/web/next.config.ts` no tiene el host de imágenes de
+Kyero en su allowlist de `next/image` (tocar esa allowlist es un cambio en `apps/web`, fuera de
+alcance por regla del proyecto) — poblarlo de todos modos produciría una URL que la interfaz
+nunca podría renderizar. `address` no se puebla porque `town`/`province` no son una dirección
+exacta (CLAUDE.md: "la dirección solo cuenta como señal fuerte si es exacta") — escribirla
+contaminaría la señal de dirección que usa la deduplicación (`rule-based/signals.ts`), el mismo
+riesgo que motivó dejar `location` sin resolución INE (diseño D8).
+
+**Consecuencia.** Un listing de Kyero nunca muestra miniatura en `apps/web` (mismo trato visual
+que un anuncio sin imagen conocida) hasta que un paso posterior amplíe la allowlist de
+`next.config.ts` y decida cómo resolver `address`/`location` de forma fiable. La conexión real
+del adaptador al barrido/persistencia (`sweep-runner.ts` genérico sobre `T`, inserción de la
+fila `sources`) queda como trabajo futuro explícitamente nombrado en la propuesta.
+
+La cobertura bajo demanda tampoco admite hoy una segunda fuente: `apps/web/src/server/coverage.ts`
+fija `IDEALISTA_SOURCE_KEY = 'idealista'` al encolar un `coverage_job`, y `packages/db/src/seed.ts`
+solo siembra la fila `'idealista'` de `sources`. Hallazgo para la memoria: el contrato del
+núcleo (`PropertySource<T>`, `ListingNormalizer<T>`, `Listing`, `AreaQuery`) resistió sin
+cambios, pero la suposición de "una sola fuente" sí se filtró fuera de él — en la siembra, en
+la cobertura bajo demanda y en la allowlist de imágenes. No se corrige ahora: sin una segunda
+fuente real no se sabe qué necesitará (host de imágenes, cobertura bajo demanda, estrategia de
+obtención), y generalizar contra un feed supuesto sería especulativo.
+
+---
+
+## 073 — Política de inclusión del feed de Kyero: solo EUR, coordenadas obligatorias, `price_freq` ausente cae a venta, y mapa de tipos con `'other'`
+
+**Estado:** aceptada
+
+**Decisión.** El filtro de elegibilidad de `kyero-source.ts` (`isEligible`, `area-filter.ts`)
+excluye — sin lanzar, solo contando — cualquier propiedad que cumpla alguna de estas
+condiciones: (1) `currency` presente y distinto de `EUR`; (2) sin coordenadas resolubles (ni
+`<location>` anidado ni `latitude`/`longitude` planos); (3) fuera del radio del área
+(`haversineMeters`, R = 6 371 008.8 m, límite inclusivo `<= radiusMeters`); (4) `price_freq`
+mapeado a una operación distinta de la solicitada. `price_freq` ausente se interpreta como
+`sale` (no como un rechazo); cualquier valor de `price_freq` fuera de `{sale, month}` se mapea
+a `'invalid'` y excluye. El mapa `type` → `PropertyType` (`property-type-map.ts`) usa una tabla
+fija de 27 entradas y cualquier valor no reconocido cae a `'other'`, sin lanzar nunca.
+
+**Alternativa descartada.** Convertir divisas no-EUR a EUR con un tipo de cambio; resolver
+`town`/`province` a un código INE y usar eso en vez de exigir coordenadas; rechazar la
+propiedad completa (lanzar) ante un `price_freq` desconocido o un `type` no mapeado.
+
+**Motivo.** `Listing` no tiene un campo de divisa (decisión implícita del esquema original,
+paso 1.4): `priceCents` asume EUR en todo el dominio, así que convertir en el adaptador
+inventaría un tipo de cambio con el que ningún otro dato del sistema es consistente — mismo
+razonamiento que motivó no convertir unidades en otros pasos (CLAUDE.md, "toda entrada externa
+se valida"). Resolver `town`/`province` a INE exigiría un geocodificador o un diccionario de
+topónimos que no forma parte del alcance minimal-scope de esta propuesta (nombrado
+explícitamente como trabajo futuro, research R3) — exigir coordenadas explícitas es la opción
+conservadora que prioriza minimizar falsos positivos de área (mismo principio que CLAUDE.md
+aplica a la deduplicación: "agrupar dos viviendas distintas es peor que no detectar un
+duplicado", extendido aquí a "incluir una vivienda fuera de área es peor que excluir una que sí
+lo estaba"). `price_freq` ausente cayendo a `sale` sigue la lectura de confianza media de la
+propia especificación S1 (research, evidencia S1); el mapa de tipos con `'other'` sigue
+exactamente el precedente ya sentado por Idealista (`property-type-map.ts` del paso 1.6): un
+`type` sin mapeo sigue siendo un anuncio real y vendible, nunca un motivo para descartarlo.
+
+**Consecuencia.** Una vivienda con coordenadas ausentes en el feed de Kyero nunca aparece en
+ningún resultado de búsqueda por área, aunque `town`/`province` la ubiquen de forma inequívoca
+— coste aceptado explícitamente (D8 del diseño) a cambio de cero falsos positivos de radio. Un
+`price_freq` legítimo pero no documentado en S1 (p. ej. si Kyero introduce un tercer valor en
+una versión futura de la especificación) excluiría la propiedad en vez de asumir un valor por
+defecto — requeriría una revisión de este mapa si se observa en un feed real.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

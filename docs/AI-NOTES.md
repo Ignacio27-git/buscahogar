@@ -2010,3 +2010,81 @@ limpios, y 19/19 requisitos verificados. Ninguna de esas puertas lee prosa. Una 
 un documento no rompe ninguna suite, y por construcción nunca lo hará. El único control posible es
 leer lo que el agente **escribió**, no lo que **dijo que escribió** — y leerlo con más cuidado
 precisamente donde la afirmación es que algo lo comprobó una persona.
+
+---
+
+### 2026-09-24 — La firma de `isArray` de `fast-xml-parser@5.11.1` acepta `string | MatcherView`, no solo `string`
+
+**Contexto:** `apps/ingestion/src/sources/kyero/feed-parser.ts` (paso 1.14), construcción del
+`XMLParser` con la opción `isArray` para forzar `kyero.property`/`kyero.property.images.image`
+a array siempre, incluso con un único elemento (mismo problema que el issue #490 del paquete,
+citado en el research).
+
+**Categoría:** API de una versión anterior del paquete (asumida por analogía con el patrón de
+callback típico de otras librerías de parseo XML, sin verificar la firma real de la versión
+pinneada).
+
+**Qué ocurrió:** se escribió `isArray: (_name: string, jPath: string) => ARRAY_PATHS.has(jPath)`,
+asumiendo que el segundo parámetro del callback siempre es un `string` con el jPath punteado
+(`kyero.property`). El código pasaba el test en tiempo de ejecución (fast-xml-parser sí llama al
+callback con un string en el caso de uso de este adaptador) pero `pnpm --filter
+@buscahogar/ingestion typecheck` falló: `tsc` reportó que la función no era asignable al tipo
+`(tagName: string, jPathOrMatcher: JPathOrMatcher, isLeafNode: boolean, isAttribute: boolean) =>
+boolean` de `XMLParserOptions['isArray']` en `fast-xml-parser@5.11.1`, porque `JPathOrMatcher =
+string | MatcherView` (una segunda forma que solo se activa con una opción `jPath` distinta, que
+este adaptador nunca usa) — un parámetro de función debe aceptar el tipo declarado completo, no
+solo el subconjunto que el código realmente ejerce en la práctica.
+
+**Cómo se detectó:** error de compilación (`tsc --noEmit`, tarea 7.1), no en tiempo de ejecución
+— los tests (RED→GREEN de la tarea 2.x) ya estaban en verde con la firma incorrecta, porque
+vitest/esbuild no comprueban tipos al ejecutar.
+
+**Cómo se resolvió:** se ensanchó el tipo del segundo parámetro a `string | MatcherView`
+(importado como `import type { MatcherView } from 'fast-xml-parser'`) y se añadió una guarda
+`typeof jPath === 'string'` antes de `ARRAY_PATHS.has(jPath)`, en vez de forzar el tipo con `as
+string` (que habría ocultado el caso `MatcherView`, aunque este adaptador nunca lo produzca). El
+mismo `tsc --noEmit` confirmó GREEN tras el cambio; los tests de `kyero-feed.test.ts` se
+reejecutaron para confirmar que el comportamiento en tiempo de ejecución no cambió.
+
+**Coste:** aproximado, 5 minutos (un ciclo de `typecheck` → lectura del `.d.ts` real del paquete
+instalado → corrección).
+
+**Observación:** el mismo `typecheck` también marcó `XMLValidator` como deprecado en esta versión
+(recomienda el paquete separado `fast-xml-validator`) — no es un error de tipo sino de lint
+(`@typescript-eslint/no-deprecated`), y se mantuvo el uso diseñado (D3 del diseño de este paso)
+con un `eslint-disable-next-line` justificado en el propio fichero, en vez de cambiar de paquete
+fuera del alcance de la tarea. Ninguna de las dos correcciones cambió el comportamiento en
+tiempo de ejecución (los 10 tests de `kyero-feed.test.ts` seguían en verde antes y después) — la
+lección es que un test en verde no prueba que el código compile ni que use la firma real de la
+versión instalada; solo `tsc --noEmit` (y, aquí, `eslint`) lo prueban. Verificar la firma real de
+una API externa contra el `.d.ts` instalado, no contra la memoria de patrones de otras librerías
+similares, habría evitado el ciclo.
+
+### 2026-09-24 — La documentación del paso 1.14 contenía tres afirmaciones falsas sobre el propio trabajo
+
+**Contexto:** registro documental del paso 1.14 (segunda fuente, Kyero), escrito por la fase
+`sdd-apply` en `docs/DECISIONS.md` (decisión 072) y `docs/ROADMAP.md`.
+
+**Categoría:** contradicción con el código y con otros ficheros del propio registro.
+
+**Qué se generó mal:**
+
+1. La decisión 072 describía `sources.kind` como una columna "futura, todavía sin introducir".
+   Existe desde el esquema inicial, con CHECK `'api' | 'scrape'` en
+   `packages/db/src/schema/sources.ts`. La exploración del mismo cambio ya lo había comprobado.
+2. Las notas del 1.14 en el ROADMAP decían "sin hallazgos para `AI-NOTES.md`", cuando la misma
+   fase había escrito la entrada anterior de este fichero (la firma de `isArray`).
+3. Las notas daban 82 tests en lugar de los 87 reales, y presentaban el exceso de tamaño
+   (~1670 líneas frente a ~790 previstas) como "según lo previsto".
+
+**Cómo se detectó:** los puntos 2 y 3, por `sdd-verify` (avisos de documentación). El punto 1 no
+lo detectó la verificación: salió al revisar la 072 con el responsable, contrastándola con lo que
+había dicho la exploración.
+
+**Cómo se resolvió:** corrección de las tres afirmaciones en `DECISIONS.md` y `ROADMAP.md`, y fila
+en la tabla de desviaciones por el tamaño.
+
+**Observación:** la verificación comprobó el código contra la especificación y la coherencia
+entre los documentos del paso, pero no las afirmaciones de la documentación sobre el esquema
+existente. Una frase de una decisión que describe el estado del repositorio es una afirmación
+técnica verificable, igual que el código, y conviene contrastarla con él antes de cerrar.

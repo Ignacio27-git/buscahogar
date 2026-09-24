@@ -962,3 +962,46 @@ filas ni los datos crudos): el fichero real resultó más simple en un eje (una 
 municipio, sin niveles que resolver) y exigió más módulos nuevos de los previstos (`numeric.ts`,
 `provincias-parse.ts`) en otro. Detalle completo, decisiones 070, y tabla de desviaciones en
 `docs/ROADMAP.md`, paso 1.13.
+
+---
+
+### 2026-09-24 — Segundo adaptador de fuente: feed XML de Kyero (paso 1.14), ciclo SDD completo
+
+**Tipo de tarea:** adaptador — ciclo SDD completo (explore → research → propuesta → spec →
+diseño → tareas → apply), TDD estricto obligatorio
+**Forma de especificación:** artefactos SDD encadenados (proposal/spec/design/tasks
+persistidos en Engram), con contrato `PropertySource<T>`/`ListingNormalizer<T>` ya existente
+como andamiaje y el adaptador de Idealista (paso 1.6) como referencia de patrón a replicar
+**Resultado:** código utilizable sin cambios; documentación con retoques — 26/26 tareas
+completadas, 397/397 tests en verde, `typecheck`/`lint` limpios, cero ficheros tocados bajo
+`packages/core`, `packages/db`, `apps/web` (verificado con `git status --porcelain`).
+`sdd-verify` detectó dos errores en las notas del paso 1.14 de `ROADMAP.md` (negaba la
+entrada de `AI-NOTES.md` y omitía el tamaño real frente al previsto), corregidos después.
+
+**Prompt:** el del paso 1.14 de `docs/ROADMAP.md`, literal: «Implementa un segundo adaptador
+contra la interfaz PropertySource, con un esquema de datos claramente distinto al de la
+primera fuente. El objetivo es validar que la abstracción funciona: añadir esta fuente no debe
+requerir modificar packages/core, packages/db ni apps/web. Si algo del núcleo necesita
+cambiar, dímelo antes de hacerlo, porque significa que la abstracción está mal planteada.»
+Decisiones tomadas por el responsable durante el ciclo: alcance mínimo (sin cablear al
+barrido), feed XML tipo Kyero, fase de investigación, un solo PR con excepción de tamaño.
+
+**Observación.** La abstracción `PropertySource<T>`/`ListingNormalizer<T>` generalizó sin
+ningún cambio en `packages/core`: coordenadas/`location` opcionales, `AreaQuery.operation`
+obligatorio y `Listing.thumbnailUrl`/`address` opcionales ya cubrían una fuente
+estructuralmente distinta (XML de dump completo con filtrado de área EN el adaptador, frente
+al JSON paginado por API con filtrado en servidor de Idealista). El detalle crítico de
+diseño (`fast-xml-parser@5`, `parseTagValue: false` + `isArray` explícito) evitó exactamente
+el problema documentado por el issue #646 del propio paquete: `<id>00123</id>` se conserva
+como string en todo el pipeline, verificado con un test dedicado. Único hallazgo no anticipado
+por el diseño: `XMLValidator` está deprecado en la versión pinneada 5.11.1 (recomienda el
+paquete separado `fast-xml-validator`); se mantuvo el uso diseñado (sigue siendo funcional,
+cambiar de paquete no estaba en el alcance de esta tarea) con un `eslint-disable` justificado
+en el propio fichero en vez de silenciarlo sin explicación. El presupuesto de revisión se
+superó mucho más de lo previsto: `sdd-tasks` pronosticaba ~790 líneas (riesgo "High",
+`size:exception` aceptado antes de empezar) y el resultado fue ~1418 líneas de código, tests y
+fixtures (sin `pnpm-lock.yaml`) más ~256 de documentación; los tests (588 líneas) y el fixture XML comentado (154
+líneas, con la justificación de cada caso del checklist inline) explican la mayor parte del
+exceso, no lógica de producción inflada (`src/` son ~664 líneas en 10 ficheros, con comentarios
+de diseño extensos en español). Detalle completo, decisiones 071-073, y ficheros tocados en
+`docs/ROADMAP.md`, paso 1.14.

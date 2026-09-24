@@ -1423,7 +1423,7 @@ catálogo explícito). Detalle completo en `docs/PROMPTS.md`, entrada de esta fe
 
 ---
 
-## [ ] 1.14 · Segunda fuente
+## [x] 1.14 · Segunda fuente
 
 **Depende de** los accesos pendientes. Si no llegan, usar la alternativa prevista en
 `DECISIONS.md`: feeds de sindicación o dataset con esquema distinto.
@@ -1442,6 +1442,62 @@ está mal planteada.
 para la memoria: anotarlo en `DECISIONS.md`.
 
 **Notas:**
+
+Los accesos pendientes no llegaron (misma situación que registra `DECISIONS.md`, "Pendientes
+de decidir"): se usó la alternativa ya prevista, un feed XML de sindicación de esquema
+claramente distinto al de Idealista (JSON paginado por API → XML de dump completo, filtrado
+de área DENTRO del propio adaptador en vez de en el servidor de la fuente). Ciclo SDD completo
+(`/gentle-sdd-new`, cambio `second-property-source`): explore → research (con huecos
+documentados, G1-G5) → propose → spec + design en paralelo → `sdd-tasks` (pronóstico de
+presupuesto "High", `size:exception` aceptado explícitamente por el responsable del proyecto
+antes de aplicar) → `sdd-apply`, TDD estricto (RED→GREEN por módulo puro, confirmado con
+ejecución real en cada ciclo, ver `docs/PROMPTS.md`, entrada de esta fecha).
+
+**Confirmación de la garantía central de la propuesta**: `git status --porcelain --
+packages/core packages/db apps/web` no produce ninguna salida — cero ficheros tocados bajo el
+núcleo. `PropertySource<T>`/`ListingNormalizer<T>`/`SourcePage<T>`/`Listing`/`AreaQuery`
+generalizaron sin ningún cambio.
+
+**Ficheros tocados:**
+
+- `apps/ingestion/package.json` — se añade `fast-xml-parser` fijado a `5.11.1` (única
+  dependencia nueva); `pnpm-lock.yaml` actualizado en consecuencia.
+- `apps/ingestion/eslint.config.mjs` — el glob del ban de bucles (decisión 021/diseño D6 del
+  paso 1.6) se extiende a `src/sources/kyero/kyero-source.ts` y
+  `src/sources/kyero/http-feed-fetcher.ts` (mismo criterio: superficies que orquestan la única
+  petición del adaptador).
+- `apps/ingestion/src/sources/kyero/` (nuevo, 10 ficheros): `raw-property.schema.ts` (Zod,
+  helpers `numericText`/`signedNumericText`/`intText`), `feed-parser.ts` (fast-xml-parser@5,
+  `XMLValidator` + `XMLParser` con `isArray`/`parseTagValue: false`), `area-filter.ts`
+  (`haversineMeters`, `extractCoordinates`, `isInArea`, `mapOperation`, `isEligible`),
+  `property-type-map.ts`, `normalizer.ts` (`KyeroListingNormalizer`), `cursor.ts` (codec de
+  offset en memoria), `kyero-source.ts` (`createKyeroSource`, puerto `FeedFetcher` inyectado),
+  `http-feed-fetcher.ts` (el único `fetch`, sin test dedicado — mismo precedente que
+  `idealista/http-client.ts`), `errors.ts` (5 clases), `index.ts` (barril).
+- `apps/ingestion/test/kyero-{feed,area-filter,normalizer,source}.test.ts` (nuevos, 87 tests) y
+  `apps/ingestion/test/fixtures/kyero/feed-sample.{xml,meta.json}` (7 propiedades
+  hand-authored, procedencia registrada — decisión 071).
+- `docs/PROMPTS.md`, `docs/DECISIONS.md` (071-073), `docs/AI-NOTES.md`, este mismo paso de
+  `docs/ROADMAP.md`.
+
+**Gates:** `pnpm --filter @buscahogar/ingestion typecheck`/`lint` limpios; `pnpm --filter
+@buscahogar/ingestion test` — 397/397 en verde (44 ficheros), suite completa del workspace,
+sin red (`test/setup-no-network.ts` intacto). No hizo falta ejecutar ninguna suite respaldada
+por Docker/PostgreSQL: este cambio no toca `packages/db`.
+
+**Tamaño:** ~1418 líneas de código, tests y fixtures (excluyendo `pnpm-lock.yaml`) más ~256 de
+documentación: ~1670 en total, frente a un pronóstico de diseño de ~790 y un presupuesto de
+referencia de 800. El `size:exception` se aceptó antes de aplicar pensando en un exceso ligero;
+el real duplicó el pronóstico, sobre todo por los tests (588 líneas) y el fixture comentado.
+El registro nativo de intentos lo bloqueó (1728 líneas contadas frente al límite de 900 fijado)
+y el responsable autorizó el reinicio para pasar a verificación. `sdd-verify`: PASS WITH
+WARNINGS (11/11 requisitos, 15/15 escenarios; los dos avisos eran de esta documentación y
+están corregidos).
+
+**`docs/AI-NOTES.md`**: una entrada — se supuso una firma del callback `isArray` de
+`fast-xml-parser@5.11.1` que no coincide con la real; los tests pasaban en verde y fue `tsc`
+quien lo detectó. Una primera versión de estas notas afirmaba erróneamente que no había
+hallazgos para `AI-NOTES.md`; la verificación lo detectó.
 
 ---
 
@@ -1616,3 +1672,4 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-23 | 1.13 | `sdd-verify` (obs #231) confirmó explícitamente que el test de privilegio negativo de `web_coverage`, escrito en el paso 1.13 y jamás ejecutado hasta esa sesión, **no habría podido pasar tal y como estaba escrito**: su propio caso positivo sembraba un `coverage_job` pendiente que colisionaba con el índice único parcial (`23505`) antes de que el permiso llegara a evaluarse | Un test nunca ejecutado puede llevar un defecto real invisible a la inspección — el mismo riesgo que la primera pasada de `sdd-verify` ya había nombrado explícitamente como pendiente. Corregido borrando la fila sembrada con la conexión propietaria antes del intento de `INSERT` del rol de cobertura; el propio caso NEGATIVO de `DELETE` de la suite es la prueba de que el rol de cobertura no podría haber hecho ese borrado él mismo. Detalle en `sdd/on-demand-coverage/apply-progress-5` (obs #232) y en `docs/AI-NOTES.md`, entrada 2026-09-23. |
 | 2026-09-23 | 1.13 | Continuación — adaptación del conversor al fichero real: **~1078 líneas cambiadas** en código/tests hand-authored (sin contar el artefacto generado ni los datos crudos) frente al presupuesto de ~600 de la tarea | El fichero real resultó tener una forma distinta a la prevista por el diseño de la decisión 066 (una fila por municipio, no una jerarquía de entidades), lo que obligó a reescribir cinco módulos existentes (`ngmep-parse`, `join`, `geo`, `sanity`, el composition root) y añadir dos nuevos (`numeric.ts` para la coma decimal, `provincias-parse.ts`) con su propio test-first cada uno (decisión 070). El presupuesto no se recortó a costa de tests o de alcance real; se reporta la cifra real. |
 | 2026-09-23 | 1.13 | Continuación — `packages/db/test/seed.test.ts` (4-5 de sus 6 tests) queda en ROJO dentro de `pnpm -r test` tras poblar el catálogo real; **no corregido en esta sesión, deliberadamente fuera de alcance** | `seedReferenceData(db)` sin catálogo explícito usa ahora `DEFAULT_CATALOGUE` = 8132 filas reales (antes, 1 fila placeholder). `seedReferenceData` inserta fila a fila con `INSERT`+`SELECT`+`INSERT` secuenciales dentro de una única transacción (`packages/db/src/seed.ts`) — con 8132 filas son ~24k idas y vueltas, ~20-35 s reales (confirmado ejecutando `pnpm --filter @buscahogar/db run seed` de verdad: 23,8 s, éxito). Eso excede el timeout por defecto de vitest (5 s test / 10 s hook); el test abandonado deja una transacción en vuelo que colisiona con el `TRUNCATE` del siguiente `beforeEach` y produce un deadlock real de PostgreSQL en pasadas posteriores. Es un cuello de botella de escalado preexistente en `seed.ts`, invisible mientras el catálogo tenía 1 fila, expuesto por primera vez al poblarlo de verdad — ortogonal al conversor (`apps/ingestion/src/catalogue/`), que es el alcance de esta tarea. Las cuatro suites respaldadas por Docker y el resto de `pnpm -r test` (core/ingestion/web) no se ven afectadas: ningún otro fichero de test llama a `seedReferenceData()` sin catálogo explícito. Queda para que el responsable del proyecto decida el remedio (lote de inserción en `seed.ts`, o que estos tests concretos usen un catálogo sintético pequeño en vez del real). |
+| 2026-09-24 | 1.14 | **~1670 líneas cambiadas** (~1418 de código, tests y fixtures más ~256 de documentación, sin `pnpm-lock.yaml`) frente a un pronóstico de ~790 y un presupuesto de 800 | El `size:exception` se aceptó antes de aplicar esperando un exceso ligero. El grueso del exceso son los tests (588 líneas, 87 casos) y el fixture XML comentado, no lógica de producción (`src/` ~664 líneas en 10 ficheros). No se recortaron tests ni alcance para ajustarse a la cifra. El registro nativo de intentos bloqueó el cierre (1728 líneas frente al límite de 900) y el responsable autorizó el reinicio antes de verificar. El núcleo no se tocó: la abstracción `PropertySource<T>` resistió sin cambios. |
