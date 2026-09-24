@@ -23,6 +23,8 @@
 // "entidades" por municipio a desambiguar), no hace falta guardar
 // "entidades hermanas" — `SUPERFICIE` sustituye a la heurística de
 // esparcimiento entre hermanas para el radio de barrido (`geo.ts`).
+import { z } from 'zod';
+
 import { parseCommaDecimal } from './numeric.js';
 
 export type NgmepFieldKey = 'entityCode' | 'name' | 'provinceCode' | 'superficieHectares' | 'latitude' | 'longitude';
@@ -58,6 +60,41 @@ export class MissingNgmepColumnError extends Error {
     );
   }
 }
+
+// ROADMAP 1.15 (paso 3, PR3) — spec #261, capability runtime-config-validation:
+// "The Importer's CLI Arguments And CSV Rows Are Zod-Validated, Never
+// Hand-Parsed". Una fila que falla el esquema (texto vacío en cualquiera de
+// las tres columnas de texto) aborta TODA la importación, nombrando la fila
+// (número de línea del fichero; la primera fila de datos es la 2) y el COD_INE crudo visto — nunca se
+// descarta en silencio (mismo principio fail-loud que
+// MalformedMunicipalityCodeError en join.ts).
+export class MalformedNgmepRowError extends Error {
+  constructor(rowNumber: number, rawRow: Readonly<Record<NgmepFieldKey, string>>, cause: z.ZodError) {
+    const detail = cause.issues.map((issue) => `${String(issue.path[0])}: ${issue.message}`).join('; ');
+    super(
+      `Fila NGMEP nº ${String(rowNumber)} (COD_INE="${rawRow.entityCode}") inválida: ${detail}. ` +
+        'Se aborta la importación completa — ninguna fila se descarta en silencio.'
+    );
+  }
+}
+
+// Solo las tres columnas de texto se validan aquí como "forma" (no vacías
+// tras recortar espacios); las tres numéricas delegan en parseCommaDecimal
+// DENTRO de un `.transform()` — nunca `z.coerce.number()`, que interpretaría
+// la coma decimal del fichero real como separador de miles y truncaría en
+// silencio (ver numeric.ts y AI-NOTES). Si parseCommaDecimal lanza
+// MalformedDecimalError, esa excepción NO es un ZodError: se propaga tal
+// cual fuera de `.parse()`, sin que parseNgmepCsv la envuelva — mismo
+// comportamiento fail-loud que tenía antes de este refactor, ahora
+// verificado explícitamente por el test de este módulo.
+const ngmepRowSchema = z.object({
+  entityCode: z.string().trim().min(1, 'código de entidad (COD_INE) vacío'),
+  name: z.string().trim().min(1, 'nombre de municipio (NOMBRE_ACTUAL) vacío'),
+  provinceCode: z.string().trim().min(1, 'código de provincia (COD_PROV) vacío'),
+  superficieHectares: z.string().transform((raw) => parseCommaDecimal(raw)),
+  latitude: z.string().transform((raw) => parseCommaDecimal(raw)),
+  longitude: z.string().transform((raw) => parseCommaDecimal(raw)),
+});
 
 // Divisor de línea CSV mínimo: respeta campos entre comillas dobles (con
 // escape `""`) que contengan el propio delimitador — suficiente para un
@@ -114,18 +151,32 @@ export function parseNgmepCsv(
     columnIndex[field] = index;
   }
 
-  return lines.slice(1).map((line) => {
+  return lines.slice(1).map((line, index) => {
     const cells = splitCsvLine(line, delimiter);
-    return {
-      entityCode: (cells[columnIndex.entityCode] ?? '').trim(),
-      name: (cells[columnIndex.name] ?? '').trim(),
-      provinceCode: (cells[columnIndex.provinceCode] ?? '').trim(),
-      // Coma decimal (`-2,512507724`, `8806,81`): parseCommaDecimal nunca
-      // trunca en la coma en silencio (numeric.ts) — a diferencia del
-      // `Number(...)` anterior, que ni siquiera truncaba: devolvía NaN.
-      superficieHectares: parseCommaDecimal(cells[columnIndex.superficieHectares] ?? ''),
-      latitude: parseCommaDecimal(cells[columnIndex.latitude] ?? ''),
-      longitude: parseCommaDecimal(cells[columnIndex.longitude] ?? ''),
+    const rawRow: Readonly<Record<NgmepFieldKey, string>> = {
+      entityCode: cells[columnIndex.entityCode] ?? '',
+      name: cells[columnIndex.name] ?? '',
+      provinceCode: cells[columnIndex.provinceCode] ?? '',
+      superficieHectares: cells[columnIndex.superficieHectares] ?? '',
+      latitude: cells[columnIndex.latitude] ?? '',
+      longitude: cells[columnIndex.longitude] ?? '',
     };
+
+    try {
+      // Coma decimal (`-2,512507724`, `8806,81`): parseCommaDecimal (dentro
+      // del `.transform()` del esquema) nunca trunca en la coma en silencio
+      // — a diferencia del `Number(...)` anterior, que ni siquiera
+      // truncaba: devolvía NaN.
+      return ngmepRowSchema.parse(rawRow);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        // +2: 1 por la cabecera, 1 porque `index` es 0-based — número de
+        // línea de datos real dentro del fichero.
+        throw new MalformedNgmepRowError(index + 2, rawRow, error);
+      }
+      // MalformedDecimalError (u otra excepción no-Zod del `.transform()`):
+      // se propaga sin envolver, comportamiento preexistente intacto.
+      throw error;
+    }
   });
 }

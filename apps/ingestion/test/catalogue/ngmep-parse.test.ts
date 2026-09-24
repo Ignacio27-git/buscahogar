@@ -9,7 +9,12 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { MissingNgmepColumnError, NGMEP_FIELD_MAP, parseNgmepCsv } from '../../src/catalogue/ngmep-parse.js';
+import {
+  MalformedNgmepRowError,
+  MissingNgmepColumnError,
+  NGMEP_FIELD_MAP,
+  parseNgmepCsv,
+} from '../../src/catalogue/ngmep-parse.js';
 import { MalformedDecimalError } from '../../src/catalogue/numeric.js';
 import type { NgmepFieldMap } from '../../src/catalogue/ngmep-parse.js';
 
@@ -73,5 +78,54 @@ describe('parseNgmepCsv (DD-3, R7 resuelto) — cabecera real de MUNICIPIOS.csv 
   it('ignora líneas en blanco al final del fichero', () => {
     const rows = parseNgmepCsv(FIXTURE_CSV + '\r\n\r\n', ';', NGMEP_FIELD_MAP);
     expect(rows.every((row) => row.entityCode.length > 0)).toBe(true);
+  });
+});
+
+// ROADMAP 1.15 (paso 3, PR3) — spec #261, capability runtime-config-validation:
+// "The Importer's CLI Arguments And CSV Rows Are Zod-Validated, Never
+// Hand-Parsed". La fila deja de construirse a mano: pasa por un esquema Zod
+// (ngmepRowSchema) que exige texto no vacío en las tres columnas de texto y
+// delega los tres campos numéricos a parseCommaDecimal dentro de un
+// `.transform()` (nunca `z.coerce.number()` — la trampa de la coma decimal
+// documentada en AI-NOTES). Wrong-type/shape ≠ decimal corrupto: este bloque
+// cubre el caso NUEVO (texto vacío); el caso de decimal corrupto ya estaba
+// cubierto arriba y sigue lanzando MalformedDecimalError sin envolver.
+describe('parseNgmepCsv (paso 3, PR3) — fila con forma inválida aborta TODA la importación, nombrando la fila', () => {
+  it('una fila con NOMBRE_ACTUAL vacío aborta, nombrando el COD_INE de la fila — nunca se descarta en silencio', () => {
+    const csvWithEmptyName =
+      'COD_INE;COD_PROV;NOMBRE_ACTUAL;SUPERFICIE;LONGITUD_ETRS89_REGCAN95;LATITUD_ETRS89_REGCAN95\r\n' +
+      '18087000000;18;;8806,81;-3,598691013;37,17428891\r\n';
+
+    expect(() => parseNgmepCsv(csvWithEmptyName, ';', NGMEP_FIELD_MAP)).toThrow(MalformedNgmepRowError);
+    try {
+      parseNgmepCsv(csvWithEmptyName, ';', NGMEP_FIELD_MAP);
+      expect.unreachable();
+    } catch (error) {
+      expect(error).toBeInstanceOf(MalformedNgmepRowError);
+      expect((error as Error).message).toContain('18087000000');
+    }
+  });
+
+  it('una fila con COD_INE vacío aborta, nombrando el número de fila', () => {
+    const csvWithEmptyCode =
+      'COD_INE;COD_PROV;NOMBRE_ACTUAL;SUPERFICIE;LONGITUD_ETRS89_REGCAN95;LATITUD_ETRS89_REGCAN95\r\n' +
+      ';18;Granada;8806,81;-3,598691013;37,17428891\r\n';
+
+    expect(() => parseNgmepCsv(csvWithEmptyCode, ';', NGMEP_FIELD_MAP)).toThrow(MalformedNgmepRowError);
+    expect(() => parseNgmepCsv(csvWithEmptyCode, ';', NGMEP_FIELD_MAP)).toThrow(/n.\s*2\b/);
+  });
+
+  it('un decimal corrupto sigue lanzando MalformedDecimalError sin envolver (comportamiento preexistente intacto)', () => {
+    const corruptCsv =
+      'COD_INE;COD_PROV;NOMBRE_ACTUAL;SUPERFICIE;LONGITUD_ETRS89_REGCAN95;LATITUD_ETRS89_REGCAN95\r\n' +
+      '18087000000;18;Granada;8806,81;-3,5,9;37,17428891\r\n';
+
+    expect(() => parseNgmepCsv(corruptCsv, ';', NGMEP_FIELD_MAP)).toThrow(MalformedDecimalError);
+  });
+
+  it('una fila válida (con coma decimal) sigue produciendo un NgmepRow correcto tras el paso por el esquema Zod', () => {
+    const rows = parseNgmepCsv(FIXTURE_CSV, ';', NGMEP_FIELD_MAP);
+    const granada = rows.find((row) => row.entityCode === '18087000000');
+    expect(granada?.superficieHectares).toBeCloseTo(8806.81, 2);
   });
 });

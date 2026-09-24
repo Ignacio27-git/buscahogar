@@ -40,6 +40,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { parseCatalogueImportArgs, CatalogueImportOptionsError } from '../src/catalogue/cli-args.js';
 import { deriveSweepRadiusM, RADIUS_CEILING_M, RADIUS_FLOOR_M } from '../src/catalogue/geo.js';
 import { buildImportReport } from '../src/catalogue/import-report.js';
 import { joinCatalogue } from '../src/catalogue/join.js';
@@ -233,23 +234,17 @@ function renderGeneratedCatalogueFile(rows: readonly ResolvedMunicipality[], pro
 }
 
 // Composition root real: lee argv/env, NUNCA en un test (mismo patrón que
-// `scripts/sweep-zone.ts:165-191`).
+// `scripts/sweep-zone.ts:165-191`). ROADMAP 1.15 (paso 3, PR3): el parseo
+// manual (`args.find(...)`) se sustituye por `parseCatalogueImportArgs`
+// (Zod) — la validación completa de argv corre ANTES de que
+// `importMunicipalityCatalogue` toque ningún fichero (spec #261, capability
+// runtime-config-validation, "aborta antes de leer ningún fichero").
 function main(): void {
-  const args = process.argv.slice(2);
-  const get = (flag: string): string | undefined => {
-    const prefix = `--${flag}=`;
-    return args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
-  };
-
-  const ngmepPath = get('ngmep');
-  const provinciasPath = get('provincias');
-  const outputPath = get('output') ?? '../../packages/db/src/municipality-catalogue.generated.ts';
-  const delimiter = get('delimiter') ?? ';';
-  const encoding = (get('encoding') ?? 'latin1') as BufferEncoding;
-  const downloadDate = get('download-date');
-  const sourceCrsString = get('source-crs');
-
-  if (!ngmepPath || !provinciasPath || !downloadDate || !sourceCrsString) {
+  let options: ReturnType<typeof parseCatalogueImportArgs>;
+  try {
+    options = parseCatalogueImportArgs(process.argv.slice(2));
+  } catch (error) {
+    console.error(error instanceof CatalogueImportOptionsError ? error.message : String(error));
     console.error(
       'Uso: import-municipality-catalogue --ngmep=<path a MUNICIPIOS.csv> --provincias=<path a PROVINCIAS.csv> ' +
         '--download-date=<YYYY-MM-DD> --source-crs=<cadena verbatim> [--output=<path>] [--delimiter=;] ' +
@@ -260,14 +255,14 @@ function main(): void {
   }
 
   importMunicipalityCatalogue({
-    ngmepPath,
-    provinciasPath,
-    outputPath,
-    delimiter,
-    encoding,
-    downloadDate,
-    sourceUrls: [ngmepPath, provinciasPath],
-    sourceCrsString,
+    ngmepPath: options.ngmepPath,
+    provinciasPath: options.provinciasPath,
+    outputPath: options.outputPath,
+    delimiter: options.delimiter,
+    encoding: options.encoding,
+    downloadDate: options.downloadDate,
+    sourceUrls: [options.ngmepPath, options.provinciasPath],
+    sourceCrsString: options.sourceCrsString,
   });
 }
 
