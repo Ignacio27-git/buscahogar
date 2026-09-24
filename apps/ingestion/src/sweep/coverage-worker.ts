@@ -46,6 +46,14 @@ export interface CoverageWorkerPorts {
   reconcileBudget(reserved: BudgetReservation, actual: BudgetSnapshotLike): Promise<void>;
   claimAndSweep(job: PollJob, area: AreaQuery, fingerprint: string): Promise<SweepTickResult>;
   runDedup(): Promise<void>;
+  // ROADMAP 1.15 (security-hardening, decisión #263 D9) — purga programada
+  // de `coverage_client_quota`, REFUERZO sobre la purga perezosa que
+  // `consumeClientQuota` ya hace en cada escritura (packages/db, decisión
+  // 076): acota la retención incluso cuando no hay ningún registro nuevo
+  // que la dispare. Invocada SIEMPRE, una vez por tick, sin importar el
+  // resultado del resto del tick — nunca condicionada a que haya trabajo,
+  // presupuesto, o un barrido completado.
+  purgeClientQuota(): Promise<void>;
   sleep(ms: number): Promise<void>;
   log(line: string): void;
 }
@@ -86,6 +94,12 @@ export interface CoverageWorkerOptions {
 const TOKEN_RESERVE = 1;
 
 async function runTick(ports: CoverageWorkerPorts, options: CoverageWorkerOptions): Promise<{ readonly dirty: boolean }> {
+  // D9: SIEMPRE lo primero del tick, antes de cualquier rama de salida
+  // temprana (sin trabajo, centroide nulo, presupuesto agotado) — así se
+  // garantiza exactamente una vez por tick sin duplicar la comprobación en
+  // cada punto de retorno.
+  await ports.purgeClientQuota();
+
   const job = await ports.selectNextJob();
   if (!job) {
     await ports.sleep(options.pollIntervalMs);

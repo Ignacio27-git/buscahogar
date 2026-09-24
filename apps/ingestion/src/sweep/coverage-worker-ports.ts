@@ -11,7 +11,12 @@
 // `runSweepZone` completo, que abre su propio pool por invocación y se
 // resuelve por un `--zone` de CLI (la propia acoplación que 1.13 elimina).
 import type { AreaQuery, BlockingThresholds } from '@buscahogar/core';
-import { reconcileDailyBudget, reserveDailyBudget, resolveZoneGeometryById } from '@buscahogar/db';
+import {
+  purgeExpiredClientQuota,
+  reconcileDailyBudget,
+  reserveDailyBudget,
+  resolveZoneGeometryById,
+} from '@buscahogar/db';
 import type { BudgetReservation, BudgetSnapshotLike, Database, LedgerState, ZoneGeometry } from '@buscahogar/db';
 
 import { runReprocessCore } from '../dedup/reprocess-core.js';
@@ -78,6 +83,15 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
 
     reconcileBudget(reserved: BudgetReservation, actual: BudgetSnapshotLike): Promise<void> {
       return reconcileDailyBudget(deps.db, deps.sourceUuid, reserved, actual);
+    },
+
+    // ROADMAP 1.15 (security-hardening, decisión #263 D9) — purga
+    // programada sobre el MISMO pool propietario del proceso worker
+    // (`deps.db`), reutilizando `purgeExpiredClientQuota` sin ningún
+    // adaptador propio: la purga es una simple DELETE, no necesita
+    // credenciales aparte de las que este proceso ya tiene.
+    async purgeClientQuota(): Promise<void> {
+      await purgeExpiredClientQuota(deps.db);
     },
 
     async claimAndSweep(job: PollJob, area: AreaQuery, fingerprint: string): Promise<SweepTickResult> {

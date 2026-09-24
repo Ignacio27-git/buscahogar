@@ -111,6 +111,10 @@ function createFakePorts(overrides: FakePortsOverrides = {}): FakePorts {
       calls.push('runDedup');
       return Promise.resolve();
     },
+    purgeClientQuota(): Promise<void> {
+      calls.push('purgeClientQuota');
+      return Promise.resolve();
+    },
     sleep(): Promise<void> {
       calls.push('sleep');
       return Promise.resolve();
@@ -218,6 +222,54 @@ describe('runCoverageWorker — sin trabajos reclamables', () => {
     expect(ports.calls).not.toContain('resolveZoneGeometry');
     expect(ports.calls).not.toContain('reserveBudget');
     expect(ports.calls).not.toContain('runDedup');
+  });
+});
+
+// ROADMAP 1.15 (security-hardening, decisión #263 D9) — purga programada de
+// `coverage_client_quota` en el ciclo periódico de apps/ingestion. Añade la
+// purga COMO REFUERZO del acotado de retención sobre la purga perezosa que
+// ya hace `consumeClientQuota` (packages/db, decisión 076) — supersede la
+// cláusula original de la spec #261 "not a separate scheduled pass". SIEMPRE
+// una vez por tick, sin importar si hubo trabajo, presupuesto agotado, o
+// fallo — nunca condicionada a ninguna otra rama del tick.
+describe('runCoverageWorker — D9 (decisión #263): purgeClientQuota se invoca exactamente una vez por tick', () => {
+  it('un tick con trabajo disponible invoca purgeClientQuota exactamente una vez', async () => {
+    const ports = createFakePorts();
+
+    await runCoverageWorker(ports, BASE_OPTIONS);
+
+    expect(ports.calls.filter((call) => call === 'purgeClientQuota')).toHaveLength(1);
+  });
+
+  it('un tick SIN ningún trabajo reclamable también invoca purgeClientQuota exactamente una vez — nunca condicionada a que haya trabajo', async () => {
+    const ports = createFakePorts({
+      selectNextJob: (): Promise<PollJob | null> => Promise.resolve(null),
+    });
+
+    await runCoverageWorker(ports, BASE_OPTIONS);
+
+    expect(ports.calls.filter((call) => call === 'purgeClientQuota')).toHaveLength(1);
+  });
+
+  it('un tick con presupuesto agotado también invoca purgeClientQuota exactamente una vez', async () => {
+    const ports = createFakePorts({
+      reserveBudget: (): Promise<LedgerState | null> => Promise.resolve(null),
+    });
+
+    await runCoverageWorker(ports, BASE_OPTIONS);
+
+    expect(ports.calls.filter((call) => call === 'purgeClientQuota')).toHaveLength(1);
+  });
+
+  it('varios ticks invocan purgeClientQuota una vez POR TICK (coalescido por tick, no acumulado)', async () => {
+    const ports = createFakePorts({
+      selectNextJob: (): Promise<PollJob | null> => Promise.resolve(null),
+    });
+    const manyTicks: CoverageWorkerOptions = { ...BASE_OPTIONS, maxTicks: 3 };
+
+    await runCoverageWorker(ports, manyTicks);
+
+    expect(ports.calls.filter((call) => call === 'purgeClientQuota')).toHaveLength(3);
   });
 });
 
