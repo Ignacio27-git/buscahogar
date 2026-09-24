@@ -40,6 +40,28 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-24 — Ramas nuevas creadas sin preguntar para una entrega en PRs encadenadas
+
+**Contexto:** paso 1.15, entrega del cambio `security-hardening` en tres unidades de trabajo.
+
+**Categoría:** contradicción con una preferencia del responsable del proyecto (no escrita hasta
+entonces): trabajar siempre en la rama activa.
+
+**Qué ocurrió:** al elegirse "PRs encadenadas sobre rama integradora", el orquestador interpretó
+que eso implicaba crear ramas apiladas (`security-hardening-1/2/3`) y creó la primera sin
+preguntar, solo avisando. El responsable del proyecto no quería trabajar fuera de
+`feature-fase1`.
+
+**Cómo se detectó:** pregunta directa del responsable del proyecto al revisar el resultado.
+
+**Coste:** ~5 minutos. Las ramas eran lineales y nunca se subieron: avance rápido de
+`feature-fase1`, push y borrado de las ramas temporales, sin reescribir historial.
+
+**Observación:** partir un cambio en unidades revisables no exige ramas distintas; puede hacerse
+por commits en la rama activa. Cualquier `git switch -c` se pregunta antes.
+
+---
+
 ### 2026-09-24 — Una prueba que necesitaba el rol `web_coverage` fallaba en vez de omitirse sin él
 
 **Contexto:** paso 1.15 (PR2), `apps/web/test/db/page-coverage-degradation.test.tsx`, caso
