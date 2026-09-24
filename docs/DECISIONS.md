@@ -2419,6 +2419,247 @@ defecto — requeriría una revisión de este mapa si se observa en un feed real
 
 ---
 
+## 074 — Rate limiting mixto: cuota por cliente en PostgreSQL para registros de cobertura, ventana fija en memoria para el resto
+
+**Estado:** aceptada
+
+**Decisión.** El paso 1.15 (seguridad) aplica dos mecanismos distintos según la superficie:
+cuota diaria por cliente persistida en PostgreSQL (`coverage_client_quota`) para el registro de
+NUEVOS `coverage_job`, y un limitador de ventana fija en memoria dentro de `apps/web/src/proxy.ts`
+para el resto de peticiones.
+
+**Alternativa descartada.** Redis (fuera del alcance de la infraestructura actual); aplicar
+PostgreSQL a cada petición (coste de una escritura por petición, no solo por registro).
+
+**Motivo.** D1/D1b del pre-proposal: el registro de cobertura es la única superficie con coste
+real aguas abajo (cuota de la fuente externa) que merece persistencia entre procesos; el resto
+de peticiones solo necesita frenar abuso dentro del mismo proceso. Limitación conocida y
+documentada: el limitador en memoria es por proceso — se rompe con más de una instancia del
+servicio web corriendo a la vez (advertencia de la propia documentación de Next sobre variables
+globales en middleware/proxy).
+
+---
+
+## 075 — Identidad de cliente solo desde un header de confianza configurable; ausente/múltiple/no-IP cae en un bucket compartido `unknown`, nunca exento
+
+**Estado:** aceptada
+
+**Decisión.** `CLIENT_IP_HEADER` nombra el único header que se confía como IP del cliente. Si
+está vacío o ausente, ambos limitadores por cliente (PostgreSQL y proxy) quedan deshabilitados y
+solo rige el tope global `NEW_ZONES_DAILY_CAP`. Si está configurado, un valor ausente, con varios
+elementos separados por coma, o que no sea una IP válida se resuelve al mismo bucket compartido
+`unknown` — nunca se trata como exento o sin límite.
+
+**Alternativa descartada.** Fallar abierto (sin límite) cuando el header falta; tomar el valor
+más a la derecha de una lista `X-Forwarded-For` como hacen otros stacks.
+
+**Motivo.** Omitir o falsificar el header nunca debe permitir escapar del límite (fail-closed).
+MDN documenta explícitamente que `X-Forwarded-For` es fácil de falsificar si no lo sobrescribe un
+proxy de confianza — de ahí que el propio nombre del header sea configurable y no se asuma un
+estándar fijo.
+
+---
+
+## 076 — Clave de cuota por cliente: HMAC-SHA256 hex, clave primaria compuesta `(key_hash, day)`, purga perezosa en cada escritura
+
+**Estado:** aceptada
+
+**Decisión.** La fila de `coverage_client_quota` se indexa por el HMAC-SHA256 (hex) de la
+identidad del cliente con secreto `CLIENT_IP_HMAC_KEY`, nunca por el valor crudo. Clave primaria
+`(key_hash, day)`. Las filas de una ventana ya cerrada (`day < today`) se purgan como parte del
+propio camino de escritura, en cada consumo.
+
+**Alternativa descartada.** Hash sin clave (sin secreto); `key_hash` como única clave primaria
+con lógica de `CASE` para resetear el contador; purga ejecutada solo desde el worker de
+`apps/ingestion`.
+
+**Motivo.** Un hash con clave (HMAC) es la práctica exigida por el principio de minimización de
+datos (evidencia de investigación S8): sin la clave, nadie puede reconstruir la IP ni siquiera
+por fuerza bruta de un espacio pequeño. La clave primaria compuesta evita cualquier lógica de
+reseteo — un día nuevo es, estructuralmente, una fila nueva. Purgar solo desde `apps/ingestion`
+añadiría acoplamiento (puertos nuevos) a un worker ya probado, sin necesidad, cuando la propia
+escritura ya tiene que tocar la fila.
+
+---
+
+## 077 — Concurrencia de la cuota por cliente: una única sentencia atómica `INSERT ... ON CONFLICT DO UPDATE ... WHERE ... RETURNING`
+
+**Estado:** aceptada
+
+**Decisión.** `consumeClientQuota` ejecuta una única sentencia SQL atómica
+(`INSERT ... SELECT ... WHERE 1::integer <= cap::integer ON CONFLICT (key_hash, day) DO UPDATE
+SET registrations = registrations + 1 WHERE registrations + 1 <= cap::integer RETURNING`); una fila devuelta
+significa permitido, ninguna fila significa denegado. Los parámetros numéricos se convierten con
+`::integer`.
+
+**Alternativa descartada.** `pg_advisory_xact_lock` seguido de un ciclo leer-modificar-escribir
+(evidencia de investigación S7).
+
+**Motivo.** PostgreSQL garantiza que un `INSERT ... ON CONFLICT DO UPDATE` es atómico bajo
+concurrencia sin necesitar un bloqueo explícito ni una transacción adicional — mismo patrón ya
+verificado en `reserveDailyBudget` (`packages/db/src/budget-ledger.ts`), incluida la conversión
+explícita de tipos al comparar contra un parámetro de texto.
+
+---
+
+## 078 — Validación de entorno de `apps/web` centralizada en `env.ts`, parseada en tiempo de llamada; parámetros del limitador requeridos solo cuando el header está activo
+
+**Estado:** aceptada
+
+**Decisión.** `apps/web/src/server/env.ts` centraliza un lector Zod por variable de entorno,
+parseado en tiempo de LLAMADA (nunca al cargar el módulo); las clases y mensajes de error
+existentes se preservan. Los tres parámetros del limitador (`COVERAGE_PER_CLIENT_DAILY_CAP`,
+`PROXY_RATE_LIMIT_MAX`, `PROXY_RATE_LIMIT_WINDOW_SECONDS`) son REQUERIDOS cuando
+`CLIENT_IP_HEADER` está configurado, e IGNORADOS por completo —incluso si están presentes con un
+valor inválido— cuando no lo está.
+
+**Alternativa descartada.** Exigir los tres parámetros siempre, esté o no activo el limitador por
+IP; validarlos "si están presentes" mientras el limitador permanece deshabilitado.
+
+**Motivo.** Mantiene la postura fail-loud (decisión 066) sin forzar configuración para una
+funcionalidad deshabilitada, y conserva el interruptor de un solo paso: quitar
+`CLIENT_IP_HEADER` del entorno siempre funciona para deshabilitar el límite por IP, sin tocar
+ninguna otra variable.
+
+---
+
+## 079 — Orden de comprobación en `resolveCoverageForZone`: tope global de solo lectura ANTES que el consumo por cliente
+
+**Estado:** aceptada
+
+**Decisión.** `resolveCoverageForZone` comprueba, en este orden: cobertura existente / job ya
+en curso → tope global `NEW_ZONES_DAILY_CAP` (solo lectura) → cuota por cliente (escritura) →
+registro. Cuando el tope global ya está agotado, la cuota del cliente NUNCA se consume, incrementa
+ni siquiera se comprueba. Nuevo resultado distinto `client-cap-exhausted` (decisión D6 de las
+decisiones de producto confirmadas tras la propuesta).
+
+**Alternativa descartada.** Comprobar primero el límite por cliente y después el tope global —
+la redacción original de la propuesta.
+
+**Motivo.** El tope global es más barato (solo lectura) y comprobarlo primero evita consumir
+nunca la cuota de un cliente para un registro que de todos modos iba a rechazarse. Preserva
+además el invariante ya existente de que el handle de escritura perezoso (`getWriteDb`) no se
+abre en la rama de tope global agotado. **Esta decisión obligó a re-ejecutar `sdd-spec` (spec
+#261, revisión 2)**, que en su primera redacción había fijado el orden contrario.
+
+---
+
+## 080 — CSP estática ("Without Nonces") + cabeceras OWASP vía `headers()` asíncrona en `next.config.ts`; sin COEP; `poweredByHeader: false`
+
+**Estado:** aceptada
+
+**Decisión.** La política de contenido se define de forma ESTÁTICA (sin nonces) en la función
+`headers()` de `next.config.ts`, calculada en tiempo de llamada (`isDev` no se fija al cargar el
+módulo). En desarrollo se añade `'unsafe-eval'` a `script-src` y se omite
+`upgrade-insecure-requests`; en producción, al revés. Se añade el conjunto OWASP completo (HSTS,
+`X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`,
+`Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy`) sin `Cross-Origin-Embedder-Policy`
+(rompería recursos de terceros sin necesidad); `poweredByHeader: false` retira `X-Powered-By`.
+`img-src` se limita a `'self' blob: data:` — las imágenes remotas pasan siempre por
+`/_next/image`, mismo origen.
+
+**Alternativa descartada.** Generar la CSP con nonces por petición; fijarla desde el proxy en vez
+de `next.config.ts`.
+
+**Motivo.** D2 del pre-proposal: la aplicación no emite hoy ningún script inline que necesite un
+nonce, así que la política "Without Nonces" documentada oficialmente por Next es la opción más
+simple que cumple el mismo objetivo. `next/image` ya se usa sin `unoptimized` en todo el proyecto,
+así que restringir `img-src` al propio origen no rompe ninguna imagen existente.
+
+---
+
+## 081 — `server-only` en los módulos RSC con handles de base de datos o secretos; los módulos alcanzables por el proxy NO lo importan
+
+**Estado:** aceptada
+
+**Decisión.** `import 'server-only'` se añade a los cuatro módulos de `apps/web/src/server` que
+sostienen handles de base de datos o secretos (`db.ts`, `coverage-db.ts`, `coverage.ts`,
+`coverage-client.ts`). Los tres módulos alcanzables también desde `proxy.ts`
+(`env.ts`, `client-identity.ts`, `proxy-rate-limit.ts`) NO lo importan. `vitest.config.ts` alía
+`server-only` a un stub vacío (`apps/web/test/stubs/server-only.ts`) para que los tests puedan
+importar los módulos guardados sin fallar.
+
+**Alternativa descartada.** Guardar con `server-only` absolutamente todos los módulos del árbol
+`server/`, incluidos los alcanzables por el proxy.
+
+**Motivo.** En Next 16.3.4 el proxy corre en el runtime de Node.js (no Edge), pero no se ha verificado
+cómo trata el bundling del proxy un import transitivo de `server-only`; es un riesgo que este
+cambio prefiere no asumir sin comprobarlo. Ninguna variable de entorno sin prefijo `NEXT_PUBLIC_` se inlina
+nunca en el cliente de todos modos, así que omitir el guardia en esos tres módulos no reintroduce
+el riesgo original que `server-only` existe para prevenir. La frontera se refuerza con un test
+estático (`server-only-boundary.test.ts`) que falla si algún fichero cambia de lado sin querer.
+
+---
+
+## 082 — Purga de `coverage_client_quota`: perezosa en la escritura Y programada en el ciclo periódico de `apps/ingestion` (D9)
+
+**Estado:** aceptada
+
+**Decisión.** Además de la purga perezosa ya prevista en la decisión 076 (una fila de ventana
+cerrada se borra en el siguiente consumo que la toque), `apps/ingestion` purga también las filas
+de ventana cerrada en cada ciclo de su worker de cobertura periódico (`coverage-worker.ts`),
+usando su propia credencial de propietario. Esta decisión **enmienda** la cláusula de spec #261
+que decía "no un paso programado aparte" — el maintainer la sobrescribió explícitamente tras
+revisar el diseño (obs #263, D9).
+
+**Alternativa descartada.** Purga solo perezosa, tal y como especificaba spec #261 en su
+redacción original.
+
+**Motivo.** La purga perezosa por sí sola solo se dispara cuando llega un consumo nuevo para esa
+combinación `(key_hash, day)` concreta: un cliente que deja de registrar cobertura nunca vuelve a
+disparar su propia purga, así que su fila de ventana cerrada podría persistir indefinidamente sin
+cota temporal. El paso programado en `apps/ingestion` acota la retención con independencia de si
+hay registros nuevos.
+
+---
+
+## 083 — El sobre-conteo de la cuota por cliente ante un registro fallido o en conflicto es fail-closed, nunca se revierte
+
+**Estado:** aceptada
+
+**Decisión.** `resolveCoverageForZone` consume la cuota del cliente (`consumeClientQuota`) y
+registra el `coverage_job` (`registerCoverageJob`) en dos sentencias independientes, sin
+transacción compartida. Si el consumo de cuota tiene éxito pero el registro posterior falla o
+entra en conflicto, el incremento de cuota YA CONSUMIDO no se revierte: cuenta igual contra el
+cliente.
+
+**Alternativa descartada.** Envolver ambas escrituras en una única transacción y revertir el
+consumo de cuota si el registro falla.
+
+**Motivo.** Nota del validador de diseño (obs #263): envolver ambas escrituras en una transacción
+compartida habría exigido reabrir el invariante del handle de escritura perezoso
+(`getWriteDb()` solo se abre cuando hace falta) y complicar el camino feliz por un caso límite
+raro. Entre sobre-contar (el cliente ve un límite ligeramente más estricto del que técnicamente
+usó) y sub-contar (una condición de carrera de "descuento" que podría inflar el límite real
+disponible), sobre-contar es la opción conservadora — coherente con el principio ya aplicado en
+el resto del proyecto de minimizar falsos negativos de límite antes que optimizar la exactitud
+del contador.
+
+---
+
+## 084 — CSP `frame-ancestors 'none'` y `X-Frame-Options: DENY`, no `'self'`/`SAMEORIGIN`
+
+**Estado:** aceptada
+
+**Decisión.** La directiva `frame-ancestors` de la CSP se fija a `'none'` y `X-Frame-Options` a
+`DENY` — ningún origen, ni siquiera el propio, puede enmarcar la aplicación en un `<iframe>`.
+
+**Alternativa descartada.** `frame-ancestors 'self'` con `X-Frame-Options: SAMEORIGIN` — valor
+con el que `sdd-apply` entregó la PR2 inicialmente, razonando que debía ser consistente con
+`SAMEORIGIN` por compatibilidad con navegadores previos a `frame-ancestors`.
+
+**Motivo.** `apps/web` no tiene ningún caso de uso legítimo que necesite enmarcarse a sí mismo en
+un `<iframe>`, propio o ajeno — no existe ningún flujo de la aplicación que dependa de ello. El
+diseño (#262, decisión 080) ya especificaba la política "Without Nonces" de Next, que fija
+`frame-ancestors 'none'`, y la investigación citaba `X-Frame-Options: DENY` de OWASP; la relajación a `'self'`/`SAMEORIGIN`
+fue una desviación no autorizada del propio `sdd-apply`, detectada porque el test nuevo solo
+comprobaba `toBeDefined()` en vez del valor exacto de la cabecera. Corregida por el orquestador:
+el test se reforzó primero (RED confirmado contra el valor relajado) y después se restauró el
+valor estricto del diseño (GREEN). Ver `docs/AI-NOTES.md` para el detalle completo del ciclo de
+detección y corrección.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

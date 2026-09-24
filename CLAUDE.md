@@ -17,10 +17,18 @@ externa desde `apps/web`, es incorrecta.
 debe tener corte explícito. Un bucle mal cerrado agota la cuota del mes. Nunca llamar a
 la API real desde tests: usar fixtures grabados.
 
-**Credenciales de fuentes y de escritura solo en `apps/ingestion`.** (docs/DECISIONS.md,
-decisión 056, enmienda la 015). `apps/web` tiene su propia credencial de base de datos,
-respaldada por un rol de PostgreSQL de **solo lectura**: `DATABASE_URL` en
-`apps/web/.env.local` (local) o inyectada por Compose desde `WEB_DATABASE_URL` (contenedor).
+**Credenciales de fuentes solo en `apps/ingestion`; `apps/web` tiene dos credenciales de base de
+datos, ambas de alcance mínimo.** (docs/DECISIONS.md, decisión 056, enmienda la 015; decisiones
+064/069 del paso 1.13; 076/082 del paso 1.15). `apps/web` nunca usa la credencial de
+propietario de `apps/ingestion`:
+
+- **Lectura:** rol de PostgreSQL de **solo lectura** — `DATABASE_URL` en `apps/web/.env.local`
+  (local) o inyectada por Compose desde `WEB_DATABASE_URL` (contenedor).
+- **Escritura restringida (`web_coverage`, pasos 1.13 y 1.15):** rol acotado a `INSERT` en
+  `coverage_jobs` (1.13) y a `SELECT`/`INSERT`/`UPDATE`/`DELETE` en `coverage_client_quota` (cuota
+  diaria por cliente, 1.15) — `WEB_COVERAGE_DATABASE_URL` en `apps/web/.env.local` (local) o
+  inyectada por Compose (contenedor). Ningún otro `GRANT` sobre ninguna otra tabla.
+
 Ninguna credencial de las fuentes (Idealista u otra) llega nunca a `apps/web`, y ninguna
 credencial de ningún tipo se expone como variable `NEXT_PUBLIC_*`.
 

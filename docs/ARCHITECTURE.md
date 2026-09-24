@@ -162,9 +162,23 @@ Fuera del alcance: colas externas, Redis, caché distribuida, autenticación.
 
 ## Seguridad
 
-- Validación con Zod de toda entrada externa, search params incluidos.
-- Credenciales de fuentes solo en `ingestion`, nunca en variables públicas.
+- Validación con Zod de toda entrada externa: search params, variables de entorno de `apps/web`
+  (`env.ts`, un lector Zod por cada grupo de variables, parseado en tiempo de llamada) y argumentos/filas CSV del conversor
+  del catálogo municipal (`apps/ingestion`).
+- Credenciales de fuentes solo en `ingestion`, nunca en variables públicas. `apps/web` usa dos
+  credenciales de PostgreSQL de alcance mínimo, ninguna de propietario: lectura y una escritura
+  restringida al rol `web_coverage` (pasos 1.13 y 1.15, `CLAUDE.md`).
 - Consultas parametrizadas vía ORM.
-- Rate limiting en endpoints públicos y presupuesto de cuota frente a fuentes externas.
-- Cabeceras de seguridad y política de contenido.
+- Rate limiting en endpoints públicos: cuota diaria por cliente en PostgreSQL para el registro de
+  cobertura bajo demanda (clave HMAC-SHA256, nunca la IP cruda) más un limitador de ventana fija
+  en memoria en `apps/web/src/proxy.ts` para el resto de peticiones — **deshabilitado por
+  defecto**, activo solo cuando `CLIENT_IP_HEADER` está configurado detrás de un proxy inverso de
+  confianza que sobrescriba ese header. Presupuesto de cuota frente a fuentes externas sin
+  cambios (`apps/ingestion`).
+- Cabeceras de seguridad y política de contenido: CSP estática sin nonces + conjunto OWASP
+  (HSTS, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors 'none'`/
+  `X-Frame-Options: DENY`, COOP, CORP, sin COEP) vía `headers()` en `next.config.ts`; sin
+  `X-Powered-By`.
+- Módulos de `apps/web/src/server` con handles de base de datos o secretos guardados con
+  `import 'server-only'`, para que un import accidental desde código de cliente falle en build.
 - Secretos en variables de entorno, fuera del control de versiones.

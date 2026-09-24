@@ -1005,3 +1005,43 @@ líneas, con la justificación de cada caso del checklist inline) explican la ma
 exceso, no lógica de producción inflada (`src/` son ~664 líneas en 10 ficheros, con comentarios
 de diseño extensos en español). Detalle completo, decisiones 071-073, y ficheros tocados en
 `docs/ROADMAP.md`, paso 1.14.
+
+---
+
+### 2026-09-24 — Seguridad y cierre de fase (1.15), ciclo SDD completo en tres PRs encadenadas
+
+**Tipo de tarea:** auditoría de seguridad + rate limiting + cabeceras HTTP/CSP + validación de
+entorno + rol de escritura acotado en PostgreSQL + validación de argv/CSV del importador
+**Forma de especificación:** ciclo SDD completo — explore → research → propose → `sdd-spec` y
+`sdd-design` en paralelo → `sdd-tasks` → `sdd-apply` en tres PRs encadenadas
+(`feature-branch-chain` sobre `feature-fase1`: PR1 → PR2 → PR3)
+**Resultado:** utilizable con retoques — PR1: ajustes menores del validador (cast `::integer` en
+el `DO UPDATE ... WHERE`, siembra de fecha UTC explícita en los tests, un comentario
+desactualizado). PR2: dos correcciones reales del orquestador tras un FAIL del validador —
+`frame-ancestors`/`X-Frame-Options` se habían relajado de `'none'`/`DENY` (diseño) a
+`'self'`/`SAMEORIGIN` sin autorización (restaurado, decisión 084), y el limitador del proxy
+indexaba por la IP cruda en vez de por su HMAC pese a que la tarea correspondiente estaba
+marcada `[x]` (cableado añadido, con test de regresión nuevo). PR3: sin retoques.
+
+**Prompt:** el del paso 1.15 de `docs/ROADMAP.md`, literal: «Repasa la aplicación contra la
+sección de seguridad de docs/ARCHITECTURE.md y corrige lo que falte: validación con Zod de toda
+entrada externa, search params incluidos; ninguna credencial accesible desde apps/web ni en
+variables NEXT_PUBLIC_*; rate limiting en los endpoints públicos; cabeceras de seguridad y
+política de contenido; secretos fuera del control de versiones. Dime qué has encontrado antes de
+corregirlo.» — invocado vía `/gentle-sdd-new`, seguido de `/gentle-sdd-apply security-hardening`
+para las tres PRs de aplicación.
+
+**Observación.** La auditoría (`sdd-explore`, obs #255, corregida por obs #256) encontró
+cumplimiento desigual del propio checklist: validación Zod de search params, consultas
+parametrizadas y credencial de solo lectura de `apps/web` ya cumplidas; secretos ya fuera de
+control de versiones (la exploración dio `.env.example` erróneamente por ausente en un primer
+pase, corregido en obs #256 — ver `docs/AI-NOTES.md`). Ausentes por completo: rate limiting (ni
+PostgreSQL ni proxy), cabeceras de seguridad/CSP, validación Zod del entorno de `apps/web` y del
+importador de `apps/ingestion`, guardia `server-only`, y rol de escritura acotado para el
+registro de cobertura por cliente. El diseño (#262) y las decisiones del responsable (D1-D10,
+obs #257/#260/#263) resolvieron cada gap, documentadas en `docs/DECISIONS.md` 074-084. El
+volumen total superó el presupuesto de sesión (~1300-1450 líneas estimadas por `sdd-tasks` frente
+a 800/PR): PR1 cerró dentro de presupuesto (~781 líneas autoradas, aunque el ledger nativo de
+intentos sí necesitó un reinicio autorizado por contar de más el snapshot generado de la
+migración); PR2 se aceptó con `size:exception` explícito (~1137-1148 líneas). Detalle completo,
+con las cifras exactas por PR, en `docs/ROADMAP.md`, paso 1.15.

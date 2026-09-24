@@ -1501,7 +1501,7 @@ hallazgos para `AI-NOTES.md`; la verificación lo detectó.
 
 ---
 
-## [ ] 1.15 · Seguridad y cierre de fase
+## [~] 1.15 · Seguridad y cierre de fase
 
 ```text
 Repasa la aplicación contra la sección de seguridad de docs/ARCHITECTURE.md y
@@ -1517,6 +1517,64 @@ Dime qué has encontrado antes de corregirlo.
 ```
 
 **Notas:**
+
+**Auditoría (`sdd-explore`, obs #255, corregida por obs #256).** Contra el checklist del propio
+prompt:
+
+- **Cumplido ya:** validación Zod de search params (`packages/core/src/schemas/search-query.schema.ts`);
+  consultas parametrizadas vía Drizzle; `apps/web` ya usaba una credencial de PostgreSQL propia de
+  solo lectura (no la de `apps/ingestion`); secretos ya fuera de control de versiones
+  (`.env`/`.env.local` en `.gitignore`, `.env.example` sí presente en el repositorio —la
+  exploración lo dio erróneamente por ausente en un primer pase, corregido en obs #256, ver
+  `docs/AI-NOTES.md`).
+- **Ausente por completo (gap real):** rate limiting — ni en PostgreSQL ni en el proxy; cabeceras
+  de seguridad/CSP — ninguna presente; validación Zod de variables de entorno de `apps/web`
+  (lectura manual con `if`/`throw`) y de los argumentos/filas CSV del conversor del catálogo
+  municipal; guardia `server-only` — inexistente; rol de escritura acotado para el registro de
+  cobertura bajo demanda por cliente — inexistente (la cobertura bajo demanda del paso 1.13 solo
+  tenía el tope global, sin límite por cliente).
+
+**Qué se construyó.** Ciclo SDD completo (explore → research → propose → `sdd-spec`/`sdd-design`
+en paralelo → `sdd-tasks` → `sdd-apply`), entregado en tres PRs encadenadas
+(`feature-branch-chain` sobre `feature-fase1`):
+
+- **PR1** (`security-hardening-1`): política de ventana fija e identidad de cliente confiable
+  puras en `packages/core`; tabla `coverage_client_quota` (clave `(key_hash, day)`, HMAC-SHA256
+  de la identidad, nunca cruda) y su consumo atómico en `packages/db`; migración 0011; permisos
+  del rol `web_coverage` ampliados a la nueva tabla; purga programada de ventanas cerradas
+  añadida también al worker periódico de `apps/ingestion` (D9, decisión 082 — además de la purga
+  perezosa en cada escritura, decisión 076).
+- **PR2** (`security-hardening-2`): `env.ts` (Zod, `apps/web`), HMAC de la identidad de cliente,
+  reordenación de `resolveCoverageForZone` (tope global de solo lectura antes que el consumo por
+  cliente, decisión 079, con su propio outcome `client-cap-exhausted`), limitador de ventana fija
+  en `apps/web/src/proxy.ts`, CSP estática + cabeceras OWASP en `next.config.ts`, guardia
+  `server-only`, variables de entorno nuevas cableadas en `docker-compose.yml`.
+- **PR3** (`security-hardening-3`, esta sesión): argumentos y filas CSV del conversor del
+  catálogo municipal (`apps/ingestion`) validados con Zod en vez de a mano —
+  `parseCatalogueImportArgs` (mismo patrón de tres pasos que `sweep/options.ts`,
+  `blocking/options.ts`) y un esquema Zod por fila NGMEP con los tres campos numéricos delegados
+  a `parseCommaDecimal` dentro de un `.transform()` (nunca `z.coerce.number()`, la trampa de la
+  coma decimal ya documentada en `docs/AI-NOTES.md`, paso 1.13) — más el registro documental
+  obligatorio de todo el paso.
+
+**Retoques sobre lo entregado por `sdd-apply` (ninguno de producto, todos de fidelidad al
+diseño ya decidido):** PR1, ajustes menores señalados por el validador (cast `::integer` en el
+`DO UPDATE ... WHERE`, siembra de fecha UTC explícita en los tests, un comentario desactualizado).
+PR2, dos correcciones reales del orquestador tras un FAIL del validador — la CSP se había
+relajado de `frame-ancestors 'none'`/`X-Frame-Options: DENY` (diseño, decisión 080) a
+`'self'`/`SAMEORIGIN` sin autorización (restaurado, decisión 084); y el limitador del proxy
+indexaba por la IP cruda en vez de por su HMAC pese a que la tarea correspondiente estaba
+marcada `[x]` (cableado añadido, con test de regresión nuevo). Detalle completo de ambos en
+`docs/AI-NOTES.md`.
+
+**Estado real.** 50/51 tareas de `sdd-tasks` completas. La única pendiente, 3.12
+(`.env.example`), queda deliberadamente sin tocar: ningún agente de esta sesión tiene permiso
+para leer ni escribir ficheros `.env*` — mismo bloqueo exacto que las tareas 10.5/10.6 del paso
+1.13. El bloque de variables nuevas a añadir (`CLIENT_IP_HEADER`, `CLIENT_IP_HMAC_KEY`,
+`COVERAGE_PER_CLIENT_DAILY_CAP`, `PROXY_RATE_LIMIT_MAX`, `PROXY_RATE_LIMIT_WINDOW_SECONDS`,
+`WEB_COVERAGE_DATABASE_URL`) quedó en el informe de la sesión de `sdd-apply` para que el
+responsable del proyecto lo pegue directamente. El paso se marca `[~]`, no `[x]`, por esa única
+tarea pendiente.
 
 ---
 
@@ -1673,3 +1731,9 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-23 | 1.13 | Continuación — adaptación del conversor al fichero real: **~1078 líneas cambiadas** en código/tests hand-authored (sin contar el artefacto generado ni los datos crudos) frente al presupuesto de ~600 de la tarea | El fichero real resultó tener una forma distinta a la prevista por el diseño de la decisión 066 (una fila por municipio, no una jerarquía de entidades), lo que obligó a reescribir cinco módulos existentes (`ngmep-parse`, `join`, `geo`, `sanity`, el composition root) y añadir dos nuevos (`numeric.ts` para la coma decimal, `provincias-parse.ts`) con su propio test-first cada uno (decisión 070). El presupuesto no se recortó a costa de tests o de alcance real; se reporta la cifra real. |
 | 2026-09-23 | 1.13 | Continuación — `packages/db/test/seed.test.ts` (4-5 de sus 6 tests) queda en ROJO dentro de `pnpm -r test` tras poblar el catálogo real; **no corregido en esta sesión, deliberadamente fuera de alcance** | `seedReferenceData(db)` sin catálogo explícito usa ahora `DEFAULT_CATALOGUE` = 8132 filas reales (antes, 1 fila placeholder). `seedReferenceData` inserta fila a fila con `INSERT`+`SELECT`+`INSERT` secuenciales dentro de una única transacción (`packages/db/src/seed.ts`) — con 8132 filas son ~24k idas y vueltas, ~20-35 s reales (confirmado ejecutando `pnpm --filter @buscahogar/db run seed` de verdad: 23,8 s, éxito). Eso excede el timeout por defecto de vitest (5 s test / 10 s hook); el test abandonado deja una transacción en vuelo que colisiona con el `TRUNCATE` del siguiente `beforeEach` y produce un deadlock real de PostgreSQL en pasadas posteriores. Es un cuello de botella de escalado preexistente en `seed.ts`, invisible mientras el catálogo tenía 1 fila, expuesto por primera vez al poblarlo de verdad — ortogonal al conversor (`apps/ingestion/src/catalogue/`), que es el alcance de esta tarea. Las cuatro suites respaldadas por Docker y el resto de `pnpm -r test` (core/ingestion/web) no se ven afectadas: ningún otro fichero de test llama a `seedReferenceData()` sin catálogo explícito. Queda para que el responsable del proyecto decida el remedio (lote de inserción en `seed.ts`, o que estos tests concretos usen un catálogo sintético pequeño en vez del real). |
 | 2026-09-24 | 1.14 | **~1670 líneas cambiadas** (~1418 de código, tests y fixtures más ~256 de documentación, sin `pnpm-lock.yaml`) frente a un pronóstico de ~790 y un presupuesto de 800 | El `size:exception` se aceptó antes de aplicar esperando un exceso ligero. El grueso del exceso son los tests (588 líneas, 87 casos) y el fixture XML comentado, no lógica de producción (`src/` ~664 líneas en 10 ficheros). No se recortaron tests ni alcance para ajustarse a la cifra. El registro nativo de intentos bloqueó el cierre (1728 líneas frente al límite de 900) y el responsable autorizó el reinicio antes de verificar. El núcleo no se tocó: la abstracción `PropertySource<T>` resistió sin cambios. |
+| 2026-09-24 | 1.15 | Entregado como tres PRs encadenadas (`feature-branch-chain` sobre `feature-fase1`: PR1 → PR2 → PR3) en vez de una única PR | El pronóstico de `sdd-tasks` (~1300-1450 líneas totales) superaba con holgura el presupuesto de sesión (800/PR); el propio diseño (#262) ya preveía la partición en tres unidades de trabajo, y el responsable del proyecto aceptó `auto-chain` como estrategia de entrega (obs #263, D10). |
+| 2026-09-24 | 1.15 | La PR2 se aceptó con `size:exception` explícito: ~1137 líneas autoradas sin `pnpm-lock.yaml` (~1148 con él) frente al presupuesto de sesión de 800 y a la previsión propia del diseño de ~500-600 | El exceso es casi enteramente cobertura de test obligatoria por spec (8 ficheros de test nuevos, 39 casos) y código de producción directamente exigido por el diseño; no se recortó alcance ni tests para ajustar la cifra, misma disciplina que los pasos 1.8, 1.13 y 1.14. |
+| 2026-09-24 | 1.15 | Se añadió una purga programada de `coverage_client_quota` en el worker periódico de `apps/ingestion` (D9), además de la purga perezosa ya prevista por spec #261/diseño #262 | El responsable del proyecto sobrescribió explícitamente la cláusula de spec #261 ("no un paso programado aparte") tras revisar el diseño (obs #263): la purga perezosa por sí sola no acota la retención de un cliente que deja de registrar cobertura. Ver decisión 082. |
+| 2026-09-24 | 1.15 | El orden de comprobación del registro de cobertura (tope global de solo lectura ANTES que el consumo por cliente) difiere del orden de la redacción original de la propuesta (que comprobaba primero el límite por cliente) | El diseño (#262, decisión 079), razonando desde el propio código de `coverage.ts`, invirtió el orden para no gastar nunca la cuota de un cliente en un registro que de todos modos iba a rechazarse por el tope global — obligó a una re-ejecución correctiva de `sdd-spec` (revisión 2). Ver decisión 079 y `docs/AI-NOTES.md`. |
+| 2026-09-24 | 1.15 | Se añadió al alcance el cableado de las variables de entorno nuevas de `apps/web` en `docker-compose.yml` (`WEB_COVERAGE_DATABASE_URL`, `NEW_ZONES_DAILY_CAP` y las del limitador) | El prompt del propio paso no lo pedía explícitamente, pero D5 del pre-proposal (obs #257) lo identificó como parte necesaria del cierre de seguridad: sin ese cableado, el servicio web en contenedor no podría usar ninguna de las credenciales/límites nuevos. |
+| 2026-09-24 | 1.15 | PR3 cerró en **1047 líneas cambiadas** (código 370: 334 inserciones/36 borrados; documentación obligatoria 677: `docs/AI-NOTES.md` 294, `docs/DECISIONS.md` 241, `docs/ROADMAP.md` 65, `docs/PROMPTS.md` 40, `docs/ARCHITECTURE.md` 22, `CLAUDE.md` 15) frente al presupuesto de sesión de 800 y a la previsión propia del diseño de ~300-400 | El código (370 líneas) cerró bien dentro de presupuesto; el exceso es enteramente documentación obligatoria por `CLAUDE.md` ("Registro obligatorio al terminar cada tarea"): once entradas nuevas de `docs/AI-NOTES.md` (un fallo intermedio real por entrada, de los tres PRs del paso completo) y once decisiones nuevas de `docs/DECISIONS.md` (074-084: 074-081 del diseño, 082 la purga programada D9, 083 el sobreconteo de cuota como fallo cerrado y 084 la corrección de `frame-ancestors`). No se recortó ninguna entrada para ajustar la cifra — mismo criterio que el resto del proyecto. Recomendado `size:exception` para esta PR3. |

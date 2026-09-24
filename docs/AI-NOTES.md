@@ -40,6 +40,301 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-24 — Tarea marcada `[x]` sin cumplir el diseño: el limitador del proxy indexaba por la IP cruda, nunca por su HMAC
+
+**Contexto:** paso 1.15 (PR2, `apps/web/src/proxy.ts`), validación independiente de `sdd-apply`
+tras el cierre de la PR2.
+
+**Categoría:** código correcto en apariencia pero incorrecto; contradicción con una regla de
+este fichero (decisión 076 del diseño: la clave de cuota nunca es el valor crudo).
+
+**Qué ocurrió:** la tarea 2.11 se marcó `[x]` y `proxy.ts` compilaba, tipaba y pasaba lint, pero
+el limitador en memoria indexaba su `Map` por la IP cruda del header, sin llamar nunca a
+`hmacClientKey`. El comentario de `client-identity.ts` afirmaba además, en falso, que el proxy sí
+reutilizaba esa función. Ningún test de `proxy-rate-limit.test.ts` ni `proxy-config.test.ts` lo
+habría podido detectar: ambos prueban el limitador en aislamiento, con una clave ya resuelta como
+entrada.
+
+**Cómo se detectó:** validador independiente de la PR2 (no el propio `sdd-apply`), leyendo
+`proxy.ts` contra el flujo de datos del diseño (#262), no contra los tests existentes.
+
+**Cómo se resolvió:** se añadió un test de `proxy.ts` con un espía sobre `hmacClientKey`
+(`vi.mock` envolviendo la función real, no sustituyéndola) para forzar un RED confirmado antes de
+cablear la llamada real; se corrigió el comentario falso. `apps/web` quedó en 134/134.
+
+**Observación:** un test que prueba un módulo en aislamiento, con sus dependencias ya resueltas
+como fixtures, no puede detectar que el módulo QUE LO LLAMA nunca invoque esa dependencia — la
+cobertura de integración real (aquí, un test contra `proxy.ts` mismo) era la única pieza que
+faltaba, y faltaba precisamente en el nivel que el checklist de tareas daba por hecho.
+
+---
+
+### 2026-09-24 — CSP `frame-ancestors`/`X-Frame-Options` relajados sin autorización frente al diseño
+
+**Contexto:** paso 1.15 (PR2, `apps/web/next.config.ts`), corrección posterior a la entrega de
+`sdd-apply`.
+
+**Categoría:** contradicción con una regla de este fichero (diseño #262, decisión 080, que fijaba
+`frame-ancestors 'none'`, y la investigación citaba `X-Frame-Options: DENY` de OWASP).
+
+**Qué ocurrió:** `sdd-apply` entregó `frame-ancestors 'self'` y `X-Frame-Options: SAMEORIGIN` en
+vez del valor estricto del diseño, razonando compatibilidad entre ambas cabeceras. El test nuevo
+(`security-headers.test.ts`) solo comprobaba `toBeDefined()` sobre la cabecera, no su valor
+exacto, así que la relajación pasó en verde.
+
+**Cómo se detectó:** revisión del orquestador contra el texto literal del diseño, no por ningún
+test — el test tal y como estaba escrito no podía distinguir `'self'` de `'none'`.
+
+**Cómo se resolvió:** se reforzó la aserción del test para comprobar el valor exacto (RED
+confirmado contra el valor relajado), y se restauró `'none'`/`DENY` en `next.config.ts` (GREEN).
+Ver decisión 084 en `docs/DECISIONS.md`.
+
+**Observación:** una aserción `toBeDefined()` sobre una cabecera de seguridad prueba presencia,
+nunca el valor — exactamente el patrón "TYPE-ONLY ASSERTIONS" que la disciplina TDD estricta de
+este proyecto prohíbe, y aun así pasó una primera revisión porque typecheck/lint/build no leen el
+contenido de una cabecera HTTP.
+
+---
+
+### 2026-09-24 — Un import con sufijo `.js` que `tsc`/`vitest` aceptan y Turbopack no, esta vez en `apps/web/src` (no en `apps/ingestion`)
+
+**Contexto:** paso 1.15 (PR2), imports relativos nuevos en seis ficheros de `apps/web/src`
+(`proxy.ts` y `server/env.ts`, `server/coverage-client.ts` nuevos; `server/{coverage-db,coverage,db}.ts`
+modificados).
+
+**Categoría:** patrón de una convención distinta, copiado del paquete equivocado.
+
+**Qué ocurrió:** los imports relativos nuevos dentro de `apps/web/src` se escribieron con sufijo
+`.js` (`from './env.js'`), copiando la convención de `packages/core`/`packages/db` (que compilan
+con `tsc` a `.js` real). `tsc --noEmit` y `vitest` resolvieron esos imports sin problema — ambos
+toleran el sufijo NodeNext bajo `moduleResolution: "Bundler"`. `pnpm --filter @buscahogar/web
+build` (Turbopack) falló con 9 errores "Module not found", porque la convención YA existente en
+`apps/web/src` (confirmada con `git stash` + grep contra la base) es imports relativos SIN
+extensión.
+
+**Cómo se detectó:** el paso de `next build`, no `tsc` ni `vitest` — mismo patrón exacto que la
+entrada del 2026-09-17 sobre `result-card.tsx`/`thumbnail-source.js`, pero esta vez reintroducido
+en ficheros nuevos por copiar la convención de otro paquete del monorepo en vez de verificar la
+del propio directorio primero.
+
+**Cómo se resolvió:** se quitó el sufijo `.js` de los seis imports relativos nuevos bajo
+`apps/web/src` (los de `apps/web/test/**` conservan el sufijo — convención previa y distinta,
+que `vitest` sí resuelve). Reejecutados build, typecheck, lint y la suite completa: todo verde.
+
+**Observación:** este proyecto ya tiene ESTE MISMO fallo documentado (2026-09-17) para
+`apps/web`, y aun así se repitió — la causa esta vez no fue desconocer el patrón, sino copiar por
+defecto la convención de un paquete vecino sin comprobar la del directorio de destino.
+
+---
+
+### 2026-09-24 — La documentación instalada de `next/experimental/testing/server` nombra una función que el build real no exporta
+
+**Contexto:** paso 1.15 (PR2), `apps/web/test/proxy-config.test.ts` (matcher del proxy).
+
+**Categoría:** API de una versión distinta a la instalada, esta vez en la propia documentación
+empaquetada, no en la memoria del asistente.
+
+**Qué ocurrió:** la documentación markdown incluida en el propio paquete
+(`next/dist/docs/.../proxy.md`) nombra `unstable_doesProxyMatch` en su sección de test unitario
+experimental. El export compilado real en Next 16.3.4
+(`next/dist/experimental/testing/server/middleware-testing-utils.d.ts`) solo define
+`unstable_doesMiddlewareMatch`.
+
+**Cómo se detectó:** lectura directa del `.d.ts`/`.js` instalado en `node_modules` ANTES de
+escribir el test, siguiendo la instrucción de `context7`/`CLAUDE.md` de verificar contra la
+versión fijada del paquete en vez de asumir. No llegó a producir un ciclo RED/GREEN fallido —se
+usó el export real desde el principio.
+
+**Cómo se resolvió:** N/A — no hizo falta corrección, solo la verificación previa evitó escribir
+el import equivocado.
+
+**Observación:** la propia documentación empaquetada de una dependencia puede estar
+desincronizada con el código que realmente exporta esa misma versión — verificar el `.d.ts`
+instalado sigue siendo más fiable que la documentación en prosa, incluso la que viene dentro del
+propio paquete.
+
+---
+
+### 2026-09-24 — Un test nuevo se quedó en el mismo falso "rojo" que su propio RED, por un segundo defecto en el propio test (tope de cliente desalineado)
+
+**Contexto:** paso 1.15 (PR2), `apps/web/test/db/page-coverage-degradation.test.tsx`, cuarto caso
+(`client-cap-exhausted`).
+
+**Categoría:** test que valida el comportamiento equivocado, por un error en su propia
+preparación de datos, no en el código de producción.
+
+**Qué ocurrió:** la primera redacción del caso fijaba `COVERAGE_PER_CLIENT_DAILY_CAP='5'` (leído
+por el código de producción) pero agotaba la cuota del cliente llamando directamente a
+`consumeClientQuota(db, keyHash, 1)` — un tope de `1`, distinto del `5` que leería
+`page.tsx`. Tras implementar la tarea 2.14, el test SEGUÍA fallando, con la MISMA salida
+("pendiente") que el RED original — a primera vista, parecía que la implementación no había
+funcionado.
+
+**Cómo se detectó:** comparación manual de los dos valores de tope al investigar por qué el GREEN
+esperado no llegaba.
+
+**Cómo se resolvió:** se corrigió `COVERAGE_PER_CLIENT_DAILY_CAP='1'` para que coincidiera con el
+tope usado al pre-agotar la cuota. Nunca se llegó a dar el paso por bueno con el falso rojo —se
+reejecutó el test tras la sospecha, no se avanzó a la siguiente tarea.
+
+**Observación:** un test que falla ANTES y DESPUÉS de implementar la funcionalidad, con el mismo
+mensaje, es indistinguible de un RED que nunca se resolvió — solo inspeccionar los valores
+concretos de la propia preparación del test (no solo si pasa o falla) lo distingue de un GREEN
+genuino.
+
+---
+
+### 2026-09-24 — Tres fallos de ESLint que ni los tests ni `tsc` habrían detectado
+
+**Contexto:** paso 1.15 (PR2), paso obligatorio `pnpm lint` al cierre de la fase.
+
+**Categoría:** código correcto en apariencia pero incorrecto (regla de estilo, no de tipos).
+
+**Qué ocurrió:** `proxy-rate-limit.ts` devolvía un objeto literal con un método `hit()` sin tipo
+de retorno explícito (`@typescript-eslint/explicit-function-return-type`). Dos ficheros de test
+(`coverage-client.test.ts`, `env.test.ts`) usaban `delete process.env[key]` dentro de un bucle
+sobre un array `readonly string[]`, rechazado por `@typescript-eslint/no-dynamic-delete`.
+
+**Cómo se detectó:** el paso obligatorio `pnpm lint`, ejecutado al final de la fase como exige el
+preflight de la sesión — ni los 131 tests en verde ni `tsc --noEmit` habían marcado nada.
+
+**Cómo se resolvió:** se anotó el tipo de retorno de `hit()`; se sustituyeron las cuatro
+llamadas por `Reflect.deleteProperty(process.env, key)`. Sin precedente previo en el repositorio
+para ese patrón de limpieza de variables de entorno en bucle — queda registrado como convención a
+partir de ahora.
+
+**Observación:** confirma, otra vez, que verde en tests y en tipos no implica verde en estilo —
+las tres puertas son independientes y ninguna sustituye a las otras dos.
+
+---
+
+### 2026-09-24 — El presupuesto de líneas del ledger de intentos no contaba el snapshot generado de drizzle
+
+**Contexto:** paso 1.15 (PR1), cierre (`settle`) del primer intento de `sdd-apply`.
+
+**Categoría:** deriva de contexto entre fases — decisión del orquestador, no del agente de
+`sdd-apply`.
+
+**Qué ocurrió:** el orquestador fijó el tope de líneas cambiadas del ledger nativo de intentos en
+800 sin descontar el `0011_snapshot.json` generado por `drizzle-kit generate` (1844 líneas). El
+intento bloqueó en `maintainer_decision` con 2632 líneas cambiadas frente al límite de 800, aunque
+el código autorado real (779 inserciones, 2 borrados) sí cabía cómodamente en el presupuesto de
+sesión.
+
+**Cómo se detectó:** el propio bloqueo del ledger nativo al intentar cerrar el intento.
+
+**Cómo se resolvió:** el responsable del proyecto autorizó el reinicio del intento; para la PR2 el
+orquestador fijó el tope teniendo en cuenta los ficheros generados.
+
+**Observación:** el presupuesto de revisión (400/800 líneas) mide riesgo de revisión humana, no
+tamaño de diff; un artefacto generado y determinista (una migración de drizzle) no aporta ese
+riesgo y debería excluirse del mismo modo que ya se excluyen los goldens regenerados, según la
+propia convención de la skill `work-unit-commits`.
+
+---
+
+### 2026-09-24 — Etiqueta de plantilla de drizzle equivocada (`integer` en vez de `sql`) en el `CHECK` de la nueva tabla
+
+**Contexto:** paso 1.15 (PR1), `packages/db/src/schema/coverage-client-quota.ts` (columna
+`registrations`, restricción `>= 0`).
+
+**Categoría:** API/patrón usado de forma incorrecta, código que no habría compilado ni ejecutado.
+
+**Qué ocurrió:** la restricción `check()` de la columna se escribió con la plantilla etiquetada
+`integer\`...\`` en vez de `sql\`...\``, copiando mal el patrón de otra columna de la misma tabla.
+
+**Cómo se detectó:** relectura del fichero inmediatamente después de escribirlo, antes de ejecutar
+ningún test contra él — nunca llegó a ejecutarse en el estado roto.
+
+**Cómo se resolvió:** se corrigió la etiqueta de plantilla a `sql` antes de continuar con la
+tarea 1.7 (`drizzle-kit generate`).
+
+**Observación:** un fallo autodetectado antes de ejecución no deja rastro en ningún test ni en
+ningún log — se registra aquí solo porque el propio registro de progreso de la fase lo anotó en
+el momento, no porque haya evidencia externa de que ocurrió.
+
+---
+
+### 2026-09-24 — `apps/ingestion` typecheckeaba contra el `dist/` compilado y desactualizado de `@buscahogar/db`, no contra su código fuente nuevo
+
+**Contexto:** paso 1.15 (PR1), tras añadir `purgeExpiredClientQuota` a `packages/db/src`.
+
+**Categoría:** deriva de build entre paquetes del monorepo — mismo patrón ya documentado el
+2026-09-16 (`apps/ingestion` resuelve `@buscahogar/db` por su `dist/` compilado, no por su código
+fuente) y el 2026-09-19 (el build de `@buscahogar/core`, no solo `@buscahogar/db`, es requisito de
+orden antes de testear `apps/ingestion`) — tercera recurrencia del mismo defecto estructural.
+
+**Qué ocurrió:** `apps/ingestion/src/sweep/coverage-worker-ports.ts` necesitaba importar la nueva
+función `purgeExpiredClientQuota`, pero `apps/ingestion` consume `@buscahogar/db` a través de su
+`dist/` ya compilado —desactualizado hasta reconstruirlo— así que el typecheck de `apps/ingestion`
+fallaba con la función ausente pese a que el código fuente de `packages/db` ya la exportaba.
+
+**Cómo se detectó:** `pnpm --filter @buscahogar/ingestion typecheck` fallando con "no existe la
+propiedad `purgeExpiredClientQuota`" pese a que el fichero fuente la exportaba visiblemente.
+
+**Cómo se resolvió:** reconstruir `packages/core`+`packages/db` (`pnpm --filter @buscahogar/core
+build && pnpm --filter @buscahogar/db build`) antes de reejecutar el typecheck de
+`apps/ingestion`.
+
+**Observación:** tercera vez que este mismo defecto estructural del monorepo se documenta en este
+fichero (2026-09-16, 2026-09-19, y ahora). Sigue sin haber una regla o script que lo prevenga
+automáticamente — candidato real para una mejora de proceso fuera del alcance de este paso.
+
+---
+
+### 2026-09-24 — `sdd-spec` y `sdd-design` en paralelo volvieron a contradecirse sobre el orden de comprobación, igual que en el paso 1.10
+
+**Contexto:** paso 1.15, capability `coverage-registration` (spec #261) frente a
+`resolveCoverageForZone` (diseño #262).
+
+**Categoría:** deriva de contexto entre fases — contradicción real entre dos artefactos
+generados en paralelo, mismo patrón que en los pasos 1.10 y 1.11.
+
+**Qué ocurrió:** la primera redacción de la spec comprobaba primero el límite POR CLIENTE y
+después el tope GLOBAL; el diseño (decisión 079) razonaba, desde el propio código de
+`coverage.ts`, que el orden correcto era el contrario —tope global (solo lectura) antes que
+consumo por cliente (escritura)— para no gastar nunca la cuota de un cliente en un registro que
+de todos modos iba a rechazarse por el tope global.
+
+**Cómo se detectó:** arbitraje del orquestador al comparar ambos artefactos antes de `sdd-tasks`,
+no por ningún test —ningún código existía aún para ninguno de los dos órdenes.
+
+**Cómo se resolvió:** re-ejecución correctiva de `sdd-spec` (revisión 2), alineada al orden del
+diseño. Ver decisión 079 en `docs/DECISIONS.md`.
+
+**Observación:** tercera vez que este patrón ocurre en este proyecto (tras los pasos 1.10 y
+1.11; la primera, paso 1.10, sobre si un singleton recibe fila propia en `property_listings`) — en ambos casos la spec
+razonaba desde la prosa de la propuesta y el diseño desde el código real, y en ambos casos ganó
+el diseño.
+
+---
+
+### 2026-09-24 — La fase de exploración del paso 1.15 dio por ausente un `.env.example` que sí existe
+
+**Contexto:** paso 1.15, fase `sdd-explore` (obs #255), auditoría de la lista de comprobación de
+seguridad del propio prompt del paso ("Secretos fuera del control de versiones").
+
+**Categoría:** afirmación incorrecta sobre el estado del propio repositorio, sin verificarla con
+una herramienta de listado de ficheros.
+
+**Qué ocurrió:** `sdd-explore` reportó `.env.example` como ausente del repositorio. El fichero sí
+existe en la raíz del proyecto.
+
+**Cómo se detectó:** corrección posterior (obs #256) al re-verificar la lista de ficheros de la
+raíz.
+
+**Cómo se resolvió:** la exploración se corrigió por observación nueva (obs #256), sin
+sobreescribir la original —misma convención append-only que el resto de correcciones de este
+proyecto (decisión 056 enmienda a la 015, obs #77 corrige a la #13).
+
+**Observación:** una afirmación de "ausencia" es la más barata de verificar (un `ls` basta)
+y la más cara de dejar sin verificar — bloquea sin necesidad cualquier tarea que dependiera de
+creer que el fichero no existe. Mismo principio ya registrado el 2026-09-24 (paso 1.14, punto 1
+de la entrada "tres afirmaciones falsas"): una afirmación sobre el estado del repositorio es
+verificable como el código, y conviene contrastarla antes de darla por buena.
+
+---
+
 ### 2026-09-23 — Un test nunca ejecutado no puede darse por bueno: su propio caso positivo sembraba la fila que hacía imposible su propia aserción
 
 **Contexto:** paso 1.13, segunda pasada de `sdd-verify` (obs #231) tras el aprovisionamiento
