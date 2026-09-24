@@ -65,6 +65,27 @@ services:
       # `apps/web/src/server/db.ts`: lanza un error nombrado citando la decisión
       # 056 cuando falta la variable, y está probado en `apps/web/test/db.test.ts`.
       DATABASE_URL: '${WEB_DATABASE_URL}'
+      # ROADMAP 1.15 (security-hardening, decisión 064/069) — credencial de
+      # escritura ACOTADA (`web_coverage`, solo `coverage_jobs` +
+      # `coverage_client_quota`), nunca la de `ingestion` (`env_file`
+      # completo, más abajo). Igual que `WEB_DATABASE_URL`: sin `:?`, mismo
+      # motivo — el fallo ruidoso vive en `apps/web/src/server/coverage-db.ts`.
+      WEB_COVERAGE_DATABASE_URL: '${WEB_COVERAGE_DATABASE_URL}'
+      # Tope de zonas nuevas por día (DD-14) — decisión de operación, nunca
+      # inventado en código (`apps/web/src/server/env.ts`).
+      NEW_ZONES_DAILY_CAP: '${NEW_ZONES_DAILY_CAP}'
+      # ROADMAP 1.15 (spec #261 "request-rate-limiting", decisión 075/078) —
+      # AUSENTE o vacía = ambos limitadores por IP deshabilitados (D1a): por
+      # eso son `${VAR:-}`, nunca `${VAR:?}` — el kill switch de rollback es
+      # una única variable, documentado en design #262 "Migration / Rollout".
+      CLIENT_IP_HEADER: '${CLIENT_IP_HEADER:-}'
+      # Requerida SOLO cuando CLIENT_IP_HEADER está definida
+      # (`apps/web/src/server/env.ts`, `readClientLimitConfig`); el fallo
+      # ruidoso vive ahí, nunca en Compose.
+      CLIENT_IP_HMAC_KEY: '${CLIENT_IP_HMAC_KEY:-}'
+      COVERAGE_PER_CLIENT_DAILY_CAP: '${COVERAGE_PER_CLIENT_DAILY_CAP:-}'
+      PROXY_RATE_LIMIT_MAX: '${PROXY_RATE_LIMIT_MAX:-}'
+      PROXY_RATE_LIMIT_WINDOW_SECONDS: '${PROXY_RATE_LIMIT_WINDOW_SECONDS:-}'
     depends_on:
       db:
         condition: service_healthy
