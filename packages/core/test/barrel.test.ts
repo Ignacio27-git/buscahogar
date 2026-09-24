@@ -56,6 +56,21 @@ describe('barril público de @buscahogar/core', () => {
     expect(grouping.groups[0]?.listingIds).toEqual(['a', 'b']);
   });
 
+  it('ROADMAP 1.15 (security-hardening): expone evaluateFixedWindow, parseTrustedClientIp y UNKNOWN_CLIENT_IDENTITY', () => {
+    expect(typeof barrel.evaluateFixedWindow).toBe('function');
+    expect(typeof barrel.parseTrustedClientIp).toBe('function');
+    expect(barrel.UNKNOWN_CLIENT_IDENTITY).toBe('unknown');
+
+    // Prueba de comportamiento mínima (D3), no solo de existencia: la misma
+    // función accesible desde el barril produce el mismo resultado real que
+    // ejercitan fixed-window.test.ts/client-ip.test.ts contra el módulo
+    // interno.
+    const result = barrel.evaluateFixedWindow(undefined, 0, { max: 1, windowMs: 1000 });
+    expect(result.allowed).toBe(true);
+    expect(barrel.parseTrustedClientIp('203.0.113.5')).toBe('203.0.113.5');
+    expect(barrel.parseTrustedClientIp('not-an-ip')).toBeNull();
+  });
+
   it('PROPERTY_TYPES y OPERATION_TYPES son iterables por consumidores/tests futuros', () => {
     expect(Array.isArray(barrel.PROPERTY_TYPES)).toBe(true);
     expect(Array.isArray(barrel.OPERATION_TYPES)).toBe(true);

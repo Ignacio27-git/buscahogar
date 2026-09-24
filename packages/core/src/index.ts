@@ -74,4 +74,13 @@ export type { PropertyGroup, RefusedComponent, GroupingResult } from './consolid
 export { selectWinningListing, countCompleteness } from './consolidation/winner.js';
 export type { WinnerCandidate } from './consolidation/winner.js';
 
+// Limitación de tasa (ROADMAP 1.15, security-hardening): política pura,
+// reutilizada por el limitador en memoria de `apps/web/src/proxy.ts` (D1b,
+// PR2) y por la resolución de identidad de cliente del registro de
+// cobertura (PR2). Cero DB, cero red — mismo criterio de "solo lo que
+// cruza la frontera" que el resto de este barril.
+export { evaluateFixedWindow } from './rate-limit/fixed-window.js';
+export type { FixedWindowParams, FixedWindowResult, FixedWindowState } from './rate-limit/fixed-window.js';
+export { parseTrustedClientIp, UNKNOWN_CLIENT_IDENTITY } from './rate-limit/client-ip.js';
+
 export const CORE_VERSION = '0.0.1';
