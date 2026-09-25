@@ -1,10 +1,22 @@
 // Pesos, umbrales y piso de evidencia mínima de la primera DedupStrategy
 // (ROADMAP 1.9). Constantes `as const`, no Zod: no cruzan ninguna frontera
-// externa real — nada externo las suministra en este cambio, y bajo la
+// externa real EN PRODUCCIÓN — nada externo las suministra ahí, y bajo la
 // decisión 020 nada debe hacerlo nunca (docs/DECISIONS.md, decisión 049).
-// Retunarlas es un cambio de `version`, nunca un parámetro en tiempo de
-// ejecución (packages/core/src/index.ts:19-25 razona el mismo criterio para
-// Zod-solo-en-fronteras-externas).
+// Retunarlas en producción sigue siendo un cambio de `version`, nunca un
+// parámetro en tiempo de ejecución (packages/core/src/index.ts:19-25 razona
+// el mismo criterio para Zod-solo-en-fronteras-externas).
+//
+// ROADMAP 2.2 (decisión 088) ACOTA este principio a producción, no lo
+// contradice: `classify()` gana un segundo parámetro OPCIONAL `thresholds`
+// (schemas/band-thresholds.schema.ts), usado EXCLUSIVAMENTE por la
+// evaluación offline sin base de datos ni red
+// (apps/ingestion/src/strategy-comparison/). Una banda calculada con
+// thresholds distintos de RULE_BASED_BAND_THRESHOLDS nunca se persiste — esa
+// CLI no tiene camino de escritura hacia `property_listings`, solo hacia su
+// propio fichero de reporte — y `reprocess-core.ts` (producción) sigue
+// llamando a `classify()` sin segundo argumento. El principio sigue
+// gobernando, sin excepción, todo lo que persiste.
+import type { BandThresholds } from '../../schemas/band-thresholds.schema.js';
 
 // Las siete señales que se acumulan en el score ponderado (RDS-3). Excluye
 // deliberadamente las dos claves de veto (`propertyTypeMatch`,
@@ -58,3 +70,8 @@ export const MIN_EVALUATED_SIGNALS = 3;
 export const MIN_EFFECTIVE_WEIGHT = 55;
 
 export const STRATEGY_VERSION = '1.0.0';
+
+// Forma tipada de T_HIGH/T_LOW cruzando hacia `classify(result, thresholds)`
+// (ROADMAP 2.2, decisión 088) — el valor DEFAULT de producción, nunca
+// sustituido salvo por la evaluación offline explícita.
+export const RULE_BASED_BAND_THRESHOLDS: BandThresholds = { high: T_HIGH, low: T_LOW };

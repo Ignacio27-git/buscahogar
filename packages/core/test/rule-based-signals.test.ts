@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  relativeDifference,
   scoreBathrooms,
   scoreDistance,
   scorePrice,
@@ -145,6 +146,37 @@ describe('scoreBathrooms — binario, deliberadamente sin graduar', () => {
     const result = scoreBathrooms(2, undefined);
     expect(result.weight).toBe(0);
     expect(result.detail).toBeDefined();
+  });
+});
+
+// ROADMAP 2.2 (decisión 088): relativeDifference se extrae de
+// scorePrice/scoreSurface para reutilizarla, sin cambiar su comportamiento,
+// en los niveles graduados de la estrategia probabilística (D7/decisión
+// 085). Pin de que el ratio devuelto es EXACTAMENTE |a-b|/max(a,b), el mismo
+// que ya usaban scorePrice y scoreSurface internamente.
+describe('relativeDifference — extraída de scorePrice/scoreSurface, mismo ratio, sin cambio de comportamiento', () => {
+  it('vale 0 con valores idénticos', () => {
+    expect(relativeDifference(200_000_00, 200_000_00)).toBe(0);
+  });
+
+  it('coincide con el ratio interno de scorePrice en su punto medio (5%)', () => {
+    // Mismo par que "decae linealmente hasta 0 en el punto medio" en
+    // scorePrice: r = |190 000 00 - 200 000 00| / 200 000 00 = 0.05 exacto.
+    expect(relativeDifference(190_000_00, 200_000_00)).toBeCloseTo(0.05, 10);
+  });
+
+  it('coincide con el ratio interno de scorePrice en su punto de corte (10%)', () => {
+    expect(relativeDifference(180_000_00, 200_000_00)).toBeCloseTo(0.1, 10);
+  });
+
+  it('coincide con el ratio interno de scoreSurface en su punto medio (5%)', () => {
+    // Mismo par que "decae linealmente hasta 0 en el punto medio" en
+    // scoreSurface: r = |95 - 100| / 100 = 0.05 exacto.
+    expect(relativeDifference(95, 100)).toBeCloseTo(0.05, 10);
+  });
+
+  it('es simétrica', () => {
+    expect(relativeDifference(90, 100)).toBe(relativeDifference(100, 90));
   });
 });
 

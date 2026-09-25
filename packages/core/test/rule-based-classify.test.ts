@@ -147,6 +147,94 @@ describe('RDS-4a/RDS-4b: anclas del piso de evidencia mínima', () => {
   });
 });
 
+// ROADMAP 2.2 (decisión 088): classify acepta un segundo parámetro opcional
+// `thresholds`, usado SOLO por la evaluación offline (apps/ingestion). Sin
+// argumento, el comportamiento debe ser byte-idéntico al de antes de este
+// cambio — nunca un parámetro en tiempo de ejecución de producción.
+describe('classify(result, thresholds) — override opcional de umbrales (ROADMAP 2.2, decisión 088)', () => {
+  it('sin segundo argumento, el resultado es idéntico al de pasar explícitamente los umbrales por defecto', () => {
+    const result: SimilarityResult = {
+      score: T_HIGH,
+      signals: {
+        distance: { value: 1, weight: WEIGHTS.distance },
+        price: { value: 1, weight: WEIGHTS.price },
+        surface: { value: 1, weight: WEIGHTS.surface },
+        propertyTypeMatch: { value: 1, weight: 0 },
+        operationMatch: { value: 1, weight: 0 },
+      },
+    };
+
+    expect(classify(result)).toBe('accept');
+    expect(classify(result, { high: T_HIGH, low: T_LOW })).toBe(classify(result));
+  });
+
+  it('un threshold `high` explícito más exigente que T_HIGH baja un accept por defecto a undecided', () => {
+    // score = (25*1 + 15*1 + 15*0.6) / 55 ≈ 0.8909 — por encima de T_HIGH
+    // (0.82) pero por debajo de un high explícito de 0.95.
+    const result = literalResult({
+      distance: { value: 1, weight: WEIGHTS.distance },
+      price: { value: 1, weight: WEIGHTS.price },
+      surface: { value: 0.6, weight: WEIGHTS.surface },
+    });
+
+    expect(result.score).toBeCloseTo(0.8909, 3);
+    expect(classify(result)).toBe('accept');
+    expect(classify(result, { high: 0.95, low: T_LOW })).toBe('undecided');
+  });
+
+  it('un threshold `high` explícito menos exigente que T_HIGH sube un undecided por defecto a accept', () => {
+    // score = (25*0.5 + 15*1 + 15*1) / 55 ≈ 0.7727 — por debajo de T_HIGH
+    // (0.82, así que por defecto es undecided) pero por encima de un high
+    // explícito de 0.75, con el piso satisfecho (3 señales, 55 de peso).
+    const result = literalResult({
+      distance: { value: 0.5, weight: WEIGHTS.distance },
+      price: { value: 1, weight: WEIGHTS.price },
+      surface: { value: 1, weight: WEIGHTS.surface },
+    });
+
+    expect(result.score).toBeCloseTo(0.7727, 3);
+    expect(classify(result)).toBe('undecided');
+    expect(classify(result, { high: 0.75, low: T_LOW })).toBe('accept');
+  });
+
+  it('un threshold `low` explícito más exigente que T_LOW baja un undecided por defecto a reject', () => {
+    // score = (25*0.4 + 15*0.6 + 15*0.6) / 55 ≈ 0.5091 — por encima de T_LOW
+    // (0.45, así que por defecto no rechaza) pero por debajo de un low
+    // explícito de 0.55.
+    const result = literalResult({
+      distance: { value: 0.4, weight: WEIGHTS.distance },
+      price: { value: 0.6, weight: WEIGHTS.price },
+      surface: { value: 0.6, weight: WEIGHTS.surface },
+    });
+
+    expect(result.score).toBeCloseTo(0.5091, 3);
+    expect(classify(result)).toBe('undecided');
+    expect(classify(result, { high: T_HIGH, low: 0.55 })).toBe('reject');
+  });
+
+  it('el veto sigue forzando reject bajo CUALQUIER threshold, incluso el más permisivo posible', () => {
+    const result = literalResult({
+      distance: { value: 1, weight: WEIGHTS.distance },
+      price: { value: 1, weight: WEIGHTS.price },
+      surface: { value: 1, weight: WEIGHTS.surface },
+      propertyTypeMatch: { value: 0, weight: 0 },
+    });
+
+    expect(result.score).toBeGreaterThan(0.9);
+    expect(classify(result, { high: 0.01, low: 0 })).toBe('reject');
+  });
+
+  it('el piso de evidencia mínima sigue bloqueando accept bajo CUALQUIER threshold, incluso el más permisivo posible', () => {
+    // Una única señal evaluada (price, peso 15): score 1.0, pero
+    // evaluatedSignals = 1 < MIN_EVALUATED_SIGNALS = 3 — el piso nunca se
+    // satisface, sin importar cuán bajo sea el threshold `high`.
+    const result = literalResult({ price: { value: 1, weight: WEIGHTS.price } });
+
+    expect(result.score).toBe(1);
+    expect(classify(result, { high: 0.01, low: 0 })).not.toBe('accept');
+  });
+});
+
 // RDS-4 (piso completo): enumera las 2^7 combinaciones de qué claves
 // acumuladas están "evaluadas" (peso máximo) frente a "ausentes" (peso 0),
 // todas a valor 1 cuando están evaluadas. Ninguna combinación con menos de

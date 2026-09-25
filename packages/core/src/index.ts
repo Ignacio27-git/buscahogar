@@ -41,6 +41,8 @@ export type { AreaQuery } from './schemas/area-query.schema.js'; // derivado con
 export { areaQuerySchema } from './schemas/area-query.schema.js';
 export type { BlockingThresholds } from './schemas/blocking-thresholds.schema.js'; // derivado con z.infer
 export { blockingThresholdsSchema } from './schemas/blocking-thresholds.schema.js';
+export type { BandThresholds } from './schemas/band-thresholds.schema.js'; // derivado con z.infer
+export { bandThresholdsSchema } from './schemas/band-thresholds.schema.js';
 export type { SearchQuery, PropertySearchCriteria } from './schemas/search-query.schema.js'; // derivado con z.infer
 export { searchQuerySchema } from './schemas/search-query.schema.js';
 export type { PropertyDetailParams } from './schemas/property-detail-params.schema.js'; // derivado con z.infer
@@ -61,8 +63,14 @@ export type { PropertySource } from './contracts/property-source.js';
 export { haversineDistanceMeters } from './geo/distance.js';
 export { normalizeSearchName } from './normalize-search-name.js';
 export { ruleBasedDedupStrategy } from './strategies/rule-based/strategy.js';
-export { classify } from './strategies/rule-based/classify.js';
+export { classify, isVetoed } from './strategies/rule-based/classify.js';
 export type { SimilarityBand } from './strategies/rule-based/classify.js';
+// RULE_BASED_BAND_THRESHOLDS SÍ cruza el barril (a diferencia de
+// WEIGHTS/T_HIGH/T_LOW, barrel.test.ts:105-114): es la forma tipada que
+// necesita cualquier consumidor de `classify(result, thresholds)` fuera de
+// este paquete, empezando por la evaluación offline (ROADMAP 2.2, decisión
+// 088).
+export { RULE_BASED_BAND_THRESHOLDS } from './strategies/rule-based/weights.js';
 
 // Consolidación de viviendas canónicas (ROADMAP 1.10): los dos algoritmos
 // puros que convierten pares clasificados en propiedades — agrupación por
