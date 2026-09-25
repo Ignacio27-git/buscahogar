@@ -82,6 +82,27 @@ export type { PropertyGroup, RefusedComponent, GroupingResult } from './consolid
 export { selectWinningListing, countCompleteness } from './consolidation/winner.js';
 export type { WinnerCandidate } from './consolidation/winner.js';
 
+// Segunda DedupStrategy, corpus etiquetado y evaluación (ROADMAP 2.2).
+// Deliberadamente NO exportados: el prior y la tabla m/u/bits de la
+// estrategia probabilística (`strategies/probabilistic/parameters.ts`) —
+// mismo criterio que WEIGHTS/T_HIGH/T_LOW de rule-based (barrel.test.ts,
+// tarea 4.10) — y las funciones de nivel individuales de `levels.ts`.
+export { probabilisticDedupStrategy } from './strategies/probabilistic/strategy.js';
+export { classifyProbabilistic, FS_BAND_THRESHOLDS } from './strategies/probabilistic/classify.js';
+export type { GroundTruth, CorpusEntry, ExpectedBand } from './evaluation/dedup-corpus.js';
+export { dedupCorpus } from './evaluation/dedup-corpus.js';
+export { makeListing } from './evaluation/make-listing.js';
+export type { LabeledBand, ConfusionCounts, Interval, Proportion, BinaryMetrics } from './evaluation/metrics.js';
+export { wilsonInterval, computeMetrics } from './evaluation/metrics.js';
+export type { StrategyEvaluator, PairEvaluation, SweepPoint, StrategyEvaluation } from './evaluation/evaluate.js';
+export {
+  DEFAULT_SWEEP,
+  DEFAULT_EVALUATORS,
+  RULE_BASED_EVALUATOR,
+  PROBABILISTIC_EVALUATOR,
+  evaluateStrategy,
+} from './evaluation/evaluate.js';
+
 // Limitación de tasa (ROADMAP 1.15, security-hardening): política pura,
 // reutilizada por el limitador en memoria de `apps/web/src/proxy.ts` (D1b,
 // PR2) y por la resolución de identidad de cliente del registro de

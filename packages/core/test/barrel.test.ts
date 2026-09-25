@@ -112,4 +112,46 @@ describe('barril público de @buscahogar/core', () => {
       expect((barrel as Record<string, unknown>)[symbol]).toBeUndefined();
     }
   });
+
+  it('ROADMAP 2.2: expone la estrategia probabilística, dedupCorpus/makeListing y el módulo de evaluación', () => {
+    expect(barrel.probabilisticDedupStrategy).toBeDefined();
+    expect(barrel.probabilisticDedupStrategy.name).toBe('probabilistic-fellegi-sunter');
+    expect(typeof barrel.classifyProbabilistic).toBe('function');
+    expect(barrel.FS_BAND_THRESHOLDS).toEqual({ high: 0.95, low: 0.5 });
+
+    expect(barrel.dedupCorpus).toHaveLength(24);
+    expect(typeof barrel.makeListing).toBe('function');
+
+    // Prueba de comportamiento mínima (D3), no solo de existencia: el barril
+    // reproduce el mismo cálculo real que evaluate.test.ts ejercita contra el
+    // módulo interno.
+    expect(typeof barrel.wilsonInterval).toBe('function');
+    expect(barrel.wilsonInterval(5, 10)?.low).toBeCloseTo(0.2366, 4);
+    expect(typeof barrel.computeMetrics).toBe('function');
+    expect(typeof barrel.evaluateStrategy).toBe('function');
+    expect(barrel.DEFAULT_SWEEP).toHaveLength(20);
+    expect(barrel.RULE_BASED_EVALUATOR.strategy.name).toBe('rule-based-structured');
+    expect(barrel.PROBABILISTIC_EVALUATOR.strategy.name).toBe('probabilistic-fellegi-sunter');
+    expect(barrel.DEFAULT_EVALUATORS).toHaveLength(2);
+  });
+
+  it('ROADMAP 2.2: el umbral FS y el m/u/bits table quedan internos, igual que WEIGHTS/T_HIGH/T_LOW de rule-based', () => {
+    // Deliberadamente NO exportados (design.md, sección Interfaces, tarea
+    // 4.10): la tabla m/u de la estrategia probabilística y el prior son
+    // parámetros internos de implementación, no superficie pública.
+    const internals = [
+      'PRIOR_LAMBDA',
+      'PRIOR_LOG_ODDS',
+      'DISTANCE_LEVELS',
+      'PRICE_LEVELS',
+      'SURFACE_LEVELS',
+      'ADDRESS_LEVELS',
+      'ROOMS_LEVELS',
+      'BATHROOMS_LEVELS',
+    ];
+
+    for (const symbol of internals) {
+      expect((barrel as Record<string, unknown>)[symbol]).toBeUndefined();
+    }
+  });
 });
