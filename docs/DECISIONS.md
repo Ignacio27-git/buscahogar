@@ -2660,6 +2660,202 @@ detección y corrección.
 
 ---
 
+## 085 — Segunda `DedupStrategy`: Fellegi-Sunter con niveles graduados y m/u fijados a priori
+
+**Estado:** aceptada
+
+**Decisión.** La segunda estrategia de deduplicación (ROADMAP 2.2) implementa el modelo de
+Fellegi-Sunter: cada campo comparado se clasifica en un nivel de acuerdo graduado (p. ej.
+distancia ≤20 m / ≤100 m / más lejos), cada nivel tiene sus propios parámetros `m` (probabilidad
+del nivel dado que el par es la misma vivienda) y `u` (probabilidad del nivel dado que NO lo es,
+condicionada a la población YA bloqueada por ROADMAP 1.8 — donde vecinos del mismo bloque inflan
+`u` respecto a una población sin bloquear), y aporta `bits = log2(m/u)` a un peso de coincidencia
+total `M = prior + Σ bits(campo evaluado)`. La probabilidad final es `score = 1/(1+2^-M)`, forma
+numéricamente estable de `2^M/(1+2^M)`. Los parámetros `m`/`u` están fijados a priori desde
+literatura y razonamiento (decisión 086 detalla la exclusión de campos ausentes); no se ajustan
+contra el corpus etiquetado.
+
+**Alternativa descartada.** Regresión logística entrenada sobre el corpus etiquetado: sobreajusta
+con n=24. TF-IDF sobre título/descripción: rompe el contrato de comparar exactamente dos
+`Listing` estructurados que ya fija `DedupStrategy` (ROADMAP 1.9).
+
+**Motivo.** El objetivo del paso 2.2 es comparar un enfoque distinto al basado en reglas, no
+introducir un modelo entrenado que el propio corpus de 24 pares no puede validar con solvencia.
+Fellegi-Sunter da una segunda familia de razonamiento (probabilístico, aditivo por campo) sin
+depender de tener suficientes datos para entrenar nada, y su salida sigue siendo un `score` en
+`[0,1]` con desglose por señal — mismo contrato (`DedupStrategy`) que rule-based.
+
+---
+
+## 086 — Un campo ausente EXCLUYE su contribución a M (MAR), nunca cuenta como desacuerdo
+
+**Estado:** aceptada
+
+**Decisión.** Cuando un campo comparado falta en cualquiera de los dos `Listing` (p. ej.
+`surfaceM2` ausente en un lado), su nivel graduado devuelve `value: 0, weight: 0` — el campo
+queda EXCLUIDO de la suma `M`, nunca se sustituye por un nivel de desacuerdo. La ausencia deja el
+posterior donde estaba (en el prior más lo ya acumulado), nunca lo empuja hacia abajo.
+
+**Alternativa descartada.** Tratar un campo ausente como un nivel de desacuerdo explícito
+(missing-as-disagreement, MNAR): habría que decidir A QUÉ nivel de desacuerdo asignarlo sin
+ninguna base real para esa elección.
+
+**Motivo.** Missing-as-disagreement recrea exactamente el sesgo contra los pares `premises` (sin
+`rooms`/`bathrooms`) que la decisión 049 (normalización por peso EFECTIVO, no por peso máximo
+configurado) ya eliminó de rule-based — penalizar un campo ausente sería reabrir el mismo defecto
+en la segunda estrategia. La investigación (obs #279, claim C4) documenta ambas convenciones como
+no intercambiables; MAR-exclude es la que preserva el criterio ya fijado en decisión 049.
+
+---
+
+## 087 — Umbrales de FS (0.95 / 0.50), veto compartido, sin piso de evidencia explícito
+
+**Estado:** aceptada
+
+**Decisión.** `FS_BAND_THRESHOLDS = { high: 0.95, low: 0.50 }`. `FS_T_HIGH=0.95`: como mucho un
+5% de falsos positivos esperados entre los `accept` (mismo criterio de decisión 006 aplicado a la
+escala de probabilidad de FS). `FS_T_LOW=0.50`: el punto de Bayes (`M=0 ⇔ score=0.5`, sin
+evidencia neta a favor ni en contra). El veto (`propertyType`/`operation`) es el MISMO criterio
+binario que rule-based, vía `isVetoed` compartida (decisión 088). A diferencia de rule-based, FS
+NO tiene un piso de evidencia mínima explícito (`MIN_EVALUATED_SIGNALS`/`MIN_EFFECTIVE_WEIGHT`):
+la propia aritmética de `M` ya impide que dos campos opcionales fuertes por sí solos alcancen
+0.95, así que el efecto es equivalente sin necesitar una regla aparte.
+
+**Desviación documentada (D3, detectada en `sdd-apply`, no en el diseño).** El diseño ilustraba
+este argumento con un cálculo a mano: "el mejor caso de dos campos es distancia≤20 m + dirección
+exacta, con `M=2.807+3.000-3.170=2.637` y `p≈0.862 < 0.95`". Ese cálculo omite `price` por
+completo. Pero `priceCents` es `z.int().positive()` — OBLIGATORIO en `listingSchema` — así que
+ningún `Listing` real puede tener el precio ausente: `price` SIEMPRE se evalúa y SIEMPRE aporta
+bits a `M`. El `M=2.637` exacto del diseño es, por tanto, inalcanzable por cualquier par real.
+`sdd-apply` no ajustó `m`/`u` para forzar esa cifra (instrucción explícita de la orquestación);
+en su lugar implementó la tabla `m`/`u` real tal y como está especificada y escribió los tests
+sobre el mismo PRINCIPIO cualitativo con valores calculados por el código real: dos campos
+opcionales fuertes (distancia cercana, dirección exacta) con `price` en una banda intermedia no
+favorable (~4.76%, no ≤2%) puntúan `score≈0.806` (`undecided`, no `accept`); tres campos fuertes
+incluyendo `price` en su mejor nivel (~0.50%) puntúan `score≈0.976` (`accept`). El principio
+("hacen falta al menos tres campos de acuerdo, nunca dos") queda intacto y probado; solo la cifra
+ilustrativa concreta del texto del diseño era inalcanzable.
+
+**Alternativa descartada.** Umbrales compartidos 0.82/0.45 (los mismos números de rule-based, en
+una escala distinta: probabilidad de Bayes, no score normalizado por peso). Un piso de evidencia
+explícito en unidades de peso (como `MIN_EFFECTIVE_WEIGHT=55` de rule-based): FS no tiene una
+unidad de peso comparable — sus "pesos" son bits de razón de verosimilitud, no una suma acotada
+por un máximo configurado.
+
+**Motivo.** 0.95/0.50 reutiliza el MISMO criterio de decisión 006 (tasa de falsos positivos
+objetivo) sobre la escala propia de FS, en vez de trasplantar números que solo tenían sentido en
+la escala de rule-based. La ausencia de piso explícito es honesta sobre el mecanismo real: en FS
+la evidencia insuficiente ya se refleja en un `M` bajo, sin necesitar una regla redundante.
+
+---
+
+## 088 — `classify()` gana umbrales opcionales SOLO para evaluación offline; se acota (no se contradice) el principio de `weights.ts`
+
+**Estado:** aceptada
+
+**Decisión.** `classify(result, thresholds: BandThresholds = RULE_BASED_BAND_THRESHOLDS)`
+(`classifyProbabilistic` sigue el mismo contrato con `FS_BAND_THRESHOLDS`). El segundo parámetro
+es EXCLUSIVAMENTE para la CLI de evaluación offline
+(`apps/ingestion/src/strategy-comparison/`, sin base de datos ni red): una banda calculada con
+umbrales distintos de los de producción nunca se persiste — esa CLI no tiene ningún camino de
+escritura hacia `property_listings`, solo hacia su propio reporte. `reprocess-core.ts`
+(producción) sigue llamando a `classify()` SIN segundo argumento. El comentario de cabecera de
+`weights.ts` (decisiones 020/049: los umbrales nunca son un parámetro en tiempo de ejecución, y
+retunarlos exige un cambio de `version`) se reescribe para ACOTAR ese principio a producción, no
+para contradecirlo — el principio sigue gobernando, sin excepción, todo lo que persiste.
+`isVetoed(signals)` se extrae de `rule-based/classify.ts` para que `classifyProbabilistic` use el
+MISMO criterio de veto, un contrato compartido entre estrategias.
+
+**Alternativa descartada.** Un clasificador paralelo dentro de `apps/ingestion` que reimplemente
+el bandeado con sus propios umbrales: duplica la lógica de `classify()` y arriesga que las dos
+copias diverjan. Violar el comentario de `weights.ts` en silencio, sin actualizarlo: contradice
+una decisión ya documentada sin dejar rastro del motivo.
+
+**Motivo.** El validador de diseño hizo notar que un segundo parámetro opcional en `classify()`
+parecía chocar literalmente con el texto de `weights.ts:1-7` ("nunca en tiempo de ejecución"). La
+resolución no es elegir entre el override y el principio, sino precisar el ALCANCE del principio:
+siempre ha sido sobre qué usa PRODUCCIÓN, no sobre si puede existir una superficie de evaluación
+offline que nunca escribe en la base de datos real.
+
+---
+
+## 089 — Métricas de evaluación: `truth` (nunca `expected`), `undecided` como negativo, intervalos de Wilson 95%
+
+**Estado:** aceptada
+
+**Decisión.** Precisión, recall y F1 se calculan SIEMPRE sobre el campo `truth` del corpus
+(verdad terreno, obs #284), nunca sobre `expected` (la banda DISEÑADA de rule-based, que sigue
+existiendo solo para las pruebas de regresión de bandeado ya existentes). `undecided` cuenta como
+NEGATIVO en la matriz de confusión (D2 del preproposal): un duplicado real clasificado
+`undecided` es un fallo de recall, igual que uno rechazado explícitamente; la tasa de indecisos se
+reporta como una cifra APARTE, nunca mezclada con P/R. F1 es `null` si precisión o recall es
+`null` (sin ensayos), y `0` si ambos suman 0 (ningún acierto en absoluto) — nunca `null` en ese
+caso, porque sí hay ensayos, solo que ninguno tuvo éxito. Los intervalos de confianza del 95% para
+precisión, recall y tasa de indecisos usan el método de Wilson (`z=1.959963984540054`), no Wald.
+
+**Alternativa descartada.** Evaluar contra `expected`: es circular, porque `expected` es la propia
+salida diseñada de rule-based, no una etiqueta independiente — por ejemplo `hn-8` es `accept` por
+diseño (un falso positivo irreducible documentado en su propia `rationale`) pero `distinct` en
+verdad terreno. Intervalos de Wald: cobertura pobre con muestras pequeñas o proporciones cercanas
+a 0/1 (investigación, obs #279, claim C10) — exactamente el régimen de n=24.
+
+**Motivo.** El "CRITICAL FINDING" del diseño (obs #283) es que ningún resultado de evaluación
+tiene valor si se mide contra la propia salida de una de las dos estrategias comparadas.
+Separar `truth` de `expected` es lo que hace que comparar rule-based contra FS sea una comparación
+real, no una tautología a favor de rule-based.
+
+---
+
+## 090 — El corpus etiquetado y `makeListing` se reubican a `packages/core/src/evaluation/`
+
+**Estado:** aceptada
+
+**Decisión.** `git mv packages/core/test/dedup-corpus.ts packages/core/src/evaluation/dedup-corpus.ts`.
+`makeListing` se mueve de `packages/core/test/test-helpers.ts` a
+`packages/core/src/evaluation/make-listing.ts`, y `test-helpers.ts` pasa a reexportarla sin
+cambios — ningún test existente (`rule-based-strategy`, `winner`, etc.) cambia su import.
+
+**Alternativa descartada.** Duplicar el corpus etiquetado (o una copia reducida) dentro de
+`apps/ingestion` para que la CLI de comparación lo consuma sin depender de `packages/core`.
+
+**Motivo.** El corpus y la métrica de evaluación necesitan ser accesibles desde
+`apps/ingestion` (la CLI de comparación de estrategias, ROADMAP 2.2) sin publicarse en
+`test/`, que no forma parte del paquete distribuido. Duplicarlo arriesga que la copia de
+`apps/ingestion` divergiera del corpus real usado por los tests de `packages/core` — exactamente
+el riesgo de deriva que la regla "una fuente única de verdad" del proyecto existe para evitar.
+
+---
+
+## 091 — CLI de comparación de estrategias: sin base de datos ni red, rejilla por defecto de 20 puntos, rechazo estricto de tuplas inválidas
+
+**Estado:** aceptada
+
+**Decisión.** `apps/ingestion/scripts/compare-dedup-strategies.ts` (`pnpm --filter
+@buscahogar/ingestion compare-strategies`) no abre conexión a base de datos ni lee ninguna
+variable de entorno — el corpus vive en memoria en `@buscahogar/core`. `--high`/`--low` son listas
+separadas por comas, opcionales, pero deben darse JUNTAS o ambas ausentes; sin ellas se usa
+`DEFAULT_SWEEP` (20 tuplas: `high∈{0.75,0.82,0.90,0.95,0.99} × low∈{0.30,0.45,0.50,0.60}`, que
+incluye los dos puntos por defecto reales, 0.82/0.45 y 0.95/0.50) y se ECHA en el reporte
+(`gridSource: 'default' | 'flags'`). La rejilla es el producto cartesiano, deduplicado y
+ordenado. El conjunto ENTERO se rechaza con código de salida 2, nombrando el problema exacto, si
+(a) supera las 64 combinaciones, o (b) CUALQUIER tupla tiene `low >= high` — nunca se filtra una
+tupla inválida en silencio ni se produce salida parcial. El reporte se exporta en Markdown, JSON o
+CSV; los tres formatos llevan el mismo caveat de muestra pequeña (`corpusSize=24` y el texto de
+que es una prueba mecánica, no una calibración) y son deterministas (`toFixed(4)`, sin reloj ni
+configuración regional) para que dos ejecuciones sobre la misma entrada produzcan bytes idénticos.
+
+**Alternativa descartada.** Filtrar las tuplas inválidas de una rejilla y ejecutar solo con las
+válidas: cambia en silencio la rejilla que el operador pidió — el mismo modo de fallo que el tope
+de 64 combinaciones ya existe para evitar (blocking/grid.ts, paso 1.8).
+
+**Motivo.** D6 (preproposal) fija que esta CLI es de comparación, no de producción: no debe poder
+tocar ninguna fuente externa ni la base de datos real, así que no necesita `.env` para nada. El
+rechazo estricto de rejillas inválidas sigue el mismo precedente ya establecido por
+`blocking/grid.ts` (paso 1.8): una lista mal escrita debe fallar de forma ruidosa, nunca ejecutar
+una versión distinta y silenciosa de lo que el operador pidió.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

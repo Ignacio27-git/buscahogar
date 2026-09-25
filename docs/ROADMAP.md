@@ -1588,7 +1588,7 @@ difíciles bien representados.
 
 ---
 
-## [ ] 2.2 · Comparación de estrategias de deduplicación
+## [x] 2.2 · Comparación de estrategias de deduplicación
 
 ```text
 Implementa una segunda DedupStrategy con un enfoque distinto a la basada en
@@ -1600,6 +1600,52 @@ La salida debe ser exportable para incluirla en la memoria.
 ```
 
 **Notas:**
+
+**Qué se construyó.** Ciclo SDD completo (explore → research → propose → `sdd-spec`/`sdd-design`
+→ `sdd-tasks` → `sdd-apply` en dos lotes) entregado en 6 commits sobre `feature-fase2`:
+
+1. Corpus etiquetado reubicado a `packages/core/src/evaluation/dedup-corpus.ts` (decisión 090),
+   con un campo `truth: 'duplicate' | 'distinct'` de verdad terreno en sus 24 entradas —
+   INDEPENDIENTE de `expected` (la banda diseñada de rule-based; decisión 089). Etiquetas
+   confirmadas por el responsable del proyecto: **10 duplicate, 14 distinct** (obs #284).
+2. `classify()` (rule-based) gana un segundo parámetro opcional `thresholds`, usado solo por la
+   evaluación offline; `isVetoed`/`relativeDifference` extraídas para compartirse entre
+   estrategias (decisión 088).
+3. Segunda `DedupStrategy` — Fellegi-Sunter con niveles graduados y m/u fijados a priori
+   (`probabilistic-fellegi-sunter`, decisiones 085-087).
+4. Métricas de evaluación puras (`wilsonInterval`, `computeMetrics`) y `evaluateStrategy` con una
+   rejilla de sweep por defecto de 20 combinaciones de umbrales (decisión 089/091).
+5. CLI de comparación en `apps/ingestion`, sin base de datos ni red (`pnpm --filter
+   @buscahogar/ingestion compare-strategies`), exportable en Markdown, JSON o CSV, con caveat de
+   muestra pequeña en los tres formatos (decisión 091).
+6. Este registro documental.
+
+**Resultado real de la comparación** (corpus de 24 pares, ejecución real de la CLI a fecha de
+cierre de este paso): a los umbrales por defecto de cada estrategia —
+
+| Estrategia | Umbrales | Precisión | Recall | F1 | Tasa indecisos |
+|---|---|---|---|---|---|
+| rule-based-structured | high=0.82, low=0.45 | 0.8889 | 0.8000 | 0.8421 | 0.3333 |
+| probabilistic-fellegi-sunter | high=0.95, low=0.50 | 0.8000 | 0.4000 | 0.5333 | 0.2917 |
+
+Sobre este corpus de 24 pares, rule-based domina en recall y F1: la exigencia implícita de FS de
+al menos tres campos fuertes de acuerdo (decisión 087, sin piso de evidencia explícito pero con el
+mismo efecto por aritmética de `M`) deja 6 de los 10 duplicados reales como `undecided`, frente a
+solo 2 de rule-based. Ambas estrategias comparten el mismo falso positivo irreducible (`hn-8`,
+RDS-7) y el mismo falso negativo por evidencia insuficiente (`md-4`). El caveat de muestra pequeña
+(n=24, parámetros fijados a priori, sin calibrar) se reproduce en los tres formatos de salida.
+
+**Workload/tamaño.** `sdd-tasks` pronosticó `400-line budget risk: High` (~1900-2100 líneas
+estimadas). El responsable del proyecto aceptó `size:exception` en una sola PR de 6 commits de
+trabajo (sin ramas nuevas), en vez de PRs encadenadas. Tamaño real, `git diff --shortstat
+c247b8e..HEAD`: ver la entrada de `AI-NOTES.md`/Engram de este paso para la cifra exacta.
+
+**Verificación final.** `pnpm test`/`pnpm typecheck`/`pnpm lint`/`pnpm build` en la raíz, en
+verde. La CLI se ejecutó realmente en los tres formatos sin `.env` ni base de datos configurada
+(`DATABASE_URL` desactivada explícitamente en una de las ejecuciones), exit 0. `git diff --stat
+c247b8e -- apps/ingestion/src/dedup/reprocess-core.ts` confirmó cero cambios: producción sigue
+usando rule-based con los umbrales por defecto, sin excepción (decisión 088). Ningún módulo nuevo
+importa `fetch`/`http`/`pg`/`drizzle`/`@buscahogar/db`.
 
 ---
 

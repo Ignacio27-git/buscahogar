@@ -40,6 +40,223 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-25 — Una aserción de test se autoinvalidó por la subcadena "null" en su propio dato de prueba
+
+**Contexto:** paso 2.2, `sdd-apply` (segundo lote, fase 5), `apps/ingestion/test/strategy-comparison-render.test.ts`.
+
+**Categoría:** test que valida el comportamiento equivocado (falso negativo de la propia
+aserción, no del código de producción).
+
+**Qué ocurrió:** un test comprobaba que el Markdown renderizado nunca contuviera la palabra
+"null" suelta (`expect(md).not.toMatch(/\bnull\b/)`), como señal de que los valores `null` se
+renderizan siempre como "n/a". El `StrategyEvaluation` de prueba usado en ese mismo test se llamó
+`null-edge-strategy` — y ese nombre aparece literalmente en el Markdown generado (como encabezado
+de sección), así que la propia aserción fallaba contra su propio dato de entrada, no contra un
+fallo de `renderMarkdown`.
+
+**Cómo se detectó:** ejecución del test inmediatamente después de escribirlo (ciclo RED→GREEN de
+TDD estricto): falló con un mensaje que mostraba el Markdown completo, dejando ver que el único
+"null" presente era el nombre de la estrategia de prueba, no ningún valor sin formatear.
+
+**Cómo se resolvió:** renombrada la estrategia de prueba a `edge-case-strategy`; el resto de
+aserciones del mismo test (comprobación explícita de `"n/a"` en la tabla y ausencia de `"NaN"`)
+ya demostraban el comportamiento real, así que no hizo falta cambiar `render.ts`.
+
+**Coste:** menos de 2 minutos.
+
+**Observación:** mismo patrón que la mistake #2 del lote anterior de este cambio
+(`parameters.ts` contenía la subcadena "dedup-corpus" en su propio comentario y tripeaba su
+propio test de "no importa el corpus"): un test que inspecciona texto completo (comentarios,
+nombres de fixtures, prosa generada) debe elegir sus datos de prueba evitando por completo la
+subcadena que está prohibiendo, no solo evitarla en el código de producción.
+
+### 2026-09-25 — El commit inicial del paso 2.2 (fase 1, primer lote) dejó una copia obsoleta de `dedup-corpus.ts` en `HEAD` tras un `git mv` con pathspec parcial
+
+**Contexto:** paso 2.2, `sdd-apply` (primer lote, fase 1): reubicación del corpus etiquetado de
+`packages/core/test/dedup-corpus.ts` a `packages/core/src/evaluation/dedup-corpus.ts` (decisión
+090).
+
+**Categoría:** código correcto en apariencia pero incorrecto (el árbol de trabajo era correcto;
+el commit no).
+
+**Qué ocurrió:** tras `git mv packages/core/test/dedup-corpus.ts packages/core/src/evaluation/dedup-corpus.ts`,
+el commit se creó con `git commit -m "..." -- <4 rutas explícitas>`, y esa lista de rutas NO
+incluía la ruta ANTIGUA (el lado de borrado del rename). El resultado: el árbol del commit
+conservó la copia PRE-sesión de `test/dedup-corpus.ts` (608 líneas, sin el campo `truth`) junto a
+la nueva `src/evaluation/dedup-corpus.ts`, aunque el árbol de trabajo real ya solo tenía el
+fichero nuevo.
+
+**Cómo se detectó:** `git status` tras el commit "limpio" seguía mostrando `D
+packages/core/test/dedup-corpus.ts` en staging — la señal de que el commit no había capturado el
+borrado.
+
+**Cómo se resolvió:** un commit de corrección en la misma sesión (`2466edb`, nunca un `amend`, por
+la regla del proyecto de no reescribir commits) que confirmó el borrado ya en staging.
+
+**Coste:** aproximado, 3 minutos.
+
+**Observación:** tras un `git mv` seguido de un commit restringido a un pathspec explícito,
+conviene verificar `git show HEAD:<ruta-antigua>` antes de dar el commit por completo — un
+pathspec parcial puede dejar huérfano justo el lado de borrado de un rename sin que ningún test
+lo detecte (los tests corrían contra el árbol de trabajo, no contra el commit).
+
+### 2026-09-25 — La decisión 087 del diseño ilustraba su argumento con un cálculo a mano matemáticamente inalcanzable
+
+**Contexto:** paso 2.2, diseño (obs #283) y `sdd-apply` (primer lote, fase 3): umbrales de la
+estrategia probabilística.
+
+**Categoría:** deriva de la arquitectura entre sesiones (el diseño razonó sobre un caso que el
+propio esquema de dominio, `listingSchema`, ya prohibía).
+
+**Qué ocurrió:** el diseño justificaba "ningún par con como mucho dos campos evaluados alcanza
+`accept`" con un cálculo concreto — distancia + dirección exacta, `M=2.807+3.000-3.170=2.637`,
+`p≈0.862` — que omite `price` por completo. Pero `priceCents` es `z.int().positive()` (obligatorio
+en `listingSchema` desde ROADMAP 1.4): ningún `Listing` real puede tener el precio ausente, así
+que `price` SIEMPRE se evalúa y ese `M` exacto es inalcanzable por cualquier par real.
+
+**Cómo se detectó:** al escribir el RED del test que debía pinchar ese caso (fase 3, tarea 3.7):
+ningún par sintético con `price` ausente es un `Listing` válido, así que el caso literal del
+diseño no se podía construir.
+
+**Cómo se resolvió:** sin ajustar los parámetros `m`/`u` para forzar la cifra del diseño
+(instrucción explícita de la orquestación, decisión D3 del preproposal). Se implementó la tabla
+real tal y como está especificada y se escribieron los tests sobre el mismo PRINCIPIO cualitativo
+con valores calculados por el código real (`score≈0.806` para dos campos fuertes con `price` en
+banda intermedia, `score≈0.976` para tres campos fuertes). Documentado en `docs/DECISIONS.md`,
+decisión 087.
+
+**Coste:** aproximado, 10 minutos (detección más redacción de la desviación en el resumen de la
+tarea).
+
+**Observación:** una ilustración numérica de un diseño que razona "en el vacío" (sin comprobar
+contra los esquemas Zod reales) puede ser matemáticamente inalcanzable aunque el PRINCIPIO que
+ilustra sea correcto — verificar un cálculo a mano contra las restricciones reales del dominio
+(aquí, qué campos son opcionales de verdad) antes de citarlo en la documentación final.
+
+### 2026-09-25 — Especificadores de import relativos en `tasks.md` bloquearon al dispatcher nativo antes de empezar a aplicar
+
+**Contexto:** paso 2.2, tarea `sdd-tasks` (obs #285) y arranque de `sdd-apply`.
+
+**Categoría:** patrón de una versión anterior del framework / contradicción con una regla de
+plataforma no evidente desde la propia redacción de la tarea.
+
+**Qué ocurrió:** las tareas 1.4 y 1.5 (revisión 1) describían las rutas de los ficheros a tocar
+como especificadores de import relativos (p. ej. `../src/evaluation/make-listing.js`, tal y como
+aparecerían DENTRO de un fichero de test), en vez de como rutas relativas al repositorio. El
+dispatcher nativo de SDD interpretó esos especificadores literalmente como rutas de edición fuera
+del repositorio y bloqueó el arranque de `sdd-apply` con
+`blocked(edit_authority_missing)`.
+
+**Cómo se detectó:** el propio intento de arranque de `sdd-apply`, antes de escribir ningún
+código — el bloqueo es una comprobación de la plataforma, no un fallo de test.
+
+**Cómo se resolvió:** el orquestador reescribió las tareas 1.4/1.5 (revisión 2) con rutas
+relativas al repositorio (`packages/core/test/test-helpers.ts`, etc.), manteniendo el mismo
+contenido técnico.
+
+**Coste:** aproximado, 5 minutos (bloqueo, reescritura, reintento).
+
+**Observación:** al redactar tareas de `sdd-tasks`, las rutas de fichero deben escribirse siempre
+relativas a la raíz del repositorio, nunca como el especificador de import que un fichero de
+código usaría para referenciarlas — son dos convenciones de ruta distintas y el dispatcher nativo
+solo entiende la primera.
+
+### 2026-09-25 — El diseño inicial citaba un "corte del 2%" y una "decisión 023" inexistentes para justificar los umbrales de la estrategia probabilística
+
+**Contexto:** paso 2.2, `sdd-design` (revisión 1, corregida en la revisión 2 tras FAIL del
+validador de diseño).
+
+**Categoría:** código (aquí, prosa técnica) correcto en apariencia pero incorrecto — una cita que
+suena precisa pero no corresponde a nada real en el repositorio.
+
+**Qué ocurrió:** la primera versión del diseño justificaba los cortes de nivel "near" de la nueva
+estrategia (2% de diferencia relativa, 20 m) como si ya existieran en rule-based, citando una
+"decisión 023" que no trata ese tema. En realidad, rule-based (`signals.ts`) decae linealmente
+hasta 0 en un 10% de diferencia relativa (precio/superficie) y en 100 m (distancia) — sin ningún
+corte al 2%.
+
+**Cómo se detectó:** el validador de diseño (FAIL en la primera pasada) señaló la cita incorrecta
+entre otros hallazgos.
+
+**Cómo se resolvió:** la revisión 2 del diseño sustituyó la cita por los puntos de decaimiento
+reales de `rule-based/signals.ts:15-17`, y marcó los cortes "near" (2%, 20 m) explícitamente como
+elecciones a priori NUEVAS de la estrategia probabilística, sin precedente en rule-based —
+distinguiendo qué parámetros reutilizan un punto ya medido y cuáles son una decisión nueva. Ver
+`packages/core/src/strategies/probabilistic/parameters.ts` (comentario de cabecera) y
+`docs/DECISIONS.md`, decisión 085.
+
+**Coste:** no medido directamente por `sdd-apply` (ocurrió en una fase de diseño anterior); la
+corrección quedó ya resuelta en el diseño que `sdd-apply` recibió.
+
+**Observación:** citar un número de decisión concreto (`docs/DECISIONS.md`) como respaldo de una
+elección de diseño es una afirmación verificable, igual que una cita de código — conviene
+comprobarla contra el fichero real antes de que llegue a la documentación final, no confiar en
+que "suena" a una decisión ya tomada.
+
+### 2026-09-25 — El comentario de cabecera de `weights.ts` ("los umbrales nunca son un parámetro en tiempo de ejecución") entraba en tensión literal con D5 antes de acotarse
+
+**Contexto:** paso 2.2, preproposal (D5) y `sdd-design`: `classify()` gana un parámetro opcional
+de umbrales para la evaluación offline.
+
+**Categoría:** contradicción con una regla ya documentada en el propio repositorio
+(`packages/core/src/strategies/rule-based/weights.ts:1-7`, decisiones 020/049).
+
+**Qué ocurrió:** D5 (preproposal, aceptado por el responsable del proyecto) decidía que
+`classify()` ganaría un segundo parámetro OPCIONAL de umbrales, usado solo por la evaluación
+offline. El comentario de cabecera existente de `weights.ts`, escrito en ROADMAP 1.9, afirmaba en
+términos absolutos que esos umbrales "nunca cruzan ninguna frontera externa real EN PRODUCCIÓN...
+bajo la decisión 020 nada debe hacerlo nunca" — una redacción que, leída literalmente, parecía
+prohibir cualquier parámetro en tiempo de ejecución, sin distinguir producción de una superficie
+de evaluación que nunca escribe en la base de datos real.
+
+**Cómo se detectó:** durante el propio `sdd-design`, al razonar sobre cómo introducir D5 sin
+contradecir un comentario ya documentado.
+
+**Cómo se resolvió:** decisión 088 — el comentario de `weights.ts` se reescribió para ACOTAR el
+principio a producción, no para contradecirlo: producción sigue usando siempre las constantes por
+defecto (`reprocess-core.ts` nunca pasa un segundo argumento), y el override existe
+EXCLUSIVAMENTE para una CLI sin base de datos ni camino de escritura hacia `property_listings`.
+
+**Coste:** no medido directamente por `sdd-apply` (resuelto en la fase de diseño); la tarea 2.5
+de `sdd-apply` solo tuvo que aplicar la reescritura ya decidida.
+
+**Observación:** un comentario redactado en términos absolutos ("nunca", "nada debe") puede
+quedar obsoleto por una decisión de producto posterior sin que nadie lo note hasta que alguien
+intente seguirlo al pie de la letra — acotar el ALCANCE de un comentario así (a qué se refiere
+exactamente "nunca") suele ser más preciso que reescribirlo desde cero.
+
+### 2026-09-25 — La especificación inicial medía precisión/recall/F1 contra `expected`, la propia banda diseñada de rule-based (circular)
+
+**Contexto:** paso 2.2, `sdd-spec` (revisión 1, corregida en la revisión 2).
+
+**Categoría:** deriva de la arquitectura entre sesiones — la especificación no distinguía la banda
+DISEÑADA de rule-based (`CorpusEntry.expected`, ya existente desde ROADMAP 1.9) de una verdad
+terreno independiente.
+
+**Qué ocurrió:** la primera versión de la especificación no fijaba de dónde debían salir las
+métricas de evaluación, y la interpretación natural era calcularlas contra `expected` — el único
+campo del corpus etiquetado que ya existía. Pero `expected` es la salida DISEÑADA de rule-based
+(p. ej. `hn-8` es `accept` por diseño, un falso positivo irreducible documentado en su propia
+`rationale`), así que evaluar CUALQUIER estrategia contra `expected` sesga la comparación a favor
+de rule-based por construcción — y para rule-based mismo, la "evaluación" sería tautológica.
+
+**Cómo se detectó:** el propio diseño (obs #283), en su sección "CRITICAL FINDING", al razonar
+sobre qué necesitaba comparar realmente el CLI de evaluación.
+
+**Cómo se resolvió:** la revisión 2 de la especificación añadió el requisito "Ground-Truth
+Labels": un campo `truth: 'duplicate' | 'distinct'` INDEPENDIENTE de `expected`, con un escenario
+explícito que fija que las métricas se calculan solo sobre `truth`. Las cuatro etiquetas que la
+redacción original del corpus no resolvía por sí sola (`md-2`, `md-4`, `hn-7`, `hn-8`) las
+confirmó el responsable del proyecto por cuestionario (obs #284) antes de empezar a aplicar.
+
+**Coste:** no medido directamente por `sdd-apply` (resuelto en fases de spec/diseño anteriores).
+
+**Observación:** cuando una especificación de evaluación reutiliza un campo que YA existe en los
+datos de prueba (aquí, `expected`) sin preguntar explícitamente si ese campo es independiente del
+sistema que se va a evaluar, el riesgo por defecto es la circularidad — vale la pena nombrar el
+campo de verdad terreno como una entidad aparte desde el principio, aunque parezca redundante con
+uno ya existente.
+
 ### 2026-09-24 — Ramas nuevas creadas sin preguntar para una entrega en PRs encadenadas
 
 **Contexto:** paso 1.15, entrega del cambio `security-hardening` en tres unidades de trabajo.

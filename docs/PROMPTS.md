@@ -30,6 +30,52 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-25 — Comparación de estrategias de deduplicación (2.2), ciclo SDD completo en dos lotes de aplicación
+
+**Tipo de tarea:** dominio (segunda `DedupStrategy`) + métricas de evaluación + CLI de exportación
+**Forma de especificación:** ciclo SDD completo — explore → research (web, admisión concedida) →
+propose → `sdd-spec` y `sdd-design` (con una ronda correctiva tras FAIL del validador) →
+`sdd-tasks` → `sdd-apply` en dos lotes (fases 1-3, commits 1-3; fases 4-7, commits 4-6)
+**Resultado:** utilizable con retoques — spec y diseño corregidos tras un FAIL del validador; las
+cuatro etiquetas de verdad terreno que faltaban (md-2, md-4, hn-7, hn-8) las aportó el responsable
+del proyecto por cuestionario; una tarea con especificadores de import relativos bloqueó al
+dispatcher nativo (`blocked(edit_authority_missing)`) y se reescribió con rutas relativas al
+repositorio
+**Prompt:**
+
+> Implementa una segunda DedupStrategy con un enfoque distinto a la basada en
+> reglas, y un comando que ejecute varias estrategias sobre el mismo conjunto
+> etiquetado y reporte precisión, recall y F1 de cada una, además del efecto de
+> mover los umbrales.
+>
+> La salida debe ser exportable para incluirla en la memoria.
+
+**Observación:** el prompt no fija QUÉ segunda estrategia usar ni cómo evaluar "verdad terreno"
+frente a la banda ya diseñada de rule-based — ambos huecos los resolvió el ciclo de
+especificación, no la implementación. El hallazgo más caro fue que la especificación inicial
+media precisión/recall/F1 contra `expected` (la banda DISEÑADA de rule-based), lo que habría hecho
+la comparación circular: por construcción, `expected` es la salida de UNA de las dos estrategias
+comparadas. Se corrigió separando un campo `truth` de verdad terreno independiente. El diseño
+inicial también citaba un "corte del 2%" y una "decisión 023" inexistentes para justificar los
+umbrales de nivel de la nueva estrategia; la revisión los sustituyó por los puntos de decaimiento
+reales de `rule-based/signals.ts` (10% relativo, 100 m) y marcó los cortes "near" (2%, 20 m) como
+elecciones a priori nuevas, sin precedente. El diseño ilustraba además el argumento de "dos campos
+no bastan" con un cálculo a mano que omitía `price` — inalcanzable en la práctica porque
+`priceCents` es obligatorio (decisión 087, detalle en `AI-NOTES.md`); `sdd-apply` no ajustó los
+parámetros para forzar esa cifra, sino que probó el mismo principio con valores reales. Resultado
+real de la comparación (corpus de 24 pares, `pnpm --filter @buscahogar/ingestion
+compare-strategies`, ejecución real sobre el corpus a fecha de esta entrada): a los umbrales por
+defecto de cada estrategia, rule-based obtiene precisión 0.8889/recall 0.8000/F1 0.8421, y la
+estrategia probabilística obtiene precisión 0.8000/recall 0.4000/F1 0.5333 — la exigencia
+implícita de FS de al menos tres campos fuertes de acuerdo (decisión 087) deja 6 de los 10
+duplicados reales como `undecided`, frente a 2 de rule-based. Aplicado en dos lotes por el
+pronóstico de carga de revisión (`400-line budget risk: High`, ~1900-2100 líneas estimadas): el
+responsable del proyecto aceptó `size:exception` en una sola PR con 6 commits de trabajo sobre
+`feature-fase2`, sin ramas nuevas. Dos correcciones propias detectadas y resueltas dentro de la
+propia aplicación, sin intervención externa: un commit con pathspec parcial tras `git mv` que dejó
+una copia obsoleta en el primer lote, y una aserción de test que se autoinvalidó por contener la
+subcadena "null" en su propio dato de prueba en el segundo lote — ambas en `AI-NOTES.md`.
+
 ### 2026-09-19/22 — Cobertura bajo demanda (1.13), ciclo SDD completo en cuatro unidades de trabajo secuenciales
 
 **Tipo de tarea:** interfaz + consulta SQL + migración de esquema + worker/daemon + importador de
