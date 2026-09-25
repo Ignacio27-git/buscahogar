@@ -4,9 +4,49 @@
 // columnas y de estrategias fijo (el orden de report.strategies, nunca
 // reordenado aquí) — dos ejecuciones sobre la misma entrada producen bytes
 // idénticos en cada formato (spec "Repeated runs match").
-import type { BandThresholds, BinaryMetrics, Interval, StrategyEvaluation } from '@buscahogar/core';
+//
+// Corrección post-verify (verify-report WARNING-1, D2/decisión 089): el
+// artefacto exportado debe reconciliar con recall = TP/(TP+FN) y precision =
+// TP/(TP+FP) usando SOLO las cifras visibles. `ConfusionCounts` (core)
+// mantiene sus 6 casillas mutuamente excluyentes sin cambios (decisión 089,
+// metrics.test.ts) — ese modelo es correcto y ya usa `undecidedDuplicate`
+// como negativo en el propio cálculo de recall. El defecto estaba aquí:
+// esta capa de render reexponía `counts.falseNegative`/`counts.trueNegative`
+// crudos (solo el `reject` explícito), que NO son la cifra que recall usa.
+// `reconcileCounts` calcula, solo para el artefacto exportado, el total que
+// SÍ reconcilia (D2: undecided cuenta como negativo) y las columnas/campos
+// `undecided_duplicate`/`undecided_distinct` se conservan como desglose "de
+// las cuales indecisas". No se toca metrics.ts/report.ts/evaluate.ts: P/R/F1
+// /undecided-rate/Wilson no cambian, solo lo que este render muestra bajo
+// FN/TN.
+import type { BandThresholds, BinaryMetrics, ConfusionCounts, Interval, StrategyEvaluation } from '@buscahogar/core';
 
 import type { ComparisonReport } from './report.js';
+
+interface ReconciledCounts {
+  readonly truePositive: number;
+  readonly falsePositive: number;
+  readonly falseNegativeInclUndecided: number;
+  readonly trueNegativeInclUndecided: number;
+  readonly undecidedDuplicate: number;
+  readonly undecidedDistinct: number;
+}
+
+// D2/decisión 089: un duplicado real bandeado `undecided` es un fallo de
+// recall igual que uno bandeado `reject`, así que el FN expuesto es la suma
+// de ambos (mismo razonamiento para TN/distinct). `undecidedDuplicate`/
+// `undecidedDistinct` NO se restan de nada — se exponen aparte, sin cambiar
+// (siguen siendo la misma cifra que ya mostraba el reporte).
+function reconcileCounts(counts: ConfusionCounts): ReconciledCounts {
+  return {
+    truePositive: counts.truePositive,
+    falsePositive: counts.falsePositive,
+    falseNegativeInclUndecided: counts.falseNegative + counts.undecidedDuplicate,
+    trueNegativeInclUndecided: counts.trueNegative + counts.undecidedDistinct,
+    undecidedDuplicate: counts.undecidedDuplicate,
+    undecidedDistinct: counts.undecidedDistinct,
+  };
+}
 
 function formatNumber(value: number): string {
   return value.toFixed(4);
@@ -65,11 +105,42 @@ function buildRows(report: ComparisonReport): readonly ReportRow[] {
 }
 
 // JSON: los campos `corpusSize`/`caveat` ya viven en la raíz de
-// `ComparisonReport` (report.ts) — JSON.stringify los expone sin
-// transformación adicional (spec "JSON MUST carry them as data at the
-// report root").
+// `ComparisonReport` (report.ts) — se exponen sin transformación adicional
+// (spec "JSON MUST carry them as data at the report root"). SOLO
+// `counts` (dentro de `atDefault` y de cada punto del `sweep`, en las dos
+// estrategias) se reescribe con `reconcileCounts` — el resto de cada
+// `BinaryMetrics` (precision/recall/f1/undecidedRate) y el resto del report
+// (pairs, grid, limitations...) se copian tal cual, sin reordenar ni omitir
+// nada.
+interface ReconciledMetrics extends Omit<BinaryMetrics, 'counts'> {
+  readonly counts: ReconciledCounts;
+}
+
+interface ReconciledSweepPoint {
+  readonly thresholds: BandThresholds;
+  readonly metrics: ReconciledMetrics;
+}
+
+interface ReconciledStrategyEvaluation extends Omit<StrategyEvaluation, 'atDefault' | 'sweep'> {
+  readonly atDefault: ReconciledMetrics;
+  readonly sweep: readonly ReconciledSweepPoint[];
+}
+
+function reconcileMetrics(metrics: BinaryMetrics): ReconciledMetrics {
+  return { ...metrics, counts: reconcileCounts(metrics.counts) };
+}
+
+function reconcileStrategy(strategy: StrategyEvaluation): ReconciledStrategyEvaluation {
+  return {
+    ...strategy,
+    atDefault: reconcileMetrics(strategy.atDefault),
+    sweep: strategy.sweep.map((point) => ({ ...point, metrics: reconcileMetrics(point.metrics) })),
+  };
+}
+
 export function renderJson(report: ComparisonReport): string {
-  return JSON.stringify(report, null, 2);
+  const rendered = { ...report, strategies: report.strategies.map(reconcileStrategy) };
+  return JSON.stringify(rendered, null, 2);
 }
 
 export const CSV_COLUMNS = [
@@ -80,8 +151,15 @@ export const CSV_COLUMNS = [
   'low',
   'true_positive',
   'false_positive',
-  'false_negative',
-  'true_negative',
+  // Corrección WARNING-1 (D2/decisión 089): estas dos columnas ya NO son el
+  // `reject` crudo — incluyen los pares `undecided` correspondientes,
+  // exactamente igual que el denominador real de recall/precisión. El
+  // nombre deja la inclusión explícita para que no se confunda con
+  // `counts.falseNegative`/`trueNegative` "crudos" de `ConfusionCounts`
+  // (core), que siguen existiendo sin cambios pero ya no se exportan aquí.
+  'false_negative_incl_undecided',
+  'true_negative_incl_undecided',
+  // Desglose "de las cuales indecisas" — mismas columnas/cifras de siempre.
   'undecided_duplicate',
   'undecided_distinct',
   'precision',
@@ -101,7 +179,8 @@ export const CSV_COLUMNS = [
 export function renderCsv(report: ComparisonReport): string {
   const rows = buildRows(report);
   const lines = rows.map((row) => {
-    const { counts, precision, recall, f1, undecidedRate } = row.metrics;
+    const { precision, recall, f1, undecidedRate } = row.metrics;
+    const counts = reconcileCounts(row.metrics.counts);
     const fields = [
       row.strategyName,
       row.strategyVersion,
@@ -110,8 +189,8 @@ export function renderCsv(report: ComparisonReport): string {
       formatNumber(row.thresholds.low),
       counts.truePositive.toString(),
       counts.falsePositive.toString(),
-      counts.falseNegative.toString(),
-      counts.trueNegative.toString(),
+      counts.falseNegativeInclUndecided.toString(),
+      counts.trueNegativeInclUndecided.toString(),
       counts.undecidedDuplicate.toString(),
       counts.undecidedDistinct.toString(),
       csvNumber(precision.value),
@@ -136,7 +215,8 @@ export function renderCsv(report: ComparisonReport): string {
 }
 
 function renderMetricsTable(metrics: BinaryMetrics): string {
-  const { counts, precision, recall, f1, undecidedRate } = metrics;
+  const { precision, recall, f1, undecidedRate } = metrics;
+  const counts = reconcileCounts(metrics.counts);
   const header = '| Métrica | Valor | IC 95% (Wilson) |\n|---|---|---|';
   const rows = [
     `| Precisión | ${mdNumber(precision.value)} | ${mdInterval(precision.wilson95)} |`,
@@ -144,9 +224,14 @@ function renderMetricsTable(metrics: BinaryMetrics): string {
     `| F1 | ${mdNumber(f1)} | n/a |`,
     `| Tasa de indecisos | ${mdNumber(undecidedRate.value)} | ${mdInterval(undecidedRate.wilson95)} |`,
   ];
+  // Corrección WARNING-1 (D2/decisión 089): "FN (incl. indecisos)"/"TN
+  // (incl. indecisos)" dejan explícito que estas cifras ya suman el
+  // `undecided` correspondiente — reconcilian con Recall/Precisión de
+  // arriba (TP/(TP+FN) y TP/(TP+FP)), a diferencia del `reject` crudo que
+  // mostraba esta línea antes de la corrección.
   const confusion =
     `Matriz de confusión: TP=${counts.truePositive.toString()} FP=${counts.falsePositive.toString()} ` +
-    `FN=${counts.falseNegative.toString()} TN=${counts.trueNegative.toString()} ` +
+    `FN (incl. indecisos)=${counts.falseNegativeInclUndecided.toString()} TN (incl. indecisos)=${counts.trueNegativeInclUndecided.toString()} ` +
     `undecided_duplicate=${counts.undecidedDuplicate.toString()} undecided_distinct=${counts.undecidedDistinct.toString()}`;
   return [header, ...rows, '', confusion].join('\n');
 }

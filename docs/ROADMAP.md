@@ -1647,6 +1647,22 @@ c247b8e -- apps/ingestion/src/dedup/reprocess-core.ts` confirmó cero cambios: p
 usando rule-based con los umbrales por defecto, sin excepción (decisión 088). Ningún módulo nuevo
 importa `fetch`/`http`/`pg`/`drizzle`/`@buscahogar/db`.
 
+**Corrección post-verify (WARNING-1, decisión 092).** `sdd-verify` detectó que el FN/TN expuesto en
+los tres formatos no reconciliaba con el recall/precisión mostrados en la misma fila: por ejemplo,
+la fila por defecto de rule-based mostraba `false_negative=0` con `recall=0.8000`, un resultado
+irreconstruible sin sumar a mano la columna `undecided_duplicate`. Corregido solo en la capa de
+render (`apps/ingestion/src/strategy-comparison/render.ts`), sin tocar `packages/core` ni ningún
+valor de P/R/F1/tasa de indecisos/Wilson. Cifras reales expuestas tras la corrección, mismos
+umbrales por defecto que la tabla de arriba:
+
+| Estrategia | TP | FP | FN (incl. indecisos) | TN (incl. indecisos) | Suma |
+|---|---|---|---|---|---|
+| rule-based-structured | 8 | 1 | 2 | 13 | 24 |
+| probabilistic-fellegi-sunter | 4 | 1 | 6 | 13 | 24 |
+
+`recall=TP/(TP+FN)` y `precision=TP/(TP+FP)` ahora se reconstruyen directamente desde estas cuatro
+columnas visibles, en los tres formatos.
+
 ---
 
 ## [ ] 2.3 · Comparación de imágenes

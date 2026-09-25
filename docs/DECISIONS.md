@@ -2856,6 +2856,42 @@ una versión distinta y silenciosa de lo que el operador pidió.
 
 ---
 
+## 092 — El FN/TN exportado por la CLI de comparación de estrategias incluye los pares `undecided` correspondientes (corrección post-verify, WARNING-1)
+
+**Estado:** aceptada
+
+**Decisión.** En los tres formatos de `compare-dedup-strategies.ts` (Markdown, JSON, CSV), la
+cifra de falsos negativos y verdaderos negativos EXPUESTA (`false_negative_incl_undecided`/
+`true_negative_incl_undecided` en JSON/CSV, `FN (incl. indecisos)`/`TN (incl. indecisos)` en
+Markdown) es `counts.falseNegative + counts.undecidedDuplicate` y
+`counts.trueNegative + counts.undecidedDistinct` respectivamente — la aplicación, en la capa de
+render, del mismo criterio D2 que `computeMetrics` (decisión 089) ya usa internamente para el
+denominador de recall. `undecided_duplicate`/`undecided_distinct` se conservan como columnas/
+campos de desglose ("de las cuales indecisas"), sin cambiar su cifra. `packages/core` no cambia:
+`ConfusionCounts` conserva sus 6 casillas mutuamente excluyentes (decisión 089,
+`metrics.test.ts`), y ningún valor de precisión, recall, F1, tasa de indecisos o intervalo de
+Wilson se altera por esta corrección — la comparación antes/después de la CLI real sobre las filas
+`is_default` de ambas estrategias lo confirma byte a byte en esas columnas.
+
+**Alternativa descartada.** Redefinir `ConfusionCounts`/`computeMetrics` (`packages/core`) para que
+`falseNegative`/`trueNegative` ya incluyan el `undecided` correspondiente: rompería el test que fija
+las 6 casillas mutuamente excluyentes (`metrics.test.ts`, decisión 089) y mezclaría dos conceptos —
+"rechazado explícitamente" e "indeciso" — en una sola casilla dentro del propio dominio, cuando el
+desglose fino sigue siendo necesario para depurar el comportamiento banda a banda de cada
+estrategia. El defecto no estaba en el cálculo (correcto y probado), sino en qué cifra cruda
+reexponía cada renderer.
+
+**Motivo.** `sdd-verify` (revisión #288, WARNING-1) detectó que el artefacto exportado (deliverable
+de la memoria del TFM) no reconciliaba: la fila por defecto de rule-based mostraba
+`false_negative=0` mientras el recall visible era 0.8000, un lector no podía reconstruir
+`recall = TP/(TP+FN)` a partir de las columnas nombradas sin conocer además, y sumar a mano, la
+columna `undecided_duplicate`. Corregir solo la capa de render (`apps/ingestion/src/
+strategy-comparison/render.ts`) es la corrección de menor alcance que hace el artefacto
+autoexplicativo: `TP+FP+FN+TN=24` y `recall=TP/(TP+FN)`, `precision=TP/(TP+FP)` valen ahora
+directamente sobre las cifras visibles, en los tres formatos.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

@@ -40,6 +40,56 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-25 — El FN/TN exportado por la CLI del paso 2.2 excluía los pares `undecided`, en contra de D2, y no reconciliaba con el recall mostrado en la misma fila
+
+**Contexto:** paso 2.2, capa de render de la CLI de comparación de estrategias
+(`apps/ingestion/src/strategy-comparison/render.ts`), en los tres formatos exportados
+(Markdown, JSON, CSV).
+
+**Categoría:** código correcto en apariencia pero incorrecto — el cálculo interno de
+`computeMetrics` (`packages/core`) era correcto y estaba probado; el defecto estaba solo en qué
+cifra cruda reexponía cada renderer.
+
+**Qué ocurrió:** `computeMetrics` (decisión 089, D2 del preproposal) ya trata un duplicado real
+clasificado `undecided` como un fallo de recall — el denominador de recall es
+`TP + FN + undecidedDuplicate`. Pero los tres formatos exportaban directamente
+`counts.falseNegative`/`counts.trueNegative`, que en `ConfusionCounts` son solo el `reject`
+explícito, EXCLUYENDO el `undecided` correspondiente. El resultado: la fila por defecto de
+rule-based mostraba `true_positive=8, false_negative=0` con `recall=0.8000` en la misma fila — un
+lector que reconstruyera `recall = TP/(TP+FN)` a partir de las columnas nombradas obtenía 1.0000,
+en contradicción visible con el 0.8000 mostrado, sin ninguna pista de que hiciera falta sumar
+también `undecided_duplicate` (una columna aparte, sin relacionar explícitamente con FN en ningún
+sitio).
+
+**Cómo se detectó:** `sdd-verify` (revisión #288, WARNING-1), no durante la aplicación original
+(los 61 tareas de `tasks.md` y sus 993 tests pasaban en verde; el propio test de `computeMetrics`
+que fija D2 —`metrics.test.ts`— es correcto y sigue sin cambios). La verificación comparó el
+artefacto exportado, no solo el cálculo interno, contra el requisito de la especificación
+("Undecided counts as negative"), y encontró que el primero no reconciliaba con el segundo pese a
+que ambos "pasan sus tests" por separado.
+
+**Cómo se resolvió:** corrección acotada a `render.ts` (una función `reconcileCounts` que suma
+`undecidedDuplicate`/`undecidedDistinct` a `falseNegative`/`trueNegative` SOLO para lo que se
+expone), sin tocar `packages/core`. Columnas/campos renombrados a
+`false_negative_incl_undecided`/`true_negative_incl_undecided` (CSV/JSON) y etiqueta
+`FN (incl. indecisos)`/`TN (incl. indecisos)` en Markdown, para que el cambio de significado sea
+inequívoco frente al `ConfusionCounts` crudo que sigue existiendo sin cambios en `packages/core`.
+RED escrito primero contra la CLI real (no un fixture sintético) sobre el corpus de 24 pares,
+confirmando `TP+FP+FN+TN=24` y `recall=TP/(TP+FN)` en ambas estrategias antes de tocar producción.
+Decisión 092.
+
+**Coste:** aproximado, 45 minutos (lectura del verify-report, cálculo manual de los valores reales
+de FN/TN totales por estrategia antes de escribir las aserciones, RED→GREEN, actualización de
+`DECISIONS.md`/`ROADMAP.md`).
+
+**Observación:** un test que fija la semántica de una función pura (`computeMetrics`) no prueba
+que el artefacto final expuesto al usuario use esa misma semántica correctamente — hacía falta un
+test que inspeccionara la salida real de la CLI (Markdown/JSON/CSV), no solo `packages/core`, para
+detectar que la capa de render había vuelto a introducir la exclusión que D2 prohibía uno o dos
+pasos más arriba. La verificación de artefactos exportados (deliverables de la memoria del TFM)
+necesita comprobar reconciliación visible entre columnas, no solo que cada número individual sea
+"correcto" según su propia definición interna.
+
 ### 2026-09-25 — Una aserción de test se autoinvalidó por la subcadena "null" en su propio dato de prueba
 
 **Contexto:** paso 2.2, `sdd-apply` (segundo lote, fase 5), `apps/ingestion/test/strategy-comparison-render.test.ts`.
