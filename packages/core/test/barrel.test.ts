@@ -106,7 +106,14 @@ describe('barril público de @buscahogar/core', () => {
     // Deliberadamente NO exportados (design.md, sección Interfaces): solo
     // ruleBasedDedupStrategy/classify/SimilarityBand cruzan a la superficie
     // pública. Los tests los alcanzan vía ../src/strategies/rule-based/...
-    const internals = ['WEIGHTS', 'T_HIGH', 'T_LOW', 'STREET_TOKENS_OBSERVED', 'scoreDistance', 'scorePrice'];
+    const internals = [
+      'WEIGHTS',
+      'T_HIGH',
+      'T_LOW',
+      'STREET_TOKENS_OBSERVED',
+      'scoreDistance',
+      'scorePrice',
+    ];
 
     for (const symbol of internals) {
       expect((barrel as Record<string, unknown>)[symbol]).toBeUndefined();
@@ -133,6 +140,52 @@ describe('barril público de @buscahogar/core', () => {
     expect(barrel.RULE_BASED_EVALUATOR.strategy.name).toBe('rule-based-structured');
     expect(barrel.PROBABILISTIC_EVALUATOR.strategy.name).toBe('probabilistic-fellegi-sunter');
     expect(barrel.DEFAULT_EVALUATORS).toHaveLength(2);
+  });
+
+  it('ROADMAP 2.3: expone el comparador de imagen, el decorador y la señal de imagen', () => {
+    expect(typeof barrel.hammingDistance64).toBe('function');
+    expect(barrel.hammingDistance64('0000000000000000', 'ffffffffffffffff')).toBe(64);
+
+    expect(typeof barrel.compareImageHashes).toBe('function');
+    const comparison = barrel.compareImageHashes(undefined, undefined, 8);
+    expect(comparison).toEqual({
+      level: 'neutral',
+      reason: 'missing',
+      distance: null,
+      threshold: 8,
+    });
+
+    expect(typeof barrel.formatImageDetail).toBe('function');
+    expect(typeof barrel.parseImageDetail).toBe('function');
+    expect(barrel.parseImageDetail(barrel.formatImageDetail(comparison))).toEqual(comparison);
+
+    expect(typeof barrel.createImageHashLookup).toBe('function');
+    const lookup = barrel.createImageHashLookup({});
+    expect(
+      lookup(barrel.makeListing({ thumbnailUrl: 'https://example.test/x.jpg' }))
+    ).toBeUndefined();
+
+    expect(typeof barrel.withImageSignal).toBe('function');
+    const decorated = barrel.withImageSignal(barrel.ruleBasedDedupStrategy, {
+      lookup,
+      threshold: 8,
+      combiner: (base) => base,
+    });
+    expect(decorated.name).toBe('rule-based-structured+image-phash');
+
+    expect(typeof barrel.classifyRuleBasedWithImage).toBe('function');
+  });
+
+  it('ROADMAP 2.3: los combinadores de imagen quedan internos, mismo criterio que WEIGHTS/PRIOR_LOG_ODDS', () => {
+    // Deliberadamente NO exportados (index.ts, sección ROADMAP 2.3): los
+    // combinadores concretos y sus pesos/m/u son internos a
+    // strategies/image/, usados solo dentro del paquete por
+    // evaluation/image-evaluators.ts (Phase 4).
+    const internals = ['ruleBasedImageCombiner', 'probabilisticImageCombiner'];
+
+    for (const symbol of internals) {
+      expect((barrel as Record<string, unknown>)[symbol]).toBeUndefined();
+    }
   });
 
   it('ROADMAP 2.2: el umbral FS y el m/u/bits table quedan internos, igual que WEIGHTS/T_HIGH/T_LOW de rule-based', () => {

@@ -92,9 +92,20 @@ export { classifyProbabilistic, FS_BAND_THRESHOLDS } from './strategies/probabil
 export type { GroundTruth, CorpusEntry, ExpectedBand } from './evaluation/dedup-corpus.js';
 export { dedupCorpus } from './evaluation/dedup-corpus.js';
 export { makeListing } from './evaluation/make-listing.js';
-export type { LabeledBand, ConfusionCounts, Interval, Proportion, BinaryMetrics } from './evaluation/metrics.js';
+export type {
+  LabeledBand,
+  ConfusionCounts,
+  Interval,
+  Proportion,
+  BinaryMetrics,
+} from './evaluation/metrics.js';
 export { wilsonInterval, computeMetrics } from './evaluation/metrics.js';
-export type { StrategyEvaluator, PairEvaluation, SweepPoint, StrategyEvaluation } from './evaluation/evaluate.js';
+export type {
+  StrategyEvaluator,
+  PairEvaluation,
+  SweepPoint,
+  StrategyEvaluation,
+} from './evaluation/evaluate.js';
 export {
   DEFAULT_SWEEP,
   DEFAULT_EVALUATORS,
@@ -103,13 +114,39 @@ export {
   evaluateStrategy,
 } from './evaluation/evaluate.js';
 
+// Señal auxiliar de imagen (ROADMAP 2.3, decisión 093/094): comparador de
+// hashes perceptuales ya calculados, positivo-solo, y el decorador que la
+// añade a una DedupStrategy existente sin alterar su cálculo estructurado.
+// Deliberadamente NO exportados: los combinadores concretos
+// (`ruleBasedImageCombiner`/`probabilisticImageCombiner`) y sus pesos/m/u —
+// internos a `strategies/image/`, usados solo dentro de este paquete por
+// `evaluation/image-evaluators.ts` (Phase 4), mismo precedente que
+// WEIGHTS/T_HIGH/T_LOW de rule-based (barrel.test.ts).
+export type {
+  ImageHashEntry,
+  ImageComparison,
+  ImageLevel,
+  ImageReason,
+} from './strategies/image/compare.js';
+export { compareImageHashes } from './strategies/image/compare.js';
+export { hammingDistance64 } from './strategies/image/hamming.js';
+export { formatImageDetail, parseImageDetail } from './strategies/image/detail.js';
+export type { ImageHashLookup } from './strategies/image/lookup.js';
+export { createImageHashLookup } from './strategies/image/lookup.js';
+export { withImageSignal } from './strategies/image/with-image-signal.js';
+export { classifyRuleBasedWithImage } from './strategies/image/classify.js';
+
 // Limitación de tasa (ROADMAP 1.15, security-hardening): política pura,
 // reutilizada por el limitador en memoria de `apps/web/src/proxy.ts` (D1b,
 // PR2) y por la resolución de identidad de cliente del registro de
 // cobertura (PR2). Cero DB, cero red — mismo criterio de "solo lo que
 // cruza la frontera" que el resto de este barril.
 export { evaluateFixedWindow } from './rate-limit/fixed-window.js';
-export type { FixedWindowParams, FixedWindowResult, FixedWindowState } from './rate-limit/fixed-window.js';
+export type {
+  FixedWindowParams,
+  FixedWindowResult,
+  FixedWindowState,
+} from './rate-limit/fixed-window.js';
 export { parseTrustedClientIp, UNKNOWN_CLIENT_IDENTITY } from './rate-limit/client-ip.js';
 
 export const CORE_VERSION = '0.0.1';
