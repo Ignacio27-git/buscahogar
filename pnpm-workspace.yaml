@@ -4,9 +4,12 @@ packages:
 
 # Scripts de instalación permitidos (pnpm bloquea los postinstall por defecto).
 # esbuild: binario nativo que usan vite/vitest. unrs-resolver: resolver nativo de
-# eslint-config-next.
+# eslint-config-next. sharp: su script `install` (paso 2.1/2.2, ROADMAP 2.3) solo
+# comprueba que el binario prebuilt correcto llegó vía optionalDependencies
+# (`@img/sharp-*`, sin scripts propios, verificado empíricamente) — no compila nada.
 allowBuilds:
   esbuild: true
+  sharp: true
   unrs-resolver: true
 
 # pnpm rechaza por política los paquetes publicados hace menos de X tiempo
