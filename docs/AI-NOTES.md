@@ -40,6 +40,186 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-28 — El orquestador fijó dos veces un tope de líneas cambiadas del ledger de intentos demasiado bajo para el paso 2.3
+
+**Contexto:** paso 2.3, cierre de lotes de `sdd-apply` sucesivos (comparación de imágenes).
+
+**Categoría:** deriva de contexto entre fases — decisión del orquestador, no del agente de
+`sdd-apply` (mismo patrón ya registrado el 2026-09-24 para el paso 1.15).
+
+**Qué ocurrió:** el orquestador fijó el tope de líneas cambiadas del ledger nativo de intentos en
+1.200 y, tras el primer bloqueo, en 1.500, sin contar en ninguno de los dos casos las fixtures de
+imagen comiteadas (18 JPEGs + `provenance.json`), el `pnpm-lock.yaml` regenerado por añadir
+`sharp`, ni los JSON generados (`hashes.calibration.json`, `hashes.evaluation.json`,
+`calibration-report.json`). El intento bloqueó en `maintainer_decision` por
+`changed_line_budget_exceeded` las dos veces, aunque el código autorado real cabía en el
+`size:exception` ya aceptado por el responsable del proyecto.
+
+**Cómo se detectó:** el propio bloqueo del ledger nativo al intentar cerrar cada intento.
+
+**Cómo se resolvió:** el responsable del proyecto concedió una autorización permanente, acotada a
+este cambio, para que el orquestador ejecute `gentle-ai sdd-attempt reset` sin preguntar cuando el
+único motivo del bloqueo sea `changed_line_budget_exceeded` (Engram
+`sdd/image-phash-signal/ledger-reset-authorisation`), en vez de repetir la autorización manual una
+tercera vez.
+
+**Coste:** aproximado, 10 minutos entre los dos bloqueos y sus reinicios.
+
+**Observación:** tercera vez que este mismo defecto de proceso se documenta en este repositorio
+(pasos 1.15 y ahora 2.3, dos veces en el mismo paso) — un paso que comitea fixtures binarias,
+JSON generado o un lockfile regenerado necesita un tope de ledger fijado contando esos ficheros
+desde el primer intento, no ajustado reactivamente tras el primer bloqueo.
+
+### 2026-09-25 — El agente de `sdd-apply` no tuvo acceso a las herramientas MCP de Context7 y verificó la API de `sharp` leyendo directamente sus tipos instalados
+
+**Contexto:** paso 2.3, lotes de `sdd-apply` que tocan `apps/ingestion/src/image-hash/` (pipeline
+de hashing con `sharp`).
+
+**Categoría:** pérdida de contexto en tareas largas — una herramienta que `CLAUDE.md` (regla
+global de `context7.md`) exige usar para APIs de librerías no estaba disponible en la sesión del
+sub-agente.
+
+**Qué ocurrió:** el propio diseño (obs #297) ya advertía que Context7 no estuvo disponible al
+redactarlo y dejaba como verificación pendiente de aplicación: comprobar cada llamada de `sharp`
+(`flatten`, `extract`, `resize`, `raw`, `create`, `sharp.versions`) contra la documentación real de
+la versión fijada. En la sesión de aplicación, las herramientas MCP de Context7 tampoco estaban
+registradas.
+
+**Cómo se resolvió:** se leyeron directamente los `.d.ts` que `sharp@0.34.2` distribuye en
+`node_modules/sharp/lib/*.d.ts` — la misma disciplina que la entrada del 2026-09-24 sobre
+`next/experimental/testing/server` ya había aplicado por el motivo contrario (documentación
+empaquetada desincronizada): aquí, sin documentación externa disponible en absoluto, el tipo
+instalado fue la única fuente verificable.
+
+**Coste:** no medible por separado — la verificación se hizo como parte normal de escribir cada
+llamada a `sharp`, sin retrabajo posterior.
+
+**Observación:** cuando una herramienta de documentación externa no está disponible, el `.d.ts`
+real instalado en `node_modules` sigue siendo una fuente de verdad verificable contra la versión
+exacta fijada en `package.json` — más fiable que confiar en el conocimiento previo del modelo sobre
+una API con superficie amplia como la de `sharp`.
+
+### 2026-09-25 — El diseño asumía `allowBuilds: { sharp: false }` porque los binarios prebuilt "no necesitan compilar"; el propio script `install` de `sharp` sí necesita ejecutarse
+
+**Contexto:** paso 2.3, diseño (obs #297) y `sdd-apply` (lote de Phase 1/2, pipeline de ingesta).
+
+**Categoría:** API o comportamiento de una dependencia asumido sin verificar contra el paquete
+real instalado.
+
+**Qué ocurrió:** el diseño razonaba que, al usar binarios prebuilt de `@img/sharp-*`
+(`optionalDependencies`, sin compilación nativa), `sharp` no necesitaría entrada en
+`allowBuilds` de `pnpm-workspace.yaml` — pnpm bloquea por política los scripts `postinstall` a
+menos que se permitan explícitamente, y la suposición era que "sin compilación, sin script que
+bloquear". Al instalar de verdad, `pnpm install` seguía fallando sin la entrada: el propio script
+`install` de `sharp` SÍ se ejecuta siempre, pero solo para VERIFICAR que el binario prebuilt
+correcto llegó — no para compilar nada.
+
+**Cómo se detectó:** ejecución real de `pnpm install` tras añadir `sharp` al `package.json` de
+`apps/ingestion`, no por lectura del código de `sharp`.
+
+**Cómo se resolvió:** `allowBuilds: { sharp: true }` en `pnpm-workspace.yaml`, con el motivo
+documentado en el propio comentario del fichero (verificación, no compilación) y en la decisión
+095 de `docs/DECISIONS.md`.
+
+**Coste:** aproximado, 5 minutos (instalación fallida, lectura del script `install` real de
+`sharp`, corrección).
+
+**Observación:** "usa binarios prebuilt" y "no ejecuta ningún script de instalación" no son la
+misma propiedad — un paquete puede evitar compilar y aun así necesitar un script de verificación
+posterior a la instalación. Solo la ejecución real de `pnpm install` lo reveló.
+
+### 2026-09-25 — El diseño (revisión 1) dejaba que la imagen contara para el piso de evidencia de rule-based y afirmaba, incorrectamente, que `classify.ts` de producción necesitaría edición
+
+**Contexto:** paso 2.3, `sdd-design` (revisión 1, corregida antes de llegar a `sdd-apply`).
+
+**Categoría:** deriva de la arquitectura entre sesiones — el diseño no había trazado el flujo
+completo del piso de evidencia (`MIN_EVALUATED_SIGNALS`/`MIN_EFFECTIVE_WEIGHT`, decisión 049) antes
+de decidir cómo combinar la señal de imagen.
+
+**Qué ocurrió:** la primera versión del diseño sumaba la contribución de imagen al desglose de
+señales sin excluirla del piso de evidencia de rule-based, y proponía editar directamente
+`packages/core/src/strategies/rule-based/classify.ts` (código de producción, fuera del alcance de
+este cambio) para introducir esa exclusión. Bajo esa forma, un par con solo 2 señales
+estructuradas (peso 40, como `md-4` del corpus) más una imagen fuerte simulada habría alcanzado
+exactamente peso 55 y cruzado el piso — una vía de falso positivo entre viviendas del mismo
+edificio que la decisión 006 existe para evitar, y exactamente el escenario que este cambio debía
+medir sin introducir.
+
+**Cómo se detectó:** una validación en un contexto nuevo (sin el razonamiento previo del propio
+diseño en memoria de trabajo), releyendo el flujo real de `classify.ts` y del piso de evidencia
+contra lo que el diseño proponía.
+
+**Cómo se resolvió:** revisión 2 del diseño — un `classify` inyectable
+(`classifyRuleBasedWithImage`) que el evaluador RB+imagen usa en vez de la función de producción,
+sin tocar `classify.ts`. Decisión 094 de `docs/DECISIONS.md`.
+
+**Coste:** no medido directamente por `sdd-apply` (resuelto en la fase de diseño, antes de que
+`sdd-apply` recibiera el artefacto).
+
+**Observación:** una revisión hecha desde un contexto fresco, sin el hilo de razonamiento que
+produjo la primera versión, detecta con más facilidad cuándo una propuesta de diseño amplía el
+radio de impacto (aquí, tocar código de producción) más de lo que el objetivo del cambio requiere.
+
+### 2026-09-25 — `sdd-spec` y `sdd-design` en paralelo volvieron a desalinearse, esta vez en las columnas del CSV y el vocabulario de nivel/razón de la señal de imagen
+
+**Contexto:** paso 2.3, spec (obs #296) y diseño (obs #297) redactados en paralelo, corregidos con
+las mismas resoluciones (S1-S9/094-099) en la misma ronda.
+
+**Categoría:** deriva de contexto entre fases — mismo patrón ya documentado en los pasos 1.10,
+1.11 y 1.15 (spec y diseño en paralelo divergiendo en un punto que ninguno de los dos poseía por
+sí solo), esta vez detectado y corregido ANTES de llegar a `sdd-apply`, no durante ni después.
+
+**Qué ocurrió:** la primera redacción de la especificación y la del diseño fijaban, cada una por su
+cuenta, un contrato ligeramente distinto para dos puntos de la superficie exportada por el CLI: el
+orden y nombre exacto de las columnas CSV nuevas (`evidence`/`image_caveat` tras `caveat`) y el
+vocabulario cerrado de nivel/razón del desglose de imagen (`strong`/`neutral`,
+`match`/`above-threshold`/`missing`/`unreadable`/`low-entropy`). Ninguna de las dos discrepancias
+era una contradicción de fondo sobre el comportamiento — ambas convergían en la misma intención,
+solo con distinta forma textual.
+
+**Cómo se detectó:** comparación cruzada de ambos artefactos antes de `sdd-tasks`, mismo mecanismo
+de arbitraje ya usado en los pasos 1.10/1.11/1.15.
+
+**Cómo se resolvió:** re-ejecución correctiva de spec y diseño con las mismas resoluciones (F1-F9
+en spec, S1-S9 en diseño), fijando un único contrato textual para ambos puntos antes de que
+`sdd-tasks` los convirtiera en tareas — a diferencia del paso 1.10, aquí no hizo falta escalar la
+decisión al responsable del proyecto: la convergencia de intención ya estaba, solo faltaba fijar
+una única forma.
+
+**Coste:** no medido directamente por `sdd-apply` (resuelto en fase de spec/diseño, antes de que
+`sdd-apply` recibiera los artefactos).
+
+**Observación:** cuarta vez que este patrón (spec y diseño en paralelo, mismo tipo de deriva) se
+documenta en este proyecto — a diferencia de las tres anteriores, aquí ninguna de las dos versiones
+estaba más "razonada desde el código real" que la otra: era una cuestión de forma textual, no de
+comportamiento, y se resolvió sin necesitar el criterio de desempate habitual ("gana el que leyó
+código real").
+
+### 2026-09-25 — El pronóstico de líneas del preproposal (1.000-1.300) quedó muy por debajo del diseño (~2.100) y de la cifra real de aplicación
+
+**Contexto:** paso 2.3, preproposal (obs #292) frente al diseño (obs #297) y la aplicación real.
+
+**Categoría:** deriva de contexto entre fases — subestimación sistemática, mismo patrón ya
+documentado para los pasos 1.6/1.7 ("segunda subestimación consecutiva... se estima por lo bajo").
+
+**Qué ocurrió:** el preproposal estimaba el cambio completo en 1.000-1.300 líneas. El diseño, con
+el desglose fichero a fichero ya completo, lo elevó a ~2.100 líneas autoradas. La aplicación real
+lo superó de nuevo: tests y fixtures (18 fotografías + `provenance.json`, suites de test por fase)
+pesaron más de lo que ninguna de las dos estimaciones anticipaba.
+
+**Cómo se detectó:** comparación entre el pronóstico del preproposal y el desglose fichero a
+fichero del propio diseño, antes de empezar a aplicar; confirmado después contra el tamaño real de
+los commits.
+
+**Cómo se resolvió:** no se recortó alcance ni cobertura de test para acercarse a la cifra
+original — se aceptó `size:exception` sobre la cifra real, con partición en varios lotes de
+aplicación (mismo precedente que los pasos 1.8, 1.13, 1.14 y 2.2).
+
+**Observación:** quinta vez que este patrón de subestimación se documenta en el proyecto (1.6, 1.7
+dos veces, 1.13, y ahora 2.3) — cubrir con tests varios módulos puros por separado bajo TDD
+estricto, más fixtures reales con procedencia, sigue siendo el tipo de trabajo que las fases
+tempranas de planificación subestiman de forma consistente en este proyecto.
+
 ### 2026-09-25 — El FN/TN exportado por la CLI del paso 2.2 excluía los pares `undecided`, en contra de D2, y no reconciliaba con el recall mostrado en la misma fila
 
 **Contexto:** paso 2.2, capa de render de la CLI de comparación de estrategias

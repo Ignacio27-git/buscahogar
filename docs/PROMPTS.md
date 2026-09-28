@@ -30,6 +30,48 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-25/28 — Comparación de imágenes (2.3), ciclo SDD completo con research y dos rondas de decisiones del mantenedor
+
+**Tipo de tarea:** dominio puro (comparador/decorador de señal, sin I/O) + pipeline de ingesta con
+dependencia nativa (`sharp`) + fixtures reales con procedencia + calibración de umbral + ablación
+en la CLI ya existente de 2.2
+**Forma de especificación:** ciclo SDD completo — explore → research (web, admisión concedida) →
+preproposal en dos rondas de decisiones confirmadas por el mantenedor (D1-D8) → `sdd-spec`/
+`sdd-design` en paralelo (con una ronda correctiva tras un validador en rojo) → `sdd-tasks` →
+`sdd-apply` en varios lotes (núcleo puro y pipeline de ingesta → puerta de fotos del mantenedor →
+fixtures/calibración → ablación en el CLI → este registro documental)
+**Resultado:** utilizable con retoques — spec y diseño necesitaron una ronda correctiva antes de
+aplicar (columnas CSV y vocabulario de nivel/razón desalineados entre ambos artefactos escritos en
+paralelo); durante la aplicación, un hallazgo empírico corrigió una afirmación errónea del diseño
+sobre `sharp` (ver `docs/AI-NOTES.md`)
+**Prompt:**
+
+> Añade la comparación de imágenes como señal adicional mediante perceptual hashing,
+> teniendo en cuenta que cada portal reescala y recomprime, por lo que la comparación
+> exacta no sirve.
+>
+> Mide su aportación real frente a la deduplicación basada solo en datos
+> estructurados, sobre el mismo conjunto etiquetado.
+
+**Observación:** el prompt fija el QUÉ (perceptual hashing, medir aportación real, mismo conjunto
+etiquetado) pero deja abiertas decisiones de producto que el preproposal tuvo que escalar en dos
+rondas: de dónde salen las imágenes (D2/D5: fotografías CC0 reales con transformaciones
+controladas, nunca miniaturas de portal), si la señal solo suma o también resta (D3: solo-positivo,
+nunca negativo), alcance de producción (D7: evaluación-only, aplazado) y cómo calibrar el umbral
+sin contaminar el corpus de evaluación (D8: conjunto separado, regla fija antes de medir). El
+resultado real de la ablación (ejecución real de la CLI sobre el corpus de 24 pares, a los umbrales
+por defecto de cada estrategia) es que la señal de imagen **no cambia ninguna banda** —
+`bandChanges` vacío para ambas estrategias, matrices de confusión idénticas con y sin imagen— pero
+sí mejora precisión/recall/F1 de forma visible en la rejilla de sweep a umbrales más bajos (por
+ejemplo rule-based con `high=0.75`: F1 0,8421 → 0,9000). El caso difícil diseñado a propósito
+(`hn-1`/`hn-7`, misma fachada, distinto anuncio) midió distancia real 14, justo por encima del
+umbral calibrado `T=10`: un casi-empate real entre el margen de recorte del pipeline (5%) y la
+franja de chrome de portal simulada (8%), no ajustado para forzar ningún resultado. El coste
+principal del proceso fue de tamaño, no de especificación: `sdd-tasks` pronosticó ~2100 líneas
+autoradas frente al presupuesto de sesión, y la tarea de fotos (3.1) es una precondición exclusiva
+del mantenedor —aportar o autorizar la descarga de 18 fotografías CC0— que partió la aplicación en
+varios lotes con una puerta de revisión intermedia.
+
 ### 2026-09-25 — Comparación de estrategias de deduplicación (2.2), ciclo SDD completo en dos lotes de aplicación
 
 **Tipo de tarea:** dominio (segunda `DedupStrategy`) + métricas de evaluación + CLI de exportación

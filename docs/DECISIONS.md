@@ -2892,6 +2892,254 @@ directamente sobre las cifras visibles, en los tres formatos.
 
 ---
 
+## 093 — Inyección de hashes de imagen: `ImageHashLookup` sobre `thumbnailUrl`, refs de corpus con esquema no descargable
+
+**Estado:** aceptada
+
+**Decisión.** `packages/core` recibe los hashes de imagen como DATOS, nunca como I/O propio: un
+`ImageHashLookup = (listing: Listing) => ImageHashEntry | undefined`, construido en
+`apps/ingestion` a partir de una tabla JSON precomputada e indexada por el campo `thumbnailUrl`
+ya existente en `Listing` (ROADMAP 1.11), sin tocar su esquema. El corpus de 24 pares etiquetados
+gana referencias mediante `fixture-image:eval/<pairId>-<a|b>` — un esquema deliberadamente no
+descargable, no una URL real — atadas por `apps/core/src/evaluation/dedup-corpus-images.ts`
+(`IMAGE_REFS` + `withCorpusImages(corpus)`, que devuelve copias del corpus con `thumbnailUrl`
+poblado sin tocar `truth`). `dedup-corpus.ts` no se modifica.
+
+**Alternativa descartada.** Un campo nuevo `Listing.imagePHash`: cambiaría el esquema de dominio
+para un alcance que D7 fija como solo-evaluación. Indexar por `externalId`: generado por
+contador en los fixtures, frágil ante reordenamiento. Un `WeakMap` sobre los objetos `Listing`:
+opaco, no serializable, no inspeccionable desde el CLI.
+
+**Motivo.** `thumbnailUrl` ya existe (ROADMAP 1.11) y ya se ignora por las dos estrategias
+estructuradas, así que reutilizarlo como clave de búsqueda no añade ninguna superficie nueva al
+dominio. El esquema `fixture-image:` dice, por construcción, que esa referencia nunca es
+alcanzable por red — necesario porque D7 prohíbe cualquier ruta de producción o descarga real en
+este cambio.
+
+---
+
+## 094 — Decorador `withImageSignal`, combinación por estrategia y exclusión del piso de evidencia de rule-based
+
+**Estado:** aceptada
+
+**Decisión.** `withImageSignal(base, { lookup, threshold, combiner })` envuelve una
+`DedupStrategy` existente sin tocarla. Un comparador **solo-positivo** (adaptación propia del
+proyecto, no de la literatura — ver decisión 095/investigación, claim C19): coincidencia fuerte
+(`level: 'strong'`) suma evidencia; cualquier otro caso (distancia por encima del umbral, hash
+ausente, imagen ilegible, entropía baja) es neutro, nunca resta. En rule-based, la imagen fuerte
+añade `{ value: 1, weight: 15 }` y el score se recalcula como media ponderada sobre todas las
+señales, orden de inserción (decisión 049). En Fellegi-Sunter añade `{ value: log2(0.30/0.05) ≈
+2.585, weight: 1 }` a `M`. La imagen **nunca cuenta para el piso de evidencia** de rule-based
+(`MIN_EVALUATED_SIGNALS`/`MIN_EFFECTIVE_WEIGHT`): el evaluador RB+imagen inyecta su propio
+`classify` (`classifyRuleBasedWithImage`), que ve el score con la contribución de imagen pero
+evalúa el piso solo sobre las señales estructuradas. `classify.ts` de producción no cambia.
+
+**Alternativa descartada.** Contar la imagen en el piso de rule-based: un par con solo 2 señales
+estructuradas (peso 40) más una imagen fuerte alcanzaría exactamente peso 55 y cruzaría el piso
+por sí sola — una vía real de falso positivo entre viviendas del mismo edificio (decisión 006),
+porque la imagen es simulada, 1-contra-1 y compartible entre unidades de la misma fachada. Editar
+`classify.ts` de producción para que ignore `image`: aumenta el radio de impacto sin necesidad.
+Comparador simétrico (penaliza el desacuerdo): cada portal elige su propia foto de portada
+(decisión 063), así que el desacuerdo no es evidencia fiable de nada.
+
+**Motivo.** El objetivo declarado del paso (medir la aportación real de la imagen) exige que un
+falso positivo nuevo introducido por la imagen sea visible, nunca oculto detrás de un piso que la
+propia imagen ayudó a cruzar. El caso real del corpus, `md-4` (2 señales, peso 40): se confirmó
+en la ejecución real que ni siquiera hace falta la exclusión del piso para que se quede
+`undecided` bajo RB+imagen — su distancia real es 18, por encima de `T=10`, así que la imagen es
+neutra por umbral antes de llegar a evaluarse el piso. La exclusión del piso queda probada de
+todos modos, de forma independiente, con un caso sintético (`rule-based-classify-floor.test.ts`,
+`evaluate-image.test.ts`) que sí fuerza una coincidencia fuerte simulada sobre `md-4`.
+
+---
+
+## 095 — Pipeline de hash: sharp + DCT pHash 64-bit propio, `sharp` fijado en `0.34.2` con `allowBuilds: true`
+
+**Estado:** aceptada
+
+**Decisión.** `apps/ingestion` decodifica con `sharp`, recorta un margen fijo del 5% por lado
+(`CROP_MARGIN_RATIO`), convierte a escala de grises, redimensiona a 32×32 (`fit: 'fill'`,
+lanczos3), calcula la DCT-II 2D pura (tabla de cosenos precalculada, sin dependencias), toma el
+bloque 8×8 superior izquierdo (con el DC), umbraliza por la mediana y codifica 64 bits en
+hexadecimal. Una imagen con desviación típica por debajo de `LOW_ENTROPY_STDDEV=10` se marca
+`lowEntropy` pero SIGUE calculando su hash — el nivel `neutral/low-entropy` se decide en el
+comparador de `packages/core`, no aquí. `sharp` es la única dependencia de producción nueva,
+fijada en `0.34.2` (sin `^`) en `apps/ingestion` exclusivamente; `packages/core` sigue sin
+ninguna dependencia nativa ni de I/O (verificado por escaneo estático del propio código fuente,
+`image-module-imports.test.ts`).
+
+**Hallazgos empíricos de aplicación (no anticipables desde el diseño).** (a) El pin `0.34.2` no
+necesitó entrada en `minimumReleaseAgeExclude` de `pnpm-workspace.yaml`: ya es lo bastante
+antiguo para la política de `minimumReleaseAge` de pnpm 11 sin excepción. (b) `sharp` SÍ necesita
+`allowBuilds: { sharp: true }` en `pnpm-workspace.yaml` — contra lo que el diseño anticipaba
+(prebuilt binaries "no deberían necesitar script"): el propio script `install` de `sharp` no
+compila nada, solo VERIFICA que el binario prebuilt correcto llegó vía sus
+`optionalDependencies` (`@img/sharp-*`); sin `allowBuilds`, pnpm bloquea ese script de
+verificación por política y la instalación falla. (c) El comparador solo-positivo en sí (decisión
+094) es una adaptación del propio proyecto, no algo tomado de la literatura consultada en la
+investigación (obs #293, claim C19) — se documenta así explícitamente para no citarlo como si
+tuviera respaldo bibliográfico que no tiene.
+
+**Alternativa descartada.** `sharp-phash` (envoltorio MIT, ~2 años sin mantener): vendorizable
+pero añade una segunda superficie de confianza sobre una librería inactiva. `blockhash`/
+`blockhash-core`: más falsos positivos documentados en la investigación (claims C2/C5) y sin
+mantenimiento. `trim()` de sharp para el recorte: depende del contenido, no de un margen fijo, e
+introduce no-determinismo entre imágenes distintas.
+
+**Motivo.** Decodificar y redimensionar con una librería nativa madura (`sharp`, binarios
+prebuilt para Windows/Linux/macOS) y mantener el propio paso de DCT en TypeScript puro evita
+arrastrar una segunda dependencia nativa o no mantenida solo para el hash en sí, y mantiene
+`packages/core` con cero dependencias nativas, tal y como exige el propio dominio de este cambio.
+
+---
+
+## 096 — Fixtures: 18 fotos CC0/dominio público de Wikimedia Commons, con procedencia y variantes derivadas en memoria
+
+**Estado:** aceptada
+
+**Decisión.** 18 fotografías CC0-1.0/PDM-1.0 de Wikimedia Commons (ninguna de portales
+inmobiliarios reales), redimensionadas a 480px de lado largo, JPEG calidad 80: 12 bases de
+evaluación (8 interiores, 4 fachadas) y 6 bases de calibración (2 fachadas, 2 cocinas, 2 salones),
+conjuntos disjuntos. Cada fichero lleva una entrada en `provenance.json`
+(`file`, `set`, `kind`, `title`, `author`, `sourceUrl`, `license`, `retrievedAt`, `sha256`,
+`modifications`), validada por Zod en test. Las variantes (reescalado, recompresión JPEG/WebP,
+recorte, superposición de logo generado, y dos variantes de "chrome" de portal, `portalA`/
+`portalB`) se derivan EN MEMORIA por `transforms.ts`, nunca se comitean como binarios. El
+placeholder de baja entropía se genera con `sharp({ create })`, tampoco comiteado.
+
+**Método de obtención (tarea 3.1, apply-time).** Las 18 fotos las aportó el responsable del
+proyecto, descargadas manualmente de Wikimedia Commons bajo licencia CC0-1.0/PDM-1.0 confirmada
+en la propia página de cada fichero — no una búsqueda ni una descarga automatizada por el agente.
+
+**Alternativa descartada.** Comitear las variantes ya generadas como binarios: multiplicaría por
+~3 el tamaño del fixture sin necesidad, porque son deterministas y reproducibles desde las 18
+bases. Usar miniaturas reales de Idealista: prohibido explícitamente (D5) — ninguna credencial ni
+byte de fuente real llega a este cambio, que es evaluación-only por diseño (D7, preproposal).
+
+**Motivo.** CC0/dominio público es la única licencia que permite comitear las imágenes al
+repositorio del TFM sin negociar derechos de uso. Derivar las variantes en memoria mantiene el
+repositorio pequeño y hace explícito, en código, exactamente qué transformación sufre cada
+variante — evidencia auditable en vez de un binario opaco.
+
+---
+
+## 097 — Calibración del umbral `T`: `T = min(10, dNegMin − 2)` sobre un conjunto separado de las 24 parejas; aborto si `T < 1`
+
+**Estado:** aceptada
+
+**Decisión.** El umbral de Hamming `T` se fija ANTES de tocar el corpus de evaluación de 24
+pares, usando solo las 6 bases de calibración: 48 pares positivos (original vs. cada una de 7
+variantes, más `portalA` vs `portalB`) y 15 pares negativos (todas las combinaciones cruzadas de
+`portalA` entre bases distintas). Regla fija de antemano: `T = min(10, dNegMin − 2)`, donde
+`dNegMin` es la distancia mínima observada entre negativos. Si `T < 1`, la calibración **aborta**
+con error, sin escribir `calibration-report.json` ni ningún umbral — nunca clampa a 1 en
+silencio. `T` se copia a `packages/core/src/strategies/image/parameters.ts`
+(`IMAGE_HAMMING_THRESHOLD`) con un comentario de procedencia, y un test fija que esa constante ==
+`report.T` y que `parameters.ts` no importa el corpus de evaluación.
+
+**Resultado real (calibración ejecutada, apply-time, ROADMAP 2.3).** `dNegMin = 20` (el par
+negativo más cercano, `calib-facade-2:portalA` vs `calib-living-room-1:portalA`, distancia 20).
+`T = min(10, 20 − 2) = 10` (la rama de 10 gana, no `dNegMin − 2`). Recall positivo a `T=10`:
+**41/48 = 85,4%** — 7 de los 48 pares positivos de calibración (todos del tipo `original-vs-crop`
+o casos de recorte fuerte) quedan por encima del umbral y no se cuentan como coincidencia fuerte
+en calibración, coherente con que el recorte es la transformación más agresiva del conjunto.
+
+**Alternativa descartada.** Ajustar `T` observando los 24 pares de evaluación: exactamente lo que
+D8 prohíbe — mediría contaminación del umbral con los propios datos de prueba. Los valores T=6-8
+de la literatura (investigación, claims C7/C8): no verificados contra este pipeline concreto de
+recorte/entropía, y el propio corpus de referencia (littlesvr, claim C2) usa hashes/datasets
+distintos. Clampar `T<1` a 1: ocultaría en silencio un pipeline cuyo margen de separación entre
+positivos y negativos es demasiado estrecho para ser útil.
+
+**Motivo.** D8 (preproposal) exige calibrar en un conjunto separado y NO tocar el corpus de
+evaluación en el proceso — la única forma de que la medición posterior sobre los 24 pares sea una
+medición honesta, no una cifra ya optimizada para dar bien.
+
+---
+
+## 098 — Asignación pareja↔imagen congelada antes de generar ningún hash de evaluación
+
+**Estado:** aceptada
+
+**Decisión.** La asignación de qué base/variante de imagen recibe cada lado de cada una de las 24
+parejas etiquetadas se fija en `manifest.ts` ANTES de ejecutar `generate-image-hashes --set
+evaluation`. Duplicados reales (`tp-1..6`, `md-1`, `md-2`, `md-4`): misma base, dos transformos
+distintos, cubriendo entre todos cada transformación disponible. `md-3`: lado b sin
+`thumbnailUrl`, deliberadamente `missing`. Negativos "easy" (`en-*`): bases distintas de la misma
+categoría o de categorías distintas. Negativos difíciles (`hn-*`): bases de interior distintas EN
+GENERAL, con la EXCEPCIÓN deliberada de `hn-1`/`hn-7`, que comparten la MISMA base de fachada
+(`portalA` vs `portalB`) — el caso difícil a propósito, misma fachada, distinto anuncio. `hn-5`:
+placeholder de baja entropía en ambos lados.
+
+**Alternativa descartada.** Asignar las imágenes después de ver las distancias reales: es
+tunear sobre el corpus de evaluación en la práctica, aunque no se toque `T` directamente —
+exactamente el mismo riesgo que D8 prohíbe para el umbral.
+
+**Motivo.** Congelar la asignación antes de que exista ningún hash real hace que el resultado
+posterior (qué parejas obtienen coincidencia fuerte, cuáles no) sea una medición, no una elección
+retrospectiva que favorezca al sistema. El caso `hn-1`/`hn-7` se diseñó a propósito para poner a
+prueba si el margen de recorte del 5% del pipeline (`CROP_MARGIN_RATIO`, decisión 095) basta para
+neutralizar una franja de chrome de portal del 8% de alto (`CHROME_BAR_RATIO` de los propios
+transforms) — y el resultado real (decisión 099) confirma que no basta del todo.
+
+---
+
+## 099 — Reporte de 4 filas: CLI de ablación estructurado vs. estructurado+imagen, con caveat de evidencia simulada
+
+**Estado:** aceptada
+
+**Decisión.** El CLI de comparación (ROADMAP 2.2) pasa a evaluar 4 filas en orden fijo:
+rule-based estructurado, rule-based+imagen, Fellegi-Sunter estructurado, Fellegi-Sunter+imagen.
+Las dos filas estructuradas SIEMPRE puntúan el corpus `dedupCorpus` plano, nunca
+`withCorpusImages`, de modo que su resultado es byte-a-byte idéntico al del paso 2.2 con
+independencia de si la señal de imagen resulta neutra o no. `evaluate.ts` gana campos
+OPCIONALES (`StrategyEvaluator.imageEvidence?`, `PairEvaluation.image?`,
+`StrategyEvaluation.image?`), sin tocar la forma de salida de las estrategias sin imagen. CSV
+añade exactamente `evidence` e `image_caveat` inmediatamente después de `caveat`, sin mover
+ninguna columna existente; JSON añade `imageCaveat` en la raíz y por fila de imagen;
+`bandChanges[]` lista cualquier pareja cuya banda cambie entre una fila y su equivalente +imagen.
+
+**Resultado real de la ablación (ejecución real del CLI, apply-time, ROADMAP 2.3, corpus de 24
+pares).** A los umbrales por defecto de cada estrategia, la señal de imagen **no cambia ninguna
+banda**: `bandChanges` sale vacío para ambas estrategias, y las matrices de confusión con y sin
+imagen son idénticas —
+
+| Estrategia | TP | FP | FN (incl. indecisos) | TN (incl. indecisos) |
+|---|---|---|---|---|
+| rule-based (con y sin imagen) | 8 | 1 | 2 | 13 |
+| Fellegi-Sunter (con y sin imagen) | 4 | 1 | 6 | 13 |
+
+Seis duplicados reales SÍ obtuvieron una coincidencia fuerte de imagen y elevaron su puntuación
+(`tp-1` d=0, `tp-3` d=6, `tp-4` d=4, `tp-5` d=0, `md-1` d=6, `md-2` d=0), visible en la rejilla de
+sweep en umbrales MÁS BAJOS que el umbral por defecto — por ejemplo con `high=0.75`: rule-based
+pasa de P/R/F1 0,8889/0,8000/0,8421 a 0,9000/0,9000/0,9000; Fellegi-Sunter pasa de
+0,7778/0,7000/0,7368 a 0,8333/1,0000/0,9091 — pero ninguna de las seis cruzó el umbral POR
+DEFECTO de ninguna estrategia, así que `atDefault` no cambia. `tp-2` (d=16) y `tp-6` (d=24), pese
+a ser duplicados reales, no obtuvieron coincidencia fuerte: distintas combinaciones de
+transformación (WebP+recorte, recorte+superposición) dieron distancia perceptual mayor que otras
+combinaciones sobre el mismo corpus — variación empírica real, sin ajustar. `md-4` sigue
+`undecided` bajo RB+imagen (distancia real 18, por encima de `T=10`: ni siquiera llega a
+`strong`). Ningún `hn-*` se convirtió en falso positivo nuevo: el caso difícil a propósito
+`hn-1`/`hn-7` (decisión 098) midió distancia real **14**, justo por ENCIMA de `T=10` — el margen
+de recorte del 5% del pipeline (`CROP_MARGIN_RATIO`) no cancela del todo la franja de chrome del
+8% (`CHROME_BAR_RATIO`) para estas fotos concretas: un caso límite real, no un fallo de diseño a
+corregir en este cambio. No se ajustó ningún peso, umbral ni la asignación del manifiesto para
+cambiar este resultado — se reporta tal cual salió.
+
+**Alternativa descartada.** Que las filas estructuradas puntuaran también `withCorpusImages`: la
+igualdad byte-a-byte con 2.2 dejaría de ser una propiedad garantizada por construcción y pasaría
+a depender de que la imagen fuera neutra en la práctica. Filtrar o resaltar solo las parejas que
+cambian de banda sin mostrar la ablación completa: oculta precisamente el dato más interesante
+para la memoria del TFM (que la mejora existe pero no cruza el umbral por defecto).
+
+**Motivo.** El objetivo del paso es medir la aportación REAL de la imagen frente a la
+deduplicación estructurada, incluyendo el caso — igual de informativo — de que esa aportación no
+mueva ninguna decisión al umbral vigente. Reportar `bandChanges: []` como hallazgo genuino, en
+vez de ajustar parámetros hasta obtener un cambio de banda, es la misma disciplina ya aplicada en
+el paso 1.9 (decisión 087) y 2.2 (decisión 087 también): nunca tunear hacia una cifra deseada.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

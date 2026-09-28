@@ -1665,7 +1665,7 @@ columnas visibles, en los tres formatos.
 
 ---
 
-## [ ] 2.3 · Comparación de imágenes
+## [x] 2.3 · Comparación de imágenes
 
 ```text
 Añade la comparación de imágenes como señal adicional mediante perceptual hashing,
@@ -1677,6 +1677,76 @@ estructurados, sobre el mismo conjunto etiquetado.
 ```
 
 **Notas:**
+
+**Qué se construyó.** Ciclo SDD completo (explore → research → preproposal en dos rondas de
+decisiones de producto → spec/design corregidos tras una ronda de validación → `sdd-tasks` →
+`sdd-apply` en varios lotes con una puerta de revisión fotográfica del responsable del proyecto)
+entregado en 5 slices de commit sobre `feature-fase2` (decisiones 093-099):
+
+1. `packages/core/src/strategies/image/`: comparador de Hamming puro, mapeo de nivel/razón
+   solo-positivo, formato/parseo determinista del desglose, decorador `withImageSignal`,
+   exclusión del piso de evidencia de rule-based — cero dependencias nativas ni de I/O.
+2. `apps/ingestion/src/image-hash/`: pipeline sharp + DCT pHash 64-bit propio (recorte 5%,
+   escala de grises, 32×32, umbral de entropía), `sharp` fijado en `0.34.2` como única
+   dependencia de producción nueva.
+3. 18 fotos CC0-1.0/PDM-1.0 de Wikimedia Commons (12 evaluación, 6 calibración, procedencia en
+   `provenance.json`), asignación pareja↔imagen congelada antes de generar ningún hash de
+   evaluación, calibración real del umbral sobre el conjunto de calibración por separado.
+4. Ablación en el CLI de comparación (ROADMAP 2.2): 4 filas (estructurado y +imagen, por
+   estrategia), columnas CSV/JSON nuevas, tabla de cambios de banda, test de determinismo del
+   hash contra los fixtures comitados.
+5. Este registro documental.
+
+**Umbral calibrado.** `T = min(10, dNegMin − 2)` sobre el conjunto de calibración separado (6
+fotos base, 48 pares positivos, 15 negativos) — nunca sobre las 24 parejas de evaluación (D8).
+Resultado real: `dNegMin = 20`, así que `T = 10` (rama fija, no `dNegMin − 2`). Recall positivo a
+`T`: **41/48 = 85,4%**. Procedencia: decisión 097.
+
+**Resultado real de la ablación** (ejecución real del CLI, corpus de 24 pares, umbrales por
+defecto de cada estrategia): la señal de imagen **no cambia ninguna banda** — `bandChanges` vacío
+para ambas estrategias, y las matrices de confusión con y sin imagen son idénticas:
+
+| Estrategia | TP | FP | FN (incl. indecisos) | TN (incl. indecisos) |
+|---|---|---|---|---|
+| rule-based (con y sin imagen) | 8 | 1 | 2 | 13 |
+| Fellegi-Sunter (con y sin imagen) | 4 | 1 | 6 | 13 |
+
+La aportación de la imagen SÍ es visible en la rejilla de sweep, a umbrales más bajos que el
+umbral por defecto de cada estrategia. Con `high=0.75`: rule-based pasa de P/R/F1
+0,8889/0,8000/0,8421 a 0,9000/0,9000/0,9000; Fellegi-Sunter pasa de 0,7778/0,7000/0,7368 a
+0,8333/1,0000/0,9091 — pero ninguno de los dos cambios cruza el umbral por defecto de su propia
+estrategia.
+
+Seis duplicados reales obtuvieron coincidencia fuerte de imagen (`tp-1` d=0, `tp-3` d=6, `tp-4`
+d=4, `tp-5` d=0, `md-1` d=6, `md-2` d=0). Dos duplicados reales NO la obtuvieron pese a serlo
+(`tp-2` d=16, `tp-6` d=24: combinaciones de transformación con distancia perceptual mayor).
+`md-4` sigue `undecided` bajo rule-based+imagen: distancia real 18, por encima de `T=10`, ni
+siquiera llega a coincidencia fuerte. El caso difícil a propósito `hn-1`/`hn-7` (misma fachada,
+`portalA` vs `portalB`, decisión 098) midió distancia real **14**, justo por encima de `T=10` —
+el margen de recorte del 5% del pipeline no cancela del todo la franja de chrome de portal
+simulada del 8%: un caso límite real, cerca de convertirse en coincidencia fuerte pero sin
+llegar. Ningún `hn-*` se convirtió en falso positivo nuevo. No se ajustó ningún peso, umbral ni la
+asignación del manifiesto para cambiar este resultado.
+
+**Advertencia de evidencia.** Toda la evidencia de imagen de este paso es **simulada**:
+transformaciones controladas (reescalado, recompresión, recorte, superposición de logo, chrome de
+portal sintético) sobre 18 fotos CC0/dominio público, **no** miniaturas reales de portales
+inmobiliarios. El CLI declara este caveat en los tres formatos exportados (Markdown, JSON, CSV).
+
+**Verificación final (Fase 6).** `pnpm test`/`pnpm typecheck`/`pnpm lint`/`pnpm build` en la raíz,
+con el contenedor de PostgreSQL levantado y sano: **5/5 workspaces en verde en las cuatro
+puertas** — `test` 1404 tests en 157 ficheros (`core` 615/615, `db` 123/123, `ingestion` 532/532,
+`web` 134/134), `typecheck` y `lint` 5/5, `build` 5/5 incluido `next build` (Turbopack) de
+`apps/web`. Sin contenedor levantado, los paquetes respaldados por PostgreSQL (`packages/db`,
+partes de `apps/web`) fallarían con `ECONNREFUSED 127.0.0.1:5432` — bloqueo de entorno ya
+documentado en pasos anteriores (1.2, 1.3, 1.7, 1.11), no una condición de este paso. El CLI se
+ejecutó realmente en los tres
+formatos (`--format markdown|json|csv`), exit 0, cero llamadas de red/base de datos en las tres.
+`apps/ingestion/src/dedup/reprocess-core.ts` y `packages/core/src/strategies/rule-based/
+classify.ts` (ambos de solo lectura para este cambio) confirmados con cero diferencias frente al
+commit previo al cambio (`aea93fe`). `sharp` es la única dependencia de producción nueva
+(`apps/ingestion/package.json`, fijada `0.34.2`). Ningún módulo nuevo de `image-hash`/`image`/
+`evaluation`/`strategy-comparison` importa `fetch`/`http`/`pg`/`drizzle-orm`/`@buscahogar/db`.
 
 ---
 
@@ -1798,3 +1868,7 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-24 | 1.15 | El orden de comprobación del registro de cobertura (tope global de solo lectura ANTES que el consumo por cliente) difiere del orden de la redacción original de la propuesta (que comprobaba primero el límite por cliente) | El diseño (#262, decisión 079), razonando desde el propio código de `coverage.ts`, invirtió el orden para no gastar nunca la cuota de un cliente en un registro que de todos modos iba a rechazarse por el tope global — obligó a una re-ejecución correctiva de `sdd-spec` (revisión 2). Ver decisión 079 y `docs/AI-NOTES.md`. |
 | 2026-09-24 | 1.15 | Se añadió al alcance el cableado de las variables de entorno nuevas de `apps/web` en `docker-compose.yml` (`WEB_COVERAGE_DATABASE_URL`, `NEW_ZONES_DAILY_CAP` y las del limitador) | El prompt del propio paso no lo pedía explícitamente, pero D5 del pre-proposal (obs #257) lo identificó como parte necesaria del cierre de seguridad: sin ese cableado, el servicio web en contenedor no podría usar ninguna de las credenciales/límites nuevos. |
 | 2026-09-24 | 1.15 | PR3 cerró en **1047 líneas cambiadas** (código 370: 334 inserciones/36 borrados; documentación obligatoria 677: `docs/AI-NOTES.md` 294, `docs/DECISIONS.md` 241, `docs/ROADMAP.md` 65, `docs/PROMPTS.md` 40, `docs/ARCHITECTURE.md` 22, `CLAUDE.md` 15) frente al presupuesto de sesión de 800 y a la previsión propia del diseño de ~300-400 | El código (370 líneas) cerró bien dentro de presupuesto; el exceso es enteramente documentación obligatoria por `CLAUDE.md` ("Registro obligatorio al terminar cada tarea"): once entradas nuevas de `docs/AI-NOTES.md` (un fallo intermedio real por entrada, de los tres PRs del paso completo) y once decisiones nuevas de `docs/DECISIONS.md` (074-084: 074-081 del diseño, 082 la purga programada D9, 083 el sobreconteo de cuota como fallo cerrado y 084 la corrección de `frame-ancestors`). No se recortó ninguna entrada para ajustar la cifra — mismo criterio que el resto del proyecto. Recomendado `size:exception` para esta PR3. |
+| 2026-09-25/28 | 2.3 | La integración en producción se aplaza deliberadamente: este paso queda evaluación-only, sin migración de esquema, sin ruta de descarga real y sin ningún cambio en `apps/ingestion/src/dedup/reprocess-core.ts` (D7, preproposal) | D7 fue una decisión de producto confirmada por el responsable del proyecto antes de la propuesta: medir la aportación de la imagen sobre el mismo conjunto etiquetado de 2.2 no requiere que la señal llegue a producción todavía, y añadirla habría exigido decisiones adicionales (descarga y almacenamiento de miniaturas reales, cuota) fuera del alcance de este paso. Queda como paso de ROADMAP futuro. |
+| 2026-09-25/28 | 2.3 | El requisito de determinismo del hash ("Reference platform is local Windows, no CI required" de la spec) se verificó solo en la máquina local del mantenedor, nunca contra un sistema de integración continua | Este repositorio no tiene ningún flujo de trabajo de CI (`.github/` no existe, mismo hueco ya registrado en el paso 1.13). El criterio "CI" de la propuesta original se reinterpretó, con acuerdo explícito reflejado en spec/design, como determinismo verificado en la plataforma de referencia real del proyecto — no como una promesa de reproducibilidad multiplataforma sin evidencia. |
+| 2026-09-25/28 | 2.3 | "El mismo conjunto etiquetado" (texto literal del prompt del paso) se satisface con imágenes SIMULADAS adjuntas a las mismas 24 parejas de 2.2, no con fotografías reales de esas parejas | El corpus de 24 parejas (packages/core/src/evaluation/dedup-corpus.ts, decisión 090) nunca tuvo imágenes — son `Listing` construidos a mano para el paso 1.9/2.2, sin miniatura real asociada. D2/D5 (preproposal) ya anticipaban esta limitación: transformaciones controladas de fotografías CC0 atadas a las MISMAS 24 parejas, no una fuente de imágenes nueva ni distinta. El caveat de evidencia simulada se declara en los tres formatos del CLI (decisión 099). |
+| 2026-09-25/28 | 2.3 | El paso se ejecutó en varios lotes de `sdd-apply` (núcleo puro → pipeline de ingesta → fixtures/calibración → ablación en el CLI → documentación), con una puerta de revisión fotográfica del responsable del proyecto entre el lote de núcleo/pipeline y el de fixtures | El pronóstico de `sdd-tasks` (~2100 líneas autoradas) superaba con holgura el presupuesto de sesión, y la propia tarea 3.1 (aportar o autorizar la descarga de las 18 fotos CC0) es una precondición exclusiva del mantenedor que ningún agente puede resolver por su cuenta — el mismo patrón de "precondición humana" ya visto en los pasos 1.13/1.5. `size:exception` aceptado explícitamente para la PR única resultante, con partición por commits (precedente: paso 2.2). |
