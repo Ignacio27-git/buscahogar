@@ -30,9 +30,17 @@ describe('runComparison — CLI DB-free, sin red ni .env (D6)', () => {
     expect(exitCode).toBe(0);
     expect(writes).toHaveLength(0);
     expect(logs).toHaveLength(1);
-    const parsed = JSON.parse(logs[0] ?? '') as { corpusSize: number; strategies: readonly unknown[] };
+    const parsed = JSON.parse(logs[0] ?? '') as { corpusSize: number; strategies: readonly { name: string }[] };
     expect(parsed.corpusSize).toBe(24);
-    expect(parsed.strategies).toHaveLength(2);
+    // ROADMAP 2.3 (Phase 4, spec "Four Evaluator Rows"): rule-based,
+    // rule-based+image, Fellegi-Sunter, Fellegi-Sunter+image, en ese orden.
+    expect(parsed.strategies).toHaveLength(4);
+    expect(parsed.strategies.map((s) => s.name)).toEqual([
+      'rule-based-structured',
+      'rule-based-structured+image-phash',
+      'probabilistic-fellegi-sunter',
+      'probabilistic-fellegi-sunter+image-phash',
+    ]);
   });
 
   it('exit 2 con un flag desconocido; ninguna salida de reporte', () => {
@@ -64,6 +72,9 @@ describe('runComparison — CLI DB-free, sin red ni .env (D6)', () => {
     expect(writes).toHaveLength(1);
     expect(writes[0]?.path).toBe('reporte.csv');
     expect(writes[0]?.text).toContain('strategy,strategy_version');
+    // ROADMAP 2.3 (Phase 4): las dos columnas nuevas llegan hasta el CSV real
+    // de la CLI, no solo a render.ts en aislamiento.
+    expect(writes[0]?.text).toContain(',evidence,image_caveat');
   });
 
   it('el propio módulo no importa @buscahogar/db ni nada de src/sources/** (D6: cero red, cero base de datos)', () => {
@@ -71,5 +82,20 @@ describe('runComparison — CLI DB-free, sin red ni .env (D6)', () => {
     expect(source).not.toMatch(/@buscahogar\/db/);
     expect(source).not.toMatch(/sources\//);
     expect(source).not.toMatch(/\bfetch\(/);
+  });
+
+  it('ROADMAP 2.3 (Phase 4): las filas con imagen llevan evidence=structured+simulated-image; las estructuradas evidence=structured', () => {
+    const { io, logs } = fakeIo();
+
+    runComparison(['--format', 'json'], io);
+
+    const parsed = JSON.parse(logs[0] ?? '') as {
+      strategies: readonly { name: string; evidence: string }[];
+    };
+    const byName = new Map(parsed.strategies.map((s) => [s.name, s.evidence]));
+    expect(byName.get('rule-based-structured')).toBe('structured');
+    expect(byName.get('rule-based-structured+image-phash')).toBe('structured+simulated-image');
+    expect(byName.get('probabilistic-fellegi-sunter')).toBe('structured');
+    expect(byName.get('probabilistic-fellegi-sunter+image-phash')).toBe('structured+simulated-image');
   });
 });

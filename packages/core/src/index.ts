@@ -113,6 +113,16 @@ export {
   PROBABILISTIC_EVALUATOR,
   evaluateStrategy,
 } from './evaluation/evaluate.js';
+// Corpus con referencias de imagen + evaluadores decorados (ROADMAP 2.3,
+// Phase 4): `withCorpusImages`/`IMAGE_REFS` adjuntan las refs no-fetchables
+// `fixture-image:eval/<id>-<a|b>` sin mutar `dedupCorpus`; `createImageEvaluators`
+// construye los dos StrategyEvaluator RB+image/FS+image que la CLI de
+// comparación (apps/ingestion) usa junto a RULE_BASED_EVALUATOR/
+// PROBABILISTIC_EVALUATOR para las 4 filas del reporte.
+export type { ImageRefPair } from './evaluation/dedup-corpus-images.js';
+export { IMAGE_REFS, withCorpusImages } from './evaluation/dedup-corpus-images.js';
+export type { ImageEvaluators, ImageStrategyEvaluator } from './evaluation/image-evaluators.js';
+export { createImageEvaluators } from './evaluation/image-evaluators.js';
 
 // Señal auxiliar de imagen (ROADMAP 2.3, decisión 093/094): comparador de
 // hashes perceptuales ya calculados, positivo-solo, y el decorador que la
@@ -135,6 +145,13 @@ export type { ImageHashLookup } from './strategies/image/lookup.js';
 export { createImageHashLookup } from './strategies/image/lookup.js';
 export { withImageSignal } from './strategies/image/with-image-signal.js';
 export { classifyRuleBasedWithImage } from './strategies/image/classify.js';
+// Umbral calibrado (ROADMAP 2.3, Phase 3, decisión 097): T=10, derivado
+// SOLO del set de calibración (spec "Threshold T Traceable Only to the
+// Calibration Set") — nunca ajustado sobre las 24 parejas del corpus de
+// evaluación. Diferido de Phase 3 a Phase 4 (tarea 4.12): antes de que
+// existiera `createImageEvaluators`, ningún consumidor fuera del paquete lo
+// necesitaba.
+export { IMAGE_HAMMING_THRESHOLD } from './strategies/image/parameters.js';
 
 // Limitación de tasa (ROADMAP 1.15, security-hardening): política pura,
 // reutilizada por el limitador en memoria de `apps/web/src/proxy.ts` (D1b,

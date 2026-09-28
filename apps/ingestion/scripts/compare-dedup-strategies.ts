@@ -4,19 +4,37 @@
 // conexión a base de datos ni lee ninguna variable de entorno: el corpus
 // vive en memoria (`@buscahogar/core`), así que `runComparison` es
 // síncrona — cero peticiones de red, cero cuota, ejecutable sin `.env`
-// (spec "No Database, Network, or Environment Dependency").
+// (spec "No Database, Network, or Environment Dependency"). La ÚNICA I/O es
+// la lectura local de `hashes.evaluation.json` (ROADMAP 2.3, Phase 4) —
+// fichero committeado, sin red ni variables de entorno de por medio.
+//
+// ROADMAP 2.3 (Phase 4, spec "Four Evaluator Rows"): 4 filas, en este orden
+// — rule-based estructurado-solo, rule-based+image, Fellegi-Sunter
+// estructurado-solo, Fellegi-Sunter+image. Las dos filas estructuradas-solo
+// puntúan SIEMPRE sobre `dedupCorpus` sin tocar (nunca `withCorpusImages`),
+// exactamente como en ROADMAP 2.2 — es la única forma de garantizar
+// "byte-idéntico a 2.2" sin depender de que la señal de imagen sea neutra
+// por construcción.
 //
 // Sin test dedicado para `main()`, mismo precedente que calibrate-blocking.ts
 // y scripts/sweep-zone.ts: es el shell de orquestación de módulos que YA
 // están testeados por separado (options, grid, report, render — cada uno
 // con su propia suite). `runComparison` SÍ está cubierta directamente
 // (strategy-comparison-cli.test.ts) con un `CliIo` falso.
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { DEFAULT_EVALUATORS, dedupCorpus, evaluateStrategy } from '@buscahogar/core';
+import {
+  createImageEvaluators,
+  dedupCorpus,
+  evaluateStrategy,
+  PROBABILISTIC_EVALUATOR,
+  RULE_BASED_EVALUATOR,
+  withCorpusImages,
+} from '@buscahogar/core';
 import type { StrategyEvaluation } from '@buscahogar/core';
 
+import { loadImageHashLookup } from '../src/image-hash/loader.js';
 import { expandBandGrid } from '../src/strategy-comparison/grid.js';
 import { parseComparisonArgs } from '../src/strategy-comparison/options.js';
 import { buildComparisonReport } from '../src/strategy-comparison/report.js';
@@ -26,6 +44,10 @@ export interface CliIo {
   log(line: string): void;
   writeFile(path: string, text: string): void;
 }
+
+const HASHES_EVALUATION_PATH = fileURLToPath(
+  new URL('../test/fixtures/images/hashes.evaluation.json', import.meta.url)
+);
 
 export function runComparison(argv: readonly string[], io: CliIo): number {
   let grid: ReturnType<typeof expandBandGrid>;
@@ -41,9 +63,16 @@ export function runComparison(argv: readonly string[], io: CliIo): number {
     return 2;
   }
 
-  const strategies: StrategyEvaluation[] = DEFAULT_EVALUATORS.map((evaluator) =>
-    evaluateStrategy(dedupCorpus, evaluator, grid.thresholds)
-  );
+  const lookup = loadImageHashLookup(JSON.parse(readFileSync(HASHES_EVALUATION_PATH, 'utf8')));
+  const { ruleBasedWithImage, probabilisticWithImage } = createImageEvaluators(lookup);
+  const corpusWithImages = withCorpusImages(dedupCorpus);
+
+  const strategies: StrategyEvaluation[] = [
+    evaluateStrategy(dedupCorpus, RULE_BASED_EVALUATOR, grid.thresholds),
+    evaluateStrategy(corpusWithImages, ruleBasedWithImage, grid.thresholds),
+    evaluateStrategy(dedupCorpus, PROBABILISTIC_EVALUATOR, grid.thresholds),
+    evaluateStrategy(corpusWithImages, probabilisticWithImage, grid.thresholds),
+  ];
   const report = buildComparisonReport(grid, strategies);
 
   const rendered = format === 'markdown' ? renderMarkdown(report) : format === 'json' ? renderJson(report) : renderCsv(report);

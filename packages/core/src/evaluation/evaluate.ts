@@ -6,19 +6,30 @@
 // invocar `strategy.score`, que es el cálculo caro.
 import type { DedupStrategy } from '../contracts/dedup-strategy.js';
 import type { BandThresholds } from '../schemas/band-thresholds.schema.js';
+import type { Listing } from '../schemas/listing.schema.js';
 import { classifyProbabilistic, FS_BAND_THRESHOLDS } from '../strategies/probabilistic/classify.js';
 import { probabilisticDedupStrategy } from '../strategies/probabilistic/strategy.js';
 import { classify, type SimilarityBand } from '../strategies/rule-based/classify.js';
 import { RULE_BASED_BAND_THRESHOLDS } from '../strategies/rule-based/weights.js';
 import { ruleBasedDedupStrategy } from '../strategies/rule-based/strategy.js';
+import type { ImageComparison } from '../strategies/image/compare.js';
 import type { SimilarityResult } from '../types/similarity.js';
 import type { CorpusEntry, GroundTruth } from './dedup-corpus.js';
 import { computeMetrics, type BinaryMetrics, type LabeledBand } from './metrics.js';
 
+// `imageEvidence`/`imageThreshold` (ROADMAP 2.3, Phase 4): opcionales — un
+// StrategyEvaluator estructurado-solo (RULE_BASED_EVALUATOR/
+// PROBABILISTIC_EVALUATOR) nunca los aporta, así que su salida sigue siendo
+// byte-idéntica a ROADMAP 2.2 (spec "Structured-Only Rows Reproduce 2.2
+// Metrics Exactly"): `evaluateStrategy` solo añade `.image` a `PairEvaluation`
+// /`StrategyEvaluation` cuando el evaluador SÍ los aporta —
+// `createImageEvaluators` (image-evaluators.ts) es quien los construye.
 export interface StrategyEvaluator {
   readonly strategy: DedupStrategy;
   readonly defaultThresholds: BandThresholds;
   readonly classify: (result: SimilarityResult, thresholds: BandThresholds) => SimilarityBand;
+  readonly imageEvidence?: (a: Listing, b: Listing) => ImageComparison;
+  readonly imageThreshold?: number;
 }
 
 export interface PairEvaluation {
@@ -27,6 +38,7 @@ export interface PairEvaluation {
   readonly expected: SimilarityBand;
   readonly score: number;
   readonly band: SimilarityBand;
+  readonly image?: ImageComparison;
 }
 
 export interface SweepPoint {
@@ -41,6 +53,7 @@ export interface StrategyEvaluation {
   readonly atDefault: BinaryMetrics;
   readonly pairs: readonly PairEvaluation[];
   readonly sweep: readonly SweepPoint[];
+  readonly image?: { readonly threshold: number };
 }
 
 export const RULE_BASED_EVALUATOR: StrategyEvaluator = {
@@ -86,6 +99,7 @@ export function evaluateStrategy(
     expected: entry.expected,
     score: result.score,
     band: evaluator.classify(result, evaluator.defaultThresholds),
+    ...(evaluator.imageEvidence === undefined ? {} : { image: evaluator.imageEvidence(entry.a, entry.b) }),
   }));
 
   const atDefault = computeMetrics(pairs.map((pair) => ({ id: pair.id, truth: pair.truth, band: pair.band })));
@@ -106,5 +120,6 @@ export function evaluateStrategy(
     atDefault,
     pairs,
     sweep,
+    ...(evaluator.imageThreshold === undefined ? {} : { image: { threshold: evaluator.imageThreshold } }),
   };
 }

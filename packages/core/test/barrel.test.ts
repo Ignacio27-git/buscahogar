@@ -176,6 +176,29 @@ describe('barril público de @buscahogar/core', () => {
     expect(typeof barrel.classifyRuleBasedWithImage).toBe('function');
   });
 
+  it('ROADMAP 2.3 (Phase 4): expone IMAGE_HAMMING_THRESHOLD, withCorpusImages/IMAGE_REFS y createImageEvaluators', () => {
+    expect(barrel.IMAGE_HAMMING_THRESHOLD).toBe(10);
+
+    expect(barrel.IMAGE_REFS['tp-1-mismo-anuncio-cerca']).toEqual({
+      a: 'fixture-image:eval/tp-1-mismo-anuncio-cerca-a',
+      b: 'fixture-image:eval/tp-1-mismo-anuncio-cerca-b',
+    });
+    expect(barrel.IMAGE_REFS['md-3-direccion-ausente-ambos-lados']?.b).toBeUndefined();
+
+    const withImages = barrel.withCorpusImages(barrel.dedupCorpus);
+    expect(withImages).toHaveLength(24);
+    expect(withImages[0]?.a.thumbnailUrl).toBe(barrel.IMAGE_REFS[withImages[0]?.id ?? '']?.a);
+    // withCorpusImages nunca muta el corpus original.
+    expect(barrel.dedupCorpus[0]?.a.thumbnailUrl).toBeUndefined();
+
+    const lookup = barrel.createImageHashLookup({});
+    const { ruleBasedWithImage, probabilisticWithImage } = barrel.createImageEvaluators(lookup);
+    expect(ruleBasedWithImage.classify).toBe(barrel.classifyRuleBasedWithImage);
+    expect(ruleBasedWithImage.imageThreshold).toBe(barrel.IMAGE_HAMMING_THRESHOLD);
+    expect(probabilisticWithImage.classify).toBe(barrel.classifyProbabilistic);
+    expect(probabilisticWithImage.imageThreshold).toBe(barrel.IMAGE_HAMMING_THRESHOLD);
+  });
+
   it('ROADMAP 2.3: los combinadores de imagen quedan internos, mismo criterio que WEIGHTS/PRIOR_LOG_ODDS', () => {
     // Deliberadamente NO exportados (index.ts, sección ROADMAP 2.3): los
     // combinadores concretos y sus pesos/m/u son internos a

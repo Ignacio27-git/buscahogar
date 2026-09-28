@@ -150,7 +150,11 @@ describe('reconciliación FN/TN expuesto vs recall/precisión visibles (correcci
       }[];
     };
 
-    expect(parsed.strategies).toHaveLength(2);
+    // ROADMAP 2.3 (Phase 4): la CLI ahora reporta 4 filas (spec "Four
+    // Evaluator Rows") — este test solo comprueba las dos estructuradas-solo
+    // por nombre (`EXPECTED_ROWS`, `.find`), así que crecer de 2 a 4 no
+    // afecta ninguna otra aserción de este fichero.
+    expect(parsed.strategies).toHaveLength(4);
 
     for (const expected of EXPECTED_ROWS) {
       const strategy = parsed.strategies.find((entry) => entry.name === expected.strategy);

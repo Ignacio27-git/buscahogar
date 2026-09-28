@@ -19,9 +19,9 @@
 // las cuales indecisas". No se toca metrics.ts/report.ts/evaluate.ts: P/R/F1
 // /undecided-rate/Wilson no cambian, solo lo que este render muestra bajo
 // FN/TN.
-import type { BandThresholds, BinaryMetrics, ConfusionCounts, Interval, StrategyEvaluation } from '@buscahogar/core';
+import type { BandThresholds, BinaryMetrics, ConfusionCounts, Interval, PairEvaluation, StrategyEvaluation } from '@buscahogar/core';
 
-import type { ComparisonReport } from './report.js';
+import type { BandChange, ComparisonReport } from './report.js';
 
 interface ReconciledCounts {
   readonly truePositive: number;
@@ -79,17 +79,20 @@ interface ReportRow {
   readonly isDefault: boolean;
   readonly thresholds: BandThresholds;
   readonly metrics: BinaryMetrics;
+  readonly evidence: ImageEvidence;
 }
 
 function buildRows(report: ComparisonReport): readonly ReportRow[] {
   const rows: ReportRow[] = [];
   for (const strategy of report.strategies) {
+    const evidence: ImageEvidence = strategy.image === undefined ? 'structured' : 'structured+simulated-image';
     rows.push({
       strategyName: strategy.name,
       strategyVersion: strategy.version,
       isDefault: true,
       thresholds: strategy.defaultThresholds,
       metrics: strategy.atDefault,
+      evidence,
     });
     for (const point of strategy.sweep) {
       rows.push({
@@ -98,6 +101,7 @@ function buildRows(report: ComparisonReport): readonly ReportRow[] {
         isDefault: false,
         thresholds: point.thresholds,
         metrics: point.metrics,
+        evidence,
       });
     }
   }
@@ -121,25 +125,41 @@ interface ReconciledSweepPoint {
   readonly metrics: ReconciledMetrics;
 }
 
+// ROADMAP 2.3 (Phase 4, spec "Small-Sample Caveat" modificado) — `evidence`
+// distingue una fila estructurada-solo de una fila con señal de imagen
+// (`strategy.image !== undefined`, evaluate.ts); `imageCaveat` SOLO aparece
+// en las filas con imagen ("image rows only", design decisión 099) — nunca
+// como `undefined` explícito, así que `JSON.stringify` lo omite del todo en
+// vez de escribir `"imageCaveat":null` en las filas estructuradas.
+type ImageEvidence = 'structured' | 'structured+simulated-image';
+
 interface ReconciledStrategyEvaluation extends Omit<StrategyEvaluation, 'atDefault' | 'sweep'> {
   readonly atDefault: ReconciledMetrics;
   readonly sweep: readonly ReconciledSweepPoint[];
+  readonly evidence: ImageEvidence;
+  readonly imageCaveat?: string;
 }
 
 function reconcileMetrics(metrics: BinaryMetrics): ReconciledMetrics {
   return { ...metrics, counts: reconcileCounts(metrics.counts) };
 }
 
-function reconcileStrategy(strategy: StrategyEvaluation): ReconciledStrategyEvaluation {
+function reconcileStrategy(strategy: StrategyEvaluation, imageCaveat: string): ReconciledStrategyEvaluation {
+  const hasImage = strategy.image !== undefined;
   return {
     ...strategy,
     atDefault: reconcileMetrics(strategy.atDefault),
     sweep: strategy.sweep.map((point) => ({ ...point, metrics: reconcileMetrics(point.metrics) })),
+    evidence: hasImage ? 'structured+simulated-image' : 'structured',
+    ...(hasImage ? { imageCaveat } : {}),
   };
 }
 
 export function renderJson(report: ComparisonReport): string {
-  const rendered = { ...report, strategies: report.strategies.map(reconcileStrategy) };
+  const rendered = {
+    ...report,
+    strategies: report.strategies.map((strategy) => reconcileStrategy(strategy, report.imageCaveat)),
+  };
   return JSON.stringify(rendered, null, 2);
 }
 
@@ -174,6 +194,11 @@ export const CSV_COLUMNS = [
   'undecided_rate_high',
   'corpus_size',
   'caveat',
+  // ROADMAP 2.3 (Phase 4, spec "CSV appends evidence and image_caveat after
+  // caveat"): las dos columnas van SIEMPRE al final, después de `caveat` —
+  // ninguna columna de 2.2 cambia de posición.
+  'evidence',
+  'image_caveat',
 ] as const;
 
 export function renderCsv(report: ComparisonReport): string {
@@ -205,6 +230,8 @@ export function renderCsv(report: ComparisonReport): string {
       csvNumber(undecidedRate.wilson95?.high ?? null),
       report.corpusSize.toString(),
       report.caveat,
+      row.evidence,
+      row.evidence === 'structured' ? '' : report.imageCaveat,
     ];
     return fields.map(csvField).join(',');
   });
@@ -248,6 +275,38 @@ function renderSweepTable(strategy: StrategyEvaluation): string {
   return [header, ...rows].join('\n');
 }
 
+// ROADMAP 2.3 (Phase 4, design decisión 099) — desglose por pareja de una
+// fila CON señal de imagen: id/truth/band (ya conocidos de ROADMAP 2.2) más
+// distance/level/reason del `ImageComparison` de cada `PairEvaluation.image`
+// (spec "Image Signal Always Recorded in Breakdown": siempre presente,
+// incluso `neutral`). `distance: null` (missing/unreadable) se muestra como
+// "n/a", igual que el resto de números ausentes de este render (mdNumber).
+function renderImagePairDetail(pair: PairEvaluation): string {
+  const image = pair.image;
+  const distance = image === undefined || image.distance === null ? 'n/a' : image.distance.toString();
+  const level = image?.level ?? 'n/a';
+  const reason = image?.reason ?? 'n/a';
+  return `| ${pair.id} | ${pair.truth} | ${pair.band} | ${distance} | ${level} | ${reason} |`;
+}
+
+function renderImagePairsTable(strategy: StrategyEvaluation): string {
+  const header = '| id | truth | band | distance | level | reason |\n|---|---|---|---|---|---|';
+  return [header, ...strategy.pairs.map(renderImagePairDetail)].join('\n');
+}
+
+function renderBandChangesTable(changes: readonly BandChange[]): string {
+  if (changes.length === 0) {
+    return 'Ningún par cambia de banda al añadir la señal de imagen respecto a su baseline estructurada-solo.';
+  }
+  const header = '| strategy | id | truth | from | to | distance | reason |\n|---|---|---|---|---|---|---|';
+  const rows = changes.map(
+    (change) =>
+      `| ${change.strategy} | ${change.id} | ${change.truth} | ${change.from} | ${change.to} | ` +
+      `${change.distance === null ? 'n/a' : change.distance.toString()} | ${change.reason} |`
+  );
+  return [header, ...rows].join('\n');
+}
+
 export function renderMarkdown(report: ComparisonReport): string {
   const sections: string[] = [
     '# Comparación de estrategias de deduplicación',
@@ -260,10 +319,15 @@ export function renderMarkdown(report: ComparisonReport): string {
   ];
 
   for (const strategy of report.strategies) {
+    const hasImage = strategy.image !== undefined;
+    sections.push('', `## ${strategy.name} (v${strategy.version})`, '');
+    // spec "Simulated-image caveat present on image rows" — SOLO en la
+    // sección de una fila con señal de imagen, nunca en una estructurada-solo
+    // (esa debe seguir leyéndose exactamente como en ROADMAP 2.2).
+    if (hasImage) {
+      sections.push(report.imageCaveat, '');
+    }
     sections.push(
-      '',
-      `## ${strategy.name} (v${strategy.version})`,
-      '',
       `### Umbral por defecto (high=${formatNumber(strategy.defaultThresholds.high)}, low=${formatNumber(strategy.defaultThresholds.low)})`,
       '',
       renderMetricsTable(strategy.atDefault),
@@ -272,7 +336,17 @@ export function renderMarkdown(report: ComparisonReport): string {
       '',
       renderSweepTable(strategy)
     );
+    if (hasImage) {
+      sections.push('', '### Detalle por pareja (señal de imagen)', '', renderImagePairsTable(strategy));
+    }
   }
+
+  sections.push(
+    '',
+    '## Cambios de banda por señal de imagen',
+    '',
+    renderBandChangesTable(report.bandChanges)
+  );
 
   return sections.join('\n');
 }

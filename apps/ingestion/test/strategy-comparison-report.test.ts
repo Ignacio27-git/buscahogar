@@ -140,6 +140,118 @@ describe('caveat presente en los tres formatos (spec "Caveat present in every fo
   });
 });
 
+const SAMPLE_IMAGE_STRATEGY: StrategyEvaluation = {
+  name: 'sample-strategy+image-phash',
+  version: '9.9.9+phash-t10',
+  defaultThresholds: { high: 0.8, low: 0.4 },
+  atDefault: SAMPLE_METRICS,
+  pairs: [
+    {
+      id: 'sample-pair',
+      truth: 'duplicate',
+      expected: 'accept',
+      score: 0.9,
+      band: 'accept',
+      image: { level: 'strong', reason: 'match', distance: 4, threshold: 10 },
+    },
+  ],
+  sweep: [SAMPLE_SWEEP_POINT],
+  image: { threshold: 10 },
+};
+
+describe('evidencia de imagen (ROADMAP 2.3, spec "Small-Sample Caveat" modificado): evidence/image_caveat por fila, imageCaveat en la raíz JSON', () => {
+  const report = buildComparisonReport(SAMPLE_GRID, [SAMPLE_STRATEGY, SAMPLE_IMAGE_STRATEGY]);
+
+  it('CSV: header añade evidence e image_caveat justo después de caveat, sin mover ninguna columna previa', () => {
+    const csv = renderCsv(report);
+    const rows = parseCsv(csv);
+    const header = rows[0];
+    expect(header).toBeDefined();
+    if (header === undefined) return;
+
+    const caveatIndex = header.indexOf('caveat');
+    expect(header[caveatIndex + 1]).toBe('evidence');
+    expect(header[caveatIndex + 2]).toBe('image_caveat');
+    // Ninguna columna de 2.2 se ha movido: la lista completa hasta 'caveat'
+    // sigue siendo un prefijo exacto de CSV_COLUMNS.
+    expect(header.slice(0, caveatIndex + 1)).toEqual(CSV_COLUMNS.slice(0, CSV_COLUMNS.indexOf('caveat') + 1));
+
+    for (const row of rows) {
+      expect(row).toHaveLength(CSV_COLUMNS.length);
+    }
+  });
+
+  it('CSV: fila estructurada-solo tiene evidence=structured e image_caveat vacío', () => {
+    const csv = renderCsv(report);
+    const rows = parseCsv(csv);
+    const header = rows[0];
+    expect(header).toBeDefined();
+    if (header === undefined) return;
+
+    const structuredRow = rows.slice(1).find((row) => row[header.indexOf('strategy')] === 'sample-strategy');
+    expect(structuredRow).toBeDefined();
+    expect(structuredRow?.[header.indexOf('evidence')]).toBe('structured');
+    expect(structuredRow?.[header.indexOf('image_caveat')]).toBe('');
+  });
+
+  it('CSV: fila con señal de imagen tiene evidence=structured+simulated-image e image_caveat no vacío', () => {
+    const csv = renderCsv(report);
+    const rows = parseCsv(csv);
+    const header = rows[0];
+    expect(header).toBeDefined();
+    if (header === undefined) return;
+
+    const imageRow = rows.slice(1).find((row) => row[header.indexOf('strategy')] === 'sample-strategy+image-phash');
+    expect(imageRow).toBeDefined();
+    expect(imageRow?.[header.indexOf('evidence')]).toBe('structured+simulated-image');
+    expect(imageRow?.[header.indexOf('image_caveat')]).not.toBe('');
+    expect(imageRow?.[header.indexOf('image_caveat')]).toBe(report.imageCaveat);
+  });
+
+  it('JSON: imageCaveat en la raíz; por estrategia, evidence en ambas filas, imageCaveat SOLO en la fila con imagen', () => {
+    const parsed = JSON.parse(renderJson(report)) as {
+      imageCaveat: string;
+      strategies: readonly { name: string; evidence: string; imageCaveat?: string }[];
+    };
+
+    expect(parsed.imageCaveat.length).toBeGreaterThan(0);
+
+    const structured = parsed.strategies.find((s) => s.name === 'sample-strategy');
+    const withImage = parsed.strategies.find((s) => s.name === 'sample-strategy+image-phash');
+    expect(structured?.evidence).toBe('structured');
+    expect(structured?.imageCaveat).toBeUndefined();
+    expect(withImage?.evidence).toBe('structured+simulated-image');
+    expect(withImage?.imageCaveat).toBe(parsed.imageCaveat);
+  });
+
+  it('Markdown: la sección de la estrategia con imagen menciona el caveat de imagen simulada; la estructurada-solo no', () => {
+    const md = renderMarkdown(report);
+    const imageSectionStart = md.indexOf('## sample-strategy+image-phash');
+    const structuredSectionStart = md.indexOf('## sample-strategy (');
+    expect(imageSectionStart).toBeGreaterThan(-1);
+    expect(structuredSectionStart).toBeGreaterThan(-1);
+
+    const imageSectionEnd = md.indexOf('\n## ', imageSectionStart + 1);
+    const imageSection = md.slice(imageSectionStart, imageSectionEnd === -1 ? undefined : imageSectionEnd);
+    const structuredSection = md.slice(structuredSectionStart, imageSectionStart);
+
+    expect(imageSection).toContain(report.imageCaveat);
+    expect(structuredSection).not.toContain(report.imageCaveat);
+  });
+
+  it('Markdown: la sección con imagen incluye una tabla por pareja con id/truth/band/distance/level/reason', () => {
+    const md = renderMarkdown(report);
+    const imageSectionStart = md.indexOf('## sample-strategy+image-phash');
+    const imageSection = md.slice(imageSectionStart);
+
+    expect(imageSection).toContain('sample-pair');
+    expect(imageSection).toContain('duplicate');
+    expect(imageSection).toContain('accept');
+    expect(imageSection).toContain('strong');
+    expect(imageSection).toContain('match');
+  });
+});
+
 describe('formats agree — las tres representaciones describen las mismas métricas del mismo report (spec "Formats agree")', () => {
   it('la precisión de la fila is_default=true del CSV coincide, redondeada a 4 decimales, con atDefault.precision del JSON', () => {
     const report = buildComparisonReport(SAMPLE_GRID, [SAMPLE_STRATEGY]);

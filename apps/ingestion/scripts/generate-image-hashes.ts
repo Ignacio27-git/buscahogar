@@ -9,11 +9,18 @@
 // verifica en `image-hash-network.test.ts`, no aquí, pero el mismo criterio
 // gobierna este script).
 //
-// Tarea 3.7: esta invocación SOLO se ejecuta con `--set calibration` — D8
-// prohíbe generar `hashes.evaluation.json` antes de que el umbral T esté
-// calibrado. La rama `--set evaluation` está implementada (el script cubre
-// ambos modos, como pide el diseño), pero no se invoca hasta la tarea 4.1
-// (Phase 4, fuera de alcance de este lote).
+// Tarea 3.7 (Phase 3): solo se invocó con `--set calibration` — D8 prohíbe
+// generar `hashes.evaluation.json` antes de que el umbral T esté calibrado.
+// Tarea 4.1 (Phase 4): con T ya fijado (Phase 3, `IMAGE_HAMMING_THRESHOLD`),
+// `--set evaluation` se invocó para producir el `hashes.evaluation.json`
+// committeado que consume `compare-dedup-strategies.ts`.
+//
+// `diffHashTables`/`formatMismatchReport` (tarea 4.19/4.20): diagnóstico de
+// discrepancia expuesto para quien necesite comprobar que una regeneración
+// reproduce el fichero committeado (image-hash-determinism.test.ts) — NO se
+// invoca desde `runGenerateHashes`, que sigue siendo un generador puro
+// (siempre sobrescribe), no un comprobador; cambiar ese comportamiento
+// tocaría la ejecución real de la tarea 3.7 ya verificada y committeada.
 //
 // Sin test dedicado para `main()`/el shell de CLI, mismo precedente que
 // scripts/calibrate-blocking.ts y scripts/compare-dedup-strategies.ts: este
@@ -29,6 +36,7 @@ import sharp from 'sharp';
 import { z } from 'zod';
 
 import type { ImageHashEntry } from '@buscahogar/core';
+import { hammingDistance64 } from '@buscahogar/core';
 
 import { IMAGE_HASH_ALGORITHM, imageHashTableSchema } from '../src/image-hash/hash-table.schema.js';
 import type { ImageHashTable } from '../src/image-hash/hash-table.schema.js';
@@ -146,6 +154,66 @@ export async function buildHashTable(set: ImageHashSet): Promise<ImageHashTable>
 
 export function outputPathFor(set: ImageHashSet): string {
   return `${FIXTURES_DIR}hashes.${set}.json`;
+}
+
+// diffHashTables/formatMismatchReport (ROADMAP 2.3, tarea 4.19/4.20, spec
+// "Fixture hashes are reproducible"): diagnóstico para cuando una
+// regeneración NO reproduce el fichero committeado — recorre la UNIÓN de
+// refs de ambas tablas (una ref presente en un solo lado también es un
+// mismatch, `hash`/`kind` incluidos) y, cuando los dos lados tienen un hash
+// real (`kind: 'hashed'`), añade la distancia Hamming entre ambos para que
+// el mismatch se pueda juzgar por magnitud, no solo por "distinto/igual".
+export interface HashMismatch {
+  readonly ref: string;
+  readonly committedHash: string | undefined;
+  readonly regeneratedHash: string | undefined;
+  readonly distance: number | null;
+}
+
+function hashOf(entry: ImageHashEntry | undefined): string | undefined {
+  return entry?.kind === 'hashed' ? entry.hash : undefined;
+}
+
+export function diffHashTables(committed: ImageHashTable, regenerated: ImageHashTable): readonly HashMismatch[] {
+  const refs = new Set([...Object.keys(committed.entries), ...Object.keys(regenerated.entries)]);
+  const mismatches: HashMismatch[] = [];
+
+  for (const ref of refs) {
+    const committedEntry = committed.entries[ref];
+    const regeneratedEntry = regenerated.entries[ref];
+    if (JSON.stringify(committedEntry) === JSON.stringify(regeneratedEntry)) continue;
+
+    const committedHash = hashOf(committedEntry);
+    const regeneratedHash = hashOf(regeneratedEntry);
+    mismatches.push({
+      ref,
+      committedHash,
+      regeneratedHash,
+      distance: committedHash === undefined || regeneratedHash === undefined ? null : hammingDistance64(committedHash, regeneratedHash),
+    });
+  }
+
+  // Orden estable por ref — un diagnóstico que reordena entre ejecuciones es
+  // tan molesto de leer en revisión como uno que no reporta nada.
+  return mismatches.sort((a, b) => a.ref.localeCompare(b.ref));
+}
+
+export function formatMismatchReport(
+  committed: ImageHashTable,
+  regenerated: ImageHashTable,
+  mismatches: readonly HashMismatch[]
+): string {
+  const lines = [
+    `sharp: committed=${committed.sharp} regenerated=${regenerated.sharp}`,
+    `libvips: committed=${committed.libvips} regenerated=${regenerated.libvips}`,
+    `${String(mismatches.length)} discrepancia(s):`,
+    ...mismatches.map(
+      (m) =>
+        `  ${m.ref}: committed=${m.committedHash ?? 'n/a'} regenerated=${m.regeneratedHash ?? 'n/a'} ` +
+        `distance=${m.distance === null ? 'n/a' : String(m.distance)}`
+    ),
+  ];
+  return lines.join('\n');
 }
 
 export interface GenerateHashesIo {
