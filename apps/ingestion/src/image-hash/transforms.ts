@@ -18,6 +18,20 @@ export interface ImageTransform {
   readonly kind: ImageTransformKind;
 }
 
+// Lista canónica de los 7 kinds (ROADMAP 2.3, Phase 3: scripts/
+// generate-image-hashes.ts y src/image-hash/calibration.ts la reutilizan en
+// vez de repetir el literal — evita que las dos listas se desincronicen si
+// algún día se añade un octavo transform).
+export const IMAGE_TRANSFORM_KINDS: readonly ImageTransformKind[] = [
+  'rescale',
+  'jpeg',
+  'webp',
+  'crop',
+  'overlay',
+  'portalA',
+  'portalB',
+];
+
 const RESCALE_RATIO = 0.6;
 const RESCALE_JPEG_QUALITY = 85;
 const JPEG_QUALITY = 60;
