@@ -156,6 +156,15 @@ describeWithReadonlyDb(
       ).rejects.toMatchObject({ code: '42501' });
     });
 
+    // ROADMAP 2.4, decisión 101: la búsqueda pagina 25 filas y nunca se
+    // beneficia del JIT; con 1M de filas, una estimación de coste inflada lo
+    // activaba y la compilación (~550 ms) dominaba la consulta. El bootstrap
+    // de roles fija `jit = off` para este rol en `buscahogar`.
+    it('la sesión del rol de solo lectura tiene el JIT desactivado', async () => {
+      const { rows } = await readonlyPool.query<{ jit: string }>('show jit');
+      expect(rows[0]?.jit).toBe('off');
+    });
+
     it('DELETE en listings está RECHAZADO', async () => {
       const { listingId } = await seedListing(ownerDb);
 

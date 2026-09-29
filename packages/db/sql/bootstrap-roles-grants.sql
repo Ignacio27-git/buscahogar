@@ -65,3 +65,12 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE coverage_client_quota TO web_cover
 -- `daily_request_budget`) no sería legible por `web_readonly` hasta
 -- volver a ejecutar un GRANT explícito sobre ella.
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO web_readonly;
+
+-- JIT desactivado para las sesiones de la búsqueda (ROADMAP 2.4, decisión
+-- 101). Cada búsqueda devuelve una página de 25 filas y nunca se beneficia
+-- de compilar a código nativo; con 1M de filas, la estimación de coste de un
+-- filtro geográfico amplio superaba los umbrales de JIT y la compilación
+-- (~550 ms) dominaba una consulta de ~50 ms. Acotado al rol y a esta base de
+-- datos: la ingesta y la deduplicación (propietario) conservan el JIT.
+-- Idempotente: `ALTER ROLE ... SET` sustituye el valor previo.
+ALTER ROLE web_readonly IN DATABASE buscahogar SET jit = off;

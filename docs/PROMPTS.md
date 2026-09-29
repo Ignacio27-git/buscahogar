@@ -30,6 +30,39 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-29 — Indexación y medición de rendimiento (2.4), ciclo SDD completo en dos sesiones
+
+**Tipo de tarea:** consulta SQL (planes de ejecución e índices) + herramienta de medición + datos
+sintéticos
+**Forma de especificación:** ciclo SDD — explore → preproposal con siete decisiones del mantenedor
+(volumen, base separada, alcance, metodología, registro, ubicación, generación) → propuesta →
+`sdd-spec`/`sdd-design` en paralelo (una corrección del diseño tras validación) → `sdd-tasks` →
+`sdd-apply` en dos lotes → procedimiento de banco y commit C hechos por el orquestador
+**Resultado:** utilizable con retoques — los dos lotes de `sdd-apply` suspendieron la validación de
+contexto limpio y necesitaron una corrección cada uno; el objetivo final se alcanzó con un cambio
+que el prompt no pedía (JIT desactivado para el rol de la búsqueda)
+**Prompt:**
+
+> Genera un volumen de datos suficiente para que la indexación importe y mide el
+> rendimiento de las consultas de búsqueda:
+>
+> - Analiza los planes de ejecución de las consultas principales.
+> - Propón los índices necesarios y aplícalos.
+> - Vuelve a medir y dame los tiempos antes y después.
+>
+> Objetivo: búsqueda sobre datos indexados por debajo de 500 ms.
+
+**Observación:** el prompt deja abierto casi todo lo que decide si la medición vale como evidencia:
+cuánto volumen, dónde viven los datos sintéticos, qué cuenta como "consulta principal" y cómo se
+mide (una ejecución o percentiles, frío o caliente). Esas siete decisiones se resolvieron con el
+mantenedor antes de la propuesta. Lo más valioso salió de medir, no de planificar: con los índices,
+11 de 12 combinaciones cumplían, pero `geo-25km-price` empeoraba a 651 ms por la compilación JIT,
+algo que ningún artefacto previo había previsto. La frase "propón los índices necesarios" invitaba a
+un índice por filtro; medido, `(rooms)` y `(bathrooms)` empeoraban la consulta, y los índices útiles
+fueron los de orden. Los fallos del proceso (API de PostgreSQL 18 usada en 17, un informe antes/
+después sin CLI que lo produjera, un subagente que truncó la base de desarrollo) están en
+`docs/AI-NOTES.md`.
+
 ### 2026-09-25/28 — Comparación de imágenes (2.3), ciclo SDD completo con research y dos rondas de decisiones del mantenedor
 
 **Tipo de tarea:** dominio puro (comparador/decorador de señal, sin I/O) + pipeline de ingesta con

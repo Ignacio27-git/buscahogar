@@ -1750,7 +1750,7 @@ commit previo al cambio (`aea93fe`). `sharp` es la única dependencia de producc
 
 ---
 
-## [ ] 2.4 · Indexación y medición de rendimiento
+## [x] 2.4 · Indexación y medición de rendimiento
 
 ```text
 Genera un volumen de datos suficiente para que la indexación importe y mide el
@@ -1764,6 +1764,50 @@ Objetivo: búsqueda sobre datos indexados por debajo de 500 ms.
 ```
 
 **Notas:**
+
+**Resultado.** Las 12 combinaciones de la matriz de búsqueda cumplen el objetivo de 500 ms sobre
+1M de viviendas sintéticas; el peor p95 final es 199 ms (`all-filters`). Antes, `deep-filtered`
+estaba en 510 ms y otras cinco entre 230 y 425 ms. Tabla completa, método y planes en
+`docs/SEARCH-PERFORMANCE.md`.
+
+| id | p95 antes (ms) | p95 después (ms) |
+|---|---|---|
+| default | 357,3 | 3,4 |
+| op-type | 239,0 | 2,3 |
+| price-desc | 334,3 | 2,5 |
+| rooms-baths | 232,0 | 2,0 |
+| geo-25km-price | 422,8 | 29,0 |
+| deep-default | 395,7 | 27,9 |
+| deep-filtered | 510,1 | 27,7 |
+| all-filters | 206,5 | 199,2 |
+
+**Qué se construyó.** Tres commits sobre `feature-fase2` (decisiones 100 y 101):
+
+1. Generador de corpus sintético con SQL masivo (`gen-corpus`) y guardián que solo acepta bases de
+   datos cuyo nombre termina en `_bench` y distintas de la de desarrollo.
+2. CLI de medición (`bench-search`: frío, calentamiento, 20 en caliente, p50/p95, `EXPLAIN (ANALYZE,
+   BUFFERS, FORMAT JSON)` de la consulta de producción) y CLI de informe antes/después
+   (`bench-report`).
+3. Migración `0012` con cinco índices de orden sobre `properties`, test de que cada uno aparece en
+   el plan de su combinación, `jit = off` para `web_readonly` y este registro.
+
+**Índices.** Se probaron siete candidatos uno a uno sobre la base de banco. Se entregan cinco
+`(updated_at DESC NULLS LAST, id)`, `(operation, property_type, updated_at DESC NULLS LAST, id)`,
+`(operation, property_type, min_price_cents, id)`, `(min_price_cents DESC NULLS LAST, id)` y
+`(surface_m2, id)`. Se descartan `(rooms)` y `(bathrooms)`, que empeoraban `rooms-baths`. El
+problema no era filtrar sino ordenar 1M de filas para devolver 25.
+
+**JIT.** Con solo los índices, `geo-25km-price` empeoró a 651 ms: el planificador estima 100 filas
+dentro de un radio donde caen ~600.000, el coste estimado activa el JIT y la compilación consume
+557 ms. Ningún índice lo arregla; se desactivó el JIT solo para el rol de la búsqueda
+(decisión 101), y bajó a 29 ms.
+
+**Entorno.** PostgreSQL 17 + PostGIS 3.5 en Docker Desktop (WSL2), `shared_buffers` 128 MB. Corpus
+de 1.000.000 de viviendas y 1.350.358 anuncios (1,9 GB) generado en 228 s. Base de desarrollo
+intacta durante el procedimiento de banco (conteos iguales antes y después: 1/1/0/0).
+
+**Seguimientos.** Estimación de cardinalidad geográfica; índice de la decisión 051 redundante; base
+de test separada para `packages/db` (decisión 046). Los tres en "Pendientes de decidir".
 
 ---
 
@@ -1872,3 +1916,6 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-25/28 | 2.3 | El requisito de determinismo del hash ("Reference platform is local Windows, no CI required" de la spec) se verificó solo en la máquina local del mantenedor, nunca contra un sistema de integración continua | Este repositorio no tiene ningún flujo de trabajo de CI (`.github/` no existe, mismo hueco ya registrado en el paso 1.13). El criterio "CI" de la propuesta original se reinterpretó, con acuerdo explícito reflejado en spec/design, como determinismo verificado en la plataforma de referencia real del proyecto — no como una promesa de reproducibilidad multiplataforma sin evidencia. |
 | 2026-09-25/28 | 2.3 | "El mismo conjunto etiquetado" (texto literal del prompt del paso) se satisface con imágenes SIMULADAS adjuntas a las mismas 24 parejas de 2.2, no con fotografías reales de esas parejas | El corpus de 24 parejas (packages/core/src/evaluation/dedup-corpus.ts, decisión 090) nunca tuvo imágenes — son `Listing` construidos a mano para el paso 1.9/2.2, sin miniatura real asociada. D2/D5 (preproposal) ya anticipaban esta limitación: transformaciones controladas de fotografías CC0 atadas a las MISMAS 24 parejas, no una fuente de imágenes nueva ni distinta. El caveat de evidencia simulada se declara en los tres formatos del CLI (decisión 099). |
 | 2026-09-25/28 | 2.3 | El paso se ejecutó en varios lotes de `sdd-apply` (núcleo puro → pipeline de ingesta → fixtures/calibración → ablación en el CLI → documentación), con una puerta de revisión fotográfica del responsable del proyecto entre el lote de núcleo/pipeline y el de fixtures | El pronóstico de `sdd-tasks` (~2100 líneas autoradas) superaba con holgura el presupuesto de sesión, y la propia tarea 3.1 (aportar o autorizar la descarga de las 18 fotos CC0) es una precondición exclusiva del mantenedor que ningún agente puede resolver por su cuenta — el mismo patrón de "precondición humana" ya visto en los pasos 1.13/1.5. `size:exception` aceptado explícitamente para la PR única resultante, con partición por commits (precedente: paso 2.2). |
+| 2026-09-29 | 2.4 | Además de índices, el paso cambió la configuración del entorno: `jit = off` para `web_readonly` (decisión 101) | Con los índices, `geo-25km-price` seguía por encima del objetivo (p95 651 ms) por la compilación JIT, no por falta de índice. El responsable eligió corregirlo en el rol de la búsqueda en vez de dejarlo como fallo pendiente. |
+| 2026-09-29 | 2.4 | Tres commits (generador → CLI de medición → índices y documentación) con el procedimiento de banco entre el segundo y el tercero, y `size:exception` aceptado | ~1.400 líneas autoradas frente al presupuesto de 800; el tercer commit depende de medir primero. Los dos primeros commits suspendieron la validación de contexto limpio y se corrigieron una vez cada uno (coordenadas del generador; `pg_buffercache_evict()` sin argumentos, inexistente en PostgreSQL 17, y el informe antes/después sin CLI). |
+| 2026-09-29 | 2.4 | La sesión se partió en dos por la cuota de uso: los commits A y B en la primera, el procedimiento de banco, el commit C y el registro en la segunda | Parada limpia entre commits validados, sin trabajo a medias. |

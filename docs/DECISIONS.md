@@ -1786,7 +1786,7 @@ protege el histórico de precios a cambio de una miniatura potencialmente desact
 
 ## 060 — Índices por filtro de búsqueda re-aplazados; disparador de medición explícito
 
-**Estado:** aceptada
+**Estado:** cerrada — el disparador se cumplió en ROADMAP 2.4 (decisión 100)
 
 **Decisión.** `buildPropertySearchQuery` (paso 1.11, `packages/db/src/search.ts`) no añade
 ningún índice nuevo sobre `properties` para sus siete filtros (operación, tipo, precio,
@@ -3140,6 +3140,68 @@ el paso 1.9 (decisión 087) y 2.2 (decisión 087 también): nunca tunear hacia u
 
 ---
 
+## 100 — Cinco índices de orden sobre `properties`, elegidos por planes medidos sobre 1M de filas; cierra la 060
+
+**Estado:** aceptada
+
+**Decisión.** La migración `0012` añade cinco btree sobre `properties`, todos con la forma exacta
+del `ORDER BY` de `buildPropertySearchQuery` (`col dir NULLS LAST, id ASC`):
+`(updated_at DESC NULLS LAST, id)`, `(operation, property_type, updated_at DESC NULLS LAST, id)`,
+`(operation, property_type, min_price_cents, id)`, `(min_price_cents DESC NULLS LAST, id)` y
+`(surface_m2, id)`. Se descartan `(rooms)` y `(bathrooms)`. `search.ts` no cambia. La medición se
+hace con un banco propio en `apps/ingestion` (`gen-corpus`, `bench-search`, `bench-report`) contra
+bases de datos separadas cuyo nombre debe terminar en `_bench`: 1M de viviendas sintéticas
+generadas con SQL masivo, 20 ejecuciones en caliente por combinación (p50/p95 por rango más
+cercano), una en frío con `pg_buffercache_evict` y el plan en JSON. Resultado y evidencia en
+`docs/SEARCH-PERFORMANCE.md`.
+
+**Alternativa descartada.** Un índice simple por columna de filtro (lo que la 060 rechazó sin
+datos). Medido: `(rooms)` y `(bathrooms)` empeoran `rooms-baths` (232 → 325 y 290 ms), porque el
+planificador cambia un recorrido ya ordenado por un `Bitmap Heap Scan` más un `Sort`. Un btree
+ascendente sobre `updated_at` tampoco sirve: recorrido hacia atrás da `NULLS FIRST`, no el
+`DESC NULLS LAST` que emite la consulta, aunque la columna sea `NOT NULL`. Medir sobre la base de
+desarrollo: mezclaría datos sintéticos con el corpus real y la suite de `packages/db` la trunca
+(decisión 046).
+
+**Motivo.** Las combinaciones lentas lo eran por ordenar 1M de filas para devolver 25
+(`Seq Scan` + `Sort`), no por filtrar. Un índice que ya da el orden deja que el `Limit` pare en la
+fila 25: p95 de 357 → 3 ms en el orden por defecto y de 510 → 28 ms en la página 100 con filtros.
+Cada índice entregado aparece por `Index Name` en el plan de al menos una combinación, comprobado
+por test (`apps/ingestion/test/db/search-bench.db.test.ts`).
+
+**Consecuencia.** ~230 MB de índices por millón de viviendas y cinco índices más que mantener al
+consolidar. `properties_operation_property_type_idx` (decisión 051) queda redundante, porque C2 y C3
+empiezan por las mismas columnas; se mantiene y queda como seguimiento. La 060 queda cerrada.
+
+---
+
+## 101 — JIT desactivado para el rol de la búsqueda
+
+**Estado:** aceptada
+
+**Decisión.** `packages/db/sql/bootstrap-roles-grants.sql` añade
+`ALTER ROLE web_readonly IN DATABASE buscahogar SET jit = off`. Solo afecta a las sesiones de
+`apps/web` contra `buscahogar`; la ingesta y la deduplicación, que conectan como propietario,
+conservan el JIT.
+
+**Alternativa descartada.** Documentar la combinación `geo-25km-price` como fallo pendiente: con
+los índices de la 100 su p95 era de 651 ms, por encima del objetivo, y ningún índice lo arregla.
+Subir `jit_above_cost` en todo el servidor: arregla el caso, pero también quita el JIT a las
+consultas largas de la ingesta, que sí pueden aprovecharlo.
+
+**Motivo.** El planificador estima 100 filas dentro de un radio de 25 km donde caen ~600.000, el
+coste estimado sube a 1,37M y activa el JIT con inlining y optimización. `EXPLAIN` mide 557 ms de
+compilación para ~50 ms de trabajo real. Con el JIT desactivado, `geo-25km-price` baja de 435 a
+52 ms (p50) y el p95 final queda en 29 ms. Una búsqueda paginada de 25 filas nunca compensa
+compilar código nativo.
+
+**Consecuencia.** Es configuración del entorno, no esquema: vive en el script de bootstrap de
+roles, que se vuelve a ejecutar tras recrear la base de datos (decisión 069). Test en
+`apps/web/test/db/readonly-role-privileges.test.ts`. La mala estimación geográfica sigue ahí y
+puede afectar a otras decisiones del planificador; queda como seguimiento.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
@@ -3155,3 +3217,12 @@ el paso 1.9 (decisión 087) y 2.2 (decisión 087 también): nunca tunear hacia u
   la base de datos apuntada por `DATABASE_URL`, que en desarrollo es la misma que contiene
   datos reales ingeridos. Requiere una segunda `DATABASE_URL` de test o un guardián que
   rechace truncar una base de datos que no sea la designada.
+  El paso 2.4 volvió a toparse con ello (ver `docs/AI-NOTES.md`); su banco ya usa bases
+  separadas con el guardián de nombre `_bench`, que podría reutilizarse aquí.
+- **Estimación de cardinalidad geográfica** (decisión 101): el planificador estima 100 filas
+  dentro de un radio de 25 km donde caen ~600.000. Revisar las estadísticas de
+  `location_geography` antes de confiar en otras decisiones del planificador sobre filtros
+  geográficos.
+- **Índice redundante** `properties_operation_property_type_idx` (decisiones 051 y 100): los dos
+  índices compuestos nuevos empiezan por las mismas columnas. Eliminarlo tras comprobar que
+  ningún plan lo prefiere.

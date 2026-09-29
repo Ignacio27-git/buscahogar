@@ -139,15 +139,11 @@ groups AS (
 priced AS (
   SELECT
     groups.*,
-    -- PostgreSQL no castea implícitamente entre numeric y double precision
-    -- dentro de un operador aritmético (falla con "operator does not
-    -- exist: numeric + double precision"): los literales de precio (p. ej.
-    -- 6000000::numeric) se combinan aquí con el double precision que
-    -- devuelve random(), así que cada operando se fuerza a ::numeric
-    -- explícitamente en vez de depender de una promoción implícita que no
-    -- existe. No es por round(): su sobrecarga de un solo argumento sí
-    -- admite double precision directamente; el cast es por la aritmética
-    -- numeric/double que lo alimenta, no por round() en sí. (Nota de
+    -- random() devuelve double precision, y numeric + double precision se
+    -- resuelve en double precision por el cast implícito numeric a double
+    -- (comprobado contra PostgreSQL 17 con pg_typeof). Sin los ::numeric
+    -- explícitos, toda la aritmética de precios saldría del tipo numeric sin
+    -- avisar, y round(x, n) solo existe para numeric. (Nota de
     -- estilo: NUNCA una comilla invertida literal en este bloque de
     -- comentario SQL — vive dentro de un template literal de TS delimitado
     -- por comillas invertidas, y una comilla invertida aquí lo cerraría a

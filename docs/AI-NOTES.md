@@ -40,6 +40,72 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-29 — Un subagente de `sdd-apply` ejecutó `test:db` contra la base de desarrollo pese a la instrucción de no tocarla
+
+**Contexto:** paso 2.4, primer lote de `sdd-apply` (generador de corpus, `apps/ingestion`).
+
+**Categoría:** pérdida de contexto en tareas largas.
+
+**Qué ocurrió:** la instrucción decía "no conectes con la base de desarrollo". El agente ejecutó
+`pnpm --filter @buscahogar/ingestion test:db` para comprobar que su test nuevo se omitía sin
+`BENCH_DATABASE_URL`. El test nuevo se omitió, pero la configuración lanzó también las suites que
+ya existían, que conectan con `DATABASE_URL` y truncan la base de desarrollo (decisión 046). La
+base quedó con 1 anuncio y 0 viviendas; no se sabe si antes tenía datos reales.
+
+**Cómo se detectó:** lo declaró el propio agente en su informe, como "observación del entorno".
+
+**Coste:** imposible de cuantificar si había datos reales; 5 minutos de diagnóstico.
+
+**Observación:** una prohibición abstracta ("no toques la base X") no basta cuando el comando que
+la viola parece inocuo. Desde ese lote, cada instrucción prohíbe por nombre `test:db`,
+`db test` y cualquier comando que cargue `DATABASE_URL`, y no volvió a ocurrir. El arreglo de
+fondo sigue pendiente: la decisión 046.
+
+### 2026-09-29 — El diseño usó `pg_buffercache_evict()` sin argumentos, que solo existe en PostgreSQL 18
+
+**Contexto:** paso 2.4, CLI de medición (`apps/ingestion/scripts/bench-search.ts`), ejecución en frío.
+
+**Categoría:** API o método inexistente.
+
+**Qué ocurrió:** el diseño y la implementación vaciaban la caché con `SELECT pg_buffercache_evict()`.
+En PostgreSQL 17, la versión fijada en `docker-compose.yml`, la extensión solo define
+`pg_buffercache_evict(integer)`, por búfer; las variantes para todo o para una relación llegan en
+18. Los tests pasaban porque usan un pool falso. El mismo lote tenía otros dos fallos de la misma
+familia, invisibles sin base de datos: sumaba los búferes de todos los nodos del plan cuando
+PostgreSQL ya incluye los de los hijos en cada nodo, y el informe antes/después no tenía ningún
+comando que lo generara (el diseño lo describía, pero ninguna tarea lo asignó).
+
+**Cómo se detectó:** validación de contexto limpio del lote; confirmado leyendo el SQL de la
+extensión dentro del contenedor.
+
+**Coste:** una corrección completa del lote (~500 líneas) y un reinicio del ledger de intentos.
+
+**Observación:** el diseño citaba la función de memoria, sin comprobar la versión fijada. Todo lo
+que depende de la versión del servidor tiene que verificarse contra el contenedor real, igual que
+se hace con las APIs de Next contra la versión del `package.json`.
+
+### 2026-09-29 — El generador sintético sacaba longitud y latitud de sorteos independientes
+
+**Contexto:** paso 2.4, `apps/ingestion/src/bench/corpus-sql.ts`.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** cada coordenada tenía sus propios `random()` para decidir si era nula, si caía en
+Madrid o en la península, el radio y el ángulo. Resultado: ~4% de ubicaciones nulas en vez del 2%,
+puntos con longitud de Madrid y latitud de otra zona, solo ~36% del corpus en el círculo de Madrid
+en lugar del 60%, y un test que exigía geografía no nula en todas las filas y habría fallado contra
+una base real. Además, dos comentarios seguidos sobre los casts a `numeric` explicaban mal el
+motivo: `numeric + double precision` sí se resuelve por cast implícito, a `double precision`.
+
+**Cómo se detectó:** validación de contexto limpio (las coordenadas); comprobación con `pg_typeof`
+contra PostgreSQL 17 (los comentarios).
+
+**Coste:** una corrección del lote (~250 líneas) y un reinicio del ledger de intentos.
+
+**Observación:** en SQL generado, los valores que deben estar correlacionados tienen que salir del
+mismo sorteo materializado. Los tests estructurales no lo detectaban hasta que se añadió uno que
+cuenta cuántas veces se usa cada sorteo.
+
 ### 2026-09-28 — El orquestador fijó dos veces un tope de líneas cambiadas del ledger de intentos demasiado bajo para el paso 2.3
 
 **Contexto:** paso 2.3, cierre de lotes de `sdd-apply` sucesivos (comparación de imágenes).

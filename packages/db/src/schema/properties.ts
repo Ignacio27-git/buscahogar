@@ -76,5 +76,31 @@ export const properties = pgTable(
     // quien conoce las formas de consulta reales (docs/DECISIONS.md,
     // decisión 051).
     index('properties_operation_property_type_idx').on(table.operation, table.propertyType),
+    // Índices de orden de la búsqueda (ROADMAP 2.4, decisión 100; cierra la
+    // 060). Cada uno está justificado por un plan medido sobre 1M de filas
+    // sintéticas (docs/SEARCH-PERFORMANCE.md). Todos siguen la forma exacta del
+    // ORDER BY de `buildPropertySearchQuery` (`col dir NULLS LAST, id ASC`):
+    // un btree en orden ascendente recorrido hacia atrás da `NULLS FIRST`, así
+    // que no sirve para `DESC NULLS LAST` aunque la columna sea NOT NULL.
+    // Orden por defecto (updated desc), con o sin filtros poco selectivos.
+    index('properties_updated_at_id_idx').on(table.updatedAt.desc().nullsLast(), table.id),
+    // Operación + tipo con el orden por defecto.
+    index('properties_operation_property_type_updated_at_idx').on(
+      table.operation,
+      table.propertyType,
+      table.updatedAt.desc().nullsLast(),
+      table.id
+    ),
+    // Operación + tipo con orden por precio ascendente (paginación profunda).
+    index('properties_operation_property_type_min_price_cents_idx').on(
+      table.operation,
+      table.propertyType,
+      table.minPriceCents,
+      table.id
+    ),
+    // Orden por precio descendente.
+    index('properties_min_price_cents_desc_id_idx').on(table.minPriceCents.desc().nullsLast(), table.id),
+    // Orden por superficie ascendente.
+    index('properties_surface_m2_id_idx').on(table.surfaceM2, table.id),
   ]
 );
