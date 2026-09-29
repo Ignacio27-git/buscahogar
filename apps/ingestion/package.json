@@ -23,7 +23,9 @@
     "reprocess": "node --env-file=../../.env --import tsx scripts/reprocess-dedup.ts",
     "worker": "node --env-file=../../.env --import tsx scripts/coverage-worker.ts",
     "backfill-thumbnails": "node --env-file=../../.env --import tsx scripts/backfill-thumbnails.ts",
-    "gen-corpus": "node --env-file=../../.env --import tsx scripts/generate-search-corpus.ts"
+    "gen-corpus": "node --env-file=../../.env --import tsx scripts/generate-search-corpus.ts",
+    "bench-search": "node --env-file=../../.env --import tsx scripts/bench-search.ts",
+    "bench-report": "node --import tsx scripts/render-bench-report.ts"
   },
   "dependencies": {
     "@buscahogar/core": "workspace:*",
