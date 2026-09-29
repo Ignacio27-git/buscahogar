@@ -17,4 +17,5 @@ export { locations } from './schema/locations.js';
 export { properties } from './schema/properties.js';
 export { propertyListings } from './schema/property-listings.js';
 export { sources } from './schema/sources.js';
+export { zoneQuerySignals } from './schema/zone-query-signals.js';
 export { zones } from './schema/zones.js';

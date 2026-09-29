@@ -26,6 +26,21 @@ export interface LedgerState {
   readonly tokenRequests: number;
 }
 
+// ROADMAP 2.5 (decisión 104) — techo del carril de refresco: la parte del tope
+// diario que el refresco puede gastar EN TOTAL. `fraction` llega validada en
+// [0, 1] desde el composition root (Zod); aun así se acota aquí (defensa en
+// profundidad): una fracción negativa o no finita da 0 (refresco desactivado)
+// y el techo nunca supera el tope. La pequeña tolerancia evita que el error de
+// coma flotante recorte una unidad (100 × 0.29 = 28.999999999999996).
+const CEILING_EPSILON = 1e-9;
+
+export function refreshLaneCeiling(dailySearchCap: number, fraction: number): number {
+  if (!Number.isFinite(fraction) || fraction <= 0) {
+    return 0;
+  }
+  return Math.min(dailySearchCap, Math.floor(dailySearchCap * fraction + CEILING_EPSILON));
+}
+
 // Misma forma que `SweepBudget.snapshot()`
 // (`apps/ingestion/src/sources/idealista/budget.ts`), pero definida aquí de
 // forma ESTRUCTURAL: `packages/db` nunca importa de `apps/ingestion`
@@ -71,12 +86,24 @@ function todaySql(): SQL {
 // existe ninguna cláusula que lo mencione). Reflejado en
 // `sdd/on-demand-coverage/apply-progress` para que `sdd-verify` señale que
 // el propio DD-12 necesita la misma corrección.
+//
+// ROADMAP 2.5 (refresh-retention-policy, S1; decisión 104) — `laneCeiling`
+// opcional: TECHO sobre el gasto TOTAL del día para el carril de refresco
+// (`floor(dailySearchCap × REFRESH_BUDGET_FRACTION)`, calculado por el
+// llamador). NO es un contador aparte: ambas ramas comparan contra
+// `least(cap, laneCeiling)`, así que el gasto a demanda también cuenta contra
+// él y la demanda del usuario (sin techo) conserva siempre al menos
+// `cap - ceiling`. `least()` ignora los NULL, de modo que sin techo el
+// comportamiento es EXACTAMENTE el de antes. Techo 0 = ninguna reserva de
+// refresco puede concederse.
 export async function reserveDailyBudget(
   db: Database,
   sourceId: string,
   reservation: BudgetReservation,
-  searchCap: number
+  searchCap: number,
+  laneCeiling?: number
 ): Promise<LedgerState | null> {
+  const ceiling = laneCeiling ?? null;
   // Los dos operandos de la comparación del `WHERE` del `SELECT` fuente son
   // AMBOS parámetros ligados sin ninguna columna real de por medio (a
   // diferencia del `WHERE` de `ON CONFLICT ... DO UPDATE`, donde
@@ -90,12 +117,13 @@ export async function reserveDailyBudget(
   const result = await db.execute<{ search_requests: number; token_requests: number }>(sql`
     insert into daily_request_budget (day, source_id, search_requests, token_requests, search_cap)
     select ${todaySql()}, ${sourceId}, ${reservation.searchReserved}, ${reservation.tokenReserved}, ${searchCap}
-    where ${reservation.searchReserved}::integer <= ${searchCap}::integer
+    where ${reservation.searchReserved}::integer <= least(${searchCap}::integer, ${ceiling}::integer)
     on conflict (day, source_id) do update
       set search_requests = daily_request_budget.search_requests + ${reservation.searchReserved},
           token_requests  = daily_request_budget.token_requests + ${reservation.tokenReserved},
           updated_at = now()
-      where daily_request_budget.search_requests + ${reservation.searchReserved} <= daily_request_budget.search_cap
+      where daily_request_budget.search_requests + ${reservation.searchReserved}
+        <= least(daily_request_budget.search_cap, ${ceiling}::integer)
     returning search_requests, token_requests
   `);
 

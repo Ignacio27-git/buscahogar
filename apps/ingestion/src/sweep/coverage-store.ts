@@ -101,7 +101,11 @@ export function createCoverageStore(db: Database): CoverageStore {
       case 'completed': {
         const [updated] = await db
           .update(coverageJobs)
-          .set({ status: 'done', cursor: null, finishedAt: new Date() })
+          // ROADMAP 2.5 (decisión 104): un ciclo COMPLETADO devuelve el job
+          // al estado "a demanda" (`refresh_requested_at` NULL) hasta el
+          // próximo refresco. Los demás desenlaces lo conservan: un trabajo
+          // reanudado o reintentado sigue en el carril de refresco.
+          .set({ status: 'done', cursor: null, finishedAt: new Date(), refreshRequestedAt: null })
           .where(eq(coverageJobs.id, jobId))
           .returning({ zoneId: coverageJobs.zoneId });
         // Bookkeeping de zones honestamente acotado al círculo barrido

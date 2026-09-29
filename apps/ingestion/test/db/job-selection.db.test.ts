@@ -40,7 +40,9 @@ describe('job-selection — DD-18 paso 1 (selectNextClaimableJob) y paso 3 (mark
     const [row] = await db.insert(coverageJobs).values({ zoneId, sourceId, status: 'pending' }).returning({ id: coverageJobs.id });
 
     const job = await selectNextClaimableJob(db, 3);
-    expect(job).toEqual({ jobId: row?.id, zoneId, sourceId });
+    // ROADMAP 2.5 (S1): el job lleva ahora su carril; sin `refresh_requested_at`
+    // es a demanda.
+    expect(job).toEqual({ jobId: row?.id, zoneId, sourceId, lane: 'on-demand' });
   });
 
   it('un trabajo failed con reintentos restantes (attempts < maxAttempts) es seleccionable', async () => {
@@ -96,6 +98,71 @@ describe('job-selection — DD-18 paso 1 (selectNextClaimableJob) y paso 3 (mark
       .values({ zoneId: zoneIdB, sourceId, status: 'pending', requestedAt: new Date('2026-06-01T00:00:00Z') });
 
     const job = await selectNextClaimableJob(db, 3);
+    expect(job?.jobId).toBe(older?.id);
+  });
+
+  // ROADMAP 2.5 (refresh-retention-policy, S1; decisión 104, ZRS-10, S-ZRS-11)
+  // — carril de refresco: un job con `refresh_requested_at` NO nulo se
+  // selecciona DESPUÉS de cualquier trabajo a demanda, aunque sea más antiguo.
+  it('S-ZRS-11: con un job de refresco MÁS ANTIGUO y uno a demanda pendientes, se elige primero el de demanda', async () => {
+    const { zoneId: refreshZone } = await insertLocationWithZone(db, { ineCode: '10011' });
+    const { zoneId: demandZone } = await insertLocationWithZone(db, { ineCode: '10012' });
+    const sourceId = await insertSource(db);
+    await db.insert(coverageJobs).values({
+      zoneId: refreshZone,
+      sourceId,
+      status: 'pending',
+      requestedAt: new Date('2026-01-01T00:00:00Z'),
+      refreshRequestedAt: new Date('2026-09-01T00:00:00Z'),
+    });
+    const [demand] = await db
+      .insert(coverageJobs)
+      .values({ zoneId: demandZone, sourceId, status: 'pending', requestedAt: new Date('2026-06-01T00:00:00Z') })
+      .returning({ id: coverageJobs.id });
+
+    const job = await selectNextClaimableJob(db, 3);
+
+    expect(job?.jobId).toBe(demand?.id);
+    expect(job?.lane).toBe('on-demand');
+  });
+
+  it('un job de refresco pendiente SOLO (sin demanda) se selecciona y lleva lane "refresh"', async () => {
+    const { zoneId } = await insertLocationWithZone(db);
+    const sourceId = await insertSource(db);
+    const [refresh] = await db
+      .insert(coverageJobs)
+      .values({ zoneId, sourceId, status: 'pending', refreshRequestedAt: new Date('2026-09-01T00:00:00Z') })
+      .returning({ id: coverageJobs.id });
+
+    const job = await selectNextClaimableJob(db, 3);
+
+    expect(job).toEqual({ jobId: refresh?.id, zoneId, sourceId, lane: 'refresh' });
+  });
+
+  it('entre dos jobs de refresco, el orden sigue siendo por requested_at (el más antiguo primero)', async () => {
+    const { zoneId: zoneA } = await insertLocationWithZone(db, { ineCode: '10021' });
+    const { zoneId: zoneB } = await insertLocationWithZone(db, { ineCode: '10022' });
+    const sourceId = await insertSource(db);
+    await db.insert(coverageJobs).values({
+      zoneId: zoneB,
+      sourceId,
+      status: 'pending',
+      requestedAt: new Date('2026-06-01T00:00:00Z'),
+      refreshRequestedAt: new Date('2026-09-01T00:00:00Z'),
+    });
+    const [older] = await db
+      .insert(coverageJobs)
+      .values({
+        zoneId: zoneA,
+        sourceId,
+        status: 'pending',
+        requestedAt: new Date('2026-01-01T00:00:00Z'),
+        refreshRequestedAt: new Date('2026-09-02T00:00:00Z'),
+      })
+      .returning({ id: coverageJobs.id });
+
+    const job = await selectNextClaimableJob(db, 3);
+
     expect(job?.jobId).toBe(older?.id);
   });
 

@@ -166,4 +166,22 @@ export type {
 } from './rate-limit/fixed-window.js';
 export { parseTrustedClientIp, UNKNOWN_CLIENT_IDENTITY } from './rate-limit/client-ip.js';
 
+// Política de refresco y retención (ROADMAP 2.5, refresh-retention-policy,
+// decisión 103): cadencia por demanda y planificador de mantenimiento de
+// zonas. Puro — recibe días/segundos ya resueltos por el reloj de Postgres.
+export {
+  classifyZoneCadence,
+  isRefreshDue,
+  MONTHLY_MAX_DEMAND_AGE_DAYS,
+  MONTHLY_REFRESH_INTERVAL_DAYS,
+  PURGE_DEMAND_AGE_DAYS,
+  SIGNAL_PURGE_MAX_ROWS_PER_TICK,
+  SIGNAL_RETENTION_DAYS,
+  WEEKLY_MAX_DEMAND_AGE_DAYS,
+  WEEKLY_REFRESH_INTERVAL_DAYS,
+} from './retention/policy.js';
+export type { ZoneCadence } from './retention/policy.js';
+export { MAX_ZONE_PURGES_PER_PASS, planZoneMaintenance } from './retention/zone-maintenance.js';
+export type { ZoneLifecycleSnapshot, ZoneMaintenancePlan } from './retention/zone-maintenance.js';
+
 export const CORE_VERSION = '0.0.1';

@@ -28,6 +28,8 @@ export * from './locations-query.js';
 export * from './time.js';
 export * from './budget-ledger.js';
 export * from './client-quota.js';
+export * from './query-signals.js';
+export * from './zone-lifecycle.js';
 export * from './coverage.js';
 export { createDb, type Database } from './db.js';
 

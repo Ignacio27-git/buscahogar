@@ -9,6 +9,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { decodeJobCursor } from '../../src/sweep/job-cursor.js';
 import { createCoverageStore, JobAlreadyClaimedError } from '../../src/sweep/coverage-store.js';
+import type { CoverageStore } from '../../src/sweep/coverage-store.js';
 import { connectTestDb, truncateAll } from './helpers/db-client.js';
 import { insertLocationWithZone, insertSource } from './helpers/seed-fixtures.js';
 
@@ -123,6 +124,68 @@ describe('coverage-store — COVERAGE-1..6, D6, D7', () => {
     const [zone] = await db.select().from(zones).where(eq(zones.id, zoneId));
     expect(zone?.state).toBe('covered');
     expect(zone?.lastSweptAt).not.toBeNull();
+  });
+
+  // ROADMAP 2.5 (refresh-retention-policy, S1; decisión 104) — la marca del
+  // carril de refresco (`refresh_requested_at`) sobrevive a todo excepto a un
+  // ciclo COMPLETADO: un barrido reanudable o fallido sigue siendo de refresco
+  // (el trabajo reanudado no salta al carril de la demanda).
+  describe('refresh_requested_at — carril de refresco (ZRS-10, decisión 104)', () => {
+    // El almacén cachea la huella de área por instancia: el mismo `store` que
+    // reclama debe cerrar el job.
+    async function claimRefreshJob(): Promise<{ readonly jobId: string; readonly store: CoverageStore }> {
+      const { zoneId, sourceId } = await seedZoneAndSource();
+      const store = createCoverageStore(db);
+      const [row] = await db
+        .insert(coverageJobs)
+        .values({ zoneId, sourceId, status: 'pending', refreshRequestedAt: new Date('2026-09-01T00:00:00Z') })
+        .returning({ id: coverageJobs.id });
+      if (!row) throw new Error('fixture no insertado');
+      const claimed = await store.claimJob(zoneId, sourceId, FINGERPRINT);
+      expect(claimed.id).toBe(row.id);
+      return { jobId: row.id, store };
+    }
+
+    it('finishJob(completed) LIMPIA refresh_requested_at: el job vuelve a estado "a demanda" hasta el próximo refresco', async () => {
+      const { jobId, store } = await claimRefreshJob();
+
+      await store.finishJob(jobId, { kind: 'completed' });
+
+      const [job] = await db.select().from(coverageJobs).where(eq(coverageJobs.id, jobId));
+      expect(job?.status).toBe('done');
+      expect(job?.refreshRequestedAt).toBeNull();
+    });
+
+    it('budget-exhausted CONSERVA refresh_requested_at (el trabajo reanudado sigue en el carril de refresco)', async () => {
+      const { jobId, store } = await claimRefreshJob();
+
+      await store.finishJob(jobId, { kind: 'budget-exhausted', resumeCursor: 'homes:2' });
+
+      const [job] = await db.select().from(coverageJobs).where(eq(coverageJobs.id, jobId));
+      expect(job?.status).toBe('pending');
+      expect(job?.refreshRequestedAt).not.toBeNull();
+    });
+
+    it('transport-failed CONSERVA refresh_requested_at (el reintento sigue siendo de refresco)', async () => {
+      const { jobId, store } = await claimRefreshJob();
+
+      await store.finishJob(jobId, { kind: 'transport-failed', resumeCursor: 'homes:1', error: 'timeout simulado' });
+
+      const [job] = await db.select().from(coverageJobs).where(eq(coverageJobs.id, jobId));
+      expect(job?.status).toBe('failed');
+      expect(job?.refreshRequestedAt).not.toBeNull();
+    });
+
+    it('un job a demanda (refresh_requested_at NULL) sigue con NULL tras completarse — sin efectos colaterales', async () => {
+      const { zoneId, sourceId } = await seedZoneAndSource();
+      const store = createCoverageStore(db);
+      const claimed = await store.claimJob(zoneId, sourceId, FINGERPRINT);
+
+      await store.finishJob(claimed.id, { kind: 'completed' });
+
+      const [job] = await db.select().from(coverageJobs).where(eq(coverageJobs.id, claimed.id));
+      expect(job?.refreshRequestedAt).toBeNull();
+    });
   });
 
   it('una inserción duplicada de coverage_jobs pendiente para la misma zona+fuente es rechazada por el índice único de la BD', async () => {

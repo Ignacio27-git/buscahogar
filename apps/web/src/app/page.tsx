@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 
 import { normalizeSearchName, searchQuerySchema, zoneQuerySchema } from '@buscahogar/core';
 import { resolveZoneGeometry, searchProperties, suggestZones } from '@buscahogar/db';
-import type { ZoneSuggestion } from '@buscahogar/db';
+import type { ZoneGeometry, ZoneSuggestion } from '@buscahogar/db';
 
 import { CoverageStatus } from '@/components/coverage-status';
 import { ResultCard } from '@/components/result-card';
@@ -10,6 +10,7 @@ import { resolveCoverageClientLimit } from '@/server/coverage-client';
 import { getCoverageDb } from '@/server/coverage-db';
 import { getDb } from '@/server/db';
 import { resolveCoverageForZone, resolveNewZonesDailyCap } from '@/server/coverage';
+import { recordZoneQuerySignalSafely } from '@/server/query-signal';
 import { WEB_VERSION } from '@/version';
 
 // ROADMAP 1.11 (diseño D9) — reutiliza la ruta `/` en vez de crear una
@@ -129,6 +130,24 @@ function ZoneSuggestions({
   );
 }
 
+// ROADMAP 2.5 (refresh-retention-policy, S1; decisión 102, QSR-3) — señal de
+// demanda: una búsqueda real sobre una zona con centroide, sea cual sea su
+// estado, ANTES de la resolución de cobertura. Nunca lanza
+// (`recordZoneQuerySignalSafely` captura y registra sin credenciales), así que
+// la búsqueda se renderiza igual.
+//
+// `after()` de `next/server` existe y está tipado en 16.3.4 (verificado en el
+// paquete instalado), pero su comportamiento en la página de un Server
+// Component NO se pudo confirmar con Context7 en este apply (la herramienta no
+// estaba disponible) — por eso se usa el respaldo previsto en el diseño: una
+// llamada `await`ada que nunca lanza. Pasar a `after()` es un cambio local a
+// esta función.
+async function recordDemandSignal(zoneGeometry: ZoneGeometry): Promise<void> {
+  if (zoneGeometry.centroid !== null) {
+    await recordZoneQuerySignalSafely(getCoverageDb, zoneGeometry.zoneId);
+  }
+}
+
 function formatJobStatus(status: string): string {
   if (status === 'pending') return 'pendiente';
   if (status === 'running') return 'en curso';
@@ -192,6 +211,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
         <p role="status">No se ha encontrado ningún municipio con el código {criteria.zone}.</p>
       );
     } else if (zoneGeometry.state === 'covered' && zoneGeometry.centroid !== null) {
+      await recordDemandSignal(zoneGeometry);
       effectiveCriteria = {
         ...criteria,
         geo: {
@@ -201,6 +221,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
         },
       };
     } else {
+      await recordDemandSignal(zoneGeometry);
       const newZonesDailyCap = resolveNewZonesDailyCap();
       // ROADMAP 1.15 (security-hardening, diseño decisión 079): resuelto
       // ANTES de resolveCoverageForZone — cuando el limitador por cliente

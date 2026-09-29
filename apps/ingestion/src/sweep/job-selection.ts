@@ -13,20 +13,38 @@
 // intento real de la fuente, así que no debe contar como uno.
 import { coverageJobs } from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
-import { and, asc, eq, lt, or } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, lt, or, sql } from 'drizzle-orm';
+
+// ROADMAP 2.5 (refresh-retention-policy, S1; decisión 104) — carril del job:
+// 'on-demand' lo creó una búsqueda de usuario; 'refresh' lo re-encoló el
+// planificador de refresco (`coverage_jobs.refresh_requested_at` no nulo).
+// Decide el techo de presupuesto con el que se reserva (coverage-worker.ts).
+export type JobLane = 'on-demand' | 'refresh';
 
 export interface PollJob {
   readonly jobId: string;
   readonly zoneId: string;
   readonly sourceId: string;
+  // Opcional en el tipo: ausente equivale a 'on-demand' (los dobles de test
+  // anteriores a 2.5 no lo declaran). `selectNextClaimableJob` lo rellena
+  // siempre.
+  readonly lane?: JobLane;
 }
 
-// DD-18 paso 1: 'pending', o 'failed' con reintentos restantes — el más
-// antiguo primero. `coverage_jobs_status_requested_at_idx`
-// (schema/coverage-jobs.ts) ya cubre ambas ramas de este OR.
+// DD-18 paso 1: 'pending', o 'failed' con reintentos restantes. Orden
+// (ROADMAP 2.5, ZRS-10): primero los trabajos A DEMANDA (`refresh_requested_at`
+// NULL), después los de refresco, y dentro de cada carril el más antiguo por
+// `requested_at`. La demanda del usuario nunca espera detrás de un refresco.
+// `coverage_jobs_status_requested_at_idx` (schema/coverage-jobs.ts) cubre el
+// filtro; el conjunto de jobs pendientes es pequeño (una fila por zona).
 export async function selectNextClaimableJob(db: Database, maxAttempts: number): Promise<PollJob | null> {
   const [row] = await db
-    .select({ id: coverageJobs.id, zoneId: coverageJobs.zoneId, sourceId: coverageJobs.sourceId })
+    .select({
+      id: coverageJobs.id,
+      zoneId: coverageJobs.zoneId,
+      sourceId: coverageJobs.sourceId,
+      isRefresh: isNotNull(coverageJobs.refreshRequestedAt),
+    })
     .from(coverageJobs)
     .where(
       or(
@@ -34,10 +52,17 @@ export async function selectNextClaimableJob(db: Database, maxAttempts: number):
         and(eq(coverageJobs.status, 'failed'), lt(coverageJobs.attempts, maxAttempts))
       )
     )
-    .orderBy(asc(coverageJobs.requestedAt))
+    .orderBy(sql`(${coverageJobs.refreshRequestedAt} is not null)`, asc(coverageJobs.requestedAt))
     .limit(1);
 
-  return row ? { jobId: row.id, zoneId: row.zoneId, sourceId: row.sourceId } : null;
+  return row
+    ? {
+        jobId: row.id,
+        zoneId: row.zoneId,
+        sourceId: row.sourceId,
+        lane: row.isRefresh ? 'refresh' : 'on-demand',
+      }
+    : null;
 }
 
 // DD-18 paso 3: un centroide nulo aborta ANTES de claimJob. El trabajo

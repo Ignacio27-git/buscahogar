@@ -60,6 +60,16 @@ GRANT INSERT ON TABLE coverage_jobs TO web_coverage;
 -- Ningún otro privilegio, ninguna otra tabla.
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE coverage_client_quota TO web_coverage;
 
+-- `web_coverage` (ROADMAP 2.5, refresh-retention-policy, decisión 102, que
+-- amplía la 064/076) — señal de demanda por zona. La web inserta SOLO
+-- `zone_id` con `INSERT ... ON CONFLICT DO NOTHING`, que no necesita SELECT
+-- ni UPDATE (sin `WHERE`, sin `RETURNING`, sin `DO UPDATE`). Ningún otro
+-- privilegio sobre esta tabla: la lectura y la purga son del propietario
+-- (`apps/ingestion`). `web_readonly` recibe SELECT por los privilegios por
+-- defecto (abajo), lo cual es inocuo. El propietario debe volver a ejecutar
+-- este fichero tras aplicar la migración 0013.
+GRANT INSERT ON TABLE zone_query_signals TO web_coverage;
+
 -- Privilegio por defecto para tablas FUTURAS creadas por el propietario:
 -- sin esto, una tabla nueva de una migración posterior (por ejemplo,
 -- `daily_request_budget`) no sería legible por `web_readonly` hasta

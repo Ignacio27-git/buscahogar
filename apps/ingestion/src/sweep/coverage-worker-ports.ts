@@ -10,12 +10,17 @@
 // `createIdealistaSource` + `buildReport` SIN CAMBIOS — nunca
 // `runSweepZone` completo, que abre su propio pool por invocación y se
 // resuelve por un `--zone` de CLI (la propia acoplación que 1.13 elimina).
+import { SIGNAL_PURGE_MAX_ROWS_PER_TICK, SIGNAL_RETENTION_DAYS } from '@buscahogar/core';
 import type { AreaQuery, BlockingThresholds } from '@buscahogar/core';
 import {
+  listZoneLifecycle,
   purgeExpiredClientQuota,
+  purgeExpiredZoneQuerySignals,
   reconcileDailyBudget,
+  refreshLaneCeiling,
   reserveDailyBudget,
   resolveZoneGeometryById,
+  scheduleRefresh,
 } from '@buscahogar/db';
 import type { BudgetReservation, BudgetSnapshotLike, Database, LedgerState, ZoneGeometry } from '@buscahogar/db';
 
@@ -24,9 +29,9 @@ import type { ReprocessIo } from '../dedup/reprocess-core.js';
 import { createIdealistaSource, IdealistaListingNormalizer } from '../sources/idealista/index.js';
 import type { IdealistaSearchPort, IdealistaTokenPort } from '../sources/idealista/ports.js';
 import { composeStore } from './compose-store.js';
-import type { CoverageWorkerPorts, SweepTickResult } from './coverage-worker.js';
+import type { CoverageWorkerPorts, SweepTickResult, ZoneMaintenancePorts } from './coverage-worker.js';
 import { markJobFailedWithoutClaim, selectNextClaimableJob } from './job-selection.js';
-import type { PollJob } from './job-selection.js';
+import type { JobLane, PollJob } from './job-selection.js';
 import { buildReport } from './report.js';
 import { runSweep } from './sweep-runner.js';
 
@@ -41,6 +46,10 @@ export interface CoverageWorkerRealDeps {
   readonly maxSearchRequestsPerSweep: number;
   readonly maxAttempts: number;
   readonly dailySearchCap: number;
+  // ROADMAP 2.5 (decisión 104): fracción del tope diario que el carril de
+  // refresco puede gastar EN TOTAL, en [0, 1] (validada con Zod en el
+  // composition root). Ausente = 0: el refresco no gasta nada por defecto.
+  readonly refreshBudgetFraction?: number;
   readonly blockingThresholds: BlockingThresholds;
   readonly io: ReprocessIo;
 }
@@ -56,7 +65,26 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
   // composición reutilizada por scripts/sweep-zone.ts (CR-2).
   const store = composeStore(deps.db);
 
+  // ROADMAP 2.5 — mantenimiento de zonas sobre el MISMO pool propietario.
+  // Solo delega en `packages/db`: la política (qué zonas, cuándo) vive en
+  // `packages/core`, y el reloj es el de Postgres (DD-11).
+  const maintenance: ZoneMaintenancePorts = {
+    purgeZoneQuerySignals(): Promise<number> {
+      return purgeExpiredZoneQuerySignals(deps.db, {
+        retentionDays: SIGNAL_RETENTION_DAYS,
+        maxRows: SIGNAL_PURGE_MAX_ROWS_PER_TICK,
+      });
+    },
+    listZoneLifecycle() {
+      return listZoneLifecycle(deps.db, { sourceId: deps.sourceUuid, maxAttempts: deps.maxAttempts });
+    },
+    scheduleRefresh(zoneIds: readonly string[]): Promise<number> {
+      return scheduleRefresh(deps.db, { sourceId: deps.sourceUuid, zoneIds, maxAttempts: deps.maxAttempts });
+    },
+  };
+
   return {
+    maintenance,
     selectNextJob(): Promise<PollJob | null> {
       return selectNextClaimableJob(deps.db, deps.maxAttempts);
     },
@@ -77,8 +105,14 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
       return markJobFailedWithoutClaim(deps.db, jobId, reason);
     },
 
-    reserveBudget(reservation: BudgetReservation): Promise<LedgerState | null> {
-      return reserveDailyBudget(deps.db, deps.sourceUuid, reservation, deps.dailySearchCap);
+    // ROADMAP 2.5 (ZRS-11): el carril de refresco reserva contra el TECHO
+    // `least(cap, floor(cap × fracción))` sobre el gasto total del día — el
+    // gasto a demanda también cuenta contra él. La demanda no lleva techo y
+    // conserva siempre al menos `cap × (1 - fracción)`.
+    reserveBudget(reservation: BudgetReservation, lane: JobLane): Promise<LedgerState | null> {
+      const ceiling =
+        lane === 'refresh' ? refreshLaneCeiling(deps.dailySearchCap, deps.refreshBudgetFraction ?? 0) : undefined;
+      return reserveDailyBudget(deps.db, deps.sourceUuid, reservation, deps.dailySearchCap, ceiling);
     },
 
     reconcileBudget(reserved: BudgetReservation, actual: BudgetSnapshotLike): Promise<void> {

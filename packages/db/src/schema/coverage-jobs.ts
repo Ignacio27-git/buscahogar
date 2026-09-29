@@ -27,6 +27,13 @@ export const coverageJobs = pgTable(
     requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
     startedAt: timestamp('started_at', { withTimezone: true }),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
+    // ROADMAP 2.5 (refresh-retention-policy, S1; decisión 104) — marca del
+    // carril de refresco. NULL = trabajo a demanda (lo creó una búsqueda);
+    // no nulo = lo re-encoló el planificador de refresco. La selección ordena
+    // los NULL primero (prioridad a la demanda del usuario), y `finishJob`
+    // (completado) lo limpia. `requested_at` NUNCA se toca al refrescar: es el
+    // ancla de demanda de las zonas sin señales.
+    refreshRequestedAt: timestamp('refresh_requested_at', { withTimezone: true }),
   },
   (table) => [
     index('coverage_jobs_status_requested_at_idx').on(table.status, table.requestedAt),

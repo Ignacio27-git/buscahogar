@@ -17,12 +17,13 @@
 // darle una dependencia de proceso lo volvería side-effectful al
 // importarlo. El punto de entrada real es `scripts/coverage-worker.ts`
 // (composition root, único lector de `process.env` de este módulo).
-import type { AreaQuery } from '@buscahogar/core';
+import { planZoneMaintenance } from '@buscahogar/core';
+import type { AreaQuery, ZoneLifecycleSnapshot } from '@buscahogar/core';
 import type { BudgetReservation, BudgetSnapshotLike, LedgerState, ZoneGeometry } from '@buscahogar/db';
 
 import { areaFingerprint, buildArea } from './area.js';
 import { JobAlreadyClaimedError } from './coverage-store.js';
-import type { PollJob } from './job-selection.js';
+import type { JobLane, PollJob } from './job-selection.js';
 import type { SweepOptions } from './options.js';
 
 // Puerto CADA UNO fakeable por separado (DD-17, §5 interfaces). `failJob` es
@@ -38,11 +39,30 @@ export interface SweepTickResult {
   readonly actual: BudgetSnapshotLike;
 }
 
+// ROADMAP 2.5 (refresh-retention-policy, S1; decisión 104/110) — pasos de
+// mantenimiento del tick, cada uno aislado (`runIsolatedStep`): una avería de
+// cualquiera de ellos nunca aborta el tick ni impide el barrido. Agrupados en
+// un objeto OPCIONAL de `CoverageWorkerPorts` (y no como métodos sueltos) para
+// que las composiciones y dobles anteriores a 2.5 sigan siendo válidos sin
+// cambios (S-CWT-12). Los cortes de S2-S4 (purga de zonas, tombstone) se
+// añaden a este mismo grupo.
+export interface ZoneMaintenancePorts {
+  // Purga acotada de `zone_query_signals` caducadas (RP-12).
+  purgeZoneQuerySignals(): Promise<number>;
+  // Fotos de zona para el planificador puro de `packages/core`.
+  listZoneLifecycle(): Promise<readonly ZoneLifecycleSnapshot[]>;
+  // Re-encola los jobs de las zonas dadas en el carril de refresco (ZRS-8).
+  scheduleRefresh(zoneIds: readonly string[]): Promise<number>;
+}
+
 export interface CoverageWorkerPorts {
   selectNextJob(): Promise<PollJob | null>;
   resolveZoneGeometry(zoneId: string): Promise<ZoneGeometry>;
   failJob(jobId: string, reason: string): Promise<void>;
-  reserveBudget(reservation: BudgetReservation): Promise<LedgerState | null>;
+  // ROADMAP 2.5: la reserva se hace POR CARRIL. 'refresh' se compara contra el
+  // techo `floor(cap × fracción)` sobre el gasto TOTAL del día; 'on-demand'
+  // no lleva techo (ZRS-11).
+  reserveBudget(reservation: BudgetReservation, lane: JobLane): Promise<LedgerState | null>;
   reconcileBudget(reserved: BudgetReservation, actual: BudgetSnapshotLike): Promise<void>;
   claimAndSweep(job: PollJob, area: AreaQuery, fingerprint: string): Promise<SweepTickResult>;
   runDedup(): Promise<void>;
@@ -54,6 +74,8 @@ export interface CoverageWorkerPorts {
   // resultado del resto del tick — nunca condicionada a que haya trabajo,
   // presupuesto, o un barrido completado.
   purgeClientQuota(): Promise<void>;
+  // Opcional (ver `ZoneMaintenancePorts`): ausente = sin mantenimiento.
+  readonly maintenance?: ZoneMaintenancePorts;
   sleep(ms: number): Promise<void>;
   log(line: string): void;
 }
@@ -85,7 +107,18 @@ export interface CoverageWorkerOptions {
   // eso. Ausente en producción normal (siempre continúa) — solo `maxTicks`
   // es necesario para el resto de los tests de este fichero.
   readonly shouldContinue?: () => boolean;
+  // ROADMAP 2.5 (decisión 104): el mantenimiento corre en el primer tick y
+  // después cada `maintenanceEveryTicks` ticks (basado en ticks, así que el
+  // driver no necesita reloj — CWT-3). Por defecto, cada tick.
+  readonly maintenanceEveryTicks?: number;
+  // Fracción del tope diario que puede gastar el carril de refresco, en
+  // [0, 1] (validada con Zod en el composition root). Ausente o 0 desactiva el
+  // refresco: no se re-encola ninguna zona (S-ZRS-10), así que ningún job
+  // espera para siempre detrás de un techo nulo.
+  readonly refreshBudgetFraction?: number;
 }
+
+const DEFAULT_MAINTENANCE_EVERY_TICKS = 1;
 
 // El token se reserva una vez por barrido, igual que budget.ts::TOKEN_CAP
 // (1.6) — no un valor nuevo, el mismo principio repetido en el nivel diario
@@ -93,12 +126,69 @@ export interface CoverageWorkerOptions {
 // barrido).
 const TOKEN_RESERVE = 1;
 
-async function runTick(ports: CoverageWorkerPorts, options: CoverageWorkerOptions): Promise<{ readonly dirty: boolean }> {
+type IsolatedResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false };
+
+// Decisión 110 — ejecuta UN paso de mantenimiento aislado: si lanza, registra
+// `paso "<nombre>" falló: <mensaje>` (solo el mensaje del error: las
+// credenciales nunca viajan en él) y devuelve un resultado tipado en vez de
+// abortar el tick. NO envuelve `purgeClientQuota` (comportamiento 1.15
+// intacto) ni el barrido (su semántica de propagación no cambia).
+async function runIsolatedStep<T>(
+  ports: CoverageWorkerPorts,
+  name: string,
+  step: () => Promise<T>
+): Promise<IsolatedResult<T>> {
+  try {
+    return { ok: true, value: await step() };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    ports.log(`coverage-worker: paso "${name}" falló: ${message}`);
+    return { ok: false };
+  }
+}
+
+// Mantenimiento de zonas (S1): purga de señales caducadas, planificación pura
+// de refresco y re-encolado. Cada paso aislado; si el listado falla, se omite
+// la planificación entera. La purga de zonas que también devuelve el plan
+// (`plan.purge`) se conecta en S4 — hasta entonces solo se re-encola.
+async function runMaintenance(
+  ports: CoverageWorkerPorts,
+  maintenance: ZoneMaintenancePorts,
+  options: CoverageWorkerOptions
+): Promise<void> {
+  await runIsolatedStep(ports, 'purga-señales-de-zona', () => maintenance.purgeZoneQuerySignals());
+
+  const planned = await runIsolatedStep(ports, 'ciclo-de-vida-de-zonas', async () =>
+    planZoneMaintenance(await maintenance.listZoneLifecycle())
+  );
+
+  // Fracción 0 (o ausente): el re-encolado se OMITE. Encolar refrescos que el
+  // techo nulo nunca dejaría gastar solo dejaría jobs esperando sin fin.
+  const refreshEnabled = (options.refreshBudgetFraction ?? 0) > 0;
+  if (planned.ok && refreshEnabled && planned.value.refresh.length > 0) {
+    const zoneIds = planned.value.refresh;
+    await runIsolatedStep(ports, 're-encolado-de-refresco', () => maintenance.scheduleRefresh(zoneIds));
+  }
+}
+
+async function runTick(
+  ports: CoverageWorkerPorts,
+  options: CoverageWorkerOptions,
+  tickIndex: number
+): Promise<{ readonly dirty: boolean }> {
   // D9: SIEMPRE lo primero del tick, antes de cualquier rama de salida
   // temprana (sin trabajo, centroide nulo, presupuesto agotado) — así se
   // garantiza exactamente una vez por tick sin duplicar la comprobación en
   // cada punto de retorno.
   await ports.purgeClientQuota();
+
+  // ROADMAP 2.5: mantenimiento en el primer tick y luego cada N ticks, ANTES
+  // de elegir trabajo — así un refresco re-encolado ya es candidato en este
+  // mismo tick.
+  const maintenanceEveryTicks = options.maintenanceEveryTicks ?? DEFAULT_MAINTENANCE_EVERY_TICKS;
+  if (ports.maintenance && tickIndex % maintenanceEveryTicks === 0) {
+    await runMaintenance(ports, ports.maintenance, options);
+  }
 
   const job = await ports.selectNextJob();
   if (!job) {
@@ -141,7 +231,7 @@ async function runTick(ports: CoverageWorkerPorts, options: CoverageWorkerOption
     searchReserved: options.maxSearchRequestsPerSweep,
     tokenReserved: TOKEN_RESERVE,
   };
-  const reserved = await ports.reserveBudget(reservation);
+  const reserved = await ports.reserveBudget(reservation, job.lane ?? 'on-demand');
   if (reserved === null) {
     ports.log(
       `coverage-worker: presupuesto diario agotado, el trabajo job_id="${job.jobId}" permanece pendiente, cero peticiones emitidas.`
@@ -187,7 +277,7 @@ export async function runCoverageWorker(ports: CoverageWorkerPorts, options: Cov
     }
     tickCount += 1;
 
-    const { dirty } = await runTick(ports, options);
+    const { dirty } = await runTick(ports, options, tickCount - 1);
 
     // DD-18 paso 11/12: como mucho UN reproceso global por tick, solo si
     // algo se completó de verdad en ESTE tick — nunca acumulado entre
