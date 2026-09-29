@@ -1,0 +1,4 @@
+# ROADMAP 2.4 (search-indexing-performance, diseño decisión 9) — salidas de
+# medición del banco de búsqueda (una fila JSON por tanda/combinación). Nunca
+# se versionan: el informe committeado es docs/SEARCH-PERFORMANCE.md.
+.bench/
