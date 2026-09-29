@@ -74,7 +74,13 @@ const anchorListingId = sql<string | null>`(
    LIMIT 1)`;
 
 function buildFilters(criteria: PropertySearchCriteria): SQL[] {
-  const filters: SQL[] = [];
+  // ROADMAP 2.5 (decisión 109): una vivienda solo es visible si tiene al menos
+  // un anuncio ACTIVO. Es un predicado sobre la caché de `properties`
+  // (`active_listing_count`, mantenida por `refreshPropertyVisibility`), nunca
+  // un join a `listings`: así siguen valiendo los planes medidos de la
+  // decisión 100. Literal `0` a propósito (no parámetro ligado), para que el
+  // planificador lo vea como constante. Va siempre el primero.
+  const filters: SQL[] = [sql`${properties.activeListingCount} > 0`];
 
   // Regla NULL (A-2, decisión 058): un filtro AUSENTE no añade ningún
   // predicado (la fila entra con independencia de esa columna); un filtro

@@ -1,7 +1,8 @@
 // Vivienda canónica: agrupación de uno o varios `listings` que se refieren a
 // la misma vivienda real (CLAUDE.md). Los campos consolidados son una caché
 // recalculada al consolidar, nunca la fuente de verdad; el precio mostrado
-// es siempre el más económico del grupo (docs/DECISIONS.md, decisión 006).
+// es el más económico de los anuncios ACTIVOS del grupo (decisión 006,
+// refinada por la 109).
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import {
@@ -56,6 +57,13 @@ export const properties = pgTable(
     // de caché recalculada que las siete columnas de atributo de arriba.
     thumbnailUrl: text('thumbnail_url'),
     listingCount: integer('listing_count').notNull().default(0),
+    // ROADMAP 2.5 (decisión 109) — caché de visibilidad: nº de anuncios
+    // ACTIVOS del grupo. La búsqueda solo devuelve viviendas con
+    // `active_listing_count > 0`. La mantiene `refreshPropertyVisibility`
+    // (consolidación, reactivación, verificación y purga de zona), junto con
+    // `min_price_cents` (mínimo entre los activos). DEFAULT 0: una fila
+    // insertada a mano es invisible hasta que se refresca la caché.
+    activeListingCount: integer('active_listing_count').notNull().default(0),
     consolidatedAt: timestamp('consolidated_at', { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

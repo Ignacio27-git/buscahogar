@@ -135,6 +135,28 @@ describe.skipIf(!BENCH_DATABASE_URL)('corpus sintético contra BENCH_DATABASE_UR
     expect(mismatches.rows).toHaveLength(0);
   });
 
+  // ROADMAP 2.5 (S2, decisión 109): la búsqueda exige `active_listing_count > 0`.
+  // El corpus sintético debe sembrar la caché de visibilidad (todos los
+  // anuncios sintéticos están activos); si no, todo el banco sería invisible y
+  // los planes medidos no representarían la consulta real.
+  it('active_listing_count de cada propiedad es el número de sus anuncios activos (todas visibles en la búsqueda)', async () => {
+    const mismatches = await db.execute<{ id: string }>(sql`
+      SELECT p.id
+        FROM "properties" p
+        JOIN "property_listings" pl ON pl.property_id = p.id
+        JOIN "listings" l ON l.id = pl.listing_id
+       GROUP BY p.id, p.active_listing_count
+      HAVING p.active_listing_count IS DISTINCT FROM (count(*) FILTER (WHERE l.status = 'active'))::int
+    `);
+    expect(mismatches.rows).toHaveLength(0);
+
+    const [hidden] = await db
+      .select({ total: sql<number>`count(*)`.mapWith(Number) })
+      .from(properties)
+      .where(sql`${properties.activeListingCount} = 0`);
+    expect(hidden?.total).toBe(0);
+  });
+
   // Tarea 4.5 (spec "search-index-coverage"): cada índice que se entrega en la
   // migración 0012 tiene que aparecer, por `Index Name`, en el plan JSON de
   // al menos una combinación de la matriz. Se recorre el árbol del plan

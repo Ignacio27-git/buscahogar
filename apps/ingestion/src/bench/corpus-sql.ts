@@ -201,7 +201,7 @@ FROM members
 `;
 
 const INSERT_PROPERTIES_SQL = `
-INSERT INTO properties (id, location, min_price_cents, surface_m2, rooms, bathrooms, operation, property_type, listing_count, updated_at)
+INSERT INTO properties (id, location, min_price_cents, surface_m2, rooms, bathrooms, operation, property_type, listing_count, active_listing_count, updated_at)
 SELECT DISTINCT ON (property_id)
   property_id,
   CASE WHEN lon IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint(lon, lat), 4326) END,
@@ -211,6 +211,10 @@ SELECT DISTINCT ON (property_id)
   bathrooms,
   operation,
   property_type,
+  COUNT(*) OVER (PARTITION BY property_id),
+  -- ROADMAP 2.5 (decisión 109): todos los anuncios sintéticos están activos, así
+  -- que la caché de visibilidad iguala al recuento. Sin esto el banco entero
+  -- sería invisible para la búsqueda (active_listing_count > 0).
   COUNT(*) OVER (PARTITION BY property_id),
   updated_at
 FROM bench_corpus_stage

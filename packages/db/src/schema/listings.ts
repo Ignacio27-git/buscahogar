@@ -53,6 +53,13 @@ export const listings = pgTable(
     // índice: no participa en ningún filtro ni bloqueo.
     numPhotos: integer('num_photos'),
     status: text('status').notNull().default('active'),
+    // ROADMAP 2.5 (decisión 106) — metadatos de observación, como
+    // `last_seen_at`: no son contenido del anuncio ni versionan. Solo la
+    // verificación de presencia ('delisted') y la purga de zona
+    // ('zone_purged') marcan un listing como inactivo; una re-visión en un
+    // barrido lo reactiva y los limpia.
+    inactiveSince: timestamp('inactive_since', { withTimezone: true }),
+    inactiveReason: text('inactive_reason'),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: createdAt(),
@@ -64,5 +71,10 @@ export const listings = pgTable(
     index('listings_location_geography_idx').using('gist', table.locationGeography),
     index('listings_location_id_idx').on(table.locationId),
     check('listings_status_check', sql`${table.status} in ('active', 'inactive', 'removed')`),
+    // Pasa con NULL: un listing activo no tiene motivo de inactividad.
+    check(
+      'listings_inactive_reason_check',
+      sql`${table.inactiveReason} in ('delisted', 'zone_purged')`
+    ),
   ]
 );

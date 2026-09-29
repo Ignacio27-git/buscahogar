@@ -280,6 +280,134 @@ describe('writeConsolidation (D5, D6, D8)', () => {
     });
   });
 
+  // ROADMAP 2.5 (S2, decisión 109; S-PS-8): la caché de visibilidad se
+  // reconstruye junto con la vivienda. La agrupación sigue siendo ajena al
+  // estado (decisión 068): el anuncio inactivo SÍ es miembro del grupo.
+  describe('S-PS-8: active_listing_count y precio solo de los anuncios activos', () => {
+    it('un grupo con un anuncio inactivo más barato: precio del activo, un activo, ambos miembros enlazados', async () => {
+      const sourceId = await insertSourceWithKey(db, 'idealista');
+      const { listingId: activeId, versionId: activeVersionId } = await insertListingWithVersion(db, sourceId, {
+        priceCents: 300_000_00,
+        propertyType: 'flat',
+      });
+      const { listingId: inactiveId, versionId: inactiveVersionId } = await insertListingWithVersion(db, sourceId, {
+        priceCents: 200_000_00,
+        propertyType: 'flat',
+      });
+      await db
+        .update(listings)
+        .set({ status: 'inactive', inactiveSince: new Date(), inactiveReason: 'delisted' })
+        .where(eq(listings.id, inactiveId));
+      const [a, b] = orderPair(activeId, inactiveId);
+
+      await writeConsolidation(
+        db,
+        baseInput({
+          listingsConsidered: 2,
+          pairs: [
+            {
+              listingAId: a,
+              listingBId: b,
+              band: 'accept',
+              score: 0.9,
+              signals: SIGNALS_A,
+              scoredListingVersionIdA: a === activeId ? activeVersionId : inactiveVersionId,
+              scoredListingVersionIdB: a === activeId ? inactiveVersionId : activeVersionId,
+            },
+          ],
+          groups: [{ listingIds: [activeId, inactiveId].sort(), winnerId: activeId }],
+        })
+      );
+
+      const [property] = await db.select().from(properties);
+      expect(property?.listingCount).toBe(2);
+      expect(property?.activeListingCount).toBe(1);
+      expect(property?.minPriceCents).toBe(300_000_00);
+      expect(await db.select().from(propertyListings)).toHaveLength(2);
+    });
+
+    it('todos los anuncios activos: active_listing_count = listing_count y precio mínimo del grupo', async () => {
+      const sourceId = await insertSourceWithKey(db, 'idealista');
+      const { listingId: idA, versionId: versionA } = await insertListingWithVersion(db, sourceId, {
+        priceCents: 300_000_00,
+        propertyType: 'flat',
+      });
+      const { listingId: idB, versionId: versionB } = await insertListingWithVersion(db, sourceId, {
+        priceCents: 200_000_00,
+        propertyType: 'flat',
+      });
+      const [a, b] = orderPair(idA, idB);
+
+      await writeConsolidation(
+        db,
+        baseInput({
+          listingsConsidered: 2,
+          pairs: [
+            {
+              listingAId: a,
+              listingBId: b,
+              band: 'accept',
+              score: 0.9,
+              signals: SIGNALS_A,
+              scoredListingVersionIdA: a === idA ? versionA : versionB,
+              scoredListingVersionIdB: a === idA ? versionB : versionA,
+            },
+          ],
+          groups: [{ listingIds: [idA, idB].sort(), winnerId: idA }],
+        })
+      );
+
+      const [property] = await db.select().from(properties);
+      expect(property?.activeListingCount).toBe(2);
+      expect(property?.minPriceCents).toBe(200_000_00);
+    });
+
+    it('un singleton inactivo: active_listing_count 0 y precio de su versión vigente (visible solo en el detalle)', async () => {
+      const sourceId = await insertSourceWithKey(db, 'idealista');
+      const { listingId } = await insertListingWithVersion(db, sourceId, {
+        priceCents: 180_000_00,
+        propertyType: 'flat',
+      });
+      await db
+        .update(listings)
+        .set({ status: 'inactive', inactiveSince: new Date(), inactiveReason: 'zone_purged' })
+        .where(eq(listings.id, listingId));
+
+      await writeConsolidation(
+        db,
+        baseInput({ listingsConsidered: 1, groups: [{ listingIds: [listingId], winnerId: listingId }] })
+      );
+
+      const [property] = await db.select().from(properties);
+      expect(property?.activeListingCount).toBe(0);
+      expect(property?.minPriceCents).toBe(180_000_00);
+      expect(property?.listingCount).toBe(1);
+    });
+
+    it('reejecutar la consolidación tras reactivar el anuncio recalcula la visibilidad', async () => {
+      const sourceId = await insertSourceWithKey(db, 'idealista');
+      const { listingId } = await insertListingWithVersion(db, sourceId, {
+        priceCents: 180_000_00,
+        propertyType: 'flat',
+      });
+      await db
+        .update(listings)
+        .set({ status: 'inactive', inactiveSince: new Date(), inactiveReason: 'delisted' })
+        .where(eq(listings.id, listingId));
+      const input = baseInput({ listingsConsidered: 1, groups: [{ listingIds: [listingId], winnerId: listingId }] });
+      await writeConsolidation(db, input);
+
+      await db
+        .update(listings)
+        .set({ status: 'active', inactiveSince: null, inactiveReason: null })
+        .where(eq(listings.id, listingId));
+      await writeConsolidation(db, input);
+
+      const [property] = await db.select().from(properties);
+      expect(property?.activeListingCount).toBe(1);
+    });
+  });
+
   describe('D8: transacción atómica', () => {
     it('un fallo a mitad de la transacción deja properties/property_listings exactamente como estaban antes', async () => {
       const sourceId = await insertSourceWithKey(db, 'idealista');

@@ -7,9 +7,9 @@
 // UNA transacción por página (diseño D3): upserts + versiones + avance del
 // cursor de coverage_jobs, todo dentro de la misma transacción — así el
 // cursor nunca avanza por delante de filas no comprometidas.
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 
-import { coverageJobs, listingVersions, listings } from '@buscahogar/db';
+import { coverageJobs, listingVersions, listings, refreshPropertyVisibility } from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
 
 import { encodeJobCursor } from './job-cursor.js';
@@ -52,6 +52,31 @@ export function createListingWriter(db: Database): ListingWriter {
       // por página; secuencial adrede (no Promise.all): las páginas
       // comparten una única conexión de transacción, y persistir en
       // paralelo sobre ella corrompería el orden de los statements.
+      //
+      // ROADMAP 2.5 (decisión 106, reactivación básica): antes de los upserts se
+      // lee qué anuncios de la página NO están activos, para saber cuáles de
+      // ellos se reactivan al verse de nuevo. Una sola consulta por página.
+      const nonActiveExternalIds = new Set(
+        input.items.length === 0
+          ? []
+          : (
+              await tx
+                .select({ externalId: listings.externalId })
+                .from(listings)
+                .where(
+                  and(
+                    eq(listings.sourceId, input.sourceUuid),
+                    inArray(
+                      listings.externalId,
+                      input.items.map((item) => item.listing.externalId)
+                    ),
+                    ne(listings.status, 'active')
+                  )
+                )
+            ).map((row) => row.externalId)
+      );
+      const reactivatedListingIds: string[] = [];
+
       async function persistItem(item: PersistPageItem): Promise<'inserted' | 'versioned' | 'unchanged'> {
         const { raw, listing } = item;
         const now = new Date();
@@ -110,7 +135,13 @@ export function createListingWriter(db: Database): ListingWriter {
           })
           .onConflictDoUpdate({
             target: [listings.sourceId, listings.externalId],
-            set: { lastSeenAt: now, updatedAt: now },
+            set: {
+              lastSeenAt: now,
+              updatedAt: now,
+              status: 'active',
+              inactiveSince: null,
+              inactiveReason: null,
+            },
           })
           .returning({ id: listings.id });
 
@@ -120,6 +151,9 @@ export function createListingWriter(db: Database): ListingWriter {
           );
         }
         const listingId = listingRow.id;
+        if (nonActiveExternalIds.has(listing.externalId)) {
+          reactivatedListingIds.push(listingId);
+        }
 
         // Paso 2: leer la última versión por `version DESC LIMIT 1`,
         // deliberadamente NO `WHERE is_current` (diseño D5 paso 3) — si la
@@ -181,6 +215,12 @@ export function createListingWriter(db: Database): ListingWriter {
           unchanged += 1;
         }
       }
+
+      // ROADMAP 2.5 (decisión 109): los anuncios reactivados vuelven a contar
+      // en su vivienda. Se refresca DESPUÉS de todas las versiones de la
+      // página (el precio mínimo usa la versión vigente ya actualizada), en la
+      // MISMA transacción. No toca `property_listings`: reactivar no reagrupa.
+      await refreshPropertyVisibility(tx, { listingIds: reactivatedListingIds });
 
       // Avance del cursor de coverage_jobs, MISMA transacción (diseño D3,
       // resuelve D-b): así el cursor nunca queda por delante de filas no

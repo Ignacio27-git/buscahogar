@@ -17,8 +17,9 @@
 // 42702 es un error de PARSEO, así que se dispara aunque no haya ni una fila.
 // De ahí el primer caso: ejecutar la consulta contra Postgres, con las tablas
 // vacías, ya es la prueba vinculante de que el SQL es válido.
+import { eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PropertySearchCriteria } from '@buscahogar/core';
 
@@ -27,10 +28,11 @@ import { writeConsolidation } from '../../src/consolidation.js';
 import type { Database } from '../../src/db.js';
 import { getPropertyDetailHeader } from '../../src/detail.js';
 import { searchProperties } from '../../src/search.js';
-import { listingVersions, properties, propertyListings } from '../../src/tables.js';
+import { listings, listingVersions, properties, propertyListings } from '../../src/tables.js';
+import { refreshPropertyVisibility } from '../../src/visibility.js';
 import { connectTestDb, truncateAll } from '../helpers/db-client.js';
 import { describeWithDb } from '../helpers/docker-gate.js';
-import { insertListing, insertSource } from '../helpers/fixtures.js';
+import { insertListing, insertListingWithCurrentVersion, insertSource } from '../helpers/fixtures.js';
 
 // Criterios mínimos: solo lo que `buildPropertySearchQuery` lee siempre
 // (`sort`, `dir`, `page`). Sin ningún filtro activo, para que la regla NULL
@@ -47,7 +49,13 @@ async function insertPropertyWithListings(
   listingIds: readonly string[],
   values: Partial<typeof properties.$inferInsert> = {}
 ): Promise<string> {
-  const [property] = await db.insert(properties).values(values).returning({ id: properties.id });
+  // ROADMAP 2.5 (decisión 109): la búsqueda solo devuelve viviendas con algún
+  // anuncio activo. Las viviendas de estos tests se siembran visibles salvo
+  // que el caso indique lo contrario (`activeListingCount: 0`).
+  const [property] = await db
+    .insert(properties)
+    .values({ activeListingCount: 1, ...values })
+    .returning({ id: properties.id });
   if (!property) {
     throw new Error('No se pudo insertar la vivienda de prueba');
   }
@@ -193,6 +201,89 @@ describeWithDb('searchProperties contra Postgres real', () => {
 
     expect(page.results).toEqual([]);
     expect(page.hasNextPage).toBe(false);
+  });
+
+  // ROADMAP 2.5 (S2, decisión 109) — visibilidad: solo viviendas con algún
+  // anuncio ACTIVO, y el filtro de precio actúa sobre el mínimo entre activos.
+  describe('visibilidad por anuncios activos (PS-1, PS-2, PS-5, S-PS-2, S-PS-5, S-PS-9)', () => {
+    async function seedPropertyWithMembers(
+      activePrice: number,
+      inactivePrice: number
+    ): Promise<{ propertyId: string; inactiveListingId: string }> {
+      const sourceId = await insertSource(db);
+      const active = await insertListingWithCurrentVersion(db, sourceId, { priceCents: activePrice });
+      const inactive = await insertListingWithCurrentVersion(db, sourceId, {
+        priceCents: inactivePrice,
+        status: 'inactive',
+      });
+      const propertyId = await insertPropertyWithListings(db, [active.listingId, inactive.listingId], {
+        activeListingCount: 0,
+      });
+      await refreshPropertyVisibility(db, { propertyIds: [propertyId] });
+      return { propertyId, inactiveListingId: inactive.listingId };
+    }
+
+    it('S-PS-2: una vivienda con todos los anuncios inactivos no aparece en los resultados', async () => {
+      const sourceId = await insertSource(db);
+      const inactive = await insertListingWithCurrentVersion(db, sourceId, { priceCents: 100_000_00, status: 'inactive' });
+      const hidden = await insertPropertyWithListings(db, [inactive.listingId], { activeListingCount: 0 });
+      const visible = await insertPropertyWithListings(db, []);
+
+      const page = await searchProperties(db, BASE_CRITERIA);
+
+      expect(page.results.map((row) => row.id)).toEqual([visible]);
+      expect(page.results.map((row) => row.id)).not.toContain(hidden);
+    });
+
+    it('S-PS-2: el filtro de visibilidad también se aplica con filtros de usuario y con orden por precio', async () => {
+      const sourceId = await insertSource(db);
+      const inactive = await insertListingWithCurrentVersion(db, sourceId, { priceCents: 100_000_00, status: 'inactive' });
+      await insertPropertyWithListings(db, [inactive.listingId], {
+        activeListingCount: 0,
+        operation: 'sale',
+        minPriceCents: 100_000_00,
+      });
+      const visible = await insertPropertyWithListings(db, [], { operation: 'sale', minPriceCents: 300_000_00 });
+
+      const page = await searchProperties(db, { ...BASE_CRITERIA, operation: 'sale', sort: 'price', dir: 'asc' });
+
+      expect(page.results.map((row) => row.id)).toEqual([visible]);
+    });
+
+    it('S-PS-1: con un anuncio activo (900) y otro inactivo (700) se muestra 900', async () => {
+      const { propertyId } = await seedPropertyWithMembers(900, 700);
+
+      const page = await searchProperties(db, BASE_CRITERIA);
+
+      expect(page.results.map((row) => row.id)).toEqual([propertyId]);
+      expect(page.results[0]?.minPriceCents).toBe(900);
+    });
+
+    it('S-PS-5: precio máximo 800 -> no se devuelve con B inactivo; sí se devuelve al reactivar B (700)', async () => {
+      const { propertyId, inactiveListingId } = await seedPropertyWithMembers(900, 700);
+      const criteria = { ...BASE_CRITERIA, maxPriceCents: 800 };
+
+      expect((await searchProperties(db, criteria)).results).toEqual([]);
+
+      await db
+        .update(listings)
+        .set({ status: 'active', inactiveSince: null, inactiveReason: null })
+        .where(eq(listings.id, inactiveListingId));
+      await refreshPropertyVisibility(db, { propertyIds: [propertyId] });
+
+      expect((await searchProperties(db, criteria)).results.map((row) => row.id)).toEqual([propertyId]);
+    });
+
+    it('S-PS-9: la búsqueda no llama a ninguna fuente externa (fetch mockeado para fallar y nunca invocado)', async () => {
+      await insertPropertyWithListings(db, []);
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('red prohibida en búsqueda'));
+
+      const page = await searchProperties(db, BASE_CRITERIA);
+
+      expect(page.results).toHaveLength(1);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      fetchSpy.mockRestore();
+    });
   });
 
   // ROADMAP 1.12 (diseño D4/AR-4, docs/DECISIONS.md decisión 061) — la
