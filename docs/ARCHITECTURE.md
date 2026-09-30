@@ -154,8 +154,8 @@ con fracción 0 no hay refresco.
 en el ciclo entran en una cola. Se confirman con una petición por lote (`adIds`, hasta 50) sobre el
 carril de refresco, y solo se retiran (`inactive` / `delisted`) si la sonda ha demostrado que la API
 omite los anuncios dados de baja (`DELISTED_OMISSION_CONFIRMED`); cualquier respuesta dudosa deja el
-anuncio activo. **Estado actual: la sonda está pendiente de ejecutar por el responsable, así que no
-se retira ningún anuncio.** Un anuncio inactivo sale de la búsqueda (`active_listing_count > 0`), se
+anuncio activo. La sonda del 2026-09-30 confirmó la omisión (fixture `adids-2026-09-30`), así que la
+retirada por verificación está activa cuando lo está el carril de refresco. Un anuncio inactivo sale de la búsqueda (`active_listing_count > 0`), se
 conserva y se reactiva si la fuente vuelve a publicarlo.
 
 **Purga en dos planos.**

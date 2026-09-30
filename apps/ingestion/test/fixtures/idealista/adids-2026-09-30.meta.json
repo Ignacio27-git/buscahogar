@@ -1,0 +1,138 @@
+{
+  "delistedIdBehaviour": "omitted",
+  "propertyTypeConstrainsAdIds": true,
+  "adIdsListEncoding": "comma-separated",
+  "adIdsListHonoured": true,
+  "liveId": "111715742",
+  "delistedId": "111037729",
+  "responses": {
+    "liveAlone": {
+      "outcome": "ok",
+      "httpStatus": 200,
+      "returnedIds": [
+        "111715742"
+      ]
+    },
+    "liveAndDelisted": {
+      "outcome": "ok",
+      "httpStatus": 200,
+      "returnedIds": [
+        "111715742"
+      ]
+    },
+    "liveOtherFilter": {
+      "outcome": "ok",
+      "httpStatus": 200,
+      "returnedIds": []
+    }
+  },
+  "requests": [
+    {
+      "step": "live-own-filter",
+      "fields": [
+        {
+          "name": "center",
+          "value": "40.43,-3.702"
+        },
+        {
+          "name": "distance",
+          "value": "170"
+        },
+        {
+          "name": "propertyType",
+          "value": "homes"
+        },
+        {
+          "name": "operation",
+          "value": "sale"
+        },
+        {
+          "name": "maxItems",
+          "value": "50"
+        },
+        {
+          "name": "numPage",
+          "value": "1"
+        },
+        {
+          "name": "adIds",
+          "value": "111715742"
+        }
+      ]
+    },
+    {
+      "step": "live-and-delisted",
+      "fields": [
+        {
+          "name": "center",
+          "value": "40.43,-3.702"
+        },
+        {
+          "name": "distance",
+          "value": "170"
+        },
+        {
+          "name": "propertyType",
+          "value": "homes"
+        },
+        {
+          "name": "operation",
+          "value": "sale"
+        },
+        {
+          "name": "maxItems",
+          "value": "50"
+        },
+        {
+          "name": "numPage",
+          "value": "1"
+        },
+        {
+          "name": "adIds",
+          "value": "111715742,111037729"
+        }
+      ]
+    },
+    {
+      "step": "live-other-filter",
+      "fields": [
+        {
+          "name": "center",
+          "value": "40.43,-3.702"
+        },
+        {
+          "name": "distance",
+          "value": "170"
+        },
+        {
+          "name": "propertyType",
+          "value": "premises"
+        },
+        {
+          "name": "operation",
+          "value": "sale"
+        },
+        {
+          "name": "maxItems",
+          "value": "50"
+        },
+        {
+          "name": "numPage",
+          "value": "1"
+        },
+        {
+          "name": "adIds",
+          "value": "111715742"
+        }
+      ]
+    }
+  ],
+  "counters": {
+    "token": 1,
+    "search": 3
+  },
+  "endpoint": "https://api.idealista.com/3.5/es/search",
+  "timestamp": "2026-09-30T10:07:52.461Z",
+  "tokenQuotaImpact": "unknown",
+  "searchQuotaImpact": "billable"
+}

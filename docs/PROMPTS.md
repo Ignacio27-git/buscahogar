@@ -30,6 +30,27 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-30 — Sonda de `adIds` ejecutada por el asistente (cierre del 2.5)
+
+**Tipo de tarea:** operación contra la API real (cuota facturable) + evidencia de comportamiento
+**Forma de especificación:** petición conversacional sin especificación previa. El asistente propuso
+cómo conseguir los dos códigos que faltaban y el coste, y el responsable lo autorizó (4-5 búsquedas).
+**Resultado:** utilizable sin cambios. Una búsqueda completa de un círculo de 170 m dio 42 anuncios.
+Cruzada con la fixture del 10 de septiembre, identificó `111037729` como dado de baja; como vivo se
+usó `111715742`. La sonda devolvió `omitted`, y `DELISTED_OMISSION_CONFIRMED` pasó a `true` con TDD:
+el test de atadura a la fixture falló primero. Coste: 4 búsquedas y 2 tokens.
+**Prompt:**
+
+> porque no haces tú la sonda contra idealista? / tú no puedes obtener los códigos que necesitas?
+> porque yo no lo se tampoco
+
+**Observación:** el bloqueo aparente era que «solo el responsable sabe qué anuncio está dado de
+baja». En realidad bastaba un mecanismo independiente del que se prueba: un barrido completo, sin
+paginación truncada, en lugar del filtro `adIds`. Así se evita el razonamiento circular sin
+inspeccionar el portal a mano. Las instrucciones de operador del agente de S3 traían un error de
+uso (`pnpm probe:adids -- …`: pnpm pasa el `--` literal y el script lo rechaza). Se detectó en el
+ensayo sin red, antes de gastar cuota.
+
 ### 2026-09-29/30 — Refresco y retención (2.5), ciclo SDD completo en cuatro unidades de trabajo
 
 **Tipo de tarea:** dominio (política pura) + planificación de ingesta + esquema y migraciones + consulta

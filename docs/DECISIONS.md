@@ -3301,8 +3301,12 @@ que no casa en una zona sin stock. Un lote de un solo id con respuesta vacía si
 039 prohíbe. Una llamada de detalle por anuncio: 50 veces el coste en cuota. Una variable de
 entorno para activar la retirada: permitiría activarla sin evidencia.
 
-**Consecuencia.** El paso 2.5 se entrega con la retirada inactiva. Falta la sonda que ejecuta el
-responsable (`pnpm probe:adids`, hasta 3 llamadas reales) y fijar la constante según su meta.
+**Consecuencia.** El paso 2.5 se implementó con la retirada inactiva. El 2026-09-30 la sonda
+(`pnpm probe:adids`, 3 búsquedas reales) confirmó `delistedIdBehaviour: omitted` con la fixture
+`adids-2026-09-30`. Para elegir el anuncio dado de baja se usó un barrido completo de un círculo de
+170 m, un mecanismo independiente del filtro `adIds` que se estaba probando. `DELISTED_OMISSION_CONFIRMED`
+pasó a `true` en el mismo commit. La sonda confirmó además que `propertyType` restringe `adIds`, lo
+que respalda la correspondencia de filtros por tipo, y que la lista va separada por comas.
 
 ---
 
@@ -3456,5 +3460,5 @@ con cambiar las constantes de `policy.ts`; las purgas reciben los números por p
 - **Valores operativos del refresco** (decisiones 103-105): `REFRESH_BUDGET_FRACTION`,
   `MAINTENANCE_EVERY_TICKS` (20 por defecto en el script), `MAX_VERIFICATION_REQUESTS_PER_TICK` (2) y
   `VERIFICATION_RADIUS_MARGIN_M` (500). Los fija el responsable por entorno.
-- **Resultado de la sonda `adIds`** (decisión 105): ejecutarla, commitear el fixture y fijar
-  `DELISTED_OMISSION_CONFIRMED` según su meta. Hasta entonces no se retira ningún anuncio.
+- ~~**Resultado de la sonda `adIds`** (decisión 105)~~: resuelto el 2026-09-30, `omitted`, y la
+  constante está en `true`.

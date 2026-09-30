@@ -18,7 +18,11 @@ import { z } from 'zod';
 // Anotada como `boolean` (no el literal `false`) a propósito: el tipo no debe
 // estrecharse al valor commiteado, o cada consumidor quedaría como código muerto
 // para el compilador hasta el día que cambie el literal.
-export const DELISTED_OMISSION_CONFIRMED: boolean = false;
+//
+// Activada el 2026-09-30 con la fixture `adids-2026-09-30.meta.json`: el anuncio
+// retirado 111037729 (ausente de un barrido completo del círculo) desaparece de
+// una respuesta que sí devuelve el vivo 111715742 pedido en la misma lista.
+export const DELISTED_OMISSION_CONFIRMED: boolean = true;
 
 const probeMetaSchema = z.looseObject({ delistedIdBehaviour: z.string() });
 

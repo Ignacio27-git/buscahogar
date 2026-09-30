@@ -1811,7 +1811,7 @@ de test separada para `packages/db` (decisión 046). Los tres en "Pendientes de 
 
 ---
 
-## [~] 2.5 · Refresco y retención
+## [x] 2.5 · Refresco y retención
 
 ```text
 Implementa la política de refresco y retención de docs/ARCHITECTURE.md:
@@ -1822,13 +1822,17 @@ inactivos y de zonas sin consultas.
 
 **Notas:**
 
-**Estado: implementado, en `[~]` por un único motivo.** La sonda de `adIds` (hasta 3 llamadas reales a
-Idealista) la ejecuta el responsable; hasta entonces `DELISTED_OMISSION_CONFIRMED` es `false` y la
-verificación por `adIds` nomina candidatos pero no retira ningún anuncio como desaparecido (decisión
-105). Es el comportamiento seguro por diseño, no un fallo. La purga de zonas sí retira ya
+**Estado: completo (2026-09-30).** La sonda de `adIds` se ejecutó con autorización del responsable.
+Para elegir el anuncio dado de baja se hizo antes una búsqueda completa de un círculo de 170 m
+(42 anuncios, una página): `111037729`, grabado el 10 de septiembre a 86 m del centro, ya no aparecía.
+La sonda confirmó `delistedIdBehaviour: omitted`: la API devuelve el vivo `111715742` y omite el dado de
+baja pedido en la misma lista. También confirmó que `propertyType` restringe `adIds` y que la lista va
+separada por comas. Coste: 4 búsquedas facturables y 2 tokens. `DELISTED_OMISSION_CONFIRMED` pasa a
+`true` junto con la fixture `adids-2026-09-30`, así que la verificación ya retira los anuncios
+confirmados (decisión 105) en cuanto `REFRESH_BUDGET_FRACTION` sea mayor que 0. La purga de zonas sí retira ya
 (`zone_purged`) los anuncios de zonas con 180 días sin consultas, y el tombstone los redacta 180 días
 después. No gasta cuota y no depende de `REFRESH_BUDGET_FRACTION`, así que funciona desde el
-despliegue. Al cerrar ese punto el paso pasa a `[x]`.
+despliegue.
 
 **Qué se construyó.** Cuatro commits sobre `feature-fase2`, uno por unidad de trabajo (decisiones
 102-111, migraciones 0013-0016):
@@ -1847,9 +1851,8 @@ de zona a los 180. Tombstone de anuncios a los 180 días inactivos. Señales cad
 ingestion 811, `test:db` 107, web 160, consolidación 19, bloqueo 18, detalle 11; typecheck y lint
 limpios. Ninguna llamada real a Idealista.
 
-**Pendiente del responsable.** (1) Ejecutar la sonda (`pnpm probe:adids`, ver `apps/ingestion`),
-commitear el fixture y fijar la constante según su meta. (2) En la base de desarrollo: migración
-0016 (las 0013-0015 y los `GRANT` ya están). (3) Base de banco
+**Pendiente del responsable.** (1) Hecho el 2026-09-30: sonda ejecutada, fixture commiteada y
+constante en `true`. (2) Hecho: base de desarrollo en la 0016. (3) Base de banco
 (`buscahogar_bench`): migraciones 0014-0016 antes de volver a medir. (4) Valores operativos del
 refresco por entorno. (5) Actualizar `CLAUDE.md` (tres frases obsoletas, ver el informe de la tarea).
 
@@ -1957,3 +1960,4 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-29/30 | 2.5 | El paso se entrega con la retirada de anuncios inactiva: `DELISTED_OMISSION_CONFIRMED = false` hasta que el responsable ejecute la sonda | No se sabe cómo responde la API a un `adIds` dado de baja y la documentación no lo dice; retirar sin evidencia marcaría inactivos anuncios vivos, y un falso positivo aquí hace desaparecer la vivienda de la búsqueda. La sonda gasta cuota real y no la ejecuta un agente. Decisión 105. |
 | 2026-09-29 | 2.5 | En S2, un `pnpm migrate` sin variables de entorno se ejecutó contra la base de DESARROLLO y aplicó la migración 0014 (con su relleno) | El entorno del shell no persiste entre llamadas de Bash y la variable de la base desechable no llegó al comando. Sin pérdida de datos (migración aditiva y compatible con el código anterior), pero contra la regla de no tocar esa base. Desde S3, todas las variables van en línea en el mismo comando. Detalle en `AI-NOTES.md`. |
 | 2026-09-30 | 2.5 | En S4, una ejecución de los tests de `apps/web` sin `WEB_DATABASE_URL` ni `WEB_COVERAGE_DATABASE_URL` en línea escribió dos filas de prueba en `coverage_client_quota` de la base de desarrollo | `.env` apunta esas dos variables a la base de desarrollo y solo `DATABASE_URL` se sobrescribió. Dos filas de cuota de un día, que la purga programada borra sola; nada más cambió (señales y jobs siguen en 0). Detalle en `AI-NOTES.md`. |
+| 2026-09-30 | 2.5 | La sonda de `adIds` la ejecutó el asistente, no el responsable, y el paso pasa a `[x]` | El responsable no conocía ningún anuncio dado de baja y autorizó 4-5 búsquedas. Una búsqueda completa de un círculo de 170 m cruzada con la fixture del 10 de septiembre identificó uno. La sonda confirmó `omitted` y la constante pasó a `true` junto con su fixture. Coste real: 4 búsquedas y 2 tokens. |
