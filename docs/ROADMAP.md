@@ -1863,7 +1863,7 @@ en `zone_query_signals`, excepción del tombstone).
 
 ---
 
-## [ ] 2.6 · Vista de mapa
+## [~] 2.6 · Vista de mapa
 
 ```text
 Añade la vista de mapa con las viviendas resultantes de la búsqueda y búsqueda
@@ -1871,6 +1871,51 @@ por zona dibujada sobre el mapa.
 ```
 
 **Notas:**
+
+**Estado: en curso (2026-09-30).** El código, los tests offline y la documentación están hechos; queda
+la parte que necesita Docker y el navegador, y Docker estaba parado durante la aplicación, así que
+ninguna de esas comprobaciones se ejecutó.
+
+| Unidad | Contenido | Commit |
+|---|---|---|
+| U1 | códec del polígono, validación y esquemas en `core` | `cbe5b7a` |
+| U2 | filtro compartido, `ST_Covers` y consulta de puntos en `db` | `3d39da6` |
+| U3 | siete escenarios de banco y prueba de plan | `f25d9cd` |
+| U4a | precio compartido, enlaces, reductor de dibujo, CSP y guardas | `df6b480` |
+| U4b | Leaflet, control de dibujo y `page.tsx` | `7c95664` |
+| U5 | documentación (decisiones 112-119) | este commit |
+
+**Qué hace.** `view=map` sustituye la lista por un mapa con hasta 500 puntos agrupados, y
+`polygon=lat,lng;...` filtra por una zona dibujada, tanto en el mapa como en la lista. Ninguna de las
+dos toca fuentes externas, `coverage_jobs` ni `zone_query_signals` (decisión 118). Sin migración.
+Decisiones 112-119; enmiendan la 080 (CSP) y la 065 (allowlist de `'use client'`).
+
+**Pruebas al cerrar U4b** (sin base de datos): typecheck y lint limpios; ficheros de `apps/web` que no
+necesitan base de datos, 161 tests en verde; `pnpm --filter @buscahogar/web build` compila.
+
+**Pendiente del responsable** (ninguno se ha ejecutado):
+
+1. Suite de base de datos `packages/db/test/search/search-map.db.test.ts`, con `TEST_DATABASE_URL`
+   apuntando a una base `*_test`, nunca la de desarrollo (decisión 046).
+2. Tareas de banco 3.3-3.5 sobre `buscahogar_bench` en la migración 0016 y con `jit = off` (restaurarlo
+   después): medir los siete escenarios nuevos, anotar los veredictos G1 y G2 y repetir la medición.
+   Las corridas antiguas de 12 ids sirven de referencia. Si `count` por sí solo supera 500 ms de p95,
+   G1 obliga a decidir entre un recuento acotado («más de 10.000»), un área máxima menor o aceptarlo
+   solo en la vista de mapa. Registrar el resultado en `docs/SEARCH-PERFORMANCE.md`. Incluye la prueba
+   de plan de `polygon-small` en `search-bench.db.test.ts`.
+3. Aceptación manual en el navegador (tarea 5.4):
+   - Sin JavaScript, lista y mapa: recuento y enlace a la lista.
+   - Dibujar, cerrar y volver atrás; redibujar; quitar la zona.
+   - Agrupación con unos 300 puntos.
+   - Teselas cargadas bajo la CSP sin violaciones en la consola.
+   - Atribución visible; etiquetas de precio y enlace «Ver vivienda» del popup.
+   - Sin zoom por doble clic mientras se dibuja; los clics de la barra no añaden vértices.
+   - Forma inválida (lazo, vértice 51): mensaje y URL sin cambios.
+4. Con esas tres hechas, pasar el paso a `[x]`.
+
+**Riesgos abiertos.** El UMD de `leaflet.markercluster` depende del `L` global que fija importar
+`leaflet` antes (orden de imports en `map-cluster-layer.tsx`): solo comprobado en compilación. El
+peso del bundle de cliente, que importa el barril de `core`, no se ha medido.
 
 ---
 
@@ -1964,3 +2009,7 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-29 | 2.5 | En S2, un `pnpm migrate` sin variables de entorno se ejecutó contra la base de DESARROLLO y aplicó la migración 0014 (con su relleno) | El entorno del shell no persiste entre llamadas de Bash y la variable de la base desechable no llegó al comando. Sin pérdida de datos (migración aditiva y compatible con el código anterior), pero contra la regla de no tocar esa base. Desde S3, todas las variables van en línea en el mismo comando. Detalle en `AI-NOTES.md`. |
 | 2026-09-30 | 2.5 | En S4, una ejecución de los tests de `apps/web` sin `WEB_DATABASE_URL` ni `WEB_COVERAGE_DATABASE_URL` en línea escribió dos filas de prueba en `coverage_client_quota` de la base de desarrollo | `.env` apunta esas dos variables a la base de desarrollo y solo `DATABASE_URL` se sobrescribió. Dos filas de cuota de un día, que la purga programada borra sola; nada más cambió (señales y jobs siguen en 0). Detalle en `AI-NOTES.md`. |
 | 2026-09-30 | 2.5 | La sonda de `adIds` la ejecutó el asistente, no el responsable, y el paso pasa a `[x]` | El responsable no conocía ningún anuncio dado de baja y autorizó 4-5 búsquedas. Una búsqueda completa de un círculo de 170 m cruzada con la fixture del 10 de septiembre identificó uno. La sonda confirmó `omitted` y la constante pasó a `true` junto con su fixture. Coste real: 4 búsquedas y 2 tokens. |
+| 2026-09-30 | 2.6 | La planificación necesitó una ronda de corrección extra, autorizada: la puerta de diseño falló dos veces | La especificación y el diseño, escritos en paralelo, se contradecían (vértice de cierre) y el diseño clasificaba mal el lazo como `degenerate`. Detalle en `AI-NOTES.md`. |
+| 2026-09-30 | 2.6 | El responsable sustituyó el «plugin de dibujo» de la propuesta (P2) por un control de dibujo propio | `leaflet-draw` está sin mantenimiento desde 2018 y tiene un error conocido en `showArea`; Geoman es pesado. Decisión 114. |
+| 2026-09-30 | 2.6 | La medición de U3 y los veredictos G1/G2 (tareas 3.3-3.5) quedan aplazados; los tests de base de datos están escritos y no ejecutados; el paso queda `[~]` | Docker estaba parado durante la aplicación. Pasa al procedimiento del responsable descrito en las notas del paso. |
+| 2026-09-30 | 2.6 | Los tests de guarda se escribieron en U4a pero se commitearon con U4b | Antes de existir los componentes fallaban por construcción; commitearlos con U4b mantiene verde cada commit. |

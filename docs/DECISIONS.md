@@ -1991,6 +1991,10 @@ silencio.
 añadirlo al allowlist explícitamente y argumentar por qué en su propio registro de decisión — el
 hueco no crece por accidente.
 
+**Enmendada por la 113** (ROADMAP 2.6): el allowlist pasa a dos ficheros, `coverage-status.tsx` y
+`components/search-map.tsx`. Las tres aserciones del test y el requisito de argumentar cada entrada
+nueva permanecen.
+
 ---
 
 ## 066 — Procedencia del catálogo importado, precedencia de la fusión, regla de no-truncación, y la definición de "hoy" del presupuesto diario
@@ -2565,6 +2569,9 @@ de `next.config.ts`.
 nonce, así que la política "Without Nonces" documentada oficialmente por Next es la opción más
 simple que cumple el mismo objetivo. `next/image` ya se usa sin `unoptimized` en todo el proyecto,
 así que restringir `img-src` al propio origen no rompe ninguna imagen existente.
+
+**Enmendada por la 112** (ROADMAP 2.6): `img-src` admite además `https://tile.openstreetmap.org` para
+las teselas del mapa. El resto de la política permanece vigente sin cambios.
 
 ---
 
@@ -3430,6 +3437,170 @@ plazo prevalece.
 
 **Consecuencia.** Riesgo a declarar en la memoria: si un contrato real exige menos de 180 días, basta
 con cambiar las constantes de `policy.ts`; las purgas reciben los números por parámetro.
+
+---
+
+## 112 — CSP: `img-src` admite el host de teselas de OpenStreetMap; atribución «© OpenStreetMap» enlazada
+
+**Estado:** aceptada. Enmienda la decisión 080 (`img-src`).
+
+**Decisión.** `img-src` pasa a `'self' blob: data: https://tile.openstreetmap.org`; ninguna otra
+directiva cambia y no se añade `connect-src`. La plantilla de teselas es
+`https://tile.openstreetmap.org/{z}/{x}/{y}.png` y el literal aparece en `src/` solo en
+`search-map-canvas.tsx` (un test lo fija). La atribución es el literal exacto `© OpenStreetMap`,
+enlazado a `https://www.openstreetmap.org/copyright`, en el control de atribución de Leaflet y en el
+marcado que renderiza el servidor en la sección del mapa; un test comprueba el literal y el enlace.
+
+**Alternativas descartadas.** (1) Proxy de teselas del mismo origen: es una llamada externa desde
+`apps/web`, contra la regla de `CLAUDE.md`. (2) Subdominios `a/b/c`: amplían la política sin
+necesidad. (3) Atribución en el pie de `layout.tsx`: afirmaría OSM en páginas sin teselas; el pie
+del CNIG queda sin cambios.
+
+**Motivo.** El navegador del usuario carga las teselas; el servidor no hace ninguna petición
+externa, así que la regla de no consultar fuentes externas en la búsqueda se mantiene.
+
+**Enmienda de la 080.** La 080 fijaba `img-src 'self' blob: data:`; esta decisión añade solo el
+host de teselas.
+
+---
+
+## 113 — El allowlist de `'use client'` crece a DOS ficheros; dependencias del mapa con versión exacta
+
+**Estado:** aceptada. Enmienda la decisión 065.
+
+**Decisión.** Versiones exactas, sin `^`: `leaflet` 1.9.4, `react-leaflet` 5.0.0,
+`leaflet.markercluster` 1.5.3, `@types/leaflet` 1.9.22 y `@types/leaflet.markercluster` 1.5.6. El
+allowlist pasa a `coverage-status.tsx` y `components/search-map.tsx`, que carga el lienzo con
+`next/dynamic(() => import('./search-map-canvas'), { ssr: false })`. Los módulos de Leaflet (lienzo,
+capa de clústeres, control de dibujo) no llevan directiva: son código de cliente por el grafo de
+imports, y un test lo fija. Los marcadores son `L.divIcon` construidos con `textContent` del DOM.
+
+**Alternativas descartadas.** Leaflet sin `react-leaflet`; `dynamic` en `page.tsx` (Next 16 lo
+rechaza en Server Components); marcadores de imagen por defecto; un envoltorio de clústeres para
+`react-leaflet`.
+
+**Motivo.** El mapa necesita `window`, así que ha de ser cliente. Un único envoltorio en el
+allowlist mantiene el hueco del ancho mínimo, como pedía la 065.
+
+**Enmienda de la 065.** El allowlist deja de ser de UN fichero; el test sigue con sus tres
+aserciones sobre la lista de dos.
+
+---
+
+## 114 — Control de dibujo propio en lugar de un plugin de dibujo
+
+**Estado:** aceptada (el responsable sustituyó el «plugin de dibujo» de la propuesta P2).
+
+**Decisión.** Un clic en el mapa añade un vértice. Botones: Dibujar zona, Deshacer, Cerrar,
+Cancelar y Quitar zona. El reductor puro `draw-polygon-state.ts` redondea a 5 decimales y bloquea el
+vértice 51. Al cerrar llama a `validatePolygonRing` de `core`: si la forma no es válida muestra el
+mensaje y no navega. Los vértices no se editan; se vuelve a dibujar. Son unas 150 líneas, probables
+sin DOM.
+
+**Alternativas descartadas.** `leaflet-draw` 1.0.4: sin mantenimiento desde 2018, CSS con sprite y
+un `ReferenceError` conocido en `showArea`. `@geoman-io/leaflet-geoman-free`: pesado, con casi todas
+sus funciones sin uso.
+
+**Motivo.** Se necesita un polígono simple y validado por la misma función que el servidor.
+
+---
+
+## 115 — Formato y validación del parámetro `polygon`
+
+**Estado:** aceptada
+
+**Decisión.** `polygon=lat,lng;lat,lng;...`, anillo abierto; en el WKT el orden se invierte a
+`lon lat`. Las comprobaciones van en este orden y cada una da un error con nombre que identifica
+`polygon`: (1) valor no único (clave repetida) → error de tipo; (2) longitud decodificada > 1.100 →
+`too-long`, antes de partir; (3) vacío, separadores mal o cuenta impar → `malformed` (vacío nunca
+significa ausente); (4) vértice `^-?\d{1,3}(\.\d{1,5})?$`: más decimales → `malformed`, y el servidor
+nunca redondea; (5) fuera de rango → `out-of-range`; (6) menos de 3 o más de 50 vértices →
+`too-few`/`too-many`; (7) vértice repetido, incluido un cierre duplicado → `duplicate-vertex`; (8)
+TODOS los vértices colineales → `degenerate`; (9) cualquier contacto entre aristas, incluidas las
+formas de área cero que no son colineales (lazo) → `self-intersecting`; (10) área > 2.500 km² →
+`too-large`. Exclusividad: `polygon` con `zone` o con cualquiera de `lat`/`lng`/`radius` se rechaza
+con un mensaje que nombra los parámetros presentes.
+
+**Alternativas descartadas.** Codificación polyline de Google; GeoJSON en la URL; tolerar o
+normalizar el vértice de cierre (la especificación lo normalizaba; el responsable decidió rechazar).
+
+**Motivo.** Un anillo abierto tiene una única forma canónica. El máximo legal son 1.049 caracteres.
+El tope de 2.500 km² mantiene las consultas en el régimen medido para el radio de 25 km (1.963 km²).
+La aritmética es entera (coordenadas × 1e5), exacta y bajo 2^53.
+
+---
+
+## 116 — El polígono se aplica con `ST_Covers` sobre `geography`, con el WKT como parámetro
+
+**Estado:** aceptada
+
+**Decisión.** `ST_Covers(ST_GeogFromText($wkt), properties.location_geography)`. El WKT de anillo
+cerrado se construye en `spatial.ts` (`polygonWkt`, `polygonCovers`, decisión 019) y va siempre como
+parámetro enlazado, nunca concatenado. Usa el índice GiST existente; sin migración.
+
+**Alternativas descartadas.** `ST_Covers` sobre la columna `geometry` (no tiene GiST y exigiría una
+migración); `ST_Contains` (excluye el borde); un parámetro por vértice.
+
+**Consecuencia.** Las aristas son geodésicas: una de 50 km a 40° N se desvía unos 40 m de la línea
+plana, y se acepta. Los tests de frontera usan puntos en VÉRTICES.
+
+---
+
+## 117 — Consulta de puntos del mapa con `LIMIT 501`, recuento exacto solo al truncar y M acotado
+
+**Estado:** aceptada. Refina la decisión 058.
+
+**Decisión.** `buildFilters` pasa a `packages/db/src/search-filters.ts`, compartido por lista y mapa.
+`buildMapPointsQuery` = filtros + `"properties"."location" IS NOT NULL`, el MISMO `ORDER BY` que la
+lista (índices de la 100) y `LIMIT 501`. `searchMapPoints` conserva 500 filas; la 501 solo señala
+truncamiento y se descarta. Con 500 filas o menos, M = N sin segunda consulta; con 501 se ejecuta
+`count(*)` con el mismo `WHERE`. M cuenta solo viviendas con ubicación. `page` se ignora. Como no hay
+instantánea compartida entre las dos consultas, el total se acota a CAP+1 (`truncatedMapTotal`) para
+no mostrar «500 de 498».
+
+**Alternativas descartadas.** `COUNT(*) OVER()` (la 058 lo había descartado); la estimación del
+planificador (la 101 muestra que se equivoca en geografía); agrupar en el servidor.
+
+**Motivo.** Un mapa necesita puntos, no páginas, y el recuento caro solo se paga cuando hay más de 500.
+
+---
+
+## 118 — Esquema de `view`, el mapa sustituye a la lista, avisos y ausencia de efectos de cobertura
+
+**Estado:** aceptada
+
+**Decisión.** `view` tiene su propio `searchViewSchema` (`list` | `map`; ausente → lista; otro valor →
+rechazo con nombre) y no forma parte de los criterios. La vista de mapa SUSTITUYE a la lista y el
+paquete de la lista nunca importa el mapa. El servidor siempre renderiza: «M viviendas con ubicación
+coinciden» (sin polígono añade que puede diferir del total de la lista), «Mostrando 500 de M» solo
+si M > 500, un aviso de ubicación aproximada, la atribución de OSM y un `noscript` con enlace a la
+lista. Con M = 0, mensaje de vacío; con polígono, además el aviso «puede que la zona no esté
+cubierta», que aclara que una zona dibujada no solicita barridos. En la lista aparece solo con
+polígono, página 1 y 0 resultados. Un polígono nunca consulta cobertura, nunca escribe
+`coverage_jobs` ni `zone_query_signals` y nunca consume cuota.
+
+**Alternativas descartadas.** Mapa y lista a la vez; detección exacta de «zona no cubierta».
+
+**Motivo.** Sin un municipio no hay `coverage_job` posible, y crear señales de demanda con un dibujo
+libre ensuciaría la política de refresco de la 103.
+
+---
+
+## 119 — Etiqueta de precio y enlace construidos en el servidor; popups con DOM; `formatPriceCents` compartida
+
+**Estado:** aceptada
+
+**Decisión.** El servidor convierte cada punto en `{ id, lat, lon, priceLabel, href }`, con
+`priceLabel = formatPriceCents(minPriceCents)` y `href = buildPropertyDetailHref(anchorListingId)` o
+`null`. Un clic abre un popup construido con `textContent` y un `<a href>` plano «Ver vivienda» en la
+misma pestaña; sin `href` no hay enlace. `formatPriceCents` (duplicada en `result-card.tsx`,
+`property-header.tsx` y `source-list.tsx`) pasa a `apps/web/src/lib/format-price.ts` (nulo → «Precio
+no disponible») y la usan los tres y las etiquetas del mapa.
+
+**Alternativas descartadas.** Formatear en el cliente (duplica la lógica y arrastra `Intl` al
+bundle); `router.push` al hacer clic en el marcador.
+
+**Motivo.** Una sola fuente del formato de precio y ningún HTML interpolado desde datos de anuncios.
 
 ---
 

@@ -40,6 +40,90 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-30 — La especificación y el diseño escritos en paralelo se contradecían sobre el vértice de cierre
+
+**Contexto:** paso 2.6, `packages/core`, formato del parámetro `polygon`.
+
+**Categoría:** deriva de la arquitectura entre sesiones.
+
+**Qué ocurrió:** la especificación normalizaba un vértice de cierre repetido y el diseño lo rechazaba.
+Es la tercera vez que `sdd-spec` y `sdd-design` en paralelo se desalinean (ya en 2.3 y 2.5).
+
+**Cómo se detectó:** en la lectura cruzada de la puerta de diseño. El responsable resolvió: rechazar
+(`duplicate-vertex`, decisión 115).
+
+**Coste:** una revisión de especificación y otra de diseño.
+
+**Observación:** los puntos de contacto entre dos artefactos escritos a la vez (aquí, un caso límite
+de un formato) deberían fijarse antes de lanzarlos, no reconciliarse después.
+
+### 2026-09-30 — El diseño definió `degenerate` como área cero, y un lazo se clasificaba mal
+
+**Contexto:** paso 2.6, validación geométrica del polígono, revisión 2 del diseño.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** `degenerate` se definía como área de la fórmula del zapatero igual a cero. Un lazo
+(A(0,0) B(1,1) C(1,0) D(0,1)) tiene área cero y es un polígono que se cruza, no uno degenerado, así
+que habría recibido el código y el mensaje equivocados.
+
+**Cómo se detectó:** el validador de la revisión 2 del diseño.
+
+**Cómo se resolvió:** `degenerate` pasa a significar que TODOS los vértices son colineales
+(productos vectoriales enteros nulos), y el lazo es una fila de test de `core` que da
+`self-intersecting`.
+
+**Observación:** un umbral numérico (área cero) sustituía a la definición geométrica que se quería.
+
+### 2026-09-30 — El total exacto del mapa se devolvía sin acotar y podía mostrar «500 de 498»
+
+**Contexto:** paso 2.6, `searchMapPoints` en `packages/db`.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** con 501 filas devueltas, el `count(*)` posterior se mostraba tal cual. Las dos
+consultas no comparten instantánea: si entre ambas se retiraba un anuncio, el recuento podía ser
+menor que el tope y la pantalla mostraría «500 de 498».
+
+**Cómo se detectó:** corrección del orquestador al revisar la unidad de `db`.
+
+**Cómo se resolvió:** `truncatedMapTotal` acota el total a CAP+1 (decisión 117).
+
+**Observación:** dos consultas sin instantánea común no garantizan una relación entre sus resultados.
+
+### 2026-09-30 — `mergeRuns` exigía los 19 ids también con `--baseline`, y rompía las referencias de 2.4 y 2.5
+
+**Contexto:** paso 2.6, herramienta de banco de `apps/ingestion` (U3).
+
+**Categoría:** deriva de la arquitectura entre sesiones.
+
+**Qué ocurrió:** al ampliar la matriz a 19 escenarios, `mergeRuns` pasó a exigir todos los ids para
+cualquier entrada, y las corridas antiguas de 12 ids dejaron de servir como referencia.
+
+**Cómo se detectó:** el validador de la unidad.
+
+**Cómo se resolvió:** `requireComplete` solo se aplica a `--input`; `--baseline` acepta corridas
+parciales.
+
+**Observación:** endurecer una comprobación para el caso nuevo sin mirar los consumidores antiguos.
+
+### 2026-09-30 — La exploración daba por hecha la atribución de OSM en el pie del layout
+
+**Contexto:** paso 2.6, exploración y diseño de la atribución de las teselas.
+
+**Categoría:** contradicción con el código y con otros ficheros del propio registro.
+
+**Qué ocurrió:** la exploración supuso que la atribución iría en el pie de `layout.tsx`, junto a la del
+CNIG. El validador no encontró ninguna regla que lo exigiera, y ese pie afirmaría OSM en páginas sin
+teselas.
+
+**Cómo se detectó:** el validador.
+
+**Cómo se resolvió:** la atribución vive en la sección del mapa (control de Leaflet y marcado del
+servidor); decisión 112.
+
+**Observación:** un supuesto de ubicación heredado de un patrón anterior, sin comprobar la regla.
+
 ### 2026-09-30 — Repetición del banco sin `jit = off`: falso incumplimiento de `geo-25km-price`
 
 **Contexto:** cierre de pendientes del 2.5, repetición de la matriz de `bench-search` sobre

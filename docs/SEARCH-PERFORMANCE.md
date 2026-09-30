@@ -179,3 +179,7 @@ con el mismo plan y 719 ms de compilación JIT. No fue una regresión del filtro
 propietario y no hereda el ajuste de `web_readonly`. Cualquier medición futura debe aplicar el mismo
 `ALTER DATABASE … SET jit = off`.
 
+
+### Pendiente tras el paso 2.6: escenarios de mapa y polígono
+
+El paso 2.6 añadió siete escenarios a `bench-search` (`polygon-small`, `polygon-large-price`, `polygon-sparse`, `map-points-default`, `map-count-default`, `map-points-polygon-large`, `map-count-polygon-large`) y una prueba de plan de `polygon-small`. **Ninguno se ha medido**: Docker estaba parado durante la aplicación. Pendientes los veredictos G1 (puntos + recuento por debajo de 500 ms de p95 en el mapa) y G2 (polígonos en la lista por debajo de 500 ms). Procedimiento en las notas del paso 2.6 de `docs/ROADMAP.md`; el resultado se anotará aquí.

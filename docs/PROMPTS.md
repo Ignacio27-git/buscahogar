@@ -30,6 +30,31 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-30 — Vista de mapa y búsqueda por zona dibujada (2.6), ciclo SDD completo en cinco commits
+
+**Tipo de tarea:** interfaz (mapa de cliente) + dominio (validación geométrica) + consulta SQL
+(filtro espacial) + configuración (CSP, dependencias) + escenarios de banco
+**Forma de especificación:** ciclo SDD — explore → propuesta con decisiones P1-P8 del responsable →
+`sdd-spec` y `sdd-design` en paralelo (tres revisiones del diseño, con dos rechazos de la puerta) →
+`sdd-tasks` → `sdd-apply` en cinco unidades (core, db, banco, web pura, web con interfaz) más
+documentación, cada una validada antes de su commit
+**Resultado:** utilizable con retoques — el validador exigió correcciones en cada paso, y el
+orquestador hizo una corrección en `db` (el total exacto se devolvía sin acotar). La medición de
+banco y la aceptación en el navegador quedan pendientes del responsable.
+**Prompt:**
+
+> Añade la vista de mapa con las viviendas resultantes de la búsqueda y búsqueda por zona dibujada
+> sobre el mapa.
+
+Invocado vía `/gentle-sdd-new`.
+
+**Observación:** el prompt une dos funciones con muy distinto riesgo. El mapa es sobre todo interfaz;
+la zona dibujada es entrada externa no confiable y cambia el modelo de coste de la búsqueda (un
+polígono no tiene municipio, así que no hay cobertura ni señal de demanda posibles). Casi todo lo
+valioso salió de las preguntas previas: si cerrar el anillo o rechazarlo, qué cuenta en el total del
+mapa, y si usar un plugin de dibujo (el responsable lo sustituyó por un control propio). Los fallos
+del proceso están en `docs/AI-NOTES.md`; las decisiones, en la 112-119.
+
 ### 2026-09-30 — Cierre de los pendientes del responsable tras el 2.5
 
 **Tipo de tarea:** documentación de reglas + medición de rendimiento + operación de bases de datos

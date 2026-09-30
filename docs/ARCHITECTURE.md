@@ -178,7 +178,11 @@ días son una elección del proyecto y viven como constantes en `policy.ts`.
 ## Capa web
 
 - Server Components consultando `db` directamente para listado y detalle.
-- Filtros en search params, no en estado de cliente.
+- Filtros en search params, no en estado de cliente. Incluye la zona dibujada (`polygon`) y la
+  vista (`view=map`), ROADMAP 2.6.
+- Vista de mapa (2.6): el servidor calcula los puntos (máximo 500) y el recuento; un único envoltorio
+  de cliente carga Leaflet con `next/dynamic` y dibuja en el navegador (decisiones 113-119). Las
+  teselas de OpenStreetMap las descarga el navegador, no el servidor (decisión 112).
 - No se usan TanStack Query ni Zustand en la ruta principal.
 - Imágenes remotas servidas mediante la optimización de imágenes de Next; no se almacenan.
 
@@ -214,7 +218,7 @@ Fuera del alcance: colas externas, Redis, caché distribuida, autenticación.
 - Cabeceras de seguridad y política de contenido: CSP estática sin nonces + conjunto OWASP
   (HSTS, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors 'none'`/
   `X-Frame-Options: DENY`, COOP, CORP, sin COEP) vía `headers()` en `next.config.ts`; sin
-  `X-Powered-By`.
+  `X-Powered-By`. `img-src` admite el host de teselas de OpenStreetMap (decisión 112).
 - Módulos de `apps/web/src/server` con handles de base de datos o secretos guardados con
   `import 'server-only'`, para que un import accidental desde código de cliente falle en build.
 - Secretos en variables de entorno, fuera del control de versiones.
