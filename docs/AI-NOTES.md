@@ -40,6 +40,154 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-30 — El orquestador trató `property_listings` como evidencia inmutable, y la documentación del tombstone lo repitió
+
+**Contexto:** paso 2.5, S4 (tombstone). Instrucción del orquestador a `sdd-apply` y decisión 107.
+
+**Categoría:** contradicción con el código.
+
+**Qué se generó mal:** la instrucción de S4 pedía que el tombstone «conservara la puntuación y el
+desglose de `property_listings`», y la decisión 107 y ARCHITECTURE lo afirmaron como garantía. El
+tombstone no toca esa tabla, pero `writeConsolidation` borra y reconstruye `properties` y
+`property_listings` en cada reproceso de dedup. La única evidencia inmutable es
+`dedup_pair_evidence`. Tampoco se contaba con que `properties.description` y `thumbnail_url`, copiadas
+del anuncio ganador, conservan el contenido redactado hasta el siguiente reproceso correcto.
+
+**Cómo se detectó:** el validador de contrato de S4, contrastando la decisión con
+`consolidation.ts` y `winner.ts`.
+
+**Cómo se resolvió:** decisión 107 corregida (qué es evidencia inmutable, el retraso de la
+redacción en `properties` y el posible cambio de ganador). También se corrigió la frase del ROADMAP
+que decía que el sistema no retiraba ningún anuncio, cuando la purga de zonas sí retira.
+
+**Observación:** la regla de `CLAUDE.md` («guardar siempre en `property_listings` la puntuación y el
+desglose») habla de cada consolidación, no de conservar filas antiguas. Con la separación
+`listings`/`properties` y el reproceso global, la evidencia histórica vive en `dedup_pair_evidence`.
+
+### 2026-09-30 — Tests de `apps/web` sin las URLs de sus roles en línea escribieron en la base de desarrollo
+
+**Contexto:** paso 2.5, S4, ejecución de la suite de `apps/web` contra bases desechables.
+
+**Categoría:** pérdida de contexto en tareas largas.
+
+**Qué ocurrió:** el ayudante que ejecuta cada comando con `DATABASE_URL` apuntando a una base
+desechable no sobrescribía `WEB_DATABASE_URL` ni `WEB_COVERAGE_DATABASE_URL`. `.env` las apunta a la
+base de desarrollo, y los tests de roles y de la página de cobertura conectan con esos roles. Seis
+tests fallaron (los roles veían las claves foráneas de otra base que la que el test acababa de
+poblar), y los que consumen cuota dejaron dos filas de prueba en `coverage_client_quota` de la base
+de desarrollo.
+
+**Cómo se detectó:** por los fallos (los roles no veían los datos que el test acababa de crear) y
+comprobando después los recuentos de la base de desarrollo.
+
+**Coste:** 10 minutos. Daño: dos filas de cuota de un día, que la purga programada borra sola;
+señales y jobs siguen en 0.
+
+**Observación:** es el mismo fallo de la entrada siguiente y del subagente del paso 2.4, y la segunda vez dentro de este paso. La
+instrucción nombraba `DATABASE_URL` y `BENCH_DATABASE_URL`, pero `.env` define tres URLs de base de
+datos más de las que un comando suele sobrescribir. Un ayudante de ejecución que fija las tres
+(además de las del banco) y se niega a arrancar si alguna apunta a una base sin el sufijo
+designado evita la clase entera; se usó desde este punto.
+
+### 2026-09-29 — Un `pnpm migrate` sin variables en línea aplicó la migración 0014 a la base de desarrollo
+
+**Contexto:** paso 2.5, S2 (ciclo de vida y visibilidad), migración `0014`.
+
+**Categoría:** pérdida de contexto en tareas largas.
+
+**Qué ocurrió:** el agente creó una base desechable y exportó su `DATABASE_URL` en una llamada de
+shell; en la siguiente, el entorno ya no existía, y `pnpm migrate` leyó `.env` y migró la base de
+desarrollo. Aplicó `0014` y su relleno (`active_listing_count = listing_count`).
+
+**Cómo se detectó:** lo declaró el propio agente al ver la migración aplicada donde no debía.
+
+**Coste:** ninguno (migración aditiva, sin pérdida de datos), pero contra una regla explícita.
+
+**Observación:** el entorno de una llamada de shell no persiste en la siguiente. Desde S3 las
+variables van en línea, en el mismo comando que cada migración o test.
+
+### 2026-09-29 — Dos fallos de «retirada falsa» que solo encontró el validador
+
+**Contexto:** paso 2.5, S3 (verificación de presencia por `adIds`).
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** (1) La retirada de un anuncio «ausente» no comprobaba que siguiera en la cola. Si un
+barrido lo veía entre la verificación y su aplicación, el escritor ya había borrado su fila, pero la
+aplicación lo retiraba igualmente. (2) El clasificador trataba una respuesta vacía a un lote de
+varios ids como «todos ausentes». Una respuesta vacía es igual de compatible con un `adIds` ignorado
+o con un filtro de tipo que no casa en una zona sin stock, y habría retirado hasta 50 anuncios vivos
+de golpe. El test que fijaba esa forma pasaba porque repetía lo que la especificación describía (LR-4), que
+tenía el mismo fallo.
+
+**Cómo se detectó:** validación de contexto limpio del lote (PASS_WITH_NOTES con ambos hallazgos).
+
+**Coste:** una ronda de corrección: un test rojo para cada uno, y una desviación de la especificación
+registrada en la decisión 105.
+
+**Observación:** la especificación, el diseño y las pruebas compartían el mismo supuesto. La
+prioridad del proyecto (un falso positivo es peor que un duplicado sin detectar) debía haber
+convertido «respuesta vacía» en ambigua desde el principio. Un test que repite la especificación no
+valida la especificación.
+
+### 2026-09-29 — `scheduleRefresh` dejaba el cursor de una paginación a medias
+
+**Contexto:** paso 2.5, S1 (planificador de refresco), `packages/db/src/zone-lifecycle.ts`.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** el re-encolado ponía el job en `pending` con `attempts = 0` pero conservaba el
+cursor. Un job `failed` con los intentos agotados reanudaba desde una página intermedia,
+`finishJob(completed)` sellaba `last_swept_at` como un barrido completo y, en S3, `cycle_started_at`
+(que solo se fija con cursor nulo) nunca abría un ciclo nuevo: el candidato a «ausente» se habría
+calculado contra un ciclo antiguo.
+
+**Cómo se detectó:** validador de S1, que cruzó la invariante con el diseño de S3.
+
+**Coste:** una ronda de corrección (test rojo `expected 'cursor-a-mitad-de-paginacion' to be null`).
+
+**Observación:** el fallo no se veía dentro de S1: dependía de una propiedad de S3. Conviene escribir
+las invariantes entre unidades antes de partir el trabajo.
+
+### 2026-09-29 — El diseño proponía borrar filas del catálogo de zonas, y el diseño y la especificación se desviaron entre sí
+
+**Contexto:** paso 2.5, propuesta y diseño de la purga de zonas.
+
+**Categoría:** deriva de la arquitectura entre sesiones.
+
+**Qué ocurrió:** la primera versión del diseño borraba la zona al purgar. `zones` no es una tabla de trabajo: es
+el catálogo INE sembrado (~8.100 filas) que la interfaz y `locations-query` unen con un `inner join`.
+Borrarla rompería el autocompletado de municipios. Además, el diseño y la especificación dejaron de
+coincidir entre sus primeras versiones, y hubo que alinearlos de nuevo con las decisiones U1-U3 del
+mantenedor (segunda revisión de ambos).
+
+**Cómo se detectó:** al revisar el diseño contra el código (el `inner join` de `suggestZones` y
+`resolveZoneGeometry`) y en una lectura cruzada del diseño y la especificación.
+
+**Coste:** una segunda revisión de diseño y especificación. Resultado: la purga es un reinicio
+(decisión 108).
+
+**Observación:** «borrar» sin mirar quién referencia la tabla. Una frase de un diseño sobre el
+esquema existente es una afirmación verificable, igual que el código.
+
+### 2026-09-30 — La previsión de tamaño se quedó unas tres veces corta
+
+**Contexto:** paso 2.5, `sdd-tasks` y las cuatro unidades de `sdd-apply`.
+
+**Categoría:** pérdida de contexto en tareas largas.
+
+**Qué ocurrió:** `sdd-tasks` previó 2.100-2.500 líneas en total; S1, S2 y S3 cerraron en ~2.700, ~930 y
+~4.240 (más un snapshot generado de 2.143 líneas), y S4 en ~1.450. Más de la mitad son tests, y la
+previsión no contaba ni los escenarios negativos que pide la TDD estricta ni las correcciones
+tras validación.
+
+**Cómo se detectó:** el informe de cada unidad.
+
+**Coste:** `size:exception` aceptado en las cuatro unidades; no hubo un PR revisable de 800 líneas.
+
+**Observación:** la previsión por unidad debería partir del número de escenarios negativos de la
+especificación, no de las funciones que se añaden.
+
 ### 2026-09-29 — Un subagente de `sdd-apply` ejecutó `test:db` contra la base de desarrollo pese a la instrucción de no tocarla
 
 **Contexto:** paso 2.4, primer lote de `sdd-apply` (generador de corpus, `apps/ingestion`).

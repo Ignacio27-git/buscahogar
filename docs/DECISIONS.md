@@ -3202,6 +3202,233 @@ puede afectar a otras decisiones del planificador; queda como seguimiento.
 
 ---
 
+## 102 — Señal de demanda por zona: tabla `zone_query_signals` y un único `GRANT INSERT` a `web_coverage`
+
+**Estado:** aceptada. Enmienda las decisiones 064 y 076 (lista de privilegios de `web_coverage`).
+
+**Decisión.** `zone_query_signals(zone_id, day)` con clave primaria `(zone_id, day)`, `zone_id`
+referenciando `zones` con `ON DELETE CASCADE` y `day` con el `DEFAULT` de la fecha UTC en el reloj
+de Postgres. `apps/web` inserta solo `zone_id` con `ON CONFLICT DO NOTHING`, sin `WHERE`, sin
+`RETURNING` y sin `DO UPDATE`: PostgreSQL no exige entonces `SELECT` ni `UPDATE`, y un test de
+privilegios lo demuestra. El rol `web_coverage` gana `INSERT` sobre esa tabla y nada más;
+`web_readonly` la lee por los privilegios por defecto (inocuo). La migración `0013` rellena
+`(zone_id, requested_at::date)` desde `coverage_jobs`. La escritura va en `page.tsx` antes de
+resolver la cobertura, con `await` de una función que nunca lanza (`recordZoneQuerySignalSafely`);
+`after()` no se usó durante la implementación porque Context7 no estaba disponible en ese momento;
+después se verificó con la documentación de Next 16.2.9, la más cercana a la 16.3.4 fijada, que es
+válido en una página Server Component si `cookies`/`headers` se leen antes del callback. Pasarse a
+`after()` queda como mejora opcional: ahorra una ida y vuelta por búsqueda, y sus tests necesitarían
+simular `next/server`.
+
+**Alternativa descartada.** `zones.last_queried_at` más un `GRANT UPDATE`: ensancha el rol sobre la
+tabla del catálogo sembrado. Derivar la demanda de `coverage_jobs`: una zona ya cubierta no genera
+ninguna fila nueva, así que nunca se sabría que se sigue consultando.
+
+**Consecuencia.** El propietario vuelve a ejecutar `bootstrap-roles-grants.sql`. Hay como mucho una
+señal por zona y día, acotada por la purga de la 103.
+
+---
+
+## 103 — Cadencia de refresco y números de retención (30 / 90 / 180 días)
+
+**Estado:** aceptada.
+
+**Decisión.** Con `d` = días completos desde la última demanda de la zona: `d ≤ 30` semanal (vence
+a los 7 días del último barrido), `31 ≤ d ≤ 90` mensual (30 días), `91 ≤ d ≤ 179` en espera (nunca
+vence), `d ≥ 180` purga. La demanda de referencia es `coalesce(max(señal.day),
+coverage_jobs.requested_at::date)`, calculada con el reloj de Postgres (DD-11); `packages/core`
+recibe enteros. Las señales caducan a los 180 días, con un máximo de 5.000 filas por tick. Todos los
+números son constantes con nombre en `packages/core/src/retention/policy.ts`.
+
+**Alternativa descartada.** `zones.created_at` como referencia: es uniforme por el seed de ~8.100
+zonas y no dice nada de la demanda. `last_swept_at`: mide la oferta refrescada, no el interés.
+
+**Consecuencia.** Una consulta nueva devuelve la zona a semanal. Los valores operativos (fracción de
+refresco, `maintenanceEveryTicks`, peticiones de verificación por tick, margen de radio) los fija
+el responsable por entorno; quedan en "Pendientes de decidir".
+
+---
+
+## 104 — Carril de refresco con techo de gasto, intentos por ciclo y reinicio del cursor
+
+**Estado:** aceptada.
+
+**Decisión.** `coverage_jobs.refresh_requested_at` no nulo marca el carril de refresco; la
+selección ordena primero los jobs a demanda. El planificador pasa a `pending` los jobs `done` (o
+`failed` con los intentos agotados) de zonas `covered` vencidas por cadencia, con `attempts = 0`
+(los intentos pasan a ser por ciclo), `error = NULL` y `cursor = NULL`, sin tocar `requested_at`
+(ancla de demanda) ni `zones.state`. `finishJob(completed)` limpia la marca. La reserva se hace por
+carril y antes de reclamar; el carril de refresco compara contra `least(tope, floor(tope ×
+fracción))` sobre el gasto TOTAL del día, en la rama de inserción y en la de conflicto del ledger.
+Con fracción 0 o ausente no se re-encola nada ni se verifica nada.
+
+**Corrección tras validación (cursor).** La primera versión de `scheduleRefresh` dejaba el cursor:
+un job `failed` agotado reanudaba desde una paginación a medias, `finishJob(completed)` sellaba
+`last_swept_at` como barrido completo y `cycle_started_at` (decisión 105, solo se fija con cursor
+NULL) nunca abría un ciclo nuevo. Un refresco es un ciclo nuevo: el cursor se reinicia.
+
+**Alternativa descartada.** Poner `requested_at = now()` al refrescar: adelanta al refresco frente a
+la demanda por antigüedad y destruye el ancla de la 103. Pasar un tope reducido en vez de un techo:
+la rama de conflicto compara contra la columna `search_cap` ya guardada y lo ignora. Un contador
+aparte para el refresco: el techo sobre el total conserva siempre `tope × (1 − fracción)` para la
+demanda sin segunda contabilidad.
+
+---
+
+## 105 — Desaparición de anuncios: la ausencia nomina, `adIds` confirma, y la confirmación está bloqueada por evidencia
+
+**Estado:** aceptada. Enmienda la decisión 039 (la ausencia en un barrido no cambia el estado).
+
+**Decisión.** Tras un ciclo COMPLETADO (`finishJob(completed)`, con `cycle_started_at` estable entre
+reanudaciones), cada anuncio activo de la zona, la fuente y la operación del worker con
+`last_seen_at < cycle_started_at` entra en `listing_presence_checks`; nunca cambia de estado por
+eso. Un verificador aparte (`ListingPresenceVerifier`, no en `PropertySource`) envía una petición
+por lote de hasta 50 ids con `adIds`. Un id devuelto es `present` (sube `last_seen_at`); uno
+omitido es `absent` (→ `inactive` / `delisted`) SOLO si `DELISTED_OMISSION_CONFIRMED` es `true`; la
+constante es `false` hasta que un fixture de la sonda demuestre la omisión, y un test la ata a la
+meta del fixture. Un error de transporte, un sobre inválido, `totalPages > 1` o un id ajeno
+devuelto (`adIds` ignorado) hacen ambiguo TODO el lote: +1 intento, espera de 7 días y descarte a
+los 3 intentos sin cambiar estado. Mientras la constante sea `false`, ningún anuncio se retira.
+
+**Correcciones tras validación (ambas de la clase "retirada falsa").** (1) Carrera: si un barrido
+veía el anuncio entre la verificación y su aplicación, se retiraba igualmente; el `UPDATE` de
+`absent` exige ahora que la fila de la cola siga existiendo (el escritor la borra al ver el
+anuncio). (2) Desviación de la especificación (LR-4, S-LR-5): una respuesta vacía a un lote de 2 o
+más ids es AMBIGUA, no `absent` para todos; es indistinguible de un `adIds` ignorado o de un filtro
+que no casa en una zona sin stock. Un lote de un solo id con respuesta vacía sigue siendo omisión.
+
+**Alternativa descartada.** Inferir la desaparición tras N barridos sin verlo: es justo lo que la
+039 prohíbe. Una llamada de detalle por anuncio: 50 veces el coste en cuota. Una variable de
+entorno para activar la retirada: permitiría activarla sin evidencia.
+
+**Consecuencia.** El paso 2.5 se entrega con la retirada inactiva. Falta la sonda que ejecuta el
+responsable (`pnpm probe:adids`, hasta 3 llamadas reales) y fijar la constante según su meta.
+
+---
+
+## 106 — Ciclo de vida del anuncio: `inactive_since`, `inactive_reason` y reactivación al verlo de nuevo
+
+**Estado:** aceptada. Enmienda PERSIST-3 / P6 (el escritor no tocaba `status`).
+
+**Decisión.** `listings` gana `inactive_since` e `inactive_reason` (`CHECK` `delisted` /
+`zone_purged`). Son metadatos de observación, como `last_seen_at`, no contenido: no versionan. Solo
+la verificación y la purga de zona marcan un anuncio como inactivo. Una re-visión en un barrido lo
+reactiva: `status = 'active'`, columnas de ciclo de vida a `NULL`, fila de la cola borrada y
+visibilidad de su vivienda refrescada, todo en la transacción de la página.
+
+**Alternativa descartada.** Una tabla de eventos de ciclo de vida sin consumidor en este paso; una
+tabla 1:1 de ciclo de vida (un `join` más en cada lectura).
+
+---
+
+## 107 — Tombstone a los 180 días: redacción por `UPDATE`, excepción explícita a «`listings` no se sobrescribe»
+
+**Estado:** aceptada. Excepción autorizada a la regla de `CLAUDE.md`.
+
+**Decisión.** Un anuncio `inactive` con `inactive_since ≤ now() − 180 días` (lotes de 500, `FOR
+UPDATE SKIP LOCKED`, índice parcial) pasa a `status = 'removed'` con `tombstoned_at`, y se ponen a
+`NULL` `listing_versions.description` y `raw` de TODAS sus versiones y `listings.thumbnail_url`: ahí
+vive el contenido libre y el payload de la fuente. Se conservan la fila del anuncio, el precio y
+los campos estructurados de cada versión (historial), `listing_features`, `dedup_pair_evidence` y
+`dedup_runs`. Nada se borra y ninguna FK en cascada se dispara. El tombstone no toca
+`property_listings`, pero esa tabla no es evidencia inmutable: cada reproceso de dedup reconstruye
+`properties` y `property_listings` desde los anuncios, con puntuación y desglose recalculados. La
+evidencia que perdura es `dedup_pair_evidence`. Si algo se redacta, el tick queda sucio y el
+reproceso de dedup reconstruye las cachés de las viviendas. Hasta ese reproceso,
+`properties.description` y `thumbnail_url`, copiadas del anuncio ganador, pueden conservar el
+contenido redactado. Si ese reproceso falla, el siguiente tick ya no queda sucio por el tombstone y
+la copia persiste hasta el próximo barrido completado. Como la selección del ganador lee la
+descripción, el ganador puede cambiar tras el tombstone. **Reaparición:** el `upsert` del escritor pone `status = 'active'`, limpia
+`tombstoned_at` y rellena `thumbnail_url` SOLO si el anuncio tenía tombstone (`CASE` sobre la fila
+anterior; la congelación de la decisión 059 sigue valiendo para los demás); si la última versión
+está redactada (`raw IS NULL`) se inserta una versión nueva aunque nada haya cambiado.
+
+**Desviación del diseño.** El diseño no cambiaba `status`; se adoptó `removed` (valor ya admitido
+por el `CHECK` y ya tratado por el detalle como "retirado") para que el estado sea autosuficiente.
+
+**Alternativa descartada.** Borrado duro: las FK en cascada destruirían `property_listings` y la
+evidencia de dedup, que son el material de evaluación del TFM. Cambiar las FK a `RESTRICT`: no hace
+falta si no se borra.
+
+**Consecuencia.** La redacción es irreversible: el contenido solo se recupera si la fuente vuelve a
+publicar el anuncio. `CLAUDE.md` debe recoger la excepción.
+
+---
+
+## 108 — Purga de zona como reinicio de cobertura, no como borrado
+
+**Estado:** aceptada.
+
+**Decisión.** Una zona con `d ≥ 180` se reinicia, por job (zona Z, fuente S), en una transacción
+que vuelve a comprobar la condición (job sin reclamar y demanda aún ≥ 180 días): (a) los anuncios
+activos de S dentro del círculo de Z (`locations.centroid` + `sweep_radius_m`) y fuera del círculo
+de cualquier otra zona con job de S pasan a `inactive` / `zone_purged` y siguen el plano de 180 días
+del tombstone; (b) se refresca la visibilidad; (c) se borra el job y su cola de presencia; (d) si la
+zona no conserva ningún otro job, se borran sus señales y (e) vuelve a `uncovered` con
+`last_swept_at` NULL. Las zonas se procesan en secuencia, máximo 20 por pasada; la avería de una
+zona se revierte sola y no impide las siguientes. No gasta cuota. Los anuncios sin coordenadas
+nunca se retiran (límite conocido).
+
+**Alternativa descartada.** Borrar la fila de `zones` (prevista en la propuesta): es el catálogo INE
+sembrado que consultan la interfaz y `locations-query`, y borrarla rompe el autocompletado. Un
+`zone_id` por anuncio: los círculos se solapan y un anuncio pertenece a varias zonas.
+
+---
+
+## 109 — Visibilidad en la búsqueda solo con anuncios activos
+
+**Estado:** aceptada. Afina las decisiones 006 y 068.
+
+**Decisión.** `properties.active_listing_count` (caché, rellenada desde `listing_count` en la
+migración `0014`) y `min_price_cents` como mínimo entre los anuncios activos, o entre todos cuando
+ninguno lo está. Una sola función, `refreshPropertyVisibility(executor, scope)`, la usan la
+consolidación, la reactivación, la verificación, la purga de zona y el tombstone. La búsqueda añade
+`active_listing_count > 0`; bloqueo, hidratación y agrupación siguen sin mirar el estado (068) y el
+detalle lista también los inactivos. El precio que se muestra pasa de «el más económico del grupo»
+a «el más económico de los anuncios activos».
+
+**Alternativa descartada.** Calcularlo en la consulta de búsqueda con un `join`: rompe los planes
+medidos en la decisión 100. Excluir los inactivos del agrupamiento: reagruparía y perdería la
+evidencia que alimenta la evaluación.
+
+**Consecuencia.** El filtro es un filtro de montón sobre los recorridos de índice ordenados; ver
+`docs/SEARCH-PERFORMANCE.md`.
+
+---
+
+## 110 — Aislamiento de fallos por paso en el tick del worker
+
+**Estado:** aceptada.
+
+**Decisión.** `runIsolatedStep(ports, nombre, fn)` captura el error de cada paso de mantenimiento o
+verificación, registra `paso "<nombre>" falló: <mensaje>` (solo el mensaje, sin credenciales) y
+sigue. Orden del tick: `purgeClientQuota` (sin envolver, comportamiento 1.15) → señales → ciclo de
+vida de zonas (si falla, se omiten purga y re-encolado, pero no el tombstone) → purga de zonas →
+re-encolado → tombstone → barrido → nominación tras un ciclo completado → verificación → `runDedup`
+si el tick está sucio. El barrido conserva su semántica: solo `JobAlreadyClaimedError` no es fatal.
+
+**Alternativa descartada.** Dejar propagar todo: una avería de mantenimiento pararía los barridos,
+que son lo que gasta la cuota. Un único `catch` alrededor del tick: no dice qué paso falló.
+
+---
+
+## 111 — Supuesto documentado: ninguna fuente fija un plazo de retención
+
+**Estado:** aceptada como supuesto, con riesgo abierto para el TFM.
+
+**Decisión.** Los 180 días del tombstone y de la purga son una elección del proyecto, no una
+obligación de ninguna fuente. La documentación de la API de Idealista en `docs/api_idealista` no
+contiene ninguna cláusula de retención; las condiciones de Kyero no se han obtenido. La regla de
+`docs/ARCHITECTURE.md` se mantiene: si las condiciones de una fuente fijan un plazo máximo, ese
+plazo prevalece.
+
+**Alternativa descartada.** Fijar un plazo como si viniera de la fuente.
+
+**Consecuencia.** Riesgo a declarar en la memoria: si un contrato real exige menos de 180 días, basta
+con cambiar las constantes de `policy.ts`; las purgas reciben los números por parámetro.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
@@ -3226,3 +3453,8 @@ puede afectar a otras decisiones del planificador; queda como seguimiento.
 - **Índice redundante** `properties_operation_property_type_idx` (decisiones 051 y 100): los dos
   índices compuestos nuevos empiezan por las mismas columnas. Eliminarlo tras comprobar que
   ningún plan lo prefiere.
+- **Valores operativos del refresco** (decisiones 103-105): `REFRESH_BUDGET_FRACTION`,
+  `MAINTENANCE_EVERY_TICKS` (20 por defecto en el script), `MAX_VERIFICATION_REQUESTS_PER_TICK` (2) y
+  `VERIFICATION_RADIUS_MARGIN_M` (500). Los fija el responsable por entorno.
+- **Resultado de la sonda `adIds`** (decisión 105): ejecutarla, commitear el fixture y fijar
+  `DELISTED_OMISSION_CONFIRMED` según su meta. Hasta entonces no se retira ningún anuncio.

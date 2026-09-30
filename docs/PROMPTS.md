@@ -30,6 +30,36 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-29/30 — Refresco y retención (2.5), ciclo SDD completo en cuatro unidades de trabajo
+
+**Tipo de tarea:** dominio (política pura) + planificación de ingesta + esquema y migraciones + consulta
+SQL + privacidad de datos (redacción)
+**Forma de especificación:** ciclo SDD — explore → research → propuesta (decisiones D1-D10 del
+mantenedor) → `sdd-spec` y `sdd-design` (dos revisiones, la segunda con las decisiones U1-U3) → `sdd-tasks` →
+`sdd-apply` en cuatro unidades (S1-S4), cada una validada y commiteada antes de la siguiente
+**Resultado:** utilizable con retoques — tres correcciones. (1) S1, tras validación:
+`scheduleRefresh` dejaba un cursor obsoleto. (2) S3, tras validación: una carrera entre la verificación y un barrido
+podía retirar un anuncio recién visto, y una respuesta vacía a un lote de varios ids se habría
+tratado como «todos dados de baja». (3) En el diseño: se proponía borrar filas de `zones`, que es el
+catálogo INE sembrado: se cambió a un reinicio. Además, la previsión de tamaño se quedó unas tres
+veces corta y el paso se entrega con la retirada de anuncios inactiva hasta que el responsable
+ejecute la sonda.
+**Prompt:**
+
+> Implementa la política de refresco y retención de docs/ARCHITECTURE.md:
+> refresco semanal para zonas con consultas recientes y menor para las inactivas,
+> marcado de anuncios desaparecidos como inactivos, y purga separada de anuncios
+> inactivos y de zonas sin consultas.
+
+**Observación:** el prompt nombra cuatro comportamientos y deja sin decidir casi todo lo que los hace
+seguros: qué cuenta como «consulta reciente» (hubo que crear una señal de demanda y un nuevo
+privilegio), cómo se sabe que un anuncio «desapareció» sin gastar la cuota (la ausencia en un
+barrido no basta: decisión 105), y qué significa «purgar» algo que la regla de `CLAUDE.md` dice que
+no se sobrescribe (tombstone como redacción, decisión 107). Esas preguntas se resolvieron con el
+mantenedor antes de la propuesta y otra vez tras el diseño. Lo más valioso lo encontró el
+validador, no la planificación: las dos correcciones de S3 eran falsos positivos de retirada, el
+fallo que más caro sale en un agregador. Los fallos del proceso están en `docs/AI-NOTES.md`.
+
 ### 2026-09-29 — Indexación y medición de rendimiento (2.4), ciclo SDD completo en dos sesiones
 
 **Tipo de tarea:** consulta SQL (planes de ejecución e índices) + herramienta de medición + datos

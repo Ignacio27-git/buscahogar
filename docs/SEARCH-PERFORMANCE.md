@@ -134,3 +134,20 @@ Generada con `bench-report` (antes: sin índices nuevos y JIT por defecto; despu
 Leyenda de métodos de corrida en frío (diseño decisión 8):
 - `evict`: búferes compartidos vaciados antes de cada corrida en frío (la caché de páginas de WSL2 puede seguir caliente).
 - `restart`: PostgreSQL reiniciado antes de cada corrida en frío (la caché de páginas del sistema operativo puede seguir caliente).
+
+## Nota tras el paso 2.5: filtro de visibilidad
+
+Desde el paso 2.5 (decisión 109) la búsqueda añade `active_listing_count > 0`. Ningún índice de la
+0012 lo cubre: es un **filtro de montón** aplicado sobre los recorridos de índice ordenados. Mientras
+casi todas las viviendas sigan visibles, el recorrido encuentra sus 25 filas casi sin descartar y los
+planes de esta página se mantienen (los tests de plan pasan sin cambios sobre una base con 0014-0016).
+
+Si crece la proporción de viviendas ocultas (purgas de zona, retiradas por verificación), el recorrido
+tendrá que descartar más filas por cada una devuelta, y las combinaciones con orden por precio o por
+superficie son las primeras en notarlo. En ese caso hay que **volver a medir** con `bench-search` y
+valorar un índice parcial `WHERE active_listing_count > 0`.
+
+Las cifras de este documento se midieron **antes** de la 0014. La base de banco
+(`buscahogar_bench`) necesita las migraciones 0014, 0015 y 0016 antes de repetir la medición; 0016
+solo añade una columna y un índice parcial sobre `listings`, sin efecto en estos planes.
+
