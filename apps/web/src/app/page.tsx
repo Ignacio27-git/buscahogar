@@ -1,12 +1,16 @@
 import type { ReactElement } from 'react';
 
-import { normalizeSearchName, searchQuerySchema, zoneQuerySchema } from '@buscahogar/core';
-import { resolveZoneGeometry, searchProperties, suggestZones } from '@buscahogar/db';
+import { normalizeSearchName, searchQuerySchema, searchViewSchema, zoneQuerySchema } from '@buscahogar/core';
+import { resolveZoneGeometry, searchMapPoints, searchProperties, suggestZones } from '@buscahogar/db';
 import type { ZoneGeometry, ZoneSuggestion } from '@buscahogar/db';
 
 import { CoverageStatus } from '@/components/coverage-status';
 import { ResultCard } from '@/components/result-card';
-import { buildZoneSelectionHref } from '@/lib/search-href';
+import { SearchMap } from '@/components/search-map';
+import type { MapPointView } from '@/components/search-map-types';
+import { formatPriceCents } from '@/lib/format-price';
+import { buildPropertyDetailHref } from '@/lib/property-href';
+import { buildClearAreaHref, buildViewHref, buildZoneSelectionHref } from '@/lib/search-href';
 import { resolveCoverageClientLimit } from '@/server/coverage-client';
 import { getCoverageDb } from '@/server/coverage-db';
 import { getDb } from '@/server/db';
@@ -127,6 +131,18 @@ async function recordDemandSignal(zoneGeometry: ZoneGeometry): Promise<void> {
   }
 }
 
+// ROADMAP 2.6 (DAS-11, decisión 118) — aviso genérico de un polígono sin
+// coincidencias. Un polígono nunca consulta cobertura ni registra señal de
+// demanda ni consume cuota: el aviso lo dice.
+function OutsideCoverageNotice(): ReactElement {
+  return (
+    <p role="status">
+      No hay viviendas de nuestra base en la zona dibujada; puede que la zona no esté cubierta. La zona dibujada no
+      solicita barridos de cobertura.
+    </p>
+  );
+}
+
 function formatJobStatus(status: string): string {
   if (status === 'pending') return 'pendiente';
   if (status === 'running') return 'en curso';
@@ -144,16 +160,24 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
   const rawSearchParams = await props.searchParams;
   const parsed = searchQuerySchema.safeParse(rawSearchParams);
 
-  if (!parsed.success) {
+  // ROADMAP 2.6 (decisión 118): `view` tiene esquema propio, fuera del
+  // criterio. Un valor inválido es el mismo rechazo nombrado que cualquier
+  // otro parámetro, nunca un valor por defecto silencioso.
+  const viewParsed = searchViewSchema.safeParse(rawSearchParams.view);
+
+  if (!parsed.success || !viewParsed.success) {
+    const issues = [
+      ...(parsed.success ? [] : parsed.error.issues),
+      ...(viewParsed.success ? [] : viewParsed.error.issues),
+    ];
     return (
       <main>
         <h1>Agregador inmobiliario</h1>
-        <p role="alert">
-          No se pudo interpretar la búsqueda: {parsed.error.issues.map((issue) => issue.message).join('; ')}
-        </p>
+        <p role="alert">No se pudo interpretar la búsqueda: {issues.map((issue) => issue.message).join('; ')}</p>
       </main>
     );
   }
+  const view = viewParsed.data;
 
   // `safeParse`, no `parse` (D10): un typo del usuario en la URL renderiza
   // un rechazo nombrado, nunca un error 500.
@@ -249,15 +273,82 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
     }
   }
 
-  const { results, hasNextPage } = await searchProperties(db, effectiveCriteria);
-
-  return (
-    <main>
+  const header = (
+    <>
       <h1>Agregador inmobiliario</h1>
       <p>Esqueleto del monorepo · v{WEB_VERSION}</p>
       {suggestions !== null ? <ZoneSuggestions suggestions={suggestions} rawSearchParams={rawSearchParams} /> : null}
       {coverageNotice}
       {coverageStatusSection}
+      <p>
+        <a href={buildViewHref(rawSearchParams, view === 'map' ? 'list' : 'map')}>
+          {view === 'map' ? 'Ver lista' : 'Ver mapa'}
+        </a>
+        {criteria.polygon !== undefined ? (
+          <>
+            {' · '}
+            <a href={buildClearAreaHref(rawSearchParams)}>Quitar zona dibujada</a>
+          </>
+        ) : null}
+      </p>
+    </>
+  );
+
+  // ROADMAP 2.6 (decisión 118) — la vista de mapa REEMPLAZA a la lista: una
+  // sola consulta por vista, sin paginación. Todo el texto de esta sección se
+  // renderiza en el servidor, así que el recuento y los avisos existen sin JS.
+  if (view === 'map') {
+    const { points, total, truncated } = await searchMapPoints(db, effectiveCriteria);
+    const pointViews: readonly MapPointView[] = points.map((point) => ({
+      id: point.id,
+      lat: point.lat,
+      lon: point.lon,
+      priceLabel: formatPriceCents(point.minPriceCents),
+      href: point.anchorListingId === null ? null : buildPropertyDetailHref(point.anchorListingId),
+    }));
+
+    return (
+      <main>
+        {header}
+        <section aria-label="Mapa de resultados">
+          <p>
+            {total} {total === 1 ? 'vivienda con ubicación coincide' : 'viviendas con ubicación coinciden'}
+            {criteria.polygon === undefined
+              ? ' (puede diferir del total de la lista: las viviendas sin ubicación no aparecen en el mapa)'
+              : ''}
+          </p>
+          {truncated ? (
+            <p>
+              Mostrando {points.length} de {total}
+            </p>
+          ) : null}
+          {total === 0 ? <p>Ninguna vivienda con ubicación coincide con estos filtros</p> : null}
+          {criteria.polygon !== undefined && total === 0 ? <OutsideCoverageNotice /> : null}
+          <p>Las posiciones del mapa pueden ser aproximadas.</p>
+          <SearchMap points={pointViews} polygon={criteria.polygon ?? null} baseParams={rawSearchParams} />
+          <noscript>
+            <p>El mapa interactivo necesita JavaScript.</p>
+            <a href={buildViewHref(rawSearchParams, 'list')}>Ver la lista de resultados</a>
+          </noscript>
+          {/* SMV-9 (ODbL): atribución también en el HTML del servidor. */}
+          <p>
+            © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>
+          </p>
+        </section>
+      </main>
+    );
+  }
+
+  const { results, hasNextPage } = await searchProperties(db, effectiveCriteria);
+
+  return (
+    <main>
+      {header}
+      {/* DAS-11: en lista solo en la página 1 con 0 resultados; en páginas
+          posteriores cero filas no prueba cero coincidencias. */}
+      {criteria.polygon !== undefined && criteria.page === 1 && results.length === 0 ? (
+        <OutsideCoverageNotice />
+      ) : null}
       <p>
         {results.length} {results.length === 1 ? 'resultado' : 'resultados'} en esta página
         {criteria.page > 1 ? ` · página ${String(criteria.page)}` : ''}

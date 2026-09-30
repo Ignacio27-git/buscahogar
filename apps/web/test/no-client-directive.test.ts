@@ -22,7 +22,11 @@ const SRC_DIR = fileURLToPath(new URL('../src/', import.meta.url));
 
 // Rutas EXACTAS, relativas a `src/`. Ningún patrón/glob: cada entrada se
 // verifica una a una (aserción 2).
-const CLIENT_COMPONENT_ALLOWLIST = ['components/coverage-status.tsx'] as const;
+// ROADMAP 2.6 (decisión 113, enmienda la 065): crece en exactamente UNA entrada,
+// el wrapper del mapa. Los módulos de Leaflet (canvas, capa de clústeres,
+// control de dibujo) no llevan la directiva: son código de cliente por el
+// grafo de imports (lo fija `map-guards.test.ts`).
+const CLIENT_COMPONENT_ALLOWLIST = ['components/coverage-status.tsx', 'components/search-map.tsx'] as const;
 
 function collectSourceFiles(dir: string): string[] {
   const files: string[] = [];
@@ -54,6 +58,10 @@ describe('apps/web/src — "use client" solo en el allowlist explícito (D10, DD
       const source = readFileSync(file, 'utf8');
       expect(source).not.toMatch(/^\s*['"]use client['"]/m);
     }
+  });
+
+  it('el allowlist tiene exactamente 2 entradas (decisión 113)', () => {
+    expect(CLIENT_COMPONENT_ALLOWLIST).toHaveLength(2);
   });
 
   it('cada entrada del allowlist existe de verdad en disco — una entrada obsoleta falla en voz alta', () => {
