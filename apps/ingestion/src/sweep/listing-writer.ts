@@ -7,7 +7,7 @@
 // UNA transacción por página (diseño D3): upserts + versiones + avance del
 // cursor de coverage_jobs, todo dentro de la misma transacción — así el
 // cursor nunca avanza por delante de filas no comprometidas.
-import { and, desc, eq, inArray, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 
 import {
   coverageJobs,
@@ -148,6 +148,14 @@ export function createListingWriter(db: Database): ListingWriter {
               status: 'active',
               inactiveSince: null,
               inactiveReason: null,
+              // ROADMAP 2.5 (S4; decisión 107): la reaparición de un anuncio con
+              // tombstone limpia la marca y REPUEBLA la miniatura, solo para él.
+              // En un SET de `ON CONFLICT` las expresiones ven la fila ANTERIOR,
+              // así que `listings.tombstoned_at` es el valor previo a este
+              // UPDATE. Para cualquier otro anuncio la miniatura sigue congelada
+              // en la primera vista (decisión 059).
+              tombstonedAt: null,
+              thumbnailUrl: sql`case when ${listings.tombstonedAt} is not null then excluded.thumbnail_url else ${listings.thumbnailUrl} end`,
             },
           })
           .returning({ id: listings.id });
@@ -187,7 +195,13 @@ export function createListingWriter(db: Database): ListingWriter {
           return 'inserted';
         }
 
-        if (equalVersionColumns(projected, projectRowToVersionColumns(latestVersionRow))) {
+        // ROADMAP 2.5 (S4; decisión 107): si la última versión está REDACTADA
+        // (`raw IS NULL`, tombstone) se inserta una versión nueva aunque las
+        // columnas no hayan cambiado: restaura descripción y `raw` y la
+        // historia de precios continúa. El writer nunca deja `raw` nulo en una
+        // versión propia, así que esto solo ocurre tras una redacción.
+        const latestIsRedacted = latestVersionRow.raw === null;
+        if (!latestIsRedacted && equalVersionColumns(projected, projectRowToVersionColumns(latestVersionRow))) {
           return 'unchanged';
         }
 

@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 import {
   classifyZoneCadence,
   isRefreshDue,
+  LISTING_TOMBSTONE_AFTER_INACTIVE_DAYS,
+  LISTING_TOMBSTONE_BATCH_SIZE,
   MONTHLY_MAX_DEMAND_AGE_DAYS,
   MONTHLY_REFRESH_INTERVAL_DAYS,
   PURGE_DEMAND_AGE_DAYS,
@@ -50,6 +52,13 @@ describe('retención de señales de demanda (RP-12, A6)', () => {
   it('una señal caduca exactamente cuando la zona ya sería purgable: el horizonte coincide con PURGE_DEMAND_AGE_DAYS', () => {
     expect(SIGNAL_RETENTION_DAYS).toBe(PURGE_DEMAND_AGE_DAYS);
     expect(classifyZoneCadence(SIGNAL_RETENTION_DAYS)).toBe('purge');
+  });
+});
+
+describe('tombstone de anuncios inactivos (RP-7, RP-10, decisión 107)', () => {
+  it('un anuncio inactivo se redacta a los 180 días, en lotes de como mucho 500 por tick', () => {
+    expect(LISTING_TOMBSTONE_AFTER_INACTIVE_DAYS).toBe(180);
+    expect(LISTING_TOMBSTONE_BATCH_SIZE).toBe(500);
   });
 });
 

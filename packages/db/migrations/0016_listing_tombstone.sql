@@ -1,0 +1,2 @@
+ALTER TABLE "listings" ADD COLUMN "tombstoned_at" timestamp with time zone;--> statement-breakpoint
+CREATE INDEX "listings_tombstone_candidates_idx" ON "listings" USING btree ("inactive_since") WHERE "listings"."status" = 'inactive' and "listings"."tombstoned_at" is null;

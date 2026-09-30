@@ -50,15 +50,23 @@ export interface SweepTickResult {
 // cualquiera de ellos nunca aborta el tick ni impide el barrido. Agrupados en
 // un objeto OPCIONAL de `CoverageWorkerPorts` (y no como métodos sueltos) para
 // que las composiciones y dobles anteriores a 2.5 sigan siendo válidos sin
-// cambios (S-CWT-12). Los cortes de S2-S4 (purga de zonas, tombstone) se
-// añaden a este mismo grupo.
+// cambios (S-CWT-12).
 export interface ZoneMaintenancePorts {
   // Purga acotada de `zone_query_signals` caducadas (RP-12).
   purgeZoneQuerySignals(): Promise<number>;
   // Fotos de zona para el planificador puro de `packages/core`.
   listZoneLifecycle(): Promise<readonly ZoneLifecycleSnapshot[]>;
+  // ROADMAP 2.5 (S4; decisión 108) — reinicia las zonas dadas (las que el plan
+  // puro marcó con ≥ 180 días sin consultas): retira sus anuncios huérfanos,
+  // borra job y señales y las devuelve a `uncovered`. Sin llamadas a la fuente
+  // ni gasto de cuota. Devuelve cuántas zonas se reiniciaron.
+  purgeZones(zoneIds: readonly string[]): Promise<number>;
   // Re-encola los jobs de las zonas dadas en el carril de refresco (ZRS-8).
   scheduleRefresh(zoneIds: readonly string[]): Promise<number>;
+  // ROADMAP 2.5 (S4; decisión 107) — redacta los anuncios inactivos desde hace
+  // ≥ 180 días (lote acotado). Devuelve cuántos: si es > 0 el tick queda sucio
+  // y el reproceso de dedup reconstruye las cachés de las viviendas (RP-9).
+  tombstoneExpiredListings(): Promise<number>;
 }
 
 // ROADMAP 2.5 (S3; decisión 105) — plan de un paso de verificación de presencia,
@@ -199,20 +207,32 @@ async function runIsolatedStep<T>(
   }
 }
 
-// Mantenimiento de zonas (S1): purga de señales caducadas, planificación pura
-// de refresco y re-encolado. Cada paso aislado; si el listado falla, se omite
-// la planificación entera. La purga de zonas que también devuelve el plan
-// (`plan.purge`) se conecta en S4 — hasta entonces solo se re-encola.
+// Mantenimiento (S1, S4): purga de señales caducadas, planificación pura,
+// purga de zonas, re-encolado de refresco y tombstone de anuncios. Cada paso
+// aislado; si el listado de zonas falla, se omiten la purga y el re-encolado
+// (ambos dependen del plan) pero el tombstone, que no depende de él, se ejecuta.
+interface MaintenanceResult {
+  // Anuncios redactados en este tick: si es > 0 el tick queda sucio (RP-9).
+  readonly tombstoned: number;
+}
+
 async function runMaintenance(
   ports: CoverageWorkerPorts,
   maintenance: ZoneMaintenancePorts,
   options: CoverageWorkerOptions
-): Promise<void> {
+): Promise<MaintenanceResult> {
   await runIsolatedStep(ports, 'purga-señales-de-zona', () => maintenance.purgeZoneQuerySignals());
 
   const planned = await runIsolatedStep(ports, 'ciclo-de-vida-de-zonas', async () =>
     planZoneMaintenance(await maintenance.listZoneLifecycle())
   );
+
+  // La purga de zonas va ANTES del re-encolado (una zona purgable nunca se
+  // refresca) y NO depende de la fracción de refresco: no gasta cuota (RP-5).
+  if (planned.ok && planned.value.purge.length > 0) {
+    const zoneIds = planned.value.purge;
+    await runIsolatedStep(ports, 'purga-de-zonas', () => maintenance.purgeZones(zoneIds));
+  }
 
   // Fracción 0 (o ausente): el re-encolado se OMITE. Encolar refrescos que el
   // techo nulo nunca dejaría gastar solo dejaría jobs esperando sin fin.
@@ -221,6 +241,11 @@ async function runMaintenance(
     const zoneIds = planned.value.refresh;
     await runIsolatedStep(ports, 're-encolado-de-refresco', () => maintenance.scheduleRefresh(zoneIds));
   }
+
+  const tombstone = await runIsolatedStep(ports, 'tombstone-de-anuncios', () =>
+    maintenance.tombstoneExpiredListings()
+  );
+  return { tombstoned: tombstone.ok ? tombstone.value : 0 };
 }
 
 interface SweepStepResult {
@@ -247,8 +272,9 @@ async function runTick(
   // de elegir trabajo — así un refresco re-encolado ya es candidato en este
   // mismo tick.
   const maintenanceEveryTicks = options.maintenanceEveryTicks ?? DEFAULT_MAINTENANCE_EVERY_TICKS;
+  let tombstoned = 0;
   if (ports.maintenance && tickIndex % maintenanceEveryTicks === 0) {
-    await runMaintenance(ports, ports.maintenance, options);
+    ({ tombstoned } = await runMaintenance(ports, ports.maintenance, options));
   }
 
   const sweep = await runSweepStep(ports, options);
@@ -266,7 +292,8 @@ async function runTick(
   if (sweep.idle) {
     await ports.sleep(options.pollIntervalMs);
   }
-  return { dirty: sweep.dirty };
+  // Sucio = un barrido completó O se redactó algún anuncio (RP-9).
+  return { dirty: sweep.dirty || tombstoned > 0 };
 }
 
 async function runSweepStep(ports: CoverageWorkerPorts, options: CoverageWorkerOptions): Promise<SweepStepResult> {

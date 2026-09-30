@@ -30,6 +30,8 @@ export * from './budget-ledger.js';
 export * from './client-quota.js';
 export * from './query-signals.js';
 export * from './zone-lifecycle.js';
+export * from './zone-purge.js';
+export * from './tombstone.js';
 export * from './visibility.js';
 export * from './presence-checks.js';
 export * from './coverage.js';

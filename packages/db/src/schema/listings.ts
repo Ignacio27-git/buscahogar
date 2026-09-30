@@ -60,6 +60,10 @@ export const listings = pgTable(
     // barrido lo reactiva y los limpia.
     inactiveSince: timestamp('inactive_since', { withTimezone: true }),
     inactiveReason: text('inactive_reason'),
+    // ROADMAP 2.5 (S4; decisión 107) — marca del tombstone: a los 180 días
+    // inactivo se redactan descripción, `raw` y miniatura y el anuncio pasa a
+    // `removed`. Una reaparición en un barrido la limpia y repuebla el contenido.
+    tombstonedAt: timestamp('tombstoned_at', { withTimezone: true }),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: createdAt(),
@@ -70,6 +74,11 @@ export const listings = pgTable(
     uniqueIndex('listings_source_external_id_idx').on(table.sourceId, table.externalId),
     index('listings_location_geography_idx').using('gist', table.locationGeography),
     index('listings_location_id_idx').on(table.locationId),
+    // ROADMAP 2.5 (S4): candidatos al tombstone. Parcial y mínimo: solo los
+    // inactivos aún sin redactar, que son una fracción pequeña de la tabla.
+    index('listings_tombstone_candidates_idx')
+      .on(table.inactiveSince)
+      .where(sql`${table.status} = 'inactive' and ${table.tombstonedAt} is null`),
     check('listings_status_check', sql`${table.status} in ('active', 'inactive', 'removed')`),
     // Pasa con NULL: un listing activo no tiene motivo de inactividad.
     check(

@@ -454,4 +454,81 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
     const [job] = await db.select().from(coverageJobs).where(eq(coverageJobs.id, jobId));
     expect(job?.status).toBe('done');
   });
+
+  // ROADMAP 2.5 (S4; decisiones 107 y 108) — los dos planos de purga con los
+  // puertos REALES: purga de zonas (reinicio) y tombstone de anuncios.
+  async function seedPurgeableZone(sourceId: string): Promise<{ readonly zoneId: string; readonly jobId: string }> {
+    const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
+    await db.update(zones).set({ state: 'covered', lastSweptAt: sql`now() - interval '300 days'` }).where(eq(zones.id, zoneId));
+    const jobId = await pool
+      .query<{ id: string }>(
+        `insert into coverage_jobs (zone_id, source_id, status, requested_at)
+         values ($1, $2, 'done', now() - interval '200 days') returning id`,
+        [zoneId, sourceId]
+      )
+      .then((result) => result.rows[0]?.id);
+    if (!jobId) throw new Error('fixture no insertado');
+    return { zoneId, jobId };
+  }
+
+  async function seedListingAt(sourceId: string, externalId: string, location: { x: number; y: number }): Promise<string> {
+    const { rows } = await pool.query<{ id: string }>(
+      `insert into listings (source_id, external_id, url, location, thumbnail_url)
+       values ($1, $2, 'https://example.test/x', ST_SetSRID(ST_MakePoint($3, $4), 4326), 'https://cdn.example.test/x.jpg') returning id`,
+      [sourceId, externalId, location.x, location.y]
+    );
+    const id = rows[0]?.id;
+    if (!id) throw new Error('fixture no insertado');
+    return id;
+  }
+
+  it('maintenance.purgeZones reinicia la zona (job y señales fuera, zona uncovered) y retira sus anuncios huérfanos', async () => {
+    const sourceId = await insertSource(db);
+    const { zoneId } = await seedPurgeableZone(sourceId);
+    const listingId = await seedListingAt(sourceId, 'in-zone', { x: GRANADA.longitude, y: GRANADA.latitude });
+    const ports = buildPorts(sourceId);
+
+    const purged = await ports.maintenance?.purgeZones([zoneId]);
+
+    expect(purged).toBe(1);
+    const [zone] = await db.select().from(zones).where(eq(zones.id, zoneId));
+    expect(zone?.state).toBe('uncovered');
+    expect(zone?.lastSweptAt).toBeNull();
+    expect(await db.select().from(coverageJobs)).toHaveLength(0);
+    const [listing] = await db.select().from(listings).where(eq(listings.id, listingId));
+    expect(listing?.status).toBe('inactive');
+    expect(listing?.inactiveReason).toBe('zone_purged');
+  });
+
+  it('maintenance.tombstoneExpiredListings redacta los inactivos de >= 180 días y devuelve cuántos', async () => {
+    const sourceId = await insertSource(db);
+    const listingId = await seedListingAt(sourceId, 'old-inactive', { x: GRANADA.longitude, y: GRANADA.latitude });
+    await pool.query(
+      `update listings set status = 'inactive', inactive_reason = 'delisted', inactive_since = now() - interval '181 days' where id = $1`,
+      [listingId]
+    );
+    const ports = buildPorts(sourceId);
+
+    const tombstoned = await ports.maintenance?.tombstoneExpiredListings();
+
+    expect(tombstoned).toBe(1);
+    const [listing] = await db.select().from(listings).where(eq(listings.id, listingId));
+    expect(listing?.status).toBe('removed');
+    expect(listing?.thumbnailUrl).toBeNull();
+    expect(listing?.tombstonedAt).toBeInstanceOf(Date);
+  });
+
+  it('un tick completo: zona sin consultas desde hace 200 días se purga SIN ninguna petición a la fuente y no se refresca', async () => {
+    const sourceId = await insertSource(db);
+    const { zoneId } = await seedPurgeableZone(sourceId);
+    const searchPort = createExhaustingSearchPort();
+    const ports = buildPorts(sourceId, { searchPort, refreshBudgetFraction: 0.2 });
+
+    await runCoverageWorker(ports, refreshOptions());
+
+    expect(searchPort.calls).toBe(0);
+    expect(await db.select().from(coverageJobs)).toHaveLength(0);
+    const [zone] = await db.select().from(zones).where(eq(zones.id, zoneId));
+    expect(zone?.state).toBe('uncovered');
+  });
 });

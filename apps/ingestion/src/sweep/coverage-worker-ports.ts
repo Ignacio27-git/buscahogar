@@ -11,10 +11,13 @@
 // `runSweepZone` completo, que abre su propio pool por invocación y se
 // resuelve por un `--zone` de CLI (la propia acoplación que 1.13 elimina).
 import {
+  LISTING_TOMBSTONE_AFTER_INACTIVE_DAYS,
+  LISTING_TOMBSTONE_BATCH_SIZE,
   PRESENCE_BATCH_SIZE,
   PRESENCE_MAX_CHECK_ATTEMPTS,
   PRESENCE_RETRY_BACKOFF_DAYS,
   planPresenceBatches,
+  PURGE_DEMAND_AGE_DAYS,
   SIGNAL_PURGE_MAX_ROWS_PER_TICK,
   SIGNAL_RETENTION_DAYS,
 } from '@buscahogar/core';
@@ -33,11 +36,13 @@ import {
   markAbsenceCandidates,
   purgeExpiredClientQuota,
   purgeExpiredZoneQuerySignals,
+  purgeZones,
   reconcileDailyBudget,
   refreshLaneCeiling,
   reserveDailyBudget,
   resolveZoneGeometryById,
   scheduleRefresh,
+  tombstoneExpiredListings,
 } from '@buscahogar/db';
 import type { BudgetReservation, BudgetSnapshotLike, Database, LedgerState, ZoneGeometry } from '@buscahogar/db';
 
@@ -112,8 +117,27 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
     listZoneLifecycle() {
       return listZoneLifecycle(deps.db, { sourceId: deps.sourceUuid, maxAttempts: deps.maxAttempts });
     },
+    async purgeZones(zoneIds: readonly string[]): Promise<number> {
+      const result = await purgeZones(deps.db, {
+        sourceId: deps.sourceUuid,
+        zoneIds,
+        purgeAfterDays: PURGE_DEMAND_AGE_DAYS,
+      });
+      // Una zona cuya transacción falló se revirtió entera: se registra el
+      // mensaje de la base de datos (sin credenciales) y el resto sigue.
+      for (const failure of result.failed) {
+        deps.io.log(`coverage-worker: purga de la zona "${failure.zoneId}" revertida: ${failure.message}`);
+      }
+      return result.purged.length;
+    },
     scheduleRefresh(zoneIds: readonly string[]): Promise<number> {
       return scheduleRefresh(deps.db, { sourceId: deps.sourceUuid, zoneIds, maxAttempts: deps.maxAttempts });
+    },
+    tombstoneExpiredListings(): Promise<number> {
+      return tombstoneExpiredListings(deps.db, {
+        retentionDays: LISTING_TOMBSTONE_AFTER_INACTIVE_DAYS,
+        batchSize: LISTING_TOMBSTONE_BATCH_SIZE,
+      });
     },
   };
 

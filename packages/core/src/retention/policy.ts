@@ -25,6 +25,13 @@ export const PURGE_DEMAND_AGE_DAYS = 180;
 export const SIGNAL_RETENTION_DAYS = PURGE_DEMAND_AGE_DAYS;
 export const SIGNAL_PURGE_MAX_ROWS_PER_TICK = 5_000;
 
+// ROADMAP 2.5 (S4; decisión 107) — tombstone de anuncios: un anuncio con
+// `status = 'inactive'` y `inactive_since <= ahora - 180 días` se redacta
+// (descripción, `raw` y miniatura; el historial de precios se conserva). El
+// lote por tick es fijo: la redacción nunca es ilimitada.
+export const LISTING_TOMBSTONE_AFTER_INACTIVE_DAYS = 180;
+export const LISTING_TOMBSTONE_BATCH_SIZE = 500;
+
 // Intervalos mínimos entre barridos completos.
 export const WEEKLY_REFRESH_INTERVAL_DAYS = 7;
 export const MONTHLY_REFRESH_INTERVAL_DAYS = 30;

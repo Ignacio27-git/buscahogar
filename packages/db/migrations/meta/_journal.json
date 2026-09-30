@@ -113,6 +113,13 @@
       "when": 1790757611731,
       "tag": "0015_listing_presence_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790760242673,
+      "tag": "0016_listing_tombstone",
+      "breakpoints": true
     }
   ]
 }

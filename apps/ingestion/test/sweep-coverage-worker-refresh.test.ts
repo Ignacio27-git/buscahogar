@@ -84,10 +84,18 @@ function createFakePorts(overrides: FakeOverrides = {}): FakePorts {
       calls.push('listZoneLifecycle');
       return overrides.listLifecycle ? overrides.listLifecycle() : Promise.resolve(overrides.lifecycle ?? []);
     },
+    purgeZones(zoneIds: readonly string[]): Promise<number> {
+      calls.push('purgeZones');
+      return Promise.resolve(zoneIds.length);
+    },
     scheduleRefresh(zoneIds: readonly string[]): Promise<number> {
       calls.push('scheduleRefresh');
       scheduledBatches.push(zoneIds);
       return overrides.scheduleRefresh ? overrides.scheduleRefresh() : Promise.resolve(zoneIds.length);
+    },
+    tombstoneExpiredListings(): Promise<number> {
+      calls.push('tombstoneExpiredListings');
+      return Promise.resolve(0);
     },
   };
 

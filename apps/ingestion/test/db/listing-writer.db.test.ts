@@ -4,7 +4,14 @@
 import { randomUUID } from 'node:crypto';
 
 import type { Listing } from '@buscahogar/core';
-import { listingPresenceChecks, listings, listingVersions, properties, propertyListings } from '@buscahogar/db';
+import {
+  listingPresenceChecks,
+  listings,
+  listingVersions,
+  properties,
+  propertyListings,
+  tombstoneExpiredListings,
+} from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
 import { and, eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
@@ -457,6 +464,135 @@ describe('listing-writer — PERSIST-1..8, D5', () => {
       expect(after?.minPriceCents).toBe(1);
     });
   });
+  // ROADMAP 2.5 (refresh-retention-policy, S4; decisión 107, S-RP-20) — un anuncio
+  // con tombstone (contenido redactado, `status = 'removed'`) visto de nuevo en un
+  // barrido se reactiva y se REPUEBLA: miniatura y contenido vuelven, y como la
+  // última versión está redactada se inserta una versión nueva aunque el precio no
+  // haya cambiado. La congelación de la miniatura (decisión 059) sigue valiendo
+  // para todo anuncio que NO tenga tombstone.
+  describe('reaparición de un anuncio con tombstone (S-RP-20)', () => {
+    const OLD_THUMBNAIL = 'https://img.example.test/vieja.jpg';
+    const NEW_THUMBNAIL = 'https://img.example.test/nueva.jpg';
+
+    async function persistAndTombstone(sourceUuid: string, item: PersistPageItem): Promise<string> {
+      await persistOne(sourceUuid, item);
+      const [row] = await db
+        .update(listings)
+        .set({ status: 'inactive', inactiveSince: new Date(Date.now() - 200 * 86_400_000), inactiveReason: 'delisted' })
+        .where(eq(listings.externalId, item.listing.externalId))
+        .returning({ id: listings.id });
+      const listingId = requireRow(row, 'listings row no encontrada').id;
+      expect(await tombstoneExpiredListings(db, { retentionDays: 180, batchSize: 500 })).toBe(1);
+      return listingId;
+    }
+
+    it('vuelve a activo, limpia inactive_since/inactive_reason/tombstoned_at y rellena la miniatura', async () => {
+      const sourceUuid = await insertSource(db);
+      const item = buildItem({ thumbnailUrl: OLD_THUMBNAIL });
+      const listingId = await persistAndTombstone(sourceUuid, item);
+      expect((await db.select().from(listings).where(eq(listings.id, listingId)))[0]?.thumbnailUrl).toBeNull();
+
+      await persistOne(sourceUuid, buildItem({ externalId: item.listing.externalId, thumbnailUrl: NEW_THUMBNAIL }));
+
+      const [row] = await db.select().from(listings).where(eq(listings.id, listingId));
+      expect(row?.status).toBe('active');
+      expect(row?.inactiveSince).toBeNull();
+      expect(row?.inactiveReason).toBeNull();
+      expect(row?.tombstonedAt).toBeNull();
+      expect(row?.thumbnailUrl).toBe(NEW_THUMBNAIL);
+    });
+
+    it('inserta una versión nueva con descripción y raw aunque el contenido y el precio no hayan cambiado', async () => {
+      const sourceUuid = await insertSource(db);
+      const item = buildItem();
+      const listingId = await persistAndTombstone(sourceUuid, item);
+
+      const outcome = await persistOne(sourceUuid, item);
+
+      expect(outcome).toEqual({ inserted: 0, versioned: 1, unchanged: 0 });
+      const versions = await db
+        .select()
+        .from(listingVersions)
+        .where(eq(listingVersions.listingId, listingId))
+        .orderBy(listingVersions.version);
+      expect(versions.map((version) => version.version)).toEqual([1, 2]);
+      expect(versions.map((version) => version.isCurrent)).toEqual([false, true]);
+      expect(versions[0]?.raw).toBeNull();
+      expect(versions[0]?.description).toBeNull();
+      expect(versions[1]?.raw).not.toBeNull();
+      expect(versions[1]?.description).toBe('Piso luminoso');
+      expect(versions.map((version) => version.priceCents)).toEqual([200_000_00, 200_000_00]);
+    });
+
+    it('sin descripción en el anuncio, la versión redactada (raw NULL) fuerza igualmente una versión nueva que restaura el raw', async () => {
+      const sourceUuid = await insertSource(db);
+      const item = buildItem({ description: undefined });
+      const listingId = await persistAndTombstone(sourceUuid, item);
+
+      const outcome = await persistOne(sourceUuid, item);
+
+      expect(outcome).toEqual({ inserted: 0, versioned: 1, unchanged: 0 });
+      const versions = await db
+        .select()
+        .from(listingVersions)
+        .where(eq(listingVersions.listingId, listingId))
+        .orderBy(listingVersions.version);
+      expect(versions.map((version) => version.raw === null)).toEqual([true, false]);
+      expect(versions.map((version) => version.isCurrent)).toEqual([false, true]);
+    });
+
+    it('con un precio nuevo inserta UNA sola versión nueva (la historia de precios continúa)', async () => {
+      const sourceUuid = await insertSource(db);
+      const item = buildItem();
+      const listingId = await persistAndTombstone(sourceUuid, item);
+
+      const outcome = await persistOne(
+        sourceUuid,
+        buildItem({ externalId: item.listing.externalId, priceCents: 180_000_00 })
+      );
+
+      expect(outcome).toEqual({ inserted: 0, versioned: 1, unchanged: 0 });
+      const versions = await db.select().from(listingVersions).where(eq(listingVersions.listingId, listingId));
+      expect(versions).toHaveLength(2);
+      expect(versions.filter((version) => version.isCurrent).map((version) => version.priceCents)).toEqual([180_000_00]);
+    });
+
+    it('un anuncio inactivo SIN tombstone visto de nuevo conserva su miniatura original (decisión 059)', async () => {
+      const sourceUuid = await insertSource(db);
+      const item = buildItem({ thumbnailUrl: OLD_THUMBNAIL });
+      await persistOne(sourceUuid, item);
+      await db
+        .update(listings)
+        .set({ status: 'inactive', inactiveSince: new Date(), inactiveReason: 'delisted' })
+        .where(eq(listings.externalId, item.listing.externalId));
+
+      await persistOne(sourceUuid, buildItem({ externalId: item.listing.externalId, thumbnailUrl: NEW_THUMBNAIL }));
+
+      const [row] = await db.select().from(listings).where(eq(listings.externalId, item.listing.externalId));
+      expect(row?.status).toBe('active');
+      expect(row?.thumbnailUrl).toBe(OLD_THUMBNAIL);
+    });
+
+    it('borra su fila de la cola de presencia y refresca la visibilidad de su vivienda', async () => {
+      const sourceUuid = await insertSource(db);
+      const item = buildItem({ priceCents: 700_00 });
+      const listingId = await persistAndTombstone(sourceUuid, item);
+      const [property] = await db
+        .insert(properties)
+        .values({ listingCount: 1, activeListingCount: 0, minPriceCents: 700_00 })
+        .returning({ id: properties.id });
+      const propertyId = requireRow(property, 'vivienda no insertada').id;
+      await db
+        .insert(propertyListings)
+        .values({ propertyId, listingId, score: 1, strategyName: 'test', strategyVersion: '1', signals: {} });
+
+      await persistOne(sourceUuid, item);
+
+      const [after] = await db.select().from(properties).where(eq(properties.id, propertyId));
+      expect(after?.activeListingCount).toBe(1);
+    });
+  });
+
   // ROADMAP 2.5 (refresh-retention-policy, S3; decisión 105) — un anuncio visto de
   // nuevo en un barrido deja de ser sospechoso: su fila de la cola de presencia
   // se borra en la MISMA transacción de la página (S-LR-17).
