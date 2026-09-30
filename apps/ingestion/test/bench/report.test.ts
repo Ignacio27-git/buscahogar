@@ -14,6 +14,7 @@ import {
   DuplicateCombinationIdError,
   MissingCombinationIdsError,
   mergeRuns,
+  renderMapGate,
   renderReport,
 } from '../../src/bench/report.js';
 import type { BenchCombinationRun, BenchRun } from '../../src/bench/report.js';
@@ -119,5 +120,124 @@ describe('renderReport (diseño, "p95 Latency Target with Honest Reporting" — 
 
     expect(line).toContain('900');
     expect(line).toContain('120');
+  });
+});
+
+// ROADMAP 2.6 (diseño, gate G1): para cada par map-points/map-count se suma el
+// p95 de ambas consultas. Si el recuento SOLO ya rompe los 500 ms, apply se
+// detiene y decide el mantenedor; si solo rompe la suma, la corrección es
+// técnica (ejecutar en paralelo) y no requiere decisión.
+describe('renderMapGate (diseño, gate G1 del mapa)', () => {
+  function withP95(points: number, count: number): readonly BenchCombinationRun[] {
+    return BENCH_COMBINATION_IDS.map((id) => {
+      if (id === 'map-points-default') return combinationRun(id, { p95Ms: points });
+      if (id === 'map-count-default') return combinationRun(id, { p95Ms: count });
+      return combinationRun(id);
+    });
+  }
+
+  function defaultLine(markdown: string): string {
+    const line = markdown.split('\n').find((row) => row.includes('| default |'));
+    if (line === undefined) throw new Error(`Sin fila "default" en el gate:\n${markdown}`);
+    return line;
+  }
+
+  it('suma los p95 de points y count y marca cumple cuando la suma queda por debajo de 500 ms', () => {
+    const line = defaultLine(renderMapGate(withP95(120, 200)));
+    expect(line).toContain('320.0');
+    expect(line).toMatch(/cumple/);
+    expect(line).not.toMatch(/no cumple|DECISI/);
+  });
+
+  it('el recuento solo >= 500 ms exige decisión del mantenedor (G1) aunque points sea rápido', () => {
+    const markdown = renderMapGate(withP95(10, 510));
+    const line = defaultLine(markdown);
+    expect(line).toMatch(/DECISIÓN DEL MANTENEDOR/);
+    expect(markdown).toMatch(/más de 10.000/);
+    expect(markdown).toMatch(/tope de área/);
+  });
+
+  it('solo la suma >= 500 ms (count < 500) propone ejecutar en paralelo, sin decisión', () => {
+    const line = defaultLine(renderMapGate(withP95(300, 300)));
+    expect(line).toMatch(/no cumple/);
+    expect(line).toMatch(/paralelo/);
+    expect(line).not.toMatch(/DECISIÓN DEL MANTENEDOR/);
+  });
+
+  it('un par ausente se omite: sin ningún par la sección queda vacía', () => {
+    expect(renderMapGate([combinationRun('default')])).toBe('');
+  });
+
+  it('renderReport añade la sección del gate G1 con el conjunto completo', () => {
+    const markdown = renderReport(withP95(10, 510));
+    expect(markdown).toMatch(/Gate G1/);
+    expect(markdown).toMatch(/DECISIÓN DEL MANTENEDOR/);
+  });
+});
+
+// Corrección ROADMAP 2.6: la línea base puede venir de una tanda de 12 ids
+// (2.4/2.5); solo `--input` exige los 19.
+describe('mergeRuns con requireComplete: false (línea base antigua)', () => {
+  const OLD_IDS = BENCH_COMBINATION_IDS.slice(0, 12);
+
+  it('tolera ids ausentes y conserva el orden de BENCH_COMBINATION_IDS', () => {
+    const merged = mergeRuns([runFile(OLD_IDS.map((id) => combinationRun(id)))], { requireComplete: false });
+    expect(merged.map((c) => c.id)).toEqual(OLD_IDS);
+  });
+
+  it('sigue rechazando ids duplicados', () => {
+    const files = [runFile(OLD_IDS.map((id) => combinationRun(id))), runFile([combinationRun('default')])];
+    expect(() => mergeRuns(files, { requireComplete: false })).toThrow(DuplicateCombinationIdError);
+  });
+
+  it('por defecto sigue exigiendo completitud', () => {
+    expect(() => mergeRuns([runFile(OLD_IDS.map((id) => combinationRun(id)))])).toThrow(MissingCombinationIdsError);
+  });
+});
+
+describe('límites del veredicto (objetivo 500 ms)', () => {
+  function gateFor(points: number, count: number): string {
+    const set = BENCH_COMBINATION_IDS.map((id) =>
+      id === 'map-points-default'
+        ? combinationRun(id, { p95Ms: points })
+        : id === 'map-count-default'
+          ? combinationRun(id, { p95Ms: count })
+          : combinationRun(id)
+    );
+    const line = renderMapGate(set).split('\n').find((row) => row.includes('| default |'));
+    if (line === undefined) throw new Error('sin fila default');
+    return line;
+  }
+
+  it('G1: count exactamente 500 ms exige decisión del mantenedor', () => {
+    expect(gateFor(10, 500)).toMatch(/DECISIÓN DEL MANTENEDOR/);
+  });
+
+  it('G1: count 499.9 con points 0.1 (suma exactamente 500) propone paralelo, sin decisión', () => {
+    const line = gateFor(0.1, 499.9);
+    expect(line).toMatch(/paralelo/);
+    expect(line).not.toMatch(/DECISIÓN/);
+  });
+
+  it('G1: points + count exactamente 500 ms (300 + 200) propone paralelo', () => {
+    expect(gateFor(300, 200)).toMatch(/paralelo/);
+  });
+
+  it('G1: suma 499.9 cumple', () => {
+    const line = gateFor(300, 199.9);
+    expect(line).toMatch(/cumple/);
+    expect(line).not.toMatch(/no cumple/);
+  });
+
+  it('G2: fila de lista polygon-small con p95 500 no cumple y con 499.9 cumple', () => {
+    const rowFor = (p95: number): string => {
+      const set = BENCH_COMBINATION_IDS.map((id) => (id === 'polygon-small' ? combinationRun(id, { p95Ms: p95 }) : combinationRun(id)));
+      const line = renderReport(set).split('\n').find((row) => row.includes('| polygon-small |'));
+      if (line === undefined) throw new Error('sin fila polygon-small');
+      return line;
+    };
+    expect(rowFor(500)).toMatch(/no cumple/);
+    expect(rowFor(499.9)).not.toMatch(/no cumple/);
+    expect(rowFor(499.9)).toMatch(/cumple/);
   });
 });

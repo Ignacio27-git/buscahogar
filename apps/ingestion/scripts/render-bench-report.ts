@@ -103,7 +103,7 @@ export async function runRenderReport(argv: readonly string[], io: RenderReportI
   let baseline: readonly BenchCombinationRun[] | undefined;
   try {
     current = mergeRuns(await readRuns(io, options.input));
-    baseline = options.baseline.length > 0 ? mergeRuns(await readRuns(io, options.baseline)) : undefined;
+    baseline = options.baseline.length > 0 ? mergeRuns(await readRuns(io, options.baseline), { requireComplete: false }) : undefined;
   } catch (error) {
     io.log(error instanceof Error ? error.message : 'No se pudo leer o fusionar los ficheros de tanda.');
     return 3;

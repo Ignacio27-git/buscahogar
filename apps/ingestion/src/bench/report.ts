@@ -8,7 +8,7 @@
 // — eso es responsabilidad del script que lo invoca.
 import { z } from 'zod';
 
-import { BENCH_COMBINATION_IDS, COLD_MODES } from './bench-options.js';
+import { BENCH_COMBINATION_IDS, COLD_MODES, MAP_GATE_PAIRS } from './bench-options.js';
 import type { BenchCombinationId, ColdMode } from './bench-options.js';
 import type { PlanSummary } from './measure.js';
 
@@ -79,7 +79,15 @@ export const BenchRunSchema = z.object({
 export class DuplicateCombinationIdError extends Error {}
 export class MissingCombinationIdsError extends Error {}
 
-export function mergeRuns(runs: readonly BenchRun[]): readonly BenchCombinationRun[] {
+// `requireComplete: false` es para `--baseline`: una tanda de 2.4/2.5 solo trae
+// los 12 ids antiguos y `renderRow` ya tolera una fila base ausente. Solo
+// `--input` exige los 19 ids; los duplicados se rechazan siempre.
+export interface MergeRunsOptions {
+  readonly requireComplete?: boolean;
+}
+
+export function mergeRuns(runs: readonly BenchRun[], options: MergeRunsOptions = {}): readonly BenchCombinationRun[] {
+  const requireComplete = options.requireComplete ?? true;
   const byId = new Map<BenchCombinationId, BenchCombinationRun>();
 
   for (const run of runs) {
@@ -94,7 +102,7 @@ export function mergeRuns(runs: readonly BenchRun[]): readonly BenchCombinationR
   }
 
   const missing = BENCH_COMBINATION_IDS.filter((id) => !byId.has(id));
-  if (missing.length > 0) {
+  if (requireComplete && missing.length > 0) {
     throw new MissingCombinationIdsError(
       `report: faltan combinaciones tras fusionar los ficheros de entrada: ${missing.join(', ')}.`
     );
@@ -158,6 +166,63 @@ function renderRow(current: BenchCombinationRun, baseline: BenchCombinationRun |
   return `| ${current.id} | ${current.description} | ${p50} | ${p95} | ${cold} | ${metLabel(current.p95Ms)} | ${planLabel(current.plan)} |`;
 }
 
+// -----------------------------------------------------------------------
+// Gate G1 del mapa (diseño, "Needs maintainer decision"): para cada par
+// map-points/map-count, p95(points) + p95(count) debe quedar por debajo de
+// 500 ms. Si el recuento SOLO ya lo incumple, apply se detiene y decide el
+// mantenedor; si solo incumple la suma, ejecutar ambas consultas en paralelo
+// es una corrección técnica que no requiere decisión. Un par al que le falta
+// alguna de las dos mediciones (p. ej. tanda parcial con --only) se omite.
+// -----------------------------------------------------------------------
+
+function gateVerdict(pointsMs: number, countMs: number): string {
+  if (countMs >= SEARCH_P95_TARGET_MS) {
+    return 'no cumple: DECISIÓN DEL MANTENEDOR (G1)';
+  }
+  if (pointsMs + countMs >= SEARCH_P95_TARGET_MS) {
+    return 'no cumple: solo la suma; ejecutar points y count en paralelo (sin decisión)';
+  }
+  return 'cumple';
+}
+
+export function renderMapGate(combinations: readonly BenchCombinationRun[]): string {
+  const rows: string[] = [];
+  let countBreached = false;
+
+  for (const pair of MAP_GATE_PAIRS) {
+    const points = findById(combinations, pair.points);
+    const count = findById(combinations, pair.count);
+    if (points === undefined || count === undefined) {
+      continue;
+    }
+    if (count.p95Ms >= SEARCH_P95_TARGET_MS) {
+      countBreached = true;
+    }
+    rows.push(
+      `| ${pair.name} | ${formatMs(points.p95Ms)} | ${formatMs(count.p95Ms)} | ${formatMs(points.p95Ms + count.p95Ms)} | ${gateVerdict(points.p95Ms, count.p95Ms)} |`
+    );
+  }
+
+  if (rows.length === 0) {
+    return '';
+  }
+
+  const lines = [
+    'Gate G1 (mapa): p95(points) + p95(count) < 500 ms por escenario',
+    '',
+    '| escenario | p95 points (ms) | p95 count (ms) | suma (ms) | veredicto |',
+    '|---|---|---|---|---|',
+    ...rows,
+  ];
+  if (countBreached) {
+    lines.push(
+      '',
+      'El recuento exacto solo ya incumple: el mantenedor elige (a) recuento acotado que muestre "más de 10.000" y siga marcando truncado, (b) un tope de área más bajo, o (c) aceptar el incumplimiento solo en la vista de mapa.'
+    );
+  }
+  return lines.join('\n');
+}
+
 export function renderReport(current: readonly BenchCombinationRun[], baseline?: readonly BenchCombinationRun[]): string {
   const header = baseline === undefined
     ? '| id | descripción | p50 (ms) | p95 (ms) | frío (ms, método) | objetivo 500 ms | plan |\n|---|---|---|---|---|---|---|'
@@ -171,5 +236,6 @@ export function renderReport(current: readonly BenchCombinationRun[], baseline?:
     `- \`restart\`: ${COLD_METHOD_LEGEND.restart}.`,
   ].join('\n');
 
-  return [header, ...rows, '', legend].join('\n');
+  const gate = renderMapGate(current);
+  return [header, ...rows, '', legend, ...(gate === '' ? [] : ['', gate])].join('\n');
 }

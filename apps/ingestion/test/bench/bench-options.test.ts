@@ -9,9 +9,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   assertBenchDatabaseUrl,
+  BENCH_COMBINATION_IDS,
   BenchSearchOptionsError,
   DevDatabaseGuardError,
   GenerateCorpusOptionsError,
+  MAP_GATE_PAIRS,
   MissingBenchDatabaseUrlError,
   parseBenchSearchArgs,
   parseGenerateCorpusArgs,
@@ -101,6 +103,31 @@ describe('parseGenerateCorpusArgs (generate-search-corpus.ts)', () => {
 describe('parseBenchSearchArgs (bench-search.ts)', () => {
   it('--runs por debajo del mínimo (10) se rechaza nombrando el flag', () => {
     expect(() => parseBenchSearchArgs(['--database-url', BENCH_URL, '--runs', '5'])).toThrow(/--runs/);
+  });
+
+  it('acepta los 7 ids nuevos de ROADMAP 2.6 en --only y los conserva en orden', () => {
+    const options = parseBenchSearchArgs([
+      '--database-url',
+      BENCH_URL,
+      '--only',
+      'polygon-small',
+      '--only',
+      'map-points-default',
+      '--only',
+      'map-count-polygon-large',
+    ]);
+    expect(options.only).toEqual(['polygon-small', 'map-points-default', 'map-count-polygon-large']);
+  });
+
+  it('MAP_GATE_PAIRS empareja cada map-points con su map-count (gate G1 del diseño)', () => {
+    expect(MAP_GATE_PAIRS).toEqual([
+      { name: 'default', points: 'map-points-default', count: 'map-count-default' },
+      { name: 'polygon-large', points: 'map-points-polygon-large', count: 'map-count-polygon-large' },
+    ]);
+    for (const pair of MAP_GATE_PAIRS) {
+      expect(BENCH_COMBINATION_IDS).toContain(pair.points);
+      expect(BENCH_COMBINATION_IDS).toContain(pair.count);
+    }
   });
 
   it('un --only desconocido se rechaza nombrando el id ofensivo', () => {

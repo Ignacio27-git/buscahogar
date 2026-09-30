@@ -101,6 +101,22 @@ describe('runRenderReport — fusión de ficheros modo restart, error nombrado, 
     }
   });
 
+  it('una línea base de 12 ids (tandas 2.4/2.5) junto a un --input de 19 ids se renderiza', async () => {
+    const files: Record<string, string> = {
+      'current.json': JSON.stringify(runFile(BENCH_COMBINATION_IDS.map((id) => combinationRun(id, id === 'default' ? { p95Ms: 120 } : {})))),
+      'old.json': JSON.stringify(runFile(BENCH_COMBINATION_IDS.slice(0, 12).map((id) => combinationRun(id, id === 'default' ? { p95Ms: 900 } : {})))),
+    };
+    const { io, logs } = fakeIo(files);
+
+    const exitCode = await runRenderReport(['--input', 'current.json', '--baseline', 'old.json'], io);
+
+    expect(exitCode).toBe(0);
+    const markdown = logs.join('\n');
+    const defaultLine = markdown.split('\n').find((row) => row.includes('| default |'));
+    expect(defaultLine).toContain('900');
+    expect(markdown).toContain('| polygon-small |');
+  });
+
   it('rechaza con un error nombrado cuando el mismo id de combinación aparece en más de un fichero de --input', async () => {
     const files: Record<string, string> = {
       'a.json': JSON.stringify(runFile(BENCH_COMBINATION_IDS.map((id) => combinationRun(id)))),

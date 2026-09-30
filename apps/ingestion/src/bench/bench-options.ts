@@ -94,8 +94,34 @@ export const BENCH_COMBINATION_IDS = [
   'all-filters',
   'deep-default',
   'deep-filtered',
+  // ROADMAP 2.6 (decisión 117): polígono dibujado y consultas del mapa.
+  'polygon-small',
+  'polygon-large-price',
+  'polygon-sparse',
+  'map-points-default',
+  'map-count-default',
+  'map-points-polygon-large',
+  'map-count-polygon-large',
 ] as const;
 export type BenchCombinationId = (typeof BENCH_COMBINATION_IDS)[number];
+
+// Consulta de producción que mide cada escenario: la lista paginada, los
+// puntos del mapa (LIMIT 501) o el recuento M de viviendas mapeables.
+export const BENCH_KINDS = ['list', 'map-points', 'map-count'] as const;
+export type BenchKind = (typeof BENCH_KINDS)[number];
+
+// Gate G1 del diseño (ROADMAP 2.6): para cada escenario de mapa, p95(points) +
+// p95(count) debe quedar por debajo de 500 ms. Cada par comparte criterios.
+export interface MapGatePair {
+  readonly name: string;
+  readonly points: BenchCombinationId;
+  readonly count: BenchCombinationId;
+}
+
+export const MAP_GATE_PAIRS: readonly MapGatePair[] = [
+  { name: 'default', points: 'map-points-default', count: 'map-count-default' },
+  { name: 'polygon-large', points: 'map-points-polygon-large', count: 'map-count-polygon-large' },
+];
 
 function isBenchCombinationId(value: string): value is BenchCombinationId {
   return (BENCH_COMBINATION_IDS as readonly string[]).includes(value);

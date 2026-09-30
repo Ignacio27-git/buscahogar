@@ -1,7 +1,9 @@
 // ROADMAP 2.4 (search-indexing-performance) — query-matrix.ts (diseño,
 // sección "Query Matrix"; fase 2, tarea 2.2). Enumera, como literales
 // `PropertySearchCriteria`, las combinaciones que `scripts/bench-search.ts`
-// mide contra `buildPropertySearchQuery` (`@buscahogar/db`). Módulo PURO:
+// mide contra la consulta de producción de su `kind` (`buildPropertySearchQuery`,
+// `buildMapPointsQuery` o `buildMapCountQuery` de `@buscahogar/db`; ver
+// `query-dispatch.ts`). Módulo PURO:
 // ninguna función de este fichero abre conexión ni lee `process.env`.
 //
 // Reutiliza `BENCH_COMBINATION_IDS` de `bench-options.ts` (fase 1, tarea
@@ -9,17 +11,19 @@
 // necesitaba para validar `--only` antes de que este módulo existiera
 // (diseño, tabla de ficheros: "query-matrix.ts importará esta misma
 // constante en vez de duplicar la lista"). `CRITERIA`/`DESCRIPTIONS` están
-// tipados como `Record<BenchCombinationId, …>`: al TypeScript exigir las 12
-// claves exactas, olvidar una combinación o escribir un id inexistente es
+// (y `KINDS`) están tipados como `Record<BenchCombinationId, …>`: al
+// TypeScript exigir las 19 claves exactas, olvidar una combinación o escribir un id inexistente es
 // un error de compilación, no un hueco silencioso en la matriz.
-import type { PropertySearchCriteria } from '@buscahogar/core';
+import type { PolygonRing, PropertySearchCriteria } from '@buscahogar/core';
 
 import { BENCH_COMBINATION_IDS } from './bench-options.js';
-import type { BenchCombinationId } from './bench-options.js';
+import type { BenchCombinationId, BenchKind } from './bench-options.js';
 
 export interface BenchCombination {
   readonly id: BenchCombinationId;
   readonly description: string;
+  // Consulta de producción que se mide (lista, puntos del mapa o recuento).
+  readonly kind: BenchKind;
   readonly criteria: PropertySearchCriteria;
 }
 
@@ -28,6 +32,28 @@ export interface BenchCombination {
 // de esta matriz sí encuentren filas del corpus sintético cerca del centro.
 const MADRID_LON = -3.7038;
 const MADRID_LAT = 40.4168;
+
+// ROADMAP 2.6 — polígonos del banco. Rectángulos de anillo abierto (lat, lon),
+// a 5 decimales, válidos según core. El corpus reparte ~60% de las filas
+// alrededor de Madrid y el resto de forma uniforme en la península, así que un
+// polígono lejos de Madrid es la zona "dispersa" que sondea la trampa del
+// LIMIT: pocos candidatos por índice de orden, muchos descartes por el filtro.
+function rectangle(centerLat: number, centerLon: number, halfLat: number, halfLon: number): PolygonRing {
+  const round = (value: number): number => Math.round(value * 1e5) / 1e5;
+  return [
+    { lat: round(centerLat - halfLat), lon: round(centerLon - halfLon) },
+    { lat: round(centerLat - halfLat), lon: round(centerLon + halfLon) },
+    { lat: round(centerLat + halfLat), lon: round(centerLon + halfLon) },
+    { lat: round(centerLat + halfLat), lon: round(centerLon - halfLon) },
+  ];
+}
+
+// ≈1 km² en el centro de Madrid.
+const POLYGON_SMALL = rectangle(MADRID_LAT, MADRID_LON, 0.0045, 0.0059);
+// ≈2.394 km² sobre Madrid (tope legal: 2.500 km²).
+const POLYGON_LARGE_MADRID = rectangle(MADRID_LAT, MADRID_LON, 0.215, 0.295);
+// ≈2.435 km² sobre Extremadura, zona poco densa del corpus.
+const POLYGON_LARGE_SPARSE = rectangle(38.0, -6.0, 0.215, 0.29);
 
 const CRITERIA: Record<BenchCombinationId, PropertySearchCriteria> = {
   default: { sort: 'updated', dir: 'desc', page: 1 },
@@ -67,6 +93,36 @@ const CRITERIA: Record<BenchCombinationId, PropertySearchCriteria> = {
   },
   'deep-default': { sort: 'updated', dir: 'desc', page: 100 },
   'deep-filtered': { operation: 'sale', propertyType: 'flat', sort: 'price', dir: 'asc', page: 100 },
+  'polygon-small': { polygon: POLYGON_SMALL, sort: 'updated', dir: 'desc', page: 1 },
+  'polygon-large-price': { polygon: POLYGON_LARGE_MADRID, sort: 'price', dir: 'asc', page: 1 },
+  'polygon-sparse': { polygon: POLYGON_LARGE_SPARSE, sort: 'updated', dir: 'desc', page: 1 },
+  'map-points-default': { sort: 'updated', dir: 'desc', page: 1 },
+  'map-count-default': { sort: 'updated', dir: 'desc', page: 1 },
+  'map-points-polygon-large': { polygon: POLYGON_LARGE_MADRID, sort: 'updated', dir: 'desc', page: 1 },
+  'map-count-polygon-large': { polygon: POLYGON_LARGE_MADRID, sort: 'updated', dir: 'desc', page: 1 },
+};
+
+// Exhaustivo en compilación: un id nuevo sin `kind` es un error de tipos.
+const KINDS: Record<BenchCombinationId, BenchKind> = {
+  default: 'list',
+  'op-type': 'list',
+  'price-range-rent': 'list',
+  'price-desc': 'list',
+  'surface-selective': 'list',
+  'surface-sort': 'list',
+  'rooms-baths': 'list',
+  'geo-1km': 'list',
+  'geo-25km-price': 'list',
+  'all-filters': 'list',
+  'deep-default': 'list',
+  'deep-filtered': 'list',
+  'polygon-small': 'list',
+  'polygon-large-price': 'list',
+  'polygon-sparse': 'list',
+  'map-points-default': 'map-points',
+  'map-count-default': 'map-count',
+  'map-points-polygon-large': 'map-points',
+  'map-count-polygon-large': 'map-count',
 };
 
 const DESCRIPTIONS: Record<BenchCombinationId, string> = {
@@ -82,10 +138,18 @@ const DESCRIPTIONS: Record<BenchCombinationId, string> = {
   'all-filters': 'Todos los filtros combinados a la vez, incluido un radio geográfico de 5 km.',
   'deep-default': 'Orden por defecto con paginación profunda (página 100).',
   'deep-filtered': 'Filtros de operación/tipo con orden por precio y paginación profunda (página 100).',
+  'polygon-small': 'Lista con polígono de ≈1 km² en el centro de Madrid (índice GiST de geography).',
+  'polygon-large-price': 'Lista con polígono de ≈2.400 km² sobre Madrid, orden por precio ascendente.',
+  'polygon-sparse': 'Lista con polígono de ≈2.400 km² en zona dispersa, orden por defecto (sonda de la trampa del LIMIT).',
+  'map-points-default': 'Puntos del mapa (LIMIT 501) sin filtros.',
+  'map-count-default': 'Recuento M de viviendas con ubicación, sin filtros.',
+  'map-points-polygon-large': 'Puntos del mapa (LIMIT 501) con polígono de ≈2.400 km² sobre Madrid.',
+  'map-count-polygon-large': 'Recuento M con polígono de ≈2.400 km² sobre Madrid.',
 };
 
 export const BENCH_COMBINATIONS: readonly BenchCombination[] = BENCH_COMBINATION_IDS.map((id) => ({
   id,
   description: DESCRIPTIONS[id],
+  kind: KINDS[id],
   criteria: CRITERIA[id],
 }));

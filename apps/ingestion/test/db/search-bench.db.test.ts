@@ -7,7 +7,7 @@
 // Si `BENCH_DATABASE_URL` SÍ está definida, el guard (bench-options.ts,
 // diseño D4) y la precondición de tabla vacía SÍ son obligatorios: un fallo
 // aquí es un FALLO real, nunca un salto silencioso disfrazado de éxito.
-import { buildPropertySearchQuery, createDb, listingVersions, properties } from '@buscahogar/db';
+import { createDb, listingVersions, properties } from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
 import { sql } from 'drizzle-orm';
 import type { Pool } from 'pg';
@@ -15,6 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { assertBenchDatabaseUrl } from '../../src/bench/bench-options.js';
 import { summarizePlan } from '../../src/bench/measure.js';
+import { benchQuerySql } from '../../src/bench/query-dispatch.js';
 import { BENCH_COMBINATIONS } from '../../src/bench/query-matrix.js';
 import { runGenerate } from '../../scripts/generate-search-corpus.js';
 import { truncateAll } from './helpers/db-client.js';
@@ -168,12 +169,15 @@ describe.skipIf(!BENCH_DATABASE_URL)('corpus sintético contra BENCH_DATABASE_UR
     ['deep-filtered', 'properties_operation_property_type_min_price_cents_idx'],
     ['price-desc', 'properties_min_price_cents_desc_id_idx'],
     ['surface-sort', 'properties_surface_m2_id_idx'],
+    // ROADMAP 2.6 (decisión 116): el polígono pequeño debe resolverse por el
+    // GiST de geography existente, sin migración nueva.
+    ['polygon-small', 'properties_location_geography_idx'],
   ] as const)('el plan de "%s" usa el índice %s', async (combinationId, indexName) => {
     const combination = BENCH_COMBINATIONS.find((candidate) => candidate.id === combinationId);
     if (combination === undefined) {
       throw new Error(`Combinación desconocida en la matriz: ${combinationId}`);
     }
-    const { sql: queryText, params } = buildPropertySearchQuery(db, combination.criteria).toSQL();
+    const { sql: queryText, params } = benchQuerySql(db, combination);
     const { rows } = await pool.query<{ 'QUERY PLAN': unknown }>(`EXPLAIN (FORMAT JSON) ${queryText}`, params);
     const rawPlan = rows[0]?.['QUERY PLAN'];
     const plan: unknown = typeof rawPlan === 'string' ? (JSON.parse(rawPlan) as unknown) : rawPlan;

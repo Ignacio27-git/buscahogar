@@ -1,6 +1,7 @@
 // ROADMAP 2.4 (search-indexing-performance) — bench-search.ts (diseño D4,
-// decisiones 6, 7, 8 y 9; fase 2, tarea 2.7). Mide `buildPropertySearchQuery`
-// (`@buscahogar/db`) contra una base de datos de BANCO aislada — el mismo
+// decisiones 6, 7, 8 y 9; fase 2, tarea 2.7). Mide la consulta de producción
+// de cada escenario según su `kind` (`buildPropertySearchQuery`,
+// `buildMapPointsQuery` o `buildMapCountQuery` de `@buscahogar/db`) contra una base de datos de BANCO aislada — el mismo
 // guard que `generate-search-corpus.ts` (diseño D4) corre ANTES de abrir
 // ninguna conexión. Reutiliza `parseBenchSearchArgs` (bench-options.ts, fase
 // 1, tarea 1.4) tal cual, sin volver a parsear argv (fase 2, tarea 2.7):
@@ -11,7 +12,7 @@
 import { mkdir, writeFile as writeFileAsync } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
-import { buildPropertySearchQuery, createDb } from '@buscahogar/db';
+import { createDb } from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
 import type { Pool } from 'pg';
 
@@ -19,6 +20,7 @@ import { assertBenchDatabaseUrl, parseBenchSearchArgs } from '../src/bench/bench
 import type { BenchSearchOptions } from '../src/bench/bench-options.js';
 import { percentile, summarizePlan } from '../src/bench/measure.js';
 import type { PlanSummary } from '../src/bench/measure.js';
+import { benchQuerySql, runBenchQuery } from '../src/bench/query-dispatch.js';
 import { BENCH_COMBINATIONS } from '../src/bench/query-matrix.js';
 import type { BenchCombination } from '../src/bench/query-matrix.js';
 import { renderReport } from '../src/bench/report.js';
@@ -91,25 +93,27 @@ export async function evictBuffers(pool: Pick<Pool, 'query'>): Promise<void> {
   );
 }
 
+// ROADMAP 2.6: `runBenchQuery`/`benchQuerySql` despachan por `kind` (lista,
+// puntos del mapa o recuento) hacia la consulta de producción correspondiente.
 // Metrica reportada = reloj de pared del CLIENTE (diseño decisión 6): "user-
 // facing latency", nunca solo el "Execution Time" de EXPLAIN (que excluye
 // planificación y transferencia de resultados).
 async function timedExecution(db: Database, combination: BenchCombination): Promise<number> {
   const start = performance.now();
-  await buildPropertySearchQuery(db, combination.criteria);
+  await runBenchQuery(db, combination);
   return performance.now() - start;
 }
 
 // `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` sobre el `.toSQL()` de la MISMA
 // función de producción (diseño, "Data Flow"): la consulta medida es, por
-// construcción, la que emite `packages/db/src/search.ts` — nunca una
+// construcción, la que emite `packages/db/src/search.ts` o `search-map.ts` — nunca una
 // reescrita a mano. Mismo patrón que
 // `packages/db/test/blocking/blocking-plan.test.ts`: `.toSQL()` nunca
 // ejecuta la consulta por sí solo, así que este EXPLAIN es una invocación
-// aparte de `buildPropertySearchQuery`, no una reutilización del resultado
+// aparte de `runBenchQuery`, no una reutilización del resultado
 // ya awaited en `timedExecution`.
 async function explainCombination(db: Database, pool: Pool, combination: BenchCombination): Promise<PlanSummary> {
-  const { sql: queryText, params } = buildPropertySearchQuery(db, combination.criteria).toSQL();
+  const { sql: queryText, params } = benchQuerySql(db, combination);
   const { rows } = await pool.query<{ 'QUERY PLAN': unknown }>(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${queryText}`, params);
   const rawPlan = rows[0]?.['QUERY PLAN'];
   const plan: unknown = typeof rawPlan === 'string' ? (JSON.parse(rawPlan) as unknown) : rawPlan;
