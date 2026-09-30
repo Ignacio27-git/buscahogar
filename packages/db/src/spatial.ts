@@ -5,6 +5,7 @@
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
+import type { PolygonRing } from '@buscahogar/core';
 import { listings } from './schema/listings.js';
 
 // `ST_DWithin` sobre una columna `geometry` mide en las unidades del SRS: en
@@ -50,4 +51,21 @@ export function rowsWithinMeters(left: AnyPgColumn, right: AnyPgColumn, meters: 
 // océano Índico).
 export function geographyPointWkt(coordinates: { readonly latitude: number; readonly longitude: number }): string {
   return `POINT(${String(coordinates.longitude)} ${String(coordinates.latitude)})`;
+}
+
+// ROADMAP 2.6 (decisión 116) — polígono dibujado por el usuario. El anillo de
+// core es ABIERTO y en orden (lat, lon); el WKT lleva `lon lat` (x = longitud,
+// mismo orden que `geographyPointWkt`) y CIERRA el anillo repitiendo el primer
+// vértice. Solo emite números ya validados por core (regex de 5 decimales),
+// pero aun así se liga SIEMPRE como parámetro: nunca se interpola en el SQL.
+export function polygonWkt(ring: PolygonRing): string {
+  const points = [...ring, ...ring.slice(0, 1)].map((vertex) => `${String(vertex.lon)} ${String(vertex.lat)}`);
+  return `POLYGON((${points.join(', ')}))`;
+}
+
+// `ST_Covers` (no `ST_Contains`) incluye el borde; sobre `geography` usa el
+// índice GiST `properties_location_geography_idx`, sin migración. Los bordes
+// son geodésicos, no rectas planas (decisión 116).
+export function polygonCovers(column: AnyPgColumn, ring: PolygonRing): SQL {
+  return sql`ST_Covers(ST_GeogFromText(${polygonWkt(ring)}), ${column})`;
 }

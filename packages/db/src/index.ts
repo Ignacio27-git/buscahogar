@@ -23,6 +23,7 @@ export * from './blocking.js';
 export * from './hydration.js';
 export * from './consolidation.js';
 export * from './search.js';
+export * from './search-map.js';
 export * from './detail.js';
 export * from './locations-query.js';
 export * from './time.js';
