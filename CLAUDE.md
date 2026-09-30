@@ -19,14 +19,15 @@ la API real desde tests: usar fixtures grabados.
 
 **Credenciales de fuentes solo en `apps/ingestion`; `apps/web` tiene dos credenciales de base de
 datos, ambas de alcance mínimo.** (docs/DECISIONS.md, decisión 056, enmienda la 015; decisiones
-064/069 del paso 1.13; 076/082 del paso 1.15). `apps/web` nunca usa la credencial de
+064/069 del paso 1.13; 076/082 del paso 1.15; 102 del paso 2.5). `apps/web` nunca usa la credencial de
 propietario de `apps/ingestion`:
 
 - **Lectura:** rol de PostgreSQL de **solo lectura** — `DATABASE_URL` en `apps/web/.env.local`
   (local) o inyectada por Compose desde `WEB_DATABASE_URL` (contenedor).
-- **Escritura restringida (`web_coverage`, pasos 1.13 y 1.15):** rol acotado a `INSERT` en
-  `coverage_jobs` (1.13) y a `SELECT`/`INSERT`/`UPDATE`/`DELETE` en `coverage_client_quota` (cuota
-  diaria por cliente, 1.15) — `WEB_COVERAGE_DATABASE_URL` en `apps/web/.env.local` (local) o
+- **Escritura restringida (`web_coverage`, pasos 1.13, 1.15 y 2.5):** rol acotado a `INSERT` en
+  `coverage_jobs` (1.13), a `SELECT`/`INSERT`/`UPDATE`/`DELETE` en `coverage_client_quota` (cuota
+  diaria por cliente, 1.15) y a `INSERT` en `zone_query_signals` (señal de demanda por zona, 2.5,
+  sin `SELECT`/`UPDATE`/`DELETE`) — `WEB_COVERAGE_DATABASE_URL` en `apps/web/.env.local` (local) o
   inyectada por Compose (contenedor). Ningún otro `GRANT` sobre ninguna otra tabla.
 
 Ninguna credencial de las fuentes (Idealista u otra) llega nunca a `apps/web`, y ninguna
@@ -38,7 +39,10 @@ credencial de ningún tipo se expone como variable `NEXT_PUBLIC_*`.
 volver a gastar cuota.
 
 **`listings` no se sobrescribe.** Un cambio de precio genera una versión nueva. De ahí
-sale el histórico.
+sale el histórico. Única excepción (decisión 107): un anuncio que lleva 180 días inactivo pasa a
+`removed` y se redactan `listing_versions.description`, `listing_versions.raw` y
+`listings.thumbnail_url`. Los precios, los campos estructurados y la evidencia de deduplicación
+no se tocan, y nada se borra.
 
 ## Convenciones
 
@@ -77,7 +81,8 @@ la decisión final. Es la evidencia para la evaluación del TFM y no se puede re
 después.
 
 Al consolidar una vivienda a partir de varios anuncios, el precio mostrado es el más
-económico del grupo.
+económico de los anuncios activos. Una vivienda sin ningún anuncio activo no aparece en la
+búsqueda, y su detalle muestra el mínimo de todos (decisión 109).
 
 Prioridad: minimizar falsos positivos. Agrupar dos viviendas distintas es peor que no
 detectar un duplicado.
