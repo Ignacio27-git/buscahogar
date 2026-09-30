@@ -23,6 +23,16 @@ describe('barril público de @buscahogar/core', () => {
     }
   });
 
+  it('ROADMAP 2.6: expone el códec de polígono y el esquema de vista', () => {
+    expect(typeof barrel.parsePolygonParam).toBe('function');
+    expect(typeof barrel.validatePolygonRing).toBe('function');
+    expect(typeof barrel.formatPolygonParam).toBe('function');
+    expect(typeof barrel.polygonAreaKm2).toBe('function');
+    expect(barrel.POLYGON_MAX_VERTICES).toBe(50);
+    expect(barrel.polygonParamSchema).toBeDefined();
+    expect(barrel.searchViewSchema.parse(undefined)).toBe('list');
+  });
+
   it('ROADMAP 1.9: expone haversineDistanceMeters, ruleBasedDedupStrategy y classify', () => {
     expect(typeof barrel.haversineDistanceMeters).toBe('function');
     expect(barrel.ruleBasedDedupStrategy).toBeDefined();

@@ -210,3 +210,110 @@ describe('searchQuerySchema — tope de página (escenario «Beyond the max-offs
     expect(searchQuerySchema.safeParse({ page: '99999' }).success).toBe(false);
   });
 });
+
+// ROADMAP 2.6 (map-view-search, decisión 115/118) — `polygon` y `view`.
+describe('searchQuerySchema — polygon (ROADMAP 2.6)', () => {
+  const VALID = '40,-3;40,-2.9;40.1,-2.9;40.1,-3';
+
+  it('acepta un polígono válido y lo entrega como criteria.polygon', () => {
+    const result = searchQuerySchema.safeParse({ polygon: VALID });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.polygon).toEqual([
+        { lat: 40, lon: -3 },
+        { lat: 40, lon: -2.9 },
+        { lat: 40.1, lon: -2.9 },
+        { lat: 40.1, lon: -3 },
+      ]);
+    }
+  });
+
+  it('sin polygon no aparece la clave en el criterio', () => {
+    const result = searchQuerySchema.safeParse({ operation: 'sale' });
+    expect(result.success && 'polygon' in result.data).toBe(false);
+  });
+
+  it('polygon con filtros no geográficos, sort, dir y page es válido', () => {
+    const result = searchQuerySchema.safeParse({
+      polygon: VALID,
+      operation: 'rent',
+      minPrice: '50000',
+      sort: 'price',
+      dir: 'asc',
+      page: '2',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('polygon vacío es un rechazo nombrado (ni ausente ni cero)', () => {
+    const result = searchQuerySchema.safeParse({ polygon: '' });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues[0]?.path).toEqual(['polygon']);
+  });
+
+  it('polygon repetido (array) es un rechazo nombrado', () => {
+    const result = searchQuerySchema.safeParse({ polygon: [VALID, VALID] });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['polygon']);
+      expect(result.error.issues[0]?.message).toContain('polygon');
+    }
+  });
+
+  it('un polígono inválido lleva el código nombrado y mensaje que nombra polygon', () => {
+    const result = searchQuerySchema.safeParse({ polygon: '0,0;1,1;1,0;0,1' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const first = result.error.issues[0];
+      expect(first?.path).toEqual(['polygon']);
+      expect(first?.message).toMatch(/^polygon: /);
+      expect(first).toMatchObject({ params: { polygonCode: 'self-intersecting' } });
+    }
+  });
+
+  it('hostil: WKT y SQL se rechazan sin excepción', () => {
+    expect(searchQuerySchema.safeParse({ polygon: 'POLYGON((0 0,1 1,1 0,0 0))' }).success).toBe(false);
+    expect(searchQuerySchema.safeParse({ polygon: "1,1;2,2;3,3'); DROP TABLE x;--" }).success).toBe(false);
+  });
+
+  it('polygon + zone se rechaza y el mensaje nombra ambos', () => {
+    const result = searchQuerySchema.safeParse({ polygon: VALID, zone: '28079' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe('polygon no puede combinarse con zone');
+    }
+  });
+
+  it('polygon + lat/lng/radius se rechaza nombrando los presentes', () => {
+    const result = searchQuerySchema.safeParse({ polygon: VALID, lat: '40', lng: '-3', radius: '2000' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe('polygon no puede combinarse con lat, lng, radius');
+    }
+  });
+
+  it('polygon + geo parcial (solo radius) se rechaza por exclusividad, no por bloque incompleto', () => {
+    const result = searchQuerySchema.safeParse({ polygon: VALID, radius: '2000' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe('polygon no puede combinarse con radius');
+    }
+  });
+
+  it('polygon + zone + radius nombra todos los presentes en orden', () => {
+    const result = searchQuerySchema.safeParse({ polygon: VALID, zone: '28079', radius: '2000' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe('polygon no puede combinarse con zone, radius');
+    }
+  });
+
+  it('claves desconocidas junto a un polygon válido siguen siendo inocuas', () => {
+    expect(searchQuerySchema.safeParse({ polygon: VALID, utm_source: 'x', pageSize: '500' }).success).toBe(true);
+  });
+
+  it('zone y radius sin polygon: comportamiento anterior intacto', () => {
+    expect(searchQuerySchema.safeParse({ zone: '28079' }).success).toBe(true);
+    expect(searchQuerySchema.safeParse({ radius: '2000' }).success).toBe(false);
+  });
+});

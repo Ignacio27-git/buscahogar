@@ -18,9 +18,11 @@
 // ninguno de los nombres de search params.
 import { z } from 'zod';
 
+import type { PolygonRing } from '../geo/polygon.js';
 import { OPERATION_TYPES } from '../types/operation-type.js';
 import { PROPERTY_TYPES } from '../types/property-type.js';
 import { areaQuerySchema } from './area-query.schema.js';
+import { polygonParamSchema } from './polygon-param.schema.js';
 import { zoneSelectionSchema } from './zone-selection.schema.js';
 
 // Un entero decimal sin signo: la ausencia de `-?` es lo que rechaza un
@@ -73,8 +75,37 @@ const rawSearchQuerySchema = z
     // (decisión 057) en vez de duplicar su regex: una sola definición del
     // patrón de código INE.
     zone: zoneSelectionSchema.optional(),
+    // ROADMAP 2.6 (decisión 115) — tercera forma de indicar la zona: un
+    // polígono dibujado. Excluyente con zone y con cualquier parte de
+    // lat/lng/radius (comprobado primero en el superRefine).
+    polygon: polygonParamSchema.optional(),
   })
   .superRefine((data, ctx) => {
+    // ROADMAP 2.6 — `polygon` no se combina con ningún otro modo geográfico:
+    // rechazo NOMBRADO con los parámetros presentes, sin precedencia. Va
+    // antes que el resto, así un geo parcial junto a `polygon` se nombra por
+    // este motivo y no por «bloque incompleto».
+    if (data.polygon !== undefined) {
+      const conflicting = (
+        [
+          ['zone', data.zone],
+          ['lat', data.lat],
+          ['lng', data.lng],
+          ['radius', data.radius],
+        ] as const
+      )
+        .filter(([, value]) => value !== undefined)
+        .map(([name]) => name);
+      if (conflicting.length > 0) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `polygon no puede combinarse con ${conflicting.join(', ')}`,
+          path: ['polygon'],
+        });
+        return;
+      }
+    }
+
     // CR-6 (arbitraje) — `zone` junto con CUALQUIER parte de lat/lng/radius
     // es un rechazo NOMBRADO, nunca una precedencia silenciosa: mismo
     // idioma que este propio fichero ya declara en su cabecera («nunca un
@@ -140,6 +171,7 @@ export const searchQuerySchema = rawSearchQuerySchema.transform(
       ? { geo: { lon: data.lng, lat: data.lat, radiusMeters: data.radius } }
       : {}),
     ...(data.zone !== undefined ? { zone: data.zone } : {}),
+    ...(data.polygon !== undefined ? { polygon: data.polygon } : {}),
     // D2: absent ≠ malformed — default descendente por fecha de
     // actualización cuando no se pide ningún `sort`.
     sort: data.sort ?? 'updated',
@@ -166,6 +198,9 @@ export interface PropertySearchCriteria {
   // ignora este campo — no es una columna de `properties`, no filtra nada
   // por sí solo.
   readonly zone?: string;
+  // ROADMAP 2.6 — anillo abierto ya validado (decisión 115). Ausente = sin
+  // predicado; activo = excluye las filas con ubicación NULL.
+  readonly polygon?: PolygonRing;
   readonly sort: 'price' | 'surface' | 'updated';
   readonly dir: 'asc' | 'desc';
   readonly page: number;

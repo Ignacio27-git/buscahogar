@@ -48,6 +48,10 @@ export { searchQuerySchema } from './schemas/search-query.schema.js';
 export type { PropertyDetailParams } from './schemas/property-detail-params.schema.js'; // derivado con z.infer
 export { propertyDetailParamsSchema } from './schemas/property-detail-params.schema.js';
 export { zoneQuerySchema, zoneSelectionSchema } from './schemas/zone-selection.schema.js';
+// Búsqueda por zona dibujada y vista de mapa (ROADMAP 2.6, decisiones 115/118).
+export { polygonParamSchema } from './schemas/polygon-param.schema.js';
+export type { SearchView } from './schemas/search-view.schema.js';
+export { SEARCH_VIEWS, searchViewSchema } from './schemas/search-view.schema.js';
 
 export type { DedupStrategy } from './contracts/dedup-strategy.js';
 export type { ListingNormalizer } from './contracts/listing-normalizer.js';
@@ -61,6 +65,24 @@ export type { PropertySource } from './contracts/property-source.js';
 // `../src/strategies/rule-based/...`, igual que el resto de tests de este
 // paquete (contracts.test.ts:3-9).
 export { haversineDistanceMeters } from './geo/distance.js';
+// Códec puro del polígono (ROADMAP 2.6, decisión 115): lo usan el esquema de
+// search params y el control de dibujo del navegador.
+export type {
+  PolygonIssueCode,
+  PolygonParseResult,
+  PolygonRing,
+  PolygonVertex,
+} from './geo/polygon.js';
+export {
+  formatPolygonParam,
+  parsePolygonParam,
+  POLYGON_MAX_AREA_KM2,
+  POLYGON_MAX_PARAM_LENGTH,
+  POLYGON_MAX_VERTICES,
+  POLYGON_MIN_VERTICES,
+  polygonAreaKm2,
+  validatePolygonRing,
+} from './geo/polygon.js';
 export { normalizeSearchName } from './normalize-search-name.js';
 export { ruleBasedDedupStrategy } from './strategies/rule-based/strategy.js';
 export { classify, isVetoed } from './strategies/rule-based/classify.js';

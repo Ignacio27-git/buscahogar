@@ -5,3 +5,5 @@
 export * from './area-query.schema.js';
 export * from './blocking-thresholds.schema.js';
 export * from './listing.schema.js';
+export * from './polygon-param.schema.js';
+export * from './search-view.schema.js';
