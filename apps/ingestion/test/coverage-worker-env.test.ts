@@ -56,3 +56,41 @@ describe('readEnv — MAINTENANCE_EVERY_TICKS', () => {
     expect(() => readEnv({ ...BASE_ENV, MAINTENANCE_EVERY_TICKS: raw })).toThrow(/MAINTENANCE_EVERY_TICKS/);
   });
 });
+
+// ROADMAP 2.5 (S3; decisión 105) — verificación de presencia por `adIds`: el
+// tope de peticiones por tick y el margen de radio son decisiones del
+// operador con valores por defecto PRUDENTES (pocas peticiones: la cuota es
+// mensual y limitada). Se validan con Zod como el resto de variables.
+describe('readEnv — MAX_VERIFICATION_REQUESTS_PER_TICK', () => {
+  it('ausente: por defecto 2 peticiones de verificación por tick', () => {
+    expect(readEnv(BASE_ENV).options.maxVerificationRequestsPerTick).toBe(2);
+  });
+
+  it('un entero positivo válido se respeta', () => {
+    expect(readEnv({ ...BASE_ENV, MAX_VERIFICATION_REQUESTS_PER_TICK: '5' }).options.maxVerificationRequestsPerTick).toBe(5);
+  });
+
+  it.each([['0'], ['-1'], ['1.5'], ['abc']])('"%s" se rechaza (se espera un entero positivo)', (raw) => {
+    expect(() => readEnv({ ...BASE_ENV, MAX_VERIFICATION_REQUESTS_PER_TICK: raw })).toThrow(WorkerEnvError);
+    expect(() => readEnv({ ...BASE_ENV, MAX_VERIFICATION_REQUESTS_PER_TICK: raw })).toThrow(
+      /MAX_VERIFICATION_REQUESTS_PER_TICK/
+    );
+  });
+});
+
+describe('readEnv — VERIFICATION_RADIUS_MARGIN_M', () => {
+  it('ausente: por defecto 500 m', () => {
+    expect(readEnv(BASE_ENV).verificationRadiusMarginM).toBe(500);
+  });
+
+  it.each([
+    ['0', 0],
+    ['250', 250],
+  ])('"%s" es válido (entero no negativo) y se interpreta como %i', (raw, expected) => {
+    expect(readEnv({ ...BASE_ENV, VERIFICATION_RADIUS_MARGIN_M: raw }).verificationRadiusMarginM).toBe(expected);
+  });
+
+  it.each([['-1'], ['1.5'], ['abc'], ['']])('"%s" se rechaza (se espera un entero no negativo)', (raw) => {
+    expect(() => readEnv({ ...BASE_ENV, VERIFICATION_RADIUS_MARGIN_M: raw })).toThrow(/VERIFICATION_RADIUS_MARGIN_M/);
+  });
+});

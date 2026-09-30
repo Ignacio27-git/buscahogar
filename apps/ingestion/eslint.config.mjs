@@ -18,6 +18,11 @@ export default [
     // encarga el tope duro del presupuesto (budget.ts / scripts/probe/ledger.ts, D6).
     files: [
       'scripts/probe-idealista.ts',
+      // ROADMAP 2.5 (S3; decisión 105): sonda de `adIds` (hasta 3 peticiones
+      // facturables, operada a mano) y verificador de presencia (una petición
+      // por lote): mismas superficies que emiten peticiones, mismo ban.
+      'scripts/probe-idealista-adids.ts',
+      'src/sources/idealista/presence-verifier.ts',
       'src/sources/idealista/http-client.ts',
       'src/sources/idealista/idealista-source.ts',
       // Paso 1.14 (diseño D14) — mismo criterio: superficies que orquestan

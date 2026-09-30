@@ -4,7 +4,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { Listing } from '@buscahogar/core';
-import { listings, listingVersions, properties, propertyListings } from '@buscahogar/db';
+import { listingPresenceChecks, listings, listingVersions, properties, propertyListings } from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
 import { and, eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
@@ -15,7 +15,7 @@ import { rawElementSchema } from '../../src/sources/idealista/raw-element.schema
 import { createListingWriter } from '../../src/sweep/listing-writer.js';
 import type { PersistPageItem } from '../../src/sweep/store.js';
 import { connectTestDb, truncateAll } from './helpers/db-client.js';
-import { insertSource } from './helpers/seed-fixtures.js';
+import { insertLocationWithZone, insertSource } from './helpers/seed-fixtures.js';
 
 // Estrecha `T | undefined` a `T` con un mensaje nombrado en vez de `!` (el
 // linter prohíbe la aserción no-nula, D2/eslint.config.mjs compartido):
@@ -455,6 +455,88 @@ describe('listing-writer — PERSIST-1..8, D5', () => {
       const [after] = await db.select().from(properties).where(eq(properties.id, propertyId));
       expect(after?.activeListingCount).toBe(5);
       expect(after?.minPriceCents).toBe(1);
+    });
+  });
+  // ROADMAP 2.5 (refresh-retention-policy, S3; decisión 105) — un anuncio visto de
+  // nuevo en un barrido deja de ser sospechoso: su fila de la cola de presencia
+  // se borra en la MISMA transacción de la página (S-LR-17).
+  describe('cola de verificación de presencia: un anuncio visto de nuevo sale de la cola (S-LR-17)', () => {
+    async function queue(externalId: string, zoneId: string): Promise<string> {
+      const [row] = await db.select({ id: listings.id }).from(listings).where(eq(listings.externalId, externalId));
+      const listingId = requireRow(row, 'listing no encontrado para encolar').id;
+      await db.insert(listingPresenceChecks).values({ listingId, zoneId, checkAttempts: 1 });
+      return listingId;
+    }
+
+    async function queuedListingIds(): Promise<readonly string[]> {
+      const rows = await db.select({ listingId: listingPresenceChecks.listingId }).from(listingPresenceChecks);
+      return rows.map((row) => row.listingId);
+    }
+
+    it('un anuncio activo en la cola que reaparece en una página se borra de la cola y sigue activo', async () => {
+      const sourceUuid = await insertSource(db);
+      const { zoneId } = await insertLocationWithZone(db);
+      const item = buildItem();
+      await persistOne(sourceUuid, item);
+      await queue(item.listing.externalId, zoneId);
+
+      await persistOne(sourceUuid, item);
+
+      expect(await queuedListingIds()).toEqual([]);
+      const [row] = await db.select().from(listings).where(eq(listings.externalId, item.listing.externalId));
+      expect(row?.status).toBe('active');
+    });
+
+    it('un anuncio inactivo en la cola que reaparece se reactiva Y sale de la cola', async () => {
+      const sourceUuid = await insertSource(db);
+      const { zoneId } = await insertLocationWithZone(db);
+      const item = buildItem();
+      await persistOne(sourceUuid, item);
+      const listingId = await queue(item.listing.externalId, zoneId);
+      await db
+        .update(listings)
+        .set({ status: 'inactive', inactiveSince: new Date(), inactiveReason: 'delisted' })
+        .where(eq(listings.id, listingId));
+
+      await persistOne(sourceUuid, item);
+
+      expect(await queuedListingIds()).toEqual([]);
+      const [row] = await db.select().from(listings).where(eq(listings.id, listingId));
+      expect(row?.status).toBe('active');
+      expect(row?.inactiveReason).toBeNull();
+    });
+
+    it('solo salen de la cola los anuncios de la página: los demás conservan su fila y sus intentos', async () => {
+      const sourceUuid = await insertSource(db);
+      const { zoneId } = await insertLocationWithZone(db);
+      const seenAgain = buildItem();
+      const untouched = buildItem();
+      await persistOne(sourceUuid, seenAgain);
+      await persistOne(sourceUuid, untouched);
+      await queue(seenAgain.listing.externalId, zoneId);
+      const untouchedId = await queue(untouched.listing.externalId, zoneId);
+
+      await persistOne(sourceUuid, seenAgain);
+
+      expect(await queuedListingIds()).toEqual([untouchedId]);
+      const [row] = await db
+        .select({ attempts: listingPresenceChecks.checkAttempts })
+        .from(listingPresenceChecks)
+        .where(eq(listingPresenceChecks.listingId, untouchedId));
+      expect(row?.attempts).toBe(1);
+    });
+
+    it('un anuncio idéntico de OTRA fuente con el mismo external_id no toca la cola de esta fuente', async () => {
+      const sourceA = await insertSource(db);
+      const sourceB = await insertSource(db, { key: 'otra-fuente' });
+      const { zoneId } = await insertLocationWithZone(db);
+      const item = buildItem();
+      await persistOne(sourceA, item);
+      const queuedInA = await queue(item.listing.externalId, zoneId);
+
+      await persistOne(sourceB, item);
+
+      expect(await queuedListingIds()).toEqual([queuedInA]);
     });
   });
 });

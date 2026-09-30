@@ -34,6 +34,15 @@ export const coverageJobs = pgTable(
     // (completado) lo limpia. `requested_at` NUNCA se toca al refrescar: es el
     // ancla de demanda de las zonas sin señales.
     refreshRequestedAt: timestamp('refresh_requested_at', { withTimezone: true }),
+    // ROADMAP 2.5 (S3; decisión 105) — inicio del ciclo de barrido en curso o
+    // del último completado. `claimJob` lo fija SOLO cuando el cursor guardado
+    // es NULL (arranque limpio) y lo CONSERVA en las reanudaciones, de modo que
+    // un ciclo que abarca varios ticks (presupuesto agotado y reanudado) tiene
+    // un único inicio. Los anuncios vistos durante el ciclo tienen `last_seen_at
+    // >= cycle_started_at`; los activos de la zona con `last_seen_at` anterior
+    // son candidatos a ausentes. NULL en jobs previos a 0015: sin ciclo conocido
+    // no se nomina a nadie (fail-safe).
+    cycleStartedAt: timestamp('cycle_started_at', { withTimezone: true }),
   },
   (table) => [
     index('coverage_jobs_status_requested_at_idx').on(table.status, table.requestedAt),

@@ -106,6 +106,13 @@
       "when": 1790703308115,
       "tag": "0014_listing_lifecycle_visibility",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790757611731,
+      "tag": "0015_listing_presence_verification",
+      "breakpoints": true
     }
   ]
 }

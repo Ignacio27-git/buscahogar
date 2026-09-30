@@ -9,7 +9,13 @@
 // cursor nunca avanza por delante de filas no comprometidas.
 import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 
-import { coverageJobs, listingVersions, listings, refreshPropertyVisibility } from '@buscahogar/db';
+import {
+  coverageJobs,
+  listingPresenceChecks,
+  listingVersions,
+  listings,
+  refreshPropertyVisibility,
+} from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
 
 import { encodeJobCursor } from './job-cursor.js';
@@ -76,6 +82,7 @@ export function createListingWriter(db: Database): ListingWriter {
             ).map((row) => row.externalId)
       );
       const reactivatedListingIds: string[] = [];
+      const seenListingIds: string[] = [];
 
       async function persistItem(item: PersistPageItem): Promise<'inserted' | 'versioned' | 'unchanged'> {
         const { raw, listing } = item;
@@ -151,6 +158,7 @@ export function createListingWriter(db: Database): ListingWriter {
           );
         }
         const listingId = listingRow.id;
+        seenListingIds.push(listingId);
         if (nonActiveExternalIds.has(listing.externalId)) {
           reactivatedListingIds.push(listingId);
         }
@@ -214,6 +222,13 @@ export function createListingWriter(db: Database): ListingWriter {
         } else {
           unchanged += 1;
         }
+      }
+
+      // ROADMAP 2.5 (S3; decisión 105, S-LR-17): un anuncio visto de nuevo deja
+      // de ser sospechoso de ausencia — su fila de la cola de verificación de
+      // presencia se borra en la MISMA transacción que registra el avistamiento.
+      if (seenListingIds.length > 0) {
+        await tx.delete(listingPresenceChecks).where(inArray(listingPresenceChecks.listingId, seenListingIds));
       }
 
       // ROADMAP 2.5 (decisión 109): los anuncios reactivados vuelven a contar

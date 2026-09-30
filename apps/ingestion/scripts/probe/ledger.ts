@@ -1,6 +1,6 @@
 // Sonda de la API de Idealista (paso 1.5) — contador de peticiones de red.
 //
-// Dos contadores independientes con un tope duro de 1 cada uno. `spend()` se
+// Dos contadores independientes con un tope duro, por defecto de 1 cada uno. `spend()` se
 // llama siempre en la línea inmediatamente anterior a su `await fetch(...)`
 // correspondiente (D6), así que una petición que falla tras salir de la
 // máquina sigue contando: "una petición fallida nunca reporta cero"
@@ -21,16 +21,37 @@ export interface RequestLedger {
   snapshot(): LedgerSnapshot;
 }
 
-const REQUEST_CAP = 1;
+// Tope por defecto (paso 1.5): una petición de cada tipo. ROADMAP 2.5 (S3,
+// decisión 105, U3): el tope pasa a ser configurable POR TIPO para la sonda de
+// `adIds`, que hace hasta 3 búsquedas facturables con UN solo token. El valor
+// por defecto NO cambia: la sonda original sigue limitada a 1 + 1.
+export const DEFAULT_REQUEST_CAP = 1;
 
-export function createRequestLedger(): RequestLedger {
+export interface RequestCaps {
+  readonly token?: number;
+  readonly search?: number;
+}
+
+function validCap(kind: RequestKind, cap: number): number {
+  // Un tope implícito o ilimitado rompería la garantía: solo enteros >= 1.
+  if (!Number.isInteger(cap) || cap < 1) {
+    throw new RangeError(`Tope de peticiones inválido para "${kind}": ${String(cap)} (se espera un entero >= 1).`);
+  }
+  return cap;
+}
+
+export function createRequestLedger(caps: RequestCaps = {}): RequestLedger {
   const counts: { token: number; search: number } = { token: 0, search: 0 };
+  const limits: Readonly<Record<RequestKind, number>> = {
+    token: validCap('token', caps.token ?? DEFAULT_REQUEST_CAP),
+    search: validCap('search', caps.search ?? DEFAULT_REQUEST_CAP),
+  };
 
   return {
     spend(kind: RequestKind): void {
-      if (counts[kind] >= REQUEST_CAP) {
+      if (counts[kind] >= limits[kind]) {
         throw new Error(
-          `Tope de peticiones alcanzado para "${kind}": máximo ${String(REQUEST_CAP)} por ejecución.`
+          `Tope de peticiones alcanzado para "${kind}": máximo ${String(limits[kind])} por ejecución.`
         );
       }
       counts[kind] += 1;

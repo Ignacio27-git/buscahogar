@@ -188,6 +188,95 @@ describe('coverage-store — COVERAGE-1..6, D6, D7', () => {
     });
   });
 
+  // ROADMAP 2.5 (refresh-retention-policy, S3; decisión 105) — `cycle_started_at`
+  // marca el inicio del ciclo de barrido: lo fija `claimJob` SOLO con cursor
+  // NULL y sobrevive a las reanudaciones, de modo que un ciclo que abarca varios
+  // ticks tiene un único inicio (S-ZRS-17).
+  describe('cycle_started_at — inicio del ciclo (S-ZRS-17, decisión 105)', () => {
+    async function cycleStartedAt(jobId: string): Promise<Date | null> {
+      const [job] = await db.select().from(coverageJobs).where(eq(coverageJobs.id, jobId));
+      return job?.cycleStartedAt ?? null;
+    }
+
+    it('el primer reclamo (sin fila previa) fija cycle_started_at', async () => {
+      const { zoneId, sourceId } = await seedZoneAndSource();
+      const store = createCoverageStore(db);
+      const before = Date.now();
+
+      const claimed = await store.claimJob(zoneId, sourceId, FINGERPRINT);
+
+      const started = await cycleStartedAt(claimed.id);
+      expect(started).not.toBeNull();
+      expect(started?.getTime()).toBeGreaterThanOrEqual(before - 1_000);
+    });
+
+    it('S-ZRS-17: un ciclo interrumpido por presupuesto y reanudado conserva el cycle_started_at del primer tick', async () => {
+      const { zoneId, sourceId } = await seedZoneAndSource();
+      const store = createCoverageStore(db);
+      const first = await store.claimJob(zoneId, sourceId, FINGERPRINT);
+      const tickOneStart = await cycleStartedAt(first.id);
+      await store.finishJob(first.id, { kind: 'budget-exhausted', resumeCursor: 'homes:4' });
+      await new Promise((resolve) => setTimeout(resolve, 25));
+
+      const resumed = await store.claimJob(zoneId, sourceId, FINGERPRINT);
+
+      expect(resumed.cursor).toBe('homes:4');
+      expect((await cycleStartedAt(resumed.id))?.getTime()).toBe(tickOneStart?.getTime());
+    });
+
+    it('un fallo de transporte con cursor también conserva el inicio del ciclo al reintentar', async () => {
+      const { zoneId, sourceId } = await seedZoneAndSource();
+      const store = createCoverageStore(db);
+      const first = await store.claimJob(zoneId, sourceId, FINGERPRINT);
+      const initial = await cycleStartedAt(first.id);
+      await store.finishJob(first.id, { kind: 'transport-failed', resumeCursor: 'homes:2', error: 'timeout simulado' });
+      await new Promise((resolve) => setTimeout(resolve, 25));
+
+      const retried = await store.claimJob(zoneId, sourceId, FINGERPRINT);
+
+      expect((await cycleStartedAt(retried.id))?.getTime()).toBe(initial?.getTime());
+    });
+
+    it('un ciclo nuevo (job done con cursor NULL, p. ej. un refresco) fija un cycle_started_at posterior', async () => {
+      const { zoneId, sourceId } = await seedZoneAndSource();
+      const store = createCoverageStore(db);
+      const first = await store.claimJob(zoneId, sourceId, FINGERPRINT);
+      const oldStart = await cycleStartedAt(first.id);
+      await store.finishJob(first.id, { kind: 'completed' });
+      await new Promise((resolve) => setTimeout(resolve, 25));
+
+      const second = await store.claimJob(zoneId, sourceId, FINGERPRINT);
+
+      const newStart = await cycleStartedAt(second.id);
+      expect(second.cursor).toBeUndefined();
+      expect(newStart?.getTime()).toBeGreaterThan(oldStart?.getTime() ?? Number.POSITIVE_INFINITY);
+    });
+
+    it('finishJob(completed) conserva cycle_started_at: markAbsenceCandidates lo necesita después de cerrar', async () => {
+      const { zoneId, sourceId } = await seedZoneAndSource();
+      const store = createCoverageStore(db);
+      const claimed = await store.claimJob(zoneId, sourceId, FINGERPRINT);
+      const started = await cycleStartedAt(claimed.id);
+
+      await store.finishJob(claimed.id, { kind: 'completed' });
+
+      expect((await cycleStartedAt(claimed.id))?.getTime()).toBe(started?.getTime());
+    });
+
+    it('un job previo a 0015 (cycle_started_at NULL) con cursor guardado se reanuda SIN inventar un inicio', async () => {
+      const { zoneId, sourceId } = await seedZoneAndSource();
+      const store = createCoverageStore(db);
+      const first = await store.claimJob(zoneId, sourceId, FINGERPRINT);
+      await store.finishJob(first.id, { kind: 'budget-exhausted', resumeCursor: 'homes:3' });
+      await db.update(coverageJobs).set({ cycleStartedAt: null }).where(eq(coverageJobs.id, first.id));
+
+      const resumed = await store.claimJob(zoneId, sourceId, FINGERPRINT);
+
+      expect(resumed.cursor).toBe('homes:3');
+      expect(await cycleStartedAt(resumed.id)).toBeNull();
+    });
+  });
+
   it('una inserción duplicada de coverage_jobs pendiente para la misma zona+fuente es rechazada por el índice único de la BD', async () => {
     const { zoneId, sourceId } = await seedZoneAndSource();
     await db.insert(coverageJobs).values({ zoneId, sourceId, status: 'pending' });

@@ -55,6 +55,10 @@ export function createCoverageStore(db: Database): CoverageStore {
 
     let claimedId: string;
     let storedCursor: string | null;
+    // ROADMAP 2.5 (S3; decisión 105): el reloj del proceso, el MISMO que fija
+    // `last_seen_at` en listing-writer.ts, así que "visto durante el ciclo"
+    // (`last_seen_at >= cycle_started_at`) compara dos marcas del mismo reloj.
+    const claimedAt = new Date();
 
     if (!existing) {
       // Ninguna fila previa: crearla YA reclamada evita la ventana entre
@@ -62,7 +66,7 @@ export function createCoverageStore(db: Database): CoverageStore {
       // abierta.
       const [inserted] = await db
         .insert(coverageJobs)
-        .values({ zoneId, sourceId, status: 'running', attempts: 1, startedAt: new Date() })
+        .values({ zoneId, sourceId, status: 'running', attempts: 1, startedAt: claimedAt, cycleStartedAt: claimedAt })
         .returning({ id: coverageJobs.id, cursor: coverageJobs.cursor });
       if (!inserted) {
         throw new Error('No se pudo crear la fila de coverage_jobs.');
@@ -77,7 +81,16 @@ export function createCoverageStore(db: Database): CoverageStore {
       // en vez de reclamar un trabajo que otro proceso ya tiene.
       const [updated] = await db
         .update(coverageJobs)
-        .set({ status: 'running', startedAt: new Date(), attempts: sql`${coverageJobs.attempts} + 1` })
+        .set({
+          status: 'running',
+          startedAt: claimedAt,
+          attempts: sql`${coverageJobs.attempts} + 1`,
+          // Ciclo nuevo SOLO con cursor NULL (arranque limpio: job `done` o
+          // refresco re-encolado); una reanudación (presupuesto agotado o
+          // reintento con cursor) conserva el inicio del primer tick. En un
+          // SET de UPDATE la columna `cursor` es el valor PREVIO.
+          cycleStartedAt: sql`case when ${coverageJobs.cursor} is null then ${claimedAt.toISOString()}::timestamptz else ${coverageJobs.cycleStartedAt} end`,
+        })
         .where(and(eq(coverageJobs.id, existing.id), inArray(coverageJobs.status, RECLAIMABLE_STATUSES)))
         .returning({ id: coverageJobs.id, cursor: coverageJobs.cursor });
       if (!updated) {

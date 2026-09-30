@@ -11,6 +11,7 @@ export { dedupPairEvidence } from './schema/dedup-pair-evidence.js';
 export { dedupRuns } from './schema/dedup-runs.js';
 export { features } from './schema/features.js';
 export { listingFeatures } from './schema/listing-features.js';
+export { listingPresenceChecks } from './schema/listing-presence-checks.js';
 export { listingVersions } from './schema/listing-versions.js';
 export { listings } from './schema/listings.js';
 export { locations } from './schema/locations.js';

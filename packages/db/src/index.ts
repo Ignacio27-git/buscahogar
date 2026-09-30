@@ -31,6 +31,7 @@ export * from './client-quota.js';
 export * from './query-signals.js';
 export * from './zone-lifecycle.js';
 export * from './visibility.js';
+export * from './presence-checks.js';
 export * from './coverage.js';
 export { createDb, type Database } from './db.js';
 

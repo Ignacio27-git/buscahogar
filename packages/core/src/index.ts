@@ -174,6 +174,9 @@ export {
   isRefreshDue,
   MONTHLY_MAX_DEMAND_AGE_DAYS,
   MONTHLY_REFRESH_INTERVAL_DAYS,
+  PRESENCE_BATCH_SIZE,
+  PRESENCE_MAX_CHECK_ATTEMPTS,
+  PRESENCE_RETRY_BACKOFF_DAYS,
   PURGE_DEMAND_AGE_DAYS,
   SIGNAL_PURGE_MAX_ROWS_PER_TICK,
   SIGNAL_RETENTION_DAYS,
@@ -183,5 +186,14 @@ export {
 export type { ZoneCadence } from './retention/policy.js';
 export { MAX_ZONE_PURGES_PER_PASS, planZoneMaintenance } from './retention/zone-maintenance.js';
 export type { ZoneLifecycleSnapshot, ZoneMaintenancePlan } from './retention/zone-maintenance.js';
+// Verificación de presencia por `adIds` (S3, decisión 105): capacidad separada
+// de `PropertySource` y planificación pura de lotes.
+export type {
+  ListingPresenceVerifier,
+  PresenceBatch,
+  PresenceVerdict,
+} from './contracts/listing-presence-verifier.js';
+export { partitionPresenceVerdicts, planPresenceBatches } from './retention/presence-batches.js';
+export type { PartitionedPresence, PresenceCandidate } from './retention/presence-batches.js';
 
 export const CORE_VERSION = '0.0.1';

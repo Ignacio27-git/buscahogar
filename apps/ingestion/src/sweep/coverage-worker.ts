@@ -17,8 +17,14 @@
 // darle una dependencia de proceso lo volvería side-effectful al
 // importarlo. El punto de entrada real es `scripts/coverage-worker.ts`
 // (composition root, único lector de `process.env` de este módulo).
-import { planZoneMaintenance } from '@buscahogar/core';
-import type { AreaQuery, ZoneLifecycleSnapshot } from '@buscahogar/core';
+import { partitionPresenceVerdicts, planZoneMaintenance } from '@buscahogar/core';
+import type {
+  AreaQuery,
+  PartitionedPresence,
+  PresenceBatch,
+  PresenceVerdict,
+  ZoneLifecycleSnapshot,
+} from '@buscahogar/core';
 import type { BudgetReservation, BudgetSnapshotLike, LedgerState, ZoneGeometry } from '@buscahogar/db';
 
 import { areaFingerprint, buildArea } from './area.js';
@@ -55,6 +61,44 @@ export interface ZoneMaintenancePorts {
   scheduleRefresh(zoneIds: readonly string[]): Promise<number>;
 }
 
+// ROADMAP 2.5 (S3; decisión 105) — plan de un paso de verificación de presencia,
+// resuelto por el puerto real (DB + mapa de filtros de la fuente):
+// - `batches`: lotes listos para enviar (≤ 50 ids, una zona, una operación, un
+//   filtro de la fuente).
+// - `listingIdByExternalId`: id externo -> id de listing de los ids de esos
+//   lotes, para aplicar los veredictos sobre la base de datos.
+// - `unverifiableListingIds`: anuncios cuyo tipo crudo no tiene filtro de la
+//   fuente: no se pide nada y quedan AMBIGUOS (S-LR-11).
+export interface PresencePlan {
+  readonly batches: readonly PresenceBatch[];
+  readonly listingIdByExternalId: ReadonlyMap<string, string>;
+  readonly unverifiableListingIds: readonly string[];
+}
+
+// `actual` es lo REALMENTE gastado (token y búsquedas): el ledger se reconcilia
+// con ello, nunca con lo reservado.
+export interface PresenceVerification {
+  readonly verdicts: ReadonlyMap<string, PresenceVerdict>;
+  readonly actual: BudgetSnapshotLike;
+}
+
+// ROADMAP 2.5 (S3; decisión 105) — verificación de presencia por `adIds`.
+// Grupo OPCIONAL de `CoverageWorkerPorts` por el mismo motivo que
+// `ZoneMaintenancePorts` (composiciones y dobles anteriores siguen válidos,
+// S-CWT-12). La verificación vive en un puerto APARTE de la búsqueda: no es una
+// capacidad de `PropertySource`.
+export interface PresenceVerificationPorts {
+  // Tras un ciclo COMPLETADO: nomina los anuncios activos de la zona no vistos
+  // en él. Nunca cambia el estado de un anuncio (039 enmendada).
+  markAbsenceCandidates(job: PollJob, area: AreaQuery): Promise<number>;
+  // Planifica como mucho `maxBatches` lotes vencidos (la cola con backoff).
+  nextPresenceBatches(maxBatches: number): Promise<PresencePlan>;
+  // Una petición por lote. No lanza por fallos de la fuente (ids ambiguos).
+  verifyPresence(batches: readonly PresenceBatch[]): Promise<PresenceVerification>;
+  // Aplica los veredictos (ids de listing): presente, ausente o ambiguo.
+  applyPresence(result: PartitionedPresence): Promise<void>;
+}
+
 export interface CoverageWorkerPorts {
   selectNextJob(): Promise<PollJob | null>;
   resolveZoneGeometry(zoneId: string): Promise<ZoneGeometry>;
@@ -76,6 +120,8 @@ export interface CoverageWorkerPorts {
   purgeClientQuota(): Promise<void>;
   // Opcional (ver `ZoneMaintenancePorts`): ausente = sin mantenimiento.
   readonly maintenance?: ZoneMaintenancePorts;
+  // Opcional (ver `PresenceVerificationPorts`): ausente = sin verificación.
+  readonly verification?: PresenceVerificationPorts;
   sleep(ms: number): Promise<void>;
   log(line: string): void;
 }
@@ -116,9 +162,15 @@ export interface CoverageWorkerOptions {
   // refresco: no se re-encola ninguna zona (S-ZRS-10), así que ningún job
   // espera para siempre detrás de un techo nulo.
   readonly refreshBudgetFraction?: number;
+  // ROADMAP 2.5 (S3; decisión 105) — tope EXPLÍCITO de peticiones de
+  // verificación por tick (un lote = una petición facturable). Cada verificación
+  // reserva en el carril de refresco, así que también la acota el techo diario.
+  readonly maxVerificationRequestsPerTick?: number;
 }
 
 const DEFAULT_MAINTENANCE_EVERY_TICKS = 1;
+// Por defecto, pocas peticiones por tick: la cuota es mensual y limitada.
+const DEFAULT_MAX_VERIFICATION_REQUESTS_PER_TICK = 2;
 
 // El token se reserva una vez por barrido, igual que budget.ts::TOKEN_CAP
 // (1.6) — no un valor nuevo, el mismo principio repetido en el nivel diario
@@ -171,6 +223,15 @@ async function runMaintenance(
   }
 }
 
+interface SweepStepResult {
+  readonly dirty: boolean;
+  // Se seleccionó un job A DEMANDA en este tick (haya salido bien o no): la
+  // demanda del usuario manda y el refresco de presencia espera (LR-9).
+  readonly onDemandSelected: boolean;
+  // Tick sin trabajo procesable: se duerme `pollIntervalMs` al final del tick.
+  readonly idle: boolean;
+}
+
 async function runTick(
   ports: CoverageWorkerPorts,
   options: CoverageWorkerOptions,
@@ -190,11 +251,30 @@ async function runTick(
     await runMaintenance(ports, ports.maintenance, options);
   }
 
+  const sweep = await runSweepStep(ports, options);
+
+  // ROADMAP 2.5 (S3; decisión 105): verificación de presencia DESPUÉS del
+  // barrido, solo si no hubo trabajo a demanda y hay techo de gasto de refresco
+  // (fracción > 0). Aislada: una avería nunca aborta el tick.
+  const verification = ports.verification;
+  if (verification && !sweep.onDemandSelected && (options.refreshBudgetFraction ?? 0) > 0) {
+    await runIsolatedStep(ports, 'verificacion-de-presencia', () =>
+      runPresenceVerification(ports, verification, options)
+    );
+  }
+
+  if (sweep.idle) {
+    await ports.sleep(options.pollIntervalMs);
+  }
+  return { dirty: sweep.dirty };
+}
+
+async function runSweepStep(ports: CoverageWorkerPorts, options: CoverageWorkerOptions): Promise<SweepStepResult> {
   const job = await ports.selectNextJob();
   if (!job) {
-    await ports.sleep(options.pollIntervalMs);
-    return { dirty: false };
+    return { dirty: false, onDemandSelected: false, idle: true };
   }
+  const onDemandSelected = (job.lane ?? 'on-demand') === 'on-demand';
 
   // DD-18 paso 3: la geometría se resuelve ANTES de reservar presupuesto o
   // reclamar — un centroide nulo (DD-5) es una razón estructural para NUNCA
@@ -205,7 +285,7 @@ async function runTick(
       job.jobId,
       `La zona "${geometry.ineCode}" no tiene centroide: barrido worker-side imposible (DD-5).`
     );
-    return { dirty: false };
+    return { dirty: false, onDemandSelected, idle: false };
   }
 
   // DD-18 paso 4: construir el área y su huella ANTES de reservar
@@ -236,14 +316,20 @@ async function runTick(
     ports.log(
       `coverage-worker: presupuesto diario agotado, el trabajo job_id="${job.jobId}" permanece pendiente, cero peticiones emitidas.`
     );
-    await ports.sleep(options.pollIntervalMs);
-    return { dirty: false };
+    return { dirty: false, onDemandSelected, idle: true };
   }
 
   try {
     const result = await ports.claimAndSweep(job, area, fingerprint);
     await ports.reconcileBudget(reservation, result.actual);
-    return { dirty: result.outcome === 'completed' };
+    // ROADMAP 2.5 (S3; decisión 105): SOLO un ciclo completado (finishJob
+    // completed ya ejecutado) es evidencia de ausencia. Aislado: si falla, este
+    // ciclo no nomina a nadie (fail-safe) y el tick sigue sucio.
+    if (result.outcome === 'completed' && ports.verification) {
+      const verification = ports.verification;
+      await runIsolatedStep(ports, 'nominacion-de-ausentes', () => verification.markAbsenceCandidates(job, area));
+    }
+    return { dirty: result.outcome === 'completed', onDemandSelected, idle: false };
   } catch (error) {
     // A-8.1: JobAlreadyClaimedError es una señal de sondeo NO fatal — otro
     // proceso ya tiene este trabajo (claimJob's CAS ya lo hace seguro entre
@@ -252,7 +338,7 @@ async function runTick(
     if (error instanceof JobAlreadyClaimedError) {
       await ports.reconcileBudget(reservation, { search: 0, token: 0 });
       ports.log(error.message);
-      return { dirty: false };
+      return { dirty: false, onDemandSelected, idle: false };
     }
     // Cualquier otro error NO se enmascara en silencio: fuera del alcance
     // declarado de esta unidad (A-8.1 solo cubre JobAlreadyClaimedError) es
@@ -260,6 +346,50 @@ async function runTick(
     // haberlo hecho.
     throw error;
   }
+}
+
+// Verificación de presencia (S3; decisión 105): planificar -> reservar (carril de
+// refresco) -> verificar (una petición por lote) -> reconciliar el ledger con lo
+// gastado -> aplicar veredictos. Cada bucle tiene corte explícito: los lotes se
+// recortan al tope por tick ANTES de reservar y de enviar.
+async function runPresenceVerification(
+  ports: CoverageWorkerPorts,
+  verification: PresenceVerificationPorts,
+  options: CoverageWorkerOptions
+): Promise<void> {
+  const maxRequests = options.maxVerificationRequestsPerTick ?? DEFAULT_MAX_VERIFICATION_REQUESTS_PER_TICK;
+  const plan = await verification.nextPresenceBatches(maxRequests);
+
+  // Sin filtro de la fuente no hay petición posible (S-LR-11): ambiguo, sin
+  // gastar presupuesto. Se aplica aunque luego el ledger deniegue los lotes.
+  if (plan.unverifiableListingIds.length > 0) {
+    await verification.applyPresence({ present: [], absent: [], ambiguous: plan.unverifiableListingIds });
+  }
+
+  const batches = plan.batches.slice(0, maxRequests);
+  if (batches.length === 0) {
+    return;
+  }
+
+  const reservation: BudgetReservation = { searchReserved: batches.length, tokenReserved: TOKEN_RESERVE };
+  const reserved = await ports.reserveBudget(reservation, 'refresh');
+  if (reserved === null) {
+    ports.log('coverage-worker: presupuesto de refresco agotado, verificación de presencia omitida (cero peticiones).');
+    return;
+  }
+
+  // Si `verifyPresence` lanza, la reserva se CONSERVA (sobre-cuenta, nunca
+  // sub-cuenta: A-9.2) y el aislamiento del paso registra el fallo.
+  const verified = await verification.verifyPresence(batches);
+  await ports.reconcileBudget(reservation, verified.actual);
+
+  // Solo los ids de los lotes realmente enviados: los recortados por el tope
+  // siguen vencidos para el próximo tick.
+  const sentExternalIds = new Set(batches.flatMap((batch) => batch.externalIds));
+  const sentListingIds = new Map(
+    [...plan.listingIdByExternalId].filter(([externalId]) => sentExternalIds.has(externalId))
+  );
+  await verification.applyPresence(partitionPresenceVerdicts(verified.verdicts, sentListingIds));
 }
 
 export async function runCoverageWorker(ports: CoverageWorkerPorts, options: CoverageWorkerOptions): Promise<void> {

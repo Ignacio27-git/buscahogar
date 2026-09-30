@@ -17,6 +17,7 @@
     "probe:homes": "node --env-file=../../.env --import tsx scripts/probe-idealista.ts --profile homes",
     "probe:premises": "node --env-file=../../.env --import tsx scripts/probe-idealista.ts --profile premises",
     "probe:analyse": "node --import tsx scripts/probe-idealista.ts --analyse",
+    "probe:adids": "node --env-file=../../.env --import tsx scripts/probe-idealista-adids.ts",
     "sweep": "node --env-file=../../.env --import tsx scripts/sweep-zone.ts",
     "calibrate": "node --env-file=../../.env --import tsx scripts/calibrate-blocking.ts",
     "compare-strategies": "node --import tsx scripts/compare-dedup-strategies.ts",

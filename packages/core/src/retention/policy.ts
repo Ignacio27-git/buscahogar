@@ -67,3 +67,11 @@ function refreshIntervalDays(cadence: ZoneCadence): number | null {
       return null;
   }
 }
+
+// ROADMAP 2.5 (S3; decisión 105) — verificación de presencia por `adIds`.
+// Idealista admite hasta 50 anuncios por petición (`maxItems`), así que un lote
+// nunca pasa de 50 ids. Un resultado ambiguo reintenta a los 7 días y, tras 3
+// intentos, la fila de la cola se descarta SIN cambiar el estado del anuncio.
+export const PRESENCE_BATCH_SIZE = 50;
+export const PRESENCE_RETRY_BACKOFF_DAYS = 7;
+export const PRESENCE_MAX_CHECK_ATTEMPTS = 3;
