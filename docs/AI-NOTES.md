@@ -40,6 +40,29 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-30 — Repetición del banco sin `jit = off`: falso incumplimiento de `geo-25km-price`
+
+**Contexto:** cierre de pendientes del 2.5, repetición de la matriz de `bench-search` sobre
+`buscahogar_bench`.
+
+**Categoría:** procedimiento incompleto (código correcto, medición mal hecha).
+
+**Qué se generó mal:** el asistente lanzó la matriz sin reproducir el
+`ALTER DATABASE buscahogar_bench SET jit = off` que el 2.4 documenta para la medición final. Como el
+banco conecta como propietario y no como `web_readonly`, el JIT compiló 719 ms y `geo-25km-price`
+dio 555 ms de p95. El plan era idéntico al del 2.4, así que el filtro nuevo parecía la causa sin
+serlo.
+
+**Cómo se detectó:** al comparar los planes de las dos ejecuciones, con los mismos nodos y el mismo
+índice, y ver el campo `jitMs`: 718,6 frente a `null`.
+
+**Cómo se resolvió:** se repitió con el ajuste aplicado y restaurado después: 30 ms de p95, igual
+que en el 2.4. `SEARCH-PERFORMANCE.md` añade un aviso de método.
+
+**Observación:** una receta de medición que depende de un ajuste de sesión debería aplicarlo el
+propio script, y no confiar en que quien la ejecuta lea el párrafo que lo explica. Es un seguimiento
+posible: que `bench-search` haga `SET jit = off` en su conexión.
+
 ### 2026-09-30 — El orquestador trató `property_listings` como evidencia inmutable, y la documentación del tombstone lo repitió
 
 **Contexto:** paso 2.5, S4 (tombstone). Instrucción del orquestador a `sdd-apply` y decisión 107.

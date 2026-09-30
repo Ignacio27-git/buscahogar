@@ -30,6 +30,23 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-09-30 — Cierre de los pendientes del responsable tras el 2.5
+
+**Tipo de tarea:** documentación de reglas + medición de rendimiento + operación de bases de datos
+**Forma de especificación:** petición conversacional. El asistente explicó los cuatro pendientes y el
+responsable decidió cada uno con un cuestionario: editar `CLAUDE.md`, fracción de refresco 0,3,
+migrar y medir el banco, y hacer push al final.
+**Resultado:** utilizable con retoques. La primera repetición de la matriz se hizo sin
+`jit = off` y dio un falso incumplimiento en `geo-25km-price` (555 ms). Se repitió con el
+procedimiento documentado del 2.4 y las 12 combinaciones cumplen.
+**Prompt:**
+
+> lo que sigue pendiente de mi vamos a abordarlo, explícame que pasa
+
+**Observación:** el corpus de banco se había perdido (0 filas) sin que nada lo avisara; la semilla
+fija permitió regenerarlo idéntico. La diferencia entre la medición falsa y la buena no estaba en el
+plan, sino en el ajuste de sesión: comparar el campo `jitMs` del plan lo aclaró sin adivinar.
+
 ### 2026-09-30 — Sonda de `adIds` ejecutada por el asistente (cierre del 2.5)
 
 **Tipo de tarea:** operación contra la API real (cuota facturable) + evidencia de comportamiento

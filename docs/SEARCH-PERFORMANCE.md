@@ -147,7 +147,35 @@ tendrá que descartar más filas por cada una devuelta, y las combinaciones con 
 superficie son las primeras en notarlo. En ese caso hay que **volver a medir** con `bench-search` y
 valorar un índice parcial `WHERE active_listing_count > 0`.
 
-Las cifras de este documento se midieron **antes** de la 0014. La base de banco
-(`buscahogar_bench`) necesita las migraciones 0014, 0015 y 0016 antes de repetir la medición; 0016
-solo añade una columna y un índice parcial sobre `listings`, sin efecto en estos planes.
+### Medición repetida con 0014-0016 (2026-09-30)
+
+La base de banco se migró a la 0016. El corpus se había perdido: la base tenía 0 filas y 13
+migraciones. Se regeneró idéntico, con la misma semilla y el mismo ancla: 1.000.000 de viviendas y
+1.350.358 anuncios, todas visibles. La matriz se repitió con el mismo método: 20 corridas y
+`cold-mode evict`, con `ALTER DATABASE buscahogar_bench SET jit = off` durante la medición para
+reproducir el ajuste de `web_readonly`, restaurado después.
+
+| id | p95 2.4 (ms) | p95 2.5 (ms) | objetivo 500 ms |
+|---|---|---|---|
+| default | 3,4 | 3,1 | cumple |
+| op-type | 2,3 | 2,3 | cumple |
+| price-range-rent | 2,3 | 2,2 | cumple |
+| price-desc | 2,5 | 1,9 | cumple |
+| surface-selective | 2,4 | 2,3 | cumple |
+| surface-sort | 2,8 | 2,1 | cumple |
+| rooms-baths | 2,0 | 2,4 | cumple |
+| geo-1km | 110,7 | 88,4 | cumple |
+| geo-25km-price | 29,0 | 30,0 | cumple |
+| all-filters | 199,2 | 205,0 | cumple |
+| deep-default | 27,9 | 30,0 | cumple |
+| deep-filtered | 27,7 | 28,0 | cumple |
+
+Los planes son los mismos y las diferencias quedan dentro del ruido. El filtro no tiene un coste
+medible mientras todas las viviendas sean visibles. Resultados en
+`apps/ingestion/.bench/run-2026-09-30T10-27-31-959Z.json`.
+
+**Aviso de método.** Una primera repetición sin `jit = off` dio 555 ms de p95 en `geo-25km-price`,
+con el mismo plan y 719 ms de compilación JIT. No fue una regresión del filtro: el banco conecta como
+propietario y no hereda el ajuste de `web_readonly`. Cualquier medición futura debe aplicar el mismo
+`ALTER DATABASE … SET jit = off`.
 

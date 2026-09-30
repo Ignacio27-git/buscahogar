@@ -1852,9 +1852,12 @@ ingestion 811, `test:db` 107, web 160, consolidación 19, bloqueo 18, detalle 11
 limpios. Ninguna llamada real a Idealista.
 
 **Pendiente del responsable.** (1) Hecho el 2026-09-30: sonda ejecutada, fixture commiteada y
-constante en `true`. (2) Hecho: base de desarrollo en la 0016. (3) Base de banco
-(`buscahogar_bench`): migraciones 0014-0016 antes de volver a medir. (4) Valores operativos del
-refresco por entorno. (5) Actualizar `CLAUDE.md` (tres frases obsoletas, ver el informe de la tarea).
+constante en `true`. (2) Hecho: base de desarrollo en la 0016. (3) Hecho el 2026-09-30: base de
+banco en la 0016, corpus regenerado y matriz repetida. Las 12 combinaciones cumplen, sin coste
+medible del filtro de visibilidad (`SEARCH-PERFORMANCE.md`). (4) Valores operativos del refresco por
+entorno: el responsable fija `REFRESH_BUDGET_FRACTION=0.3` en `.env`, y el resto se deja en sus
+valores por defecto. (5) Hecho: `CLAUDE.md` actualizado (precio de los anuncios activos, `INSERT`
+en `zone_query_signals`, excepción del tombstone).
 
 **Riesgo abierto.** Ninguna fuente fija plazo de retención en lo comprobado (decisión 111).
 
