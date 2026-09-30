@@ -62,9 +62,10 @@ export async function tombstoneExpiredListings(db: Database, options: TombstoneO
        where id in (${ids})
       returning id
     `);
-    // El estado activo no cambia, pero la caché de la vivienda se recalcula
-    // por si su fallback (mínimo de todos) dependiera del grupo: barato y coherente
-    // con el resto de caminos que tocan anuncios.
+    // El anuncio pasa de `inactive` a `removed`: el recuento de activos no cambia,
+    // pero la caché de la vivienda se recalcula por si su fallback (mínimo de
+    // todos) dependiera del grupo. Es barato y coherente con el resto de caminos
+    // que tocan anuncios.
     await refreshPropertyVisibility(tx, { listingIds: redacted.rows.map((row) => row.id) });
     return redacted.rows.length;
   });
