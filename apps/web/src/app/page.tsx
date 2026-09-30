@@ -6,6 +6,7 @@ import type { ZoneGeometry, ZoneSuggestion } from '@buscahogar/db';
 
 import { CoverageStatus } from '@/components/coverage-status';
 import { ResultCard } from '@/components/result-card';
+import { buildZoneSelectionHref } from '@/lib/search-href';
 import { resolveCoverageClientLimit } from '@/server/coverage-client';
 import { getCoverageDb } from '@/server/coverage-db';
 import { getDb } from '@/server/db';
@@ -51,28 +52,6 @@ function buildPageHref(
     }
   }
   query.set('page', String(targetPage));
-  return `/?${query.toString()}`;
-}
-
-// ROADMAP 1.13 Unit D (DD-19) — el enlace de cada sugerencia sustituye
-// `zoneQuery` por `zone=<ineCode>` y reinicia `page` (una zona nueva es un
-// conjunto de resultados distinto de la página que se venía viendo),
-// preservando cualquier otro filtro ya presente en la URL.
-function buildZoneSelectionHref(params: Record<string, string | string[] | undefined>, ineCode: string): string {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (key === 'page' || key === 'zoneQuery' || key === 'zone' || value === undefined) {
-      continue;
-    }
-    if (Array.isArray(value)) {
-      for (const entry of value) {
-        query.append(key, entry);
-      }
-    } else {
-      query.append(key, value);
-    }
-  }
-  query.set('zone', ineCode);
   return `/?${query.toString()}`;
 }
 

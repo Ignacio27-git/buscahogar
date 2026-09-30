@@ -13,11 +13,14 @@ function buildContentSecurityPolicy(isDev: boolean): string {
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
-    // spec #261 "csp-image-policy" / diseño decisión 080: NINGÚN host
-    // remoto — las imágenes de fuentes externas pasan siempre por el mismo
-    // origen vía `/_next/image` (`images.remotePatterns` de abajo, ROADMAP
-    // 1.11), nunca directamente desde el navegador.
-    "img-src 'self' blob: data:",
+    // spec #261 "csp-image-policy" / diseño decisión 080: las imágenes de
+    // fuentes externas pasan siempre por el mismo origen vía `/_next/image`
+    // (`images.remotePatterns` de abajo, ROADMAP 1.11), nunca directamente
+    // desde el navegador. ROADMAP 2.6 (decisión 112, enmienda la 080): UNA
+    // única excepción, el host de las teselas raster de OpenStreetMap, que el
+    // navegador pide directamente (el servidor nunca las proxea). Sin
+    // `connect-src`, sin comodines y sin otros hosts.
+    "img-src 'self' blob: data: https://tile.openstreetmap.org",
     "font-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",

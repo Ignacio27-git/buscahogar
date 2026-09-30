@@ -11,12 +11,10 @@ import type { ReactElement } from 'react';
 
 import type { PropertyDetailSource } from '@buscahogar/db';
 
+import { formatPriceCents } from '@/lib/format-price';
+
 export interface SourceListProps {
   readonly sources: readonly PropertyDetailSource[];
-}
-
-function formatPriceCents(cents: number): string {
-  return `${(cents / 100).toLocaleString('es-ES')} €`;
 }
 
 // Getters UTC, no locales: las fechas llegan de Postgres

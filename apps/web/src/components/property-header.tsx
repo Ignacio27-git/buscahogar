@@ -13,6 +13,8 @@ import type { ReactElement } from 'react';
 
 import type { PropertyDetailHeader } from '@buscahogar/db';
 
+import { formatPriceCents } from '@/lib/format-price';
+
 import { resolveConsolidatedField } from './consolidated-field';
 
 export interface PropertyHeaderProps {
@@ -20,13 +22,6 @@ export interface PropertyHeaderProps {
 }
 
 const NOT_CONSOLIDATED_TEXT = 'No consolidado — ver anuncios de origen';
-
-function formatPriceCents(cents: number | null): string {
-  if (cents === null) {
-    return 'Precio no disponible';
-  }
-  return `${(cents / 100).toLocaleString('es-ES')} €`;
-}
 
 // Envuelve `resolveConsolidatedField` con el formato de presentación de cada
 // campo, para no repetir el `if (kind === 'value')` ocho veces.
