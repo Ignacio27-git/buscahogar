@@ -1786,7 +1786,7 @@ protege el histórico de precios a cambio de una miniatura potencialmente desact
 
 ## 060 — Índices por filtro de búsqueda re-aplazados; disparador de medición explícito
 
-**Estado:** aceptada
+**Estado:** cerrada — el disparador se cumplió en ROADMAP 2.4 (decisión 100)
 
 **Decisión.** `buildPropertySearchQuery` (paso 1.11, `packages/db/src/search.ts`) no añade
 ningún índice nuevo sobre `properties` para sus siete filtros (operación, tipo, precio,
@@ -1990,6 +1990,10 @@ silencio.
 **Consecuencia.** Cualquier cambio futuro que quiera declarar `'use client'` en otro fichero debe
 añadirlo al allowlist explícitamente y argumentar por qué en su propio registro de decisión — el
 hueco no crece por accidente.
+
+**Enmendada por la 113** (ROADMAP 2.6): el allowlist pasa a dos ficheros, `coverage-status.tsx` y
+`components/search-map.tsx`. Las tres aserciones del test y el requisito de argumentar cada entrada
+nueva permanecen.
 
 ---
 
@@ -2566,6 +2570,9 @@ nonce, así que la política "Without Nonces" documentada oficialmente por Next 
 simple que cumple el mismo objetivo. `next/image` ya se usa sin `unoptimized` en todo el proyecto,
 así que restringir `img-src` al propio origen no rompe ninguna imagen existente.
 
+**Enmendada por la 112** (ROADMAP 2.6): `img-src` admite además `https://tile.openstreetmap.org` para
+las teselas del mapa. El resto de la política permanece vigente sin cambios.
+
 ---
 
 ## 081 — `server-only` en los módulos RSC con handles de base de datos o secretos; los módulos alcanzables por el proxy NO lo importan
@@ -2660,6 +2667,1167 @@ detección y corrección.
 
 ---
 
+## 085 — Segunda `DedupStrategy`: Fellegi-Sunter con niveles graduados y m/u fijados a priori
+
+**Estado:** aceptada
+
+**Decisión.** La segunda estrategia de deduplicación (ROADMAP 2.2) implementa el modelo de
+Fellegi-Sunter: cada campo comparado se clasifica en un nivel de acuerdo graduado (p. ej.
+distancia ≤20 m / ≤100 m / más lejos), cada nivel tiene sus propios parámetros `m` (probabilidad
+del nivel dado que el par es la misma vivienda) y `u` (probabilidad del nivel dado que NO lo es,
+condicionada a la población YA bloqueada por ROADMAP 1.8 — donde vecinos del mismo bloque inflan
+`u` respecto a una población sin bloquear), y aporta `bits = log2(m/u)` a un peso de coincidencia
+total `M = prior + Σ bits(campo evaluado)`. La probabilidad final es `score = 1/(1+2^-M)`, forma
+numéricamente estable de `2^M/(1+2^M)`. Los parámetros `m`/`u` están fijados a priori desde
+literatura y razonamiento (decisión 086 detalla la exclusión de campos ausentes); no se ajustan
+contra el corpus etiquetado.
+
+**Alternativa descartada.** Regresión logística entrenada sobre el corpus etiquetado: sobreajusta
+con n=24. TF-IDF sobre título/descripción: rompe el contrato de comparar exactamente dos
+`Listing` estructurados que ya fija `DedupStrategy` (ROADMAP 1.9).
+
+**Motivo.** El objetivo del paso 2.2 es comparar un enfoque distinto al basado en reglas, no
+introducir un modelo entrenado que el propio corpus de 24 pares no puede validar con solvencia.
+Fellegi-Sunter da una segunda familia de razonamiento (probabilístico, aditivo por campo) sin
+depender de tener suficientes datos para entrenar nada, y su salida sigue siendo un `score` en
+`[0,1]` con desglose por señal — mismo contrato (`DedupStrategy`) que rule-based.
+
+---
+
+## 086 — Un campo ausente EXCLUYE su contribución a M (MAR), nunca cuenta como desacuerdo
+
+**Estado:** aceptada
+
+**Decisión.** Cuando un campo comparado falta en cualquiera de los dos `Listing` (p. ej.
+`surfaceM2` ausente en un lado), su nivel graduado devuelve `value: 0, weight: 0` — el campo
+queda EXCLUIDO de la suma `M`, nunca se sustituye por un nivel de desacuerdo. La ausencia deja el
+posterior donde estaba (en el prior más lo ya acumulado), nunca lo empuja hacia abajo.
+
+**Alternativa descartada.** Tratar un campo ausente como un nivel de desacuerdo explícito
+(missing-as-disagreement, MNAR): habría que decidir A QUÉ nivel de desacuerdo asignarlo sin
+ninguna base real para esa elección.
+
+**Motivo.** Missing-as-disagreement recrea exactamente el sesgo contra los pares `premises` (sin
+`rooms`/`bathrooms`) que la decisión 049 (normalización por peso EFECTIVO, no por peso máximo
+configurado) ya eliminó de rule-based — penalizar un campo ausente sería reabrir el mismo defecto
+en la segunda estrategia. La investigación (obs #279, claim C4) documenta ambas convenciones como
+no intercambiables; MAR-exclude es la que preserva el criterio ya fijado en decisión 049.
+
+---
+
+## 087 — Umbrales de FS (0.95 / 0.50), veto compartido, sin piso de evidencia explícito
+
+**Estado:** aceptada
+
+**Decisión.** `FS_BAND_THRESHOLDS = { high: 0.95, low: 0.50 }`. `FS_T_HIGH=0.95`: como mucho un
+5% de falsos positivos esperados entre los `accept` (mismo criterio de decisión 006 aplicado a la
+escala de probabilidad de FS). `FS_T_LOW=0.50`: el punto de Bayes (`M=0 ⇔ score=0.5`, sin
+evidencia neta a favor ni en contra). El veto (`propertyType`/`operation`) es el MISMO criterio
+binario que rule-based, vía `isVetoed` compartida (decisión 088). A diferencia de rule-based, FS
+NO tiene un piso de evidencia mínima explícito (`MIN_EVALUATED_SIGNALS`/`MIN_EFFECTIVE_WEIGHT`):
+la propia aritmética de `M` ya impide que dos campos opcionales fuertes por sí solos alcancen
+0.95, así que el efecto es equivalente sin necesitar una regla aparte.
+
+**Desviación documentada (D3, detectada en `sdd-apply`, no en el diseño).** El diseño ilustraba
+este argumento con un cálculo a mano: "el mejor caso de dos campos es distancia≤20 m + dirección
+exacta, con `M=2.807+3.000-3.170=2.637` y `p≈0.862 < 0.95`". Ese cálculo omite `price` por
+completo. Pero `priceCents` es `z.int().positive()` — OBLIGATORIO en `listingSchema` — así que
+ningún `Listing` real puede tener el precio ausente: `price` SIEMPRE se evalúa y SIEMPRE aporta
+bits a `M`. El `M=2.637` exacto del diseño es, por tanto, inalcanzable por cualquier par real.
+`sdd-apply` no ajustó `m`/`u` para forzar esa cifra (instrucción explícita de la orquestación);
+en su lugar implementó la tabla `m`/`u` real tal y como está especificada y escribió los tests
+sobre el mismo PRINCIPIO cualitativo con valores calculados por el código real: dos campos
+opcionales fuertes (distancia cercana, dirección exacta) con `price` en una banda intermedia no
+favorable (~4.76%, no ≤2%) puntúan `score≈0.806` (`undecided`, no `accept`); tres campos fuertes
+incluyendo `price` en su mejor nivel (~0.50%) puntúan `score≈0.976` (`accept`). El principio
+("hacen falta al menos tres campos de acuerdo, nunca dos") queda intacto y probado; solo la cifra
+ilustrativa concreta del texto del diseño era inalcanzable.
+
+**Alternativa descartada.** Umbrales compartidos 0.82/0.45 (los mismos números de rule-based, en
+una escala distinta: probabilidad de Bayes, no score normalizado por peso). Un piso de evidencia
+explícito en unidades de peso (como `MIN_EFFECTIVE_WEIGHT=55` de rule-based): FS no tiene una
+unidad de peso comparable — sus "pesos" son bits de razón de verosimilitud, no una suma acotada
+por un máximo configurado.
+
+**Motivo.** 0.95/0.50 reutiliza el MISMO criterio de decisión 006 (tasa de falsos positivos
+objetivo) sobre la escala propia de FS, en vez de trasplantar números que solo tenían sentido en
+la escala de rule-based. La ausencia de piso explícito es honesta sobre el mecanismo real: en FS
+la evidencia insuficiente ya se refleja en un `M` bajo, sin necesitar una regla redundante.
+
+---
+
+## 088 — `classify()` gana umbrales opcionales SOLO para evaluación offline; se acota (no se contradice) el principio de `weights.ts`
+
+**Estado:** aceptada
+
+**Decisión.** `classify(result, thresholds: BandThresholds = RULE_BASED_BAND_THRESHOLDS)`
+(`classifyProbabilistic` sigue el mismo contrato con `FS_BAND_THRESHOLDS`). El segundo parámetro
+es EXCLUSIVAMENTE para la CLI de evaluación offline
+(`apps/ingestion/src/strategy-comparison/`, sin base de datos ni red): una banda calculada con
+umbrales distintos de los de producción nunca se persiste — esa CLI no tiene ningún camino de
+escritura hacia `property_listings`, solo hacia su propio reporte. `reprocess-core.ts`
+(producción) sigue llamando a `classify()` SIN segundo argumento. El comentario de cabecera de
+`weights.ts` (decisiones 020/049: los umbrales nunca son un parámetro en tiempo de ejecución, y
+retunarlos exige un cambio de `version`) se reescribe para ACOTAR ese principio a producción, no
+para contradecirlo — el principio sigue gobernando, sin excepción, todo lo que persiste.
+`isVetoed(signals)` se extrae de `rule-based/classify.ts` para que `classifyProbabilistic` use el
+MISMO criterio de veto, un contrato compartido entre estrategias.
+
+**Alternativa descartada.** Un clasificador paralelo dentro de `apps/ingestion` que reimplemente
+el bandeado con sus propios umbrales: duplica la lógica de `classify()` y arriesga que las dos
+copias diverjan. Violar el comentario de `weights.ts` en silencio, sin actualizarlo: contradice
+una decisión ya documentada sin dejar rastro del motivo.
+
+**Motivo.** El validador de diseño hizo notar que un segundo parámetro opcional en `classify()`
+parecía chocar literalmente con el texto de `weights.ts:1-7` ("nunca en tiempo de ejecución"). La
+resolución no es elegir entre el override y el principio, sino precisar el ALCANCE del principio:
+siempre ha sido sobre qué usa PRODUCCIÓN, no sobre si puede existir una superficie de evaluación
+offline que nunca escribe en la base de datos real.
+
+---
+
+## 089 — Métricas de evaluación: `truth` (nunca `expected`), `undecided` como negativo, intervalos de Wilson 95%
+
+**Estado:** aceptada
+
+**Decisión.** Precisión, recall y F1 se calculan SIEMPRE sobre el campo `truth` del corpus
+(verdad terreno, obs #284), nunca sobre `expected` (la banda DISEÑADA de rule-based, que sigue
+existiendo solo para las pruebas de regresión de bandeado ya existentes). `undecided` cuenta como
+NEGATIVO en la matriz de confusión (D2 del preproposal): un duplicado real clasificado
+`undecided` es un fallo de recall, igual que uno rechazado explícitamente; la tasa de indecisos se
+reporta como una cifra APARTE, nunca mezclada con P/R. F1 es `null` si precisión o recall es
+`null` (sin ensayos), y `0` si ambos suman 0 (ningún acierto en absoluto) — nunca `null` en ese
+caso, porque sí hay ensayos, solo que ninguno tuvo éxito. Los intervalos de confianza del 95% para
+precisión, recall y tasa de indecisos usan el método de Wilson (`z=1.959963984540054`), no Wald.
+
+**Alternativa descartada.** Evaluar contra `expected`: es circular, porque `expected` es la propia
+salida diseñada de rule-based, no una etiqueta independiente — por ejemplo `hn-8` es `accept` por
+diseño (un falso positivo irreducible documentado en su propia `rationale`) pero `distinct` en
+verdad terreno. Intervalos de Wald: cobertura pobre con muestras pequeñas o proporciones cercanas
+a 0/1 (investigación, obs #279, claim C10) — exactamente el régimen de n=24.
+
+**Motivo.** El "CRITICAL FINDING" del diseño (obs #283) es que ningún resultado de evaluación
+tiene valor si se mide contra la propia salida de una de las dos estrategias comparadas.
+Separar `truth` de `expected` es lo que hace que comparar rule-based contra FS sea una comparación
+real, no una tautología a favor de rule-based.
+
+---
+
+## 090 — El corpus etiquetado y `makeListing` se reubican a `packages/core/src/evaluation/`
+
+**Estado:** aceptada
+
+**Decisión.** `git mv packages/core/test/dedup-corpus.ts packages/core/src/evaluation/dedup-corpus.ts`.
+`makeListing` se mueve de `packages/core/test/test-helpers.ts` a
+`packages/core/src/evaluation/make-listing.ts`, y `test-helpers.ts` pasa a reexportarla sin
+cambios — ningún test existente (`rule-based-strategy`, `winner`, etc.) cambia su import.
+
+**Alternativa descartada.** Duplicar el corpus etiquetado (o una copia reducida) dentro de
+`apps/ingestion` para que la CLI de comparación lo consuma sin depender de `packages/core`.
+
+**Motivo.** El corpus y la métrica de evaluación necesitan ser accesibles desde
+`apps/ingestion` (la CLI de comparación de estrategias, ROADMAP 2.2) sin publicarse en
+`test/`, que no forma parte del paquete distribuido. Duplicarlo arriesga que la copia de
+`apps/ingestion` divergiera del corpus real usado por los tests de `packages/core` — exactamente
+el riesgo de deriva que la regla "una fuente única de verdad" del proyecto existe para evitar.
+
+---
+
+## 091 — CLI de comparación de estrategias: sin base de datos ni red, rejilla por defecto de 20 puntos, rechazo estricto de tuplas inválidas
+
+**Estado:** aceptada
+
+**Decisión.** `apps/ingestion/scripts/compare-dedup-strategies.ts` (`pnpm --filter
+@buscahogar/ingestion compare-strategies`) no abre conexión a base de datos ni lee ninguna
+variable de entorno — el corpus vive en memoria en `@buscahogar/core`. `--high`/`--low` son listas
+separadas por comas, opcionales, pero deben darse JUNTAS o ambas ausentes; sin ellas se usa
+`DEFAULT_SWEEP` (20 tuplas: `high∈{0.75,0.82,0.90,0.95,0.99} × low∈{0.30,0.45,0.50,0.60}`, que
+incluye los dos puntos por defecto reales, 0.82/0.45 y 0.95/0.50) y se ECHA en el reporte
+(`gridSource: 'default' | 'flags'`). La rejilla es el producto cartesiano, deduplicado y
+ordenado. El conjunto ENTERO se rechaza con código de salida 2, nombrando el problema exacto, si
+(a) supera las 64 combinaciones, o (b) CUALQUIER tupla tiene `low >= high` — nunca se filtra una
+tupla inválida en silencio ni se produce salida parcial. El reporte se exporta en Markdown, JSON o
+CSV; los tres formatos llevan el mismo caveat de muestra pequeña (`corpusSize=24` y el texto de
+que es una prueba mecánica, no una calibración) y son deterministas (`toFixed(4)`, sin reloj ni
+configuración regional) para que dos ejecuciones sobre la misma entrada produzcan bytes idénticos.
+
+**Alternativa descartada.** Filtrar las tuplas inválidas de una rejilla y ejecutar solo con las
+válidas: cambia en silencio la rejilla que el operador pidió — el mismo modo de fallo que el tope
+de 64 combinaciones ya existe para evitar (blocking/grid.ts, paso 1.8).
+
+**Motivo.** D6 (preproposal) fija que esta CLI es de comparación, no de producción: no debe poder
+tocar ninguna fuente externa ni la base de datos real, así que no necesita `.env` para nada. El
+rechazo estricto de rejillas inválidas sigue el mismo precedente ya establecido por
+`blocking/grid.ts` (paso 1.8): una lista mal escrita debe fallar de forma ruidosa, nunca ejecutar
+una versión distinta y silenciosa de lo que el operador pidió.
+
+---
+
+## 092 — El FN/TN exportado por la CLI de comparación de estrategias incluye los pares `undecided` correspondientes (corrección post-verify, WARNING-1)
+
+**Estado:** aceptada
+
+**Decisión.** En los tres formatos de `compare-dedup-strategies.ts` (Markdown, JSON, CSV), la
+cifra de falsos negativos y verdaderos negativos EXPUESTA (`false_negative_incl_undecided`/
+`true_negative_incl_undecided` en JSON/CSV, `FN (incl. indecisos)`/`TN (incl. indecisos)` en
+Markdown) es `counts.falseNegative + counts.undecidedDuplicate` y
+`counts.trueNegative + counts.undecidedDistinct` respectivamente — la aplicación, en la capa de
+render, del mismo criterio D2 que `computeMetrics` (decisión 089) ya usa internamente para el
+denominador de recall. `undecided_duplicate`/`undecided_distinct` se conservan como columnas/
+campos de desglose ("de las cuales indecisas"), sin cambiar su cifra. `packages/core` no cambia:
+`ConfusionCounts` conserva sus 6 casillas mutuamente excluyentes (decisión 089,
+`metrics.test.ts`), y ningún valor de precisión, recall, F1, tasa de indecisos o intervalo de
+Wilson se altera por esta corrección — la comparación antes/después de la CLI real sobre las filas
+`is_default` de ambas estrategias lo confirma byte a byte en esas columnas.
+
+**Alternativa descartada.** Redefinir `ConfusionCounts`/`computeMetrics` (`packages/core`) para que
+`falseNegative`/`trueNegative` ya incluyan el `undecided` correspondiente: rompería el test que fija
+las 6 casillas mutuamente excluyentes (`metrics.test.ts`, decisión 089) y mezclaría dos conceptos —
+"rechazado explícitamente" e "indeciso" — en una sola casilla dentro del propio dominio, cuando el
+desglose fino sigue siendo necesario para depurar el comportamiento banda a banda de cada
+estrategia. El defecto no estaba en el cálculo (correcto y probado), sino en qué cifra cruda
+reexponía cada renderer.
+
+**Motivo.** `sdd-verify` (revisión #288, WARNING-1) detectó que el artefacto exportado (deliverable
+de la memoria del TFM) no reconciliaba: la fila por defecto de rule-based mostraba
+`false_negative=0` mientras el recall visible era 0.8000, un lector no podía reconstruir
+`recall = TP/(TP+FN)` a partir de las columnas nombradas sin conocer además, y sumar a mano, la
+columna `undecided_duplicate`. Corregir solo la capa de render (`apps/ingestion/src/
+strategy-comparison/render.ts`) es la corrección de menor alcance que hace el artefacto
+autoexplicativo: `TP+FP+FN+TN=24` y `recall=TP/(TP+FN)`, `precision=TP/(TP+FP)` valen ahora
+directamente sobre las cifras visibles, en los tres formatos.
+
+---
+
+## 093 — Inyección de hashes de imagen: `ImageHashLookup` sobre `thumbnailUrl`, refs de corpus con esquema no descargable
+
+**Estado:** aceptada
+
+**Decisión.** `packages/core` recibe los hashes de imagen como DATOS, nunca como I/O propio: un
+`ImageHashLookup = (listing: Listing) => ImageHashEntry | undefined`, construido en
+`apps/ingestion` a partir de una tabla JSON precomputada e indexada por el campo `thumbnailUrl`
+ya existente en `Listing` (ROADMAP 1.11), sin tocar su esquema. El corpus de 24 pares etiquetados
+gana referencias mediante `fixture-image:eval/<pairId>-<a|b>` — un esquema deliberadamente no
+descargable, no una URL real — atadas por `apps/core/src/evaluation/dedup-corpus-images.ts`
+(`IMAGE_REFS` + `withCorpusImages(corpus)`, que devuelve copias del corpus con `thumbnailUrl`
+poblado sin tocar `truth`). `dedup-corpus.ts` no se modifica.
+
+**Alternativa descartada.** Un campo nuevo `Listing.imagePHash`: cambiaría el esquema de dominio
+para un alcance que D7 fija como solo-evaluación. Indexar por `externalId`: generado por
+contador en los fixtures, frágil ante reordenamiento. Un `WeakMap` sobre los objetos `Listing`:
+opaco, no serializable, no inspeccionable desde el CLI.
+
+**Motivo.** `thumbnailUrl` ya existe (ROADMAP 1.11) y ya se ignora por las dos estrategias
+estructuradas, así que reutilizarlo como clave de búsqueda no añade ninguna superficie nueva al
+dominio. El esquema `fixture-image:` dice, por construcción, que esa referencia nunca es
+alcanzable por red — necesario porque D7 prohíbe cualquier ruta de producción o descarga real en
+este cambio.
+
+---
+
+## 094 — Decorador `withImageSignal`, combinación por estrategia y exclusión del piso de evidencia de rule-based
+
+**Estado:** aceptada
+
+**Decisión.** `withImageSignal(base, { lookup, threshold, combiner })` envuelve una
+`DedupStrategy` existente sin tocarla. Un comparador **solo-positivo** (adaptación propia del
+proyecto, no de la literatura — ver decisión 095/investigación, claim C19): coincidencia fuerte
+(`level: 'strong'`) suma evidencia; cualquier otro caso (distancia por encima del umbral, hash
+ausente, imagen ilegible, entropía baja) es neutro, nunca resta. En rule-based, la imagen fuerte
+añade `{ value: 1, weight: 15 }` y el score se recalcula como media ponderada sobre todas las
+señales, orden de inserción (decisión 049). En Fellegi-Sunter añade `{ value: log2(0.30/0.05) ≈
+2.585, weight: 1 }` a `M`. La imagen **nunca cuenta para el piso de evidencia** de rule-based
+(`MIN_EVALUATED_SIGNALS`/`MIN_EFFECTIVE_WEIGHT`): el evaluador RB+imagen inyecta su propio
+`classify` (`classifyRuleBasedWithImage`), que ve el score con la contribución de imagen pero
+evalúa el piso solo sobre las señales estructuradas. `classify.ts` de producción no cambia.
+
+**Alternativa descartada.** Contar la imagen en el piso de rule-based: un par con solo 2 señales
+estructuradas (peso 40) más una imagen fuerte alcanzaría exactamente peso 55 y cruzaría el piso
+por sí sola — una vía real de falso positivo entre viviendas del mismo edificio (decisión 006),
+porque la imagen es simulada, 1-contra-1 y compartible entre unidades de la misma fachada. Editar
+`classify.ts` de producción para que ignore `image`: aumenta el radio de impacto sin necesidad.
+Comparador simétrico (penaliza el desacuerdo): cada portal elige su propia foto de portada
+(decisión 063), así que el desacuerdo no es evidencia fiable de nada.
+
+**Motivo.** El objetivo declarado del paso (medir la aportación real de la imagen) exige que un
+falso positivo nuevo introducido por la imagen sea visible, nunca oculto detrás de un piso que la
+propia imagen ayudó a cruzar. El caso real del corpus, `md-4` (2 señales, peso 40): se confirmó
+en la ejecución real que ni siquiera hace falta la exclusión del piso para que se quede
+`undecided` bajo RB+imagen — su distancia real es 18, por encima de `T=10`, así que la imagen es
+neutra por umbral antes de llegar a evaluarse el piso. La exclusión del piso queda probada de
+todos modos, de forma independiente, con un caso sintético (`rule-based-classify-floor.test.ts`,
+`evaluate-image.test.ts`) que sí fuerza una coincidencia fuerte simulada sobre `md-4`.
+
+---
+
+## 095 — Pipeline de hash: sharp + DCT pHash 64-bit propio, `sharp` fijado en `0.34.2` con `allowBuilds: true`
+
+**Estado:** aceptada
+
+**Decisión.** `apps/ingestion` decodifica con `sharp`, recorta un margen fijo del 5% por lado
+(`CROP_MARGIN_RATIO`), convierte a escala de grises, redimensiona a 32×32 (`fit: 'fill'`,
+lanczos3), calcula la DCT-II 2D pura (tabla de cosenos precalculada, sin dependencias), toma el
+bloque 8×8 superior izquierdo (con el DC), umbraliza por la mediana y codifica 64 bits en
+hexadecimal. Una imagen con desviación típica por debajo de `LOW_ENTROPY_STDDEV=10` se marca
+`lowEntropy` pero SIGUE calculando su hash — el nivel `neutral/low-entropy` se decide en el
+comparador de `packages/core`, no aquí. `sharp` es la única dependencia de producción nueva,
+fijada en `0.34.2` (sin `^`) en `apps/ingestion` exclusivamente; `packages/core` sigue sin
+ninguna dependencia nativa ni de I/O (verificado por escaneo estático del propio código fuente,
+`image-module-imports.test.ts`).
+
+**Hallazgos empíricos de aplicación (no anticipables desde el diseño).** (a) El pin `0.34.2` no
+necesitó entrada en `minimumReleaseAgeExclude` de `pnpm-workspace.yaml`: ya es lo bastante
+antiguo para la política de `minimumReleaseAge` de pnpm 11 sin excepción. (b) `sharp` SÍ necesita
+`allowBuilds: { sharp: true }` en `pnpm-workspace.yaml` — contra lo que el diseño anticipaba
+(prebuilt binaries "no deberían necesitar script"): el propio script `install` de `sharp` no
+compila nada, solo VERIFICA que el binario prebuilt correcto llegó vía sus
+`optionalDependencies` (`@img/sharp-*`); sin `allowBuilds`, pnpm bloquea ese script de
+verificación por política y la instalación falla. (c) El comparador solo-positivo en sí (decisión
+094) es una adaptación del propio proyecto, no algo tomado de la literatura consultada en la
+investigación (obs #293, claim C19) — se documenta así explícitamente para no citarlo como si
+tuviera respaldo bibliográfico que no tiene.
+
+**Alternativa descartada.** `sharp-phash` (envoltorio MIT, ~2 años sin mantener): vendorizable
+pero añade una segunda superficie de confianza sobre una librería inactiva. `blockhash`/
+`blockhash-core`: más falsos positivos documentados en la investigación (claims C2/C5) y sin
+mantenimiento. `trim()` de sharp para el recorte: depende del contenido, no de un margen fijo, e
+introduce no-determinismo entre imágenes distintas.
+
+**Motivo.** Decodificar y redimensionar con una librería nativa madura (`sharp`, binarios
+prebuilt para Windows/Linux/macOS) y mantener el propio paso de DCT en TypeScript puro evita
+arrastrar una segunda dependencia nativa o no mantenida solo para el hash en sí, y mantiene
+`packages/core` con cero dependencias nativas, tal y como exige el propio dominio de este cambio.
+
+---
+
+## 096 — Fixtures: 18 fotos CC0/dominio público de Wikimedia Commons, con procedencia y variantes derivadas en memoria
+
+**Estado:** aceptada
+
+**Decisión.** 18 fotografías CC0-1.0/PDM-1.0 de Wikimedia Commons (ninguna de portales
+inmobiliarios reales), redimensionadas a 480px de lado largo, JPEG calidad 80: 12 bases de
+evaluación (8 interiores, 4 fachadas) y 6 bases de calibración (2 fachadas, 2 cocinas, 2 salones),
+conjuntos disjuntos. Cada fichero lleva una entrada en `provenance.json`
+(`file`, `set`, `kind`, `title`, `author`, `sourceUrl`, `license`, `retrievedAt`, `sha256`,
+`modifications`), validada por Zod en test. Las variantes (reescalado, recompresión JPEG/WebP,
+recorte, superposición de logo generado, y dos variantes de "chrome" de portal, `portalA`/
+`portalB`) se derivan EN MEMORIA por `transforms.ts`, nunca se comitean como binarios. El
+placeholder de baja entropía se genera con `sharp({ create })`, tampoco comiteado.
+
+**Método de obtención (tarea 3.1, apply-time).** Las 18 fotos las aportó el responsable del
+proyecto, descargadas manualmente de Wikimedia Commons bajo licencia CC0-1.0/PDM-1.0 confirmada
+en la propia página de cada fichero — no una búsqueda ni una descarga automatizada por el agente.
+
+**Alternativa descartada.** Comitear las variantes ya generadas como binarios: multiplicaría por
+~3 el tamaño del fixture sin necesidad, porque son deterministas y reproducibles desde las 18
+bases. Usar miniaturas reales de Idealista: prohibido explícitamente (D5) — ninguna credencial ni
+byte de fuente real llega a este cambio, que es evaluación-only por diseño (D7, preproposal).
+
+**Motivo.** CC0/dominio público es la única licencia que permite comitear las imágenes al
+repositorio del TFM sin negociar derechos de uso. Derivar las variantes en memoria mantiene el
+repositorio pequeño y hace explícito, en código, exactamente qué transformación sufre cada
+variante — evidencia auditable en vez de un binario opaco.
+
+---
+
+## 097 — Calibración del umbral `T`: `T = min(10, dNegMin − 2)` sobre un conjunto separado de las 24 parejas; aborto si `T < 1`
+
+**Estado:** aceptada
+
+**Decisión.** El umbral de Hamming `T` se fija ANTES de tocar el corpus de evaluación de 24
+pares, usando solo las 6 bases de calibración: 48 pares positivos (original vs. cada una de 7
+variantes, más `portalA` vs `portalB`) y 15 pares negativos (todas las combinaciones cruzadas de
+`portalA` entre bases distintas). Regla fija de antemano: `T = min(10, dNegMin − 2)`, donde
+`dNegMin` es la distancia mínima observada entre negativos. Si `T < 1`, la calibración **aborta**
+con error, sin escribir `calibration-report.json` ni ningún umbral — nunca clampa a 1 en
+silencio. `T` se copia a `packages/core/src/strategies/image/parameters.ts`
+(`IMAGE_HAMMING_THRESHOLD`) con un comentario de procedencia, y un test fija que esa constante ==
+`report.T` y que `parameters.ts` no importa el corpus de evaluación.
+
+**Resultado real (calibración ejecutada, apply-time, ROADMAP 2.3).** `dNegMin = 20` (el par
+negativo más cercano, `calib-facade-2:portalA` vs `calib-living-room-1:portalA`, distancia 20).
+`T = min(10, 20 − 2) = 10` (la rama de 10 gana, no `dNegMin − 2`). Recall positivo a `T=10`:
+**41/48 = 85,4%** — 7 de los 48 pares positivos de calibración (todos del tipo `original-vs-crop`
+o casos de recorte fuerte) quedan por encima del umbral y no se cuentan como coincidencia fuerte
+en calibración, coherente con que el recorte es la transformación más agresiva del conjunto.
+
+**Alternativa descartada.** Ajustar `T` observando los 24 pares de evaluación: exactamente lo que
+D8 prohíbe — mediría contaminación del umbral con los propios datos de prueba. Los valores T=6-8
+de la literatura (investigación, claims C7/C8): no verificados contra este pipeline concreto de
+recorte/entropía, y el propio corpus de referencia (littlesvr, claim C2) usa hashes/datasets
+distintos. Clampar `T<1` a 1: ocultaría en silencio un pipeline cuyo margen de separación entre
+positivos y negativos es demasiado estrecho para ser útil.
+
+**Motivo.** D8 (preproposal) exige calibrar en un conjunto separado y NO tocar el corpus de
+evaluación en el proceso — la única forma de que la medición posterior sobre los 24 pares sea una
+medición honesta, no una cifra ya optimizada para dar bien.
+
+---
+
+## 098 — Asignación pareja↔imagen congelada antes de generar ningún hash de evaluación
+
+**Estado:** aceptada
+
+**Decisión.** La asignación de qué base/variante de imagen recibe cada lado de cada una de las 24
+parejas etiquetadas se fija en `manifest.ts` ANTES de ejecutar `generate-image-hashes --set
+evaluation`. Duplicados reales (`tp-1..6`, `md-1`, `md-2`, `md-4`): misma base, dos transformos
+distintos, cubriendo entre todos cada transformación disponible. `md-3`: lado b sin
+`thumbnailUrl`, deliberadamente `missing`. Negativos "easy" (`en-*`): bases distintas de la misma
+categoría o de categorías distintas. Negativos difíciles (`hn-*`): bases de interior distintas EN
+GENERAL, con la EXCEPCIÓN deliberada de `hn-1`/`hn-7`, que comparten la MISMA base de fachada
+(`portalA` vs `portalB`) — el caso difícil a propósito, misma fachada, distinto anuncio. `hn-5`:
+placeholder de baja entropía en ambos lados.
+
+**Alternativa descartada.** Asignar las imágenes después de ver las distancias reales: es
+tunear sobre el corpus de evaluación en la práctica, aunque no se toque `T` directamente —
+exactamente el mismo riesgo que D8 prohíbe para el umbral.
+
+**Motivo.** Congelar la asignación antes de que exista ningún hash real hace que el resultado
+posterior (qué parejas obtienen coincidencia fuerte, cuáles no) sea una medición, no una elección
+retrospectiva que favorezca al sistema. El caso `hn-1`/`hn-7` se diseñó a propósito para poner a
+prueba si el margen de recorte del 5% del pipeline (`CROP_MARGIN_RATIO`, decisión 095) basta para
+neutralizar una franja de chrome de portal del 8% de alto (`CHROME_BAR_RATIO` de los propios
+transforms) — y el resultado real (decisión 099) confirma que no basta del todo.
+
+---
+
+## 099 — Reporte de 4 filas: CLI de ablación estructurado vs. estructurado+imagen, con caveat de evidencia simulada
+
+**Estado:** aceptada
+
+**Decisión.** El CLI de comparación (ROADMAP 2.2) pasa a evaluar 4 filas en orden fijo:
+rule-based estructurado, rule-based+imagen, Fellegi-Sunter estructurado, Fellegi-Sunter+imagen.
+Las dos filas estructuradas SIEMPRE puntúan el corpus `dedupCorpus` plano, nunca
+`withCorpusImages`, de modo que su resultado es byte-a-byte idéntico al del paso 2.2 con
+independencia de si la señal de imagen resulta neutra o no. `evaluate.ts` gana campos
+OPCIONALES (`StrategyEvaluator.imageEvidence?`, `PairEvaluation.image?`,
+`StrategyEvaluation.image?`), sin tocar la forma de salida de las estrategias sin imagen. CSV
+añade exactamente `evidence` e `image_caveat` inmediatamente después de `caveat`, sin mover
+ninguna columna existente; JSON añade `imageCaveat` en la raíz y por fila de imagen;
+`bandChanges[]` lista cualquier pareja cuya banda cambie entre una fila y su equivalente +imagen.
+
+**Resultado real de la ablación (ejecución real del CLI, apply-time, ROADMAP 2.3, corpus de 24
+pares).** A los umbrales por defecto de cada estrategia, la señal de imagen **no cambia ninguna
+banda**: `bandChanges` sale vacío para ambas estrategias, y las matrices de confusión con y sin
+imagen son idénticas —
+
+| Estrategia | TP | FP | FN (incl. indecisos) | TN (incl. indecisos) |
+|---|---|---|---|---|
+| rule-based (con y sin imagen) | 8 | 1 | 2 | 13 |
+| Fellegi-Sunter (con y sin imagen) | 4 | 1 | 6 | 13 |
+
+Seis duplicados reales SÍ obtuvieron una coincidencia fuerte de imagen y elevaron su puntuación
+(`tp-1` d=0, `tp-3` d=6, `tp-4` d=4, `tp-5` d=0, `md-1` d=6, `md-2` d=0), visible en la rejilla de
+sweep en umbrales MÁS BAJOS que el umbral por defecto — por ejemplo con `high=0.75`: rule-based
+pasa de P/R/F1 0,8889/0,8000/0,8421 a 0,9000/0,9000/0,9000; Fellegi-Sunter pasa de
+0,7778/0,7000/0,7368 a 0,8333/1,0000/0,9091 — pero ninguna de las seis cruzó el umbral POR
+DEFECTO de ninguna estrategia, así que `atDefault` no cambia. `tp-2` (d=16) y `tp-6` (d=24), pese
+a ser duplicados reales, no obtuvieron coincidencia fuerte: distintas combinaciones de
+transformación (WebP+recorte, recorte+superposición) dieron distancia perceptual mayor que otras
+combinaciones sobre el mismo corpus — variación empírica real, sin ajustar. `md-4` sigue
+`undecided` bajo RB+imagen (distancia real 18, por encima de `T=10`: ni siquiera llega a
+`strong`). Ningún `hn-*` se convirtió en falso positivo nuevo: el caso difícil a propósito
+`hn-1`/`hn-7` (decisión 098) midió distancia real **14**, justo por ENCIMA de `T=10` — el margen
+de recorte del 5% del pipeline (`CROP_MARGIN_RATIO`) no cancela del todo la franja de chrome del
+8% (`CHROME_BAR_RATIO`) para estas fotos concretas: un caso límite real, no un fallo de diseño a
+corregir en este cambio. No se ajustó ningún peso, umbral ni la asignación del manifiesto para
+cambiar este resultado — se reporta tal cual salió.
+
+**Alternativa descartada.** Que las filas estructuradas puntuaran también `withCorpusImages`: la
+igualdad byte-a-byte con 2.2 dejaría de ser una propiedad garantizada por construcción y pasaría
+a depender de que la imagen fuera neutra en la práctica. Filtrar o resaltar solo las parejas que
+cambian de banda sin mostrar la ablación completa: oculta precisamente el dato más interesante
+para la memoria del TFM (que la mejora existe pero no cruza el umbral por defecto).
+
+**Motivo.** El objetivo del paso es medir la aportación REAL de la imagen frente a la
+deduplicación estructurada, incluyendo el caso — igual de informativo — de que esa aportación no
+mueva ninguna decisión al umbral vigente. Reportar `bandChanges: []` como hallazgo genuino, en
+vez de ajustar parámetros hasta obtener un cambio de banda, es la misma disciplina ya aplicada en
+el paso 1.9 (decisión 087) y 2.2 (decisión 087 también): nunca tunear hacia una cifra deseada.
+
+---
+
+## 100 — Cinco índices de orden sobre `properties`, elegidos por planes medidos sobre 1M de filas; cierra la 060
+
+**Estado:** aceptada
+
+**Decisión.** La migración `0012` añade cinco btree sobre `properties`, todos con la forma exacta
+del `ORDER BY` de `buildPropertySearchQuery` (`col dir NULLS LAST, id ASC`):
+`(updated_at DESC NULLS LAST, id)`, `(operation, property_type, updated_at DESC NULLS LAST, id)`,
+`(operation, property_type, min_price_cents, id)`, `(min_price_cents DESC NULLS LAST, id)` y
+`(surface_m2, id)`. Se descartan `(rooms)` y `(bathrooms)`. `search.ts` no cambia. La medición se
+hace con un banco propio en `apps/ingestion` (`gen-corpus`, `bench-search`, `bench-report`) contra
+bases de datos separadas cuyo nombre debe terminar en `_bench`: 1M de viviendas sintéticas
+generadas con SQL masivo, 20 ejecuciones en caliente por combinación (p50/p95 por rango más
+cercano), una en frío con `pg_buffercache_evict` y el plan en JSON. Resultado y evidencia en
+`docs/SEARCH-PERFORMANCE.md`.
+
+**Alternativa descartada.** Un índice simple por columna de filtro (lo que la 060 rechazó sin
+datos). Medido: `(rooms)` y `(bathrooms)` empeoran `rooms-baths` (232 → 325 y 290 ms), porque el
+planificador cambia un recorrido ya ordenado por un `Bitmap Heap Scan` más un `Sort`. Un btree
+ascendente sobre `updated_at` tampoco sirve: recorrido hacia atrás da `NULLS FIRST`, no el
+`DESC NULLS LAST` que emite la consulta, aunque la columna sea `NOT NULL`. Medir sobre la base de
+desarrollo: mezclaría datos sintéticos con el corpus real y la suite de `packages/db` la trunca
+(decisión 046).
+
+**Motivo.** Las combinaciones lentas lo eran por ordenar 1M de filas para devolver 25
+(`Seq Scan` + `Sort`), no por filtrar. Un índice que ya da el orden deja que el `Limit` pare en la
+fila 25: p95 de 357 → 3 ms en el orden por defecto y de 510 → 28 ms en la página 100 con filtros.
+Cada índice entregado aparece por `Index Name` en el plan de al menos una combinación, comprobado
+por test (`apps/ingestion/test/db/search-bench.db.test.ts`).
+
+**Consecuencia.** ~230 MB de índices por millón de viviendas y cinco índices más que mantener al
+consolidar. `properties_operation_property_type_idx` (decisión 051) queda redundante, porque C2 y C3
+empiezan por las mismas columnas; se mantiene y queda como seguimiento. La 060 queda cerrada.
+
+---
+
+## 101 — JIT desactivado para el rol de la búsqueda
+
+**Estado:** aceptada
+
+**Decisión.** `packages/db/sql/bootstrap-roles-grants.sql` añade
+`ALTER ROLE web_readonly IN DATABASE buscahogar SET jit = off`. Solo afecta a las sesiones de
+`apps/web` contra `buscahogar`; la ingesta y la deduplicación, que conectan como propietario,
+conservan el JIT.
+
+**Alternativa descartada.** Documentar la combinación `geo-25km-price` como fallo pendiente: con
+los índices de la 100 su p95 era de 651 ms, por encima del objetivo, y ningún índice lo arregla.
+Subir `jit_above_cost` en todo el servidor: arregla el caso, pero también quita el JIT a las
+consultas largas de la ingesta, que sí pueden aprovecharlo.
+
+**Motivo.** El planificador estima 100 filas dentro de un radio de 25 km donde caen ~600.000, el
+coste estimado sube a 1,37M y activa el JIT con inlining y optimización. `EXPLAIN` mide 557 ms de
+compilación para ~50 ms de trabajo real. Con el JIT desactivado, `geo-25km-price` baja de 435 a
+52 ms (p50) y el p95 final queda en 29 ms. Una búsqueda paginada de 25 filas nunca compensa
+compilar código nativo.
+
+**Consecuencia.** Es configuración del entorno, no esquema: vive en el script de bootstrap de
+roles, que se vuelve a ejecutar tras recrear la base de datos (decisión 069). Test en
+`apps/web/test/db/readonly-role-privileges.test.ts`. La mala estimación geográfica sigue ahí y
+puede afectar a otras decisiones del planificador; queda como seguimiento.
+
+---
+
+## 102 — Señal de demanda por zona: tabla `zone_query_signals` y un único `GRANT INSERT` a `web_coverage`
+
+**Estado:** aceptada. Enmienda las decisiones 064 y 076 (lista de privilegios de `web_coverage`).
+
+**Decisión.** `zone_query_signals(zone_id, day)` con clave primaria `(zone_id, day)`, `zone_id`
+referenciando `zones` con `ON DELETE CASCADE` y `day` con el `DEFAULT` de la fecha UTC en el reloj
+de Postgres. `apps/web` inserta solo `zone_id` con `ON CONFLICT DO NOTHING`, sin `WHERE`, sin
+`RETURNING` y sin `DO UPDATE`: PostgreSQL no exige entonces `SELECT` ni `UPDATE`, y un test de
+privilegios lo demuestra. El rol `web_coverage` gana `INSERT` sobre esa tabla y nada más;
+`web_readonly` la lee por los privilegios por defecto (inocuo). La migración `0013` rellena
+`(zone_id, requested_at::date)` desde `coverage_jobs`. La escritura va en `page.tsx` antes de
+resolver la cobertura, con `await` de una función que nunca lanza (`recordZoneQuerySignalSafely`);
+`after()` no se usó durante la implementación porque Context7 no estaba disponible en ese momento;
+después se verificó con la documentación de Next 16.2.9, la más cercana a la 16.3.4 fijada, que es
+válido en una página Server Component si `cookies`/`headers` se leen antes del callback. Pasarse a
+`after()` queda como mejora opcional: ahorra una ida y vuelta por búsqueda, y sus tests necesitarían
+simular `next/server`.
+
+**Alternativa descartada.** `zones.last_queried_at` más un `GRANT UPDATE`: ensancha el rol sobre la
+tabla del catálogo sembrado. Derivar la demanda de `coverage_jobs`: una zona ya cubierta no genera
+ninguna fila nueva, así que nunca se sabría que se sigue consultando.
+
+**Consecuencia.** El propietario vuelve a ejecutar `bootstrap-roles-grants.sql`. Hay como mucho una
+señal por zona y día, acotada por la purga de la 103.
+
+---
+
+## 103 — Cadencia de refresco y números de retención (30 / 90 / 180 días)
+
+**Estado:** aceptada.
+
+**Decisión.** Con `d` = días completos desde la última demanda de la zona: `d ≤ 30` semanal (vence
+a los 7 días del último barrido), `31 ≤ d ≤ 90` mensual (30 días), `91 ≤ d ≤ 179` en espera (nunca
+vence), `d ≥ 180` purga. La demanda de referencia es `coalesce(max(señal.day),
+coverage_jobs.requested_at::date)`, calculada con el reloj de Postgres (DD-11); `packages/core`
+recibe enteros. Las señales caducan a los 180 días, con un máximo de 5.000 filas por tick. Todos los
+números son constantes con nombre en `packages/core/src/retention/policy.ts`.
+
+**Alternativa descartada.** `zones.created_at` como referencia: es uniforme por el seed de ~8.100
+zonas y no dice nada de la demanda. `last_swept_at`: mide la oferta refrescada, no el interés.
+
+**Consecuencia.** Una consulta nueva devuelve la zona a semanal. Los valores operativos (fracción de
+refresco, `maintenanceEveryTicks`, peticiones de verificación por tick, margen de radio) los fija
+el responsable por entorno; quedan en "Pendientes de decidir".
+
+---
+
+## 104 — Carril de refresco con techo de gasto, intentos por ciclo y reinicio del cursor
+
+**Estado:** aceptada.
+
+**Decisión.** `coverage_jobs.refresh_requested_at` no nulo marca el carril de refresco; la
+selección ordena primero los jobs a demanda. El planificador pasa a `pending` los jobs `done` (o
+`failed` con los intentos agotados) de zonas `covered` vencidas por cadencia, con `attempts = 0`
+(los intentos pasan a ser por ciclo), `error = NULL` y `cursor = NULL`, sin tocar `requested_at`
+(ancla de demanda) ni `zones.state`. `finishJob(completed)` limpia la marca. La reserva se hace por
+carril y antes de reclamar; el carril de refresco compara contra `least(tope, floor(tope ×
+fracción))` sobre el gasto TOTAL del día, en la rama de inserción y en la de conflicto del ledger.
+Con fracción 0 o ausente no se re-encola nada ni se verifica nada.
+
+**Corrección tras validación (cursor).** La primera versión de `scheduleRefresh` dejaba el cursor:
+un job `failed` agotado reanudaba desde una paginación a medias, `finishJob(completed)` sellaba
+`last_swept_at` como barrido completo y `cycle_started_at` (decisión 105, solo se fija con cursor
+NULL) nunca abría un ciclo nuevo. Un refresco es un ciclo nuevo: el cursor se reinicia.
+
+**Alternativa descartada.** Poner `requested_at = now()` al refrescar: adelanta al refresco frente a
+la demanda por antigüedad y destruye el ancla de la 103. Pasar un tope reducido en vez de un techo:
+la rama de conflicto compara contra la columna `search_cap` ya guardada y lo ignora. Un contador
+aparte para el refresco: el techo sobre el total conserva siempre `tope × (1 − fracción)` para la
+demanda sin segunda contabilidad.
+
+---
+
+## 105 — Desaparición de anuncios: la ausencia nomina, `adIds` confirma, y la confirmación está bloqueada por evidencia
+
+**Estado:** aceptada. Enmienda la decisión 039 (la ausencia en un barrido no cambia el estado).
+
+**Decisión.** Tras un ciclo COMPLETADO (`finishJob(completed)`, con `cycle_started_at` estable entre
+reanudaciones), cada anuncio activo de la zona, la fuente y la operación del worker con
+`last_seen_at < cycle_started_at` entra en `listing_presence_checks`; nunca cambia de estado por
+eso. Un verificador aparte (`ListingPresenceVerifier`, no en `PropertySource`) envía una petición
+por lote de hasta 50 ids con `adIds`. Un id devuelto es `present` (sube `last_seen_at`); uno
+omitido es `absent` (→ `inactive` / `delisted`) SOLO si `DELISTED_OMISSION_CONFIRMED` es `true`; la
+constante es `false` hasta que un fixture de la sonda demuestre la omisión, y un test la ata a la
+meta del fixture. Un error de transporte, un sobre inválido, `totalPages > 1` o un id ajeno
+devuelto (`adIds` ignorado) hacen ambiguo TODO el lote: +1 intento, espera de 7 días y descarte a
+los 3 intentos sin cambiar estado. Mientras la constante sea `false`, ningún anuncio se retira.
+
+**Correcciones tras validación (ambas de la clase "retirada falsa").** (1) Carrera: si un barrido
+veía el anuncio entre la verificación y su aplicación, se retiraba igualmente; el `UPDATE` de
+`absent` exige ahora que la fila de la cola siga existiendo (el escritor la borra al ver el
+anuncio). (2) Desviación de la especificación (LR-4, S-LR-5): una respuesta vacía a un lote de 2 o
+más ids es AMBIGUA, no `absent` para todos; es indistinguible de un `adIds` ignorado o de un filtro
+que no casa en una zona sin stock. Un lote de un solo id con respuesta vacía sigue siendo omisión.
+
+**Alternativa descartada.** Inferir la desaparición tras N barridos sin verlo: es justo lo que la
+039 prohíbe. Una llamada de detalle por anuncio: 50 veces el coste en cuota. Una variable de
+entorno para activar la retirada: permitiría activarla sin evidencia.
+
+**Consecuencia.** El paso 2.5 se implementó con la retirada inactiva. El 2026-09-30 la sonda
+(`pnpm probe:adids`, 3 búsquedas reales) confirmó `delistedIdBehaviour: omitted` con la fixture
+`adids-2026-09-30`. Para elegir el anuncio dado de baja se usó un barrido completo de un círculo de
+170 m, un mecanismo independiente del filtro `adIds` que se estaba probando. `DELISTED_OMISSION_CONFIRMED`
+pasó a `true` en el mismo commit. La sonda confirmó además que `propertyType` restringe `adIds`, lo
+que respalda la correspondencia de filtros por tipo, y que la lista va separada por comas.
+
+---
+
+## 106 — Ciclo de vida del anuncio: `inactive_since`, `inactive_reason` y reactivación al verlo de nuevo
+
+**Estado:** aceptada. Enmienda PERSIST-3 / P6 (el escritor no tocaba `status`).
+
+**Decisión.** `listings` gana `inactive_since` e `inactive_reason` (`CHECK` `delisted` /
+`zone_purged`). Son metadatos de observación, como `last_seen_at`, no contenido: no versionan. Solo
+la verificación y la purga de zona marcan un anuncio como inactivo. Una re-visión en un barrido lo
+reactiva: `status = 'active'`, columnas de ciclo de vida a `NULL`, fila de la cola borrada y
+visibilidad de su vivienda refrescada, todo en la transacción de la página.
+
+**Alternativa descartada.** Una tabla de eventos de ciclo de vida sin consumidor en este paso; una
+tabla 1:1 de ciclo de vida (un `join` más en cada lectura).
+
+---
+
+## 107 — Tombstone a los 180 días: redacción por `UPDATE`, excepción explícita a «`listings` no se sobrescribe»
+
+**Estado:** aceptada. Excepción autorizada a la regla de `CLAUDE.md`.
+
+**Decisión.** Un anuncio `inactive` con `inactive_since ≤ now() − 180 días` (lotes de 500, `FOR
+UPDATE SKIP LOCKED`, índice parcial) pasa a `status = 'removed'` con `tombstoned_at`, y se ponen a
+`NULL` `listing_versions.description` y `raw` de TODAS sus versiones y `listings.thumbnail_url`: ahí
+vive el contenido libre y el payload de la fuente. Se conservan la fila del anuncio, el precio y
+los campos estructurados de cada versión (historial), `listing_features`, `dedup_pair_evidence` y
+`dedup_runs`. Nada se borra y ninguna FK en cascada se dispara. El tombstone no toca
+`property_listings`, pero esa tabla no es evidencia inmutable: cada reproceso de dedup reconstruye
+`properties` y `property_listings` desde los anuncios, con puntuación y desglose recalculados. La
+evidencia que perdura es `dedup_pair_evidence`. Si algo se redacta, el tick queda sucio y el
+reproceso de dedup reconstruye las cachés de las viviendas. Hasta ese reproceso,
+`properties.description` y `thumbnail_url`, copiadas del anuncio ganador, pueden conservar el
+contenido redactado. Si ese reproceso falla, el siguiente tick ya no queda sucio por el tombstone y
+la copia persiste hasta el próximo barrido completado. Como la selección del ganador lee la
+descripción, el ganador puede cambiar tras el tombstone. **Reaparición:** el `upsert` del escritor pone `status = 'active'`, limpia
+`tombstoned_at` y rellena `thumbnail_url` SOLO si el anuncio tenía tombstone (`CASE` sobre la fila
+anterior; la congelación de la decisión 059 sigue valiendo para los demás); si la última versión
+está redactada (`raw IS NULL`) se inserta una versión nueva aunque nada haya cambiado.
+
+**Desviación del diseño.** El diseño no cambiaba `status`; se adoptó `removed` (valor ya admitido
+por el `CHECK` y ya tratado por el detalle como "retirado") para que el estado sea autosuficiente.
+
+**Alternativa descartada.** Borrado duro: las FK en cascada destruirían `property_listings` y la
+evidencia de dedup, que son el material de evaluación del TFM. Cambiar las FK a `RESTRICT`: no hace
+falta si no se borra.
+
+**Consecuencia.** La redacción es irreversible: el contenido solo se recupera si la fuente vuelve a
+publicar el anuncio. `CLAUDE.md` debe recoger la excepción.
+
+---
+
+## 108 — Purga de zona como reinicio de cobertura, no como borrado
+
+**Estado:** aceptada.
+
+**Decisión.** Una zona con `d ≥ 180` se reinicia, por job (zona Z, fuente S), en una transacción
+que vuelve a comprobar la condición (job sin reclamar y demanda aún ≥ 180 días): (a) los anuncios
+activos de S dentro del círculo de Z (`locations.centroid` + `sweep_radius_m`) y fuera del círculo
+de cualquier otra zona con job de S pasan a `inactive` / `zone_purged` y siguen el plano de 180 días
+del tombstone; (b) se refresca la visibilidad; (c) se borra el job y su cola de presencia; (d) si la
+zona no conserva ningún otro job, se borran sus señales y (e) vuelve a `uncovered` con
+`last_swept_at` NULL. Las zonas se procesan en secuencia, máximo 20 por pasada; la avería de una
+zona se revierte sola y no impide las siguientes. No gasta cuota. Los anuncios sin coordenadas
+nunca se retiran (límite conocido).
+
+**Alternativa descartada.** Borrar la fila de `zones` (prevista en la propuesta): es el catálogo INE
+sembrado que consultan la interfaz y `locations-query`, y borrarla rompe el autocompletado. Un
+`zone_id` por anuncio: los círculos se solapan y un anuncio pertenece a varias zonas.
+
+---
+
+## 109 — Visibilidad en la búsqueda solo con anuncios activos
+
+**Estado:** aceptada. Afina las decisiones 006 y 068.
+
+**Decisión.** `properties.active_listing_count` (caché, rellenada desde `listing_count` en la
+migración `0014`) y `min_price_cents` como mínimo entre los anuncios activos, o entre todos cuando
+ninguno lo está. Una sola función, `refreshPropertyVisibility(executor, scope)`, la usan la
+consolidación, la reactivación, la verificación, la purga de zona y el tombstone. La búsqueda añade
+`active_listing_count > 0`; bloqueo, hidratación y agrupación siguen sin mirar el estado (068) y el
+detalle lista también los inactivos. El precio que se muestra pasa de «el más económico del grupo»
+a «el más económico de los anuncios activos».
+
+**Alternativa descartada.** Calcularlo en la consulta de búsqueda con un `join`: rompe los planes
+medidos en la decisión 100. Excluir los inactivos del agrupamiento: reagruparía y perdería la
+evidencia que alimenta la evaluación.
+
+**Consecuencia.** El filtro es un filtro de montón sobre los recorridos de índice ordenados; ver
+`docs/SEARCH-PERFORMANCE.md`.
+
+---
+
+## 110 — Aislamiento de fallos por paso en el tick del worker
+
+**Estado:** aceptada.
+
+**Decisión.** `runIsolatedStep(ports, nombre, fn)` captura el error de cada paso de mantenimiento o
+verificación, registra `paso "<nombre>" falló: <mensaje>` (solo el mensaje, sin credenciales) y
+sigue. Orden del tick: `purgeClientQuota` (sin envolver, comportamiento 1.15) → señales → ciclo de
+vida de zonas (si falla, se omiten purga y re-encolado, pero no el tombstone) → purga de zonas →
+re-encolado → tombstone → barrido → nominación tras un ciclo completado → verificación → `runDedup`
+si el tick está sucio. El barrido conserva su semántica: solo `JobAlreadyClaimedError` no es fatal.
+
+**Alternativa descartada.** Dejar propagar todo: una avería de mantenimiento pararía los barridos,
+que son lo que gasta la cuota. Un único `catch` alrededor del tick: no dice qué paso falló.
+
+---
+
+## 111 — Supuesto documentado: ninguna fuente fija un plazo de retención
+
+**Estado:** aceptada como supuesto, con riesgo abierto para el TFM.
+
+**Decisión.** Los 180 días del tombstone y de la purga son una elección del proyecto, no una
+obligación de ninguna fuente. La documentación de la API de Idealista en `docs/api_idealista` no
+contiene ninguna cláusula de retención; las condiciones de Kyero no se han obtenido. La regla de
+`docs/ARCHITECTURE.md` se mantiene: si las condiciones de una fuente fijan un plazo máximo, ese
+plazo prevalece.
+
+**Alternativa descartada.** Fijar un plazo como si viniera de la fuente.
+
+**Consecuencia.** Riesgo a declarar en la memoria: si un contrato real exige menos de 180 días, basta
+con cambiar las constantes de `policy.ts`; las purgas reciben los números por parámetro.
+
+---
+
+## 112 — CSP: `img-src` admite el host de teselas de OpenStreetMap; atribución «© OpenStreetMap» enlazada
+
+**Estado:** aceptada. Enmienda la decisión 080 (`img-src`).
+
+**Decisión.** `img-src` pasa a `'self' blob: data: https://tile.openstreetmap.org`; ninguna otra
+directiva cambia y no se añade `connect-src`. La plantilla de teselas es
+`https://tile.openstreetmap.org/{z}/{x}/{y}.png` y el literal aparece en `src/` solo en
+`search-map-canvas.tsx` (un test lo fija). La atribución es el literal exacto `© OpenStreetMap`,
+enlazado a `https://www.openstreetmap.org/copyright`, en el control de atribución de Leaflet y en el
+marcado que renderiza el servidor en la sección del mapa; un test comprueba el literal y el enlace.
+
+**Alternativas descartadas.** (1) Proxy de teselas del mismo origen: es una llamada externa desde
+`apps/web`, contra la regla de `CLAUDE.md`. (2) Subdominios `a/b/c`: amplían la política sin
+necesidad. (3) Atribución en el pie de `layout.tsx`: afirmaría OSM en páginas sin teselas; el pie
+del CNIG queda sin cambios.
+
+**Motivo.** El navegador del usuario carga las teselas; el servidor no hace ninguna petición
+externa, así que la regla de no consultar fuentes externas en la búsqueda se mantiene.
+
+**Enmienda de la 080.** La 080 fijaba `img-src 'self' blob: data:`; esta decisión añade solo el
+host de teselas.
+
+---
+
+## 113 — El allowlist de `'use client'` crece a DOS ficheros; dependencias del mapa con versión exacta
+
+**Estado:** aceptada. Enmienda la decisión 065.
+
+**Decisión.** Versiones exactas, sin `^`: `leaflet` 1.9.4, `react-leaflet` 5.0.0,
+`leaflet.markercluster` 1.5.3, `@types/leaflet` 1.9.22 y `@types/leaflet.markercluster` 1.5.6. El
+allowlist pasa a `coverage-status.tsx` y `components/search-map.tsx`, que carga el lienzo con
+`next/dynamic(() => import('./search-map-canvas'), { ssr: false })`. Los módulos de Leaflet (lienzo,
+capa de clústeres, control de dibujo) no llevan directiva: son código de cliente por el grafo de
+imports, y un test lo fija. Los marcadores son `L.divIcon` construidos con `textContent` del DOM.
+
+**Alternativas descartadas.** Leaflet sin `react-leaflet`; `dynamic` en `page.tsx` (Next 16 lo
+rechaza en Server Components); marcadores de imagen por defecto; un envoltorio de clústeres para
+`react-leaflet`.
+
+**Motivo.** El mapa necesita `window`, así que ha de ser cliente. Un único envoltorio en el
+allowlist mantiene el hueco del ancho mínimo, como pedía la 065.
+
+**Enmienda de la 065.** El allowlist deja de ser de UN fichero; el test sigue con sus tres
+aserciones sobre la lista de dos.
+
+---
+
+## 114 — Control de dibujo propio en lugar de un plugin de dibujo
+
+**Estado:** aceptada (el responsable sustituyó el «plugin de dibujo» de la propuesta P2).
+
+**Decisión.** Un clic en el mapa añade un vértice. Botones: Dibujar zona, Deshacer, Cerrar,
+Cancelar y Quitar zona. El reductor puro `draw-polygon-state.ts` redondea a 5 decimales y bloquea el
+vértice 51. Al cerrar llama a `validatePolygonRing` de `core`: si la forma no es válida muestra el
+mensaje y no navega. Los vértices no se editan; se vuelve a dibujar. Son unas 150 líneas, probables
+sin DOM.
+
+**Alternativas descartadas.** `leaflet-draw` 1.0.4: sin mantenimiento desde 2018, CSS con sprite y
+un `ReferenceError` conocido en `showArea`. `@geoman-io/leaflet-geoman-free`: pesado, con casi todas
+sus funciones sin uso.
+
+**Motivo.** Se necesita un polígono simple y validado por la misma función que el servidor.
+
+---
+
+## 115 — Formato y validación del parámetro `polygon`
+
+**Estado:** aceptada
+
+**Decisión.** `polygon=lat,lng;lat,lng;...`, anillo abierto; en el WKT el orden se invierte a
+`lon lat`. Las comprobaciones van en este orden y cada una da un error con nombre que identifica
+`polygon`: (1) valor no único (clave repetida) → error de tipo; (2) longitud decodificada > 1.100 →
+`too-long`, antes de partir; (3) vacío, separadores mal o cuenta impar → `malformed` (vacío nunca
+significa ausente); (4) vértice `^-?\d{1,3}(\.\d{1,5})?$`: más decimales → `malformed`, y el servidor
+nunca redondea; (5) fuera de rango → `out-of-range`; (6) menos de 3 o más de 50 vértices →
+`too-few`/`too-many`; (7) vértice repetido, incluido un cierre duplicado → `duplicate-vertex`; (8)
+TODOS los vértices colineales → `degenerate`; (9) cualquier contacto entre aristas, incluidas las
+formas de área cero que no son colineales (lazo) → `self-intersecting`; (10) área > 2.500 km² →
+`too-large`. Exclusividad: `polygon` con `zone` o con cualquiera de `lat`/`lng`/`radius` se rechaza
+con un mensaje que nombra los parámetros presentes.
+
+**Alternativas descartadas.** Codificación polyline de Google; GeoJSON en la URL; tolerar o
+normalizar el vértice de cierre (la especificación lo normalizaba; el responsable decidió rechazar).
+
+**Motivo.** Un anillo abierto tiene una única forma canónica. El máximo legal son 1.049 caracteres.
+El tope de 2.500 km² mantiene las consultas en el régimen medido para el radio de 25 km (1.963 km²).
+La aritmética es entera (coordenadas × 1e5), exacta y bajo 2^53.
+
+---
+
+## 116 — El polígono se aplica con `ST_Covers` sobre `geography`, con el WKT como parámetro
+
+**Estado:** aceptada
+
+**Decisión.** `ST_Covers(ST_GeogFromText($wkt), properties.location_geography)`. El WKT de anillo
+cerrado se construye en `spatial.ts` (`polygonWkt`, `polygonCovers`, decisión 019) y va siempre como
+parámetro enlazado, nunca concatenado. Usa el índice GiST existente; sin migración.
+
+**Alternativas descartadas.** `ST_Covers` sobre la columna `geometry` (no tiene GiST y exigiría una
+migración); `ST_Contains` (excluye el borde); un parámetro por vértice.
+
+**Consecuencia.** Las aristas son geodésicas: una de 50 km a 40° N se desvía unos 40 m de la línea
+plana, y se acepta. Los tests de frontera usan puntos en VÉRTICES.
+
+---
+
+## 117 — Consulta de puntos del mapa con `LIMIT 501`, recuento exacto solo al truncar y M acotado
+
+**Estado:** aceptada. Refina la decisión 058.
+
+**Decisión.** `buildFilters` pasa a `packages/db/src/search-filters.ts`, compartido por lista y mapa.
+`buildMapPointsQuery` = filtros + `"properties"."location" IS NOT NULL`, el MISMO `ORDER BY` que la
+lista (índices de la 100) y `LIMIT 501`. `searchMapPoints` conserva 500 filas; la 501 solo señala
+truncamiento y se descarta. Con 500 filas o menos, M = N sin segunda consulta; con 501 se ejecuta
+`count(*)` con el mismo `WHERE`. M cuenta solo viviendas con ubicación. `page` se ignora. Como no hay
+instantánea compartida entre las dos consultas, el total se acota a CAP+1 (`truncatedMapTotal`) para
+no mostrar «500 de 498».
+
+**Alternativas descartadas.** `COUNT(*) OVER()` (la 058 lo había descartado); la estimación del
+planificador (la 101 muestra que se equivoca en geografía); agrupar en el servidor.
+
+**Motivo.** Un mapa necesita puntos, no páginas, y el recuento caro solo se paga cuando hay más de 500.
+
+---
+
+## 118 — Esquema de `view`, el mapa sustituye a la lista, avisos y ausencia de efectos de cobertura
+
+**Estado:** aceptada
+
+**Decisión.** `view` tiene su propio `searchViewSchema` (`list` | `map`; ausente → lista; otro valor →
+rechazo con nombre) y no forma parte de los criterios. La vista de mapa SUSTITUYE a la lista y el
+paquete de la lista nunca importa el mapa. El servidor siempre renderiza: «M viviendas con ubicación
+coinciden» (sin polígono añade que puede diferir del total de la lista), «Mostrando 500 de M» solo
+si M > 500, un aviso de ubicación aproximada, la atribución de OSM y un `noscript` con enlace a la
+lista. Con M = 0, mensaje de vacío; con polígono, además el aviso «puede que la zona no esté
+cubierta», que aclara que una zona dibujada no solicita barridos. En la lista aparece solo con
+polígono, página 1 y 0 resultados. Un polígono nunca consulta cobertura, nunca escribe
+`coverage_jobs` ni `zone_query_signals` y nunca consume cuota.
+
+**Alternativas descartadas.** Mapa y lista a la vez; detección exacta de «zona no cubierta».
+
+**Motivo.** Sin un municipio no hay `coverage_job` posible, y crear señales de demanda con un dibujo
+libre ensuciaría la política de refresco de la 103.
+
+---
+
+## 119 — Etiqueta de precio y enlace construidos en el servidor; popups con DOM; `formatPriceCents` compartida
+
+**Estado:** aceptada
+
+**Decisión.** El servidor convierte cada punto en `{ id, lat, lon, priceLabel, href }`, con
+`priceLabel = formatPriceCents(minPriceCents)` y `href = buildPropertyDetailHref(anchorListingId)` o
+`null`. Un clic abre un popup construido con `textContent` y un `<a href>` plano «Ver vivienda» en la
+misma pestaña; sin `href` no hay enlace. `formatPriceCents` (duplicada en `result-card.tsx`,
+`property-header.tsx` y `source-list.tsx`) pasa a `apps/web/src/lib/format-price.ts` (nulo → «Precio
+no disponible») y la usan los tres y las etiquetas del mapa.
+
+**Alternativas descartadas.** Formatear en el cliente (duplica la lógica y arrastra `Intl` al
+bundle); `router.push` al hacer clic en el marcador.
+
+**Motivo.** Una sola fuente del formato de precio y ningún HTML interpolado desde datos de anuncios.
+
+---
+
+## 120 — La interpretación de lenguaje natural es un intérprete determinista en `core`, sin LLM
+
+**Estado:** aceptada
+
+**Decisión.** `interpretSearchText(texto)` en `packages/core/src/nl-search/` es una función pura y
+determinista (tokenizador, importes, vocabulario y reglas) que devuelve una `NlSearchInterpretation`:
+parámetros reconocidos, fragmentos no entendidos y texto del lugar. Esa interpretación es el punto de
+sustitución: otra implementación (por ejemplo un modelo de lenguaje) tendría que producir el mismo
+tipo. Nunca emite `page`, `view`, `lat`, `lng`, `radius`, `polygon` ni `zone`; los parámetros pasan
+por el mismo `searchQuerySchema` que los filtros.
+
+**Alternativas descartadas.** Un LLM llamado desde el servidor de `apps/web`, desde el navegador o
+desde un canal lateral de `apps/ingestion`.
+
+**Motivo.** El servidor de `apps/web` no puede llamar a servicios externos en tiempo de búsqueda ni
+guardar sus credenciales (reglas de `CLAUDE.md`), el navegador tampoco puede hacerlo sin ampliar la
+CSP, y un canal por `apps/ingestion` añade latencia y estado a una función que debe responder al
+momento. Un intérprete determinista se puede medir sobre un corpus etiquetado (decisión 124) y se
+prueba sin red.
+
+---
+
+## 121 — Los precios en la URL son euros con hasta dos decimales y se convierten a céntimos
+
+**Estado:** aceptada
+
+**Decisión.** `minPrice` y `maxPrice` se leen como euros con la forma `^\d+(\.\d{1,2})?$` y se
+convierten con `Math.round(valor * 100)`; el resultado debe cumplir `Number.isSafeInteger`. Un precio
+con más de dos decimales, negativo, vacío o fuera de rango seguro se rechaza. Cambia el comportamiento
+de las URL existentes: antes el valor pasaba sin convertir y se trataba como céntimos (error latente
+corregido dentro del 3.1).
+
+**Alternativas descartadas.** Mantener céntimos en la URL y convertir solo en el intérprete;
+redondear en silencio los decimales sobrantes.
+
+**Motivo.** Una frase como «hasta 900 euros» y un formulario editable tienen que hablar la misma
+unidad que ve el usuario; convertir solo en un lado dejaba dos significados para el mismo parámetro.
+Rechazar en lugar de redondear evita aceptar un precio distinto del escrito.
+
+---
+
+## 122 — `?q=` es una rama aparte que interpreta y pide confirmación; solo una coincidencia exacta selecciona zona
+
+**Estado:** aceptada
+
+**Decisión.** Si `q` está presente en la URL (incluso vacío o con criterios), la página renderiza solo la
+interpretación: no llama a `searchProperties`, `searchMapPoints`, `resolveZoneGeometry`, cobertura,
+señal de demanda ni cuota. `q` se valida con `nlQuerySchema` (texto, 1-200 caracteres); si no es
+válido se muestra un mensaje con `role="alert"` y no se interpreta. El lugar se resuelve contra
+nuestra base con `suggestZones` en modo solo lectura, con `PLACE_SUGGESTION_LIMIT = 25` (el
+autocompletado usa 10): exactamente una coincidencia exacta del nombre normalizado selecciona esa
+zona; cualquier otro caso con una o más sugerencias ofrece un grupo de radios con «Sin zona» marcado;
+sin sugerencias, «en <lugar>» se añade a «No he entendido:». Estrecha a propósito el escenario de la
+especificación «una coincidencia, zona fijada»: una única coincidencia por prefijo se ofrece, no se
+selecciona (por ejemplo «madrid» frente a «madridejos»). `suggestZones` ordena por `search_name`, así
+que un nombre exacto precede siempre a sus extensiones y el límite no lo oculta. Varias coincidencias
+exactas (mismo nombre en provincias distintas) también se ofrecen.
+
+**Alternativas descartadas.** Redirigir de `?q=` a la búsqueda con los criterios ya interpretados;
+seleccionar zona con una única coincidencia por prefijo.
+
+**Motivo.** El usuario debe poder corregir la interpretación antes de buscar (enunciado del paso), y
+elegir sola una zona por prefijo falla en el caso común de un municipio cuyo nombre es prefijo de otro.
+Mantener la rama sin efectos conserva la regla de no consultar fuentes externas y evita gastar cuota o
+registrar señales por una frase que aún no se ha confirmado.
+
+---
+
+## 123 — El formulario de criterios marca `form=criteria` y la página limpia los campos vacíos
+
+**Estado:** aceptada
+
+**Decisión.** El formulario de criterios envía un campo oculto `form=criteria`. En el límite de la
+página, `canonicalizeFormSubmission` (`apps/web/src/lib/search-href.ts`) descarta el marcador y los
+valores vacíos tras recortar, incluidas las entradas vacías de los arrays, y solo cuando
+`form === 'criteria'`. Un `?minPrice=` sin marcador se sigue rechazando por su nombre. Los
+constructores de enlaces reciben los parámetros ya limpios, de modo que la paginación no arrastra
+`form=criteria`. Es un formulario de servidor: sin `redirect()` y sin JavaScript de cliente (el
+allowlist de `'use client'` sigue en dos ficheros, decisión 113).
+
+**Alternativas descartadas.** Redirigir tras el envío para limpiar la URL (choca con la guarda
+estática de `redirect()`); aceptar `''` como ausente en el esquema (debilitaría la validación para
+cualquier URL escrita a mano); un script de cliente que retire los campos vacíos.
+
+**Motivo.** Un formulario HTML envía los campos vacíos, y el esquema no debe tratarlos como valor. La
+limpieza en el límite de la página, acotada al marcador, mantiene estricta la validación del resto de
+entradas.
+
+---
+
+## 124 — Formato del corpus de lenguaje natural, partición desarrollo/reserva, recuentos fijados e intervalo de Wilson
+
+**Estado:** aceptada
+
+**Decisión.** `packages/core/src/evaluation/nl-search-corpus.ts` contiene 42 frases etiquetadas: 28
+de desarrollo y 14 de reserva (`holdout`), con negativos difíciles (lugar inexistente, varios
+municipios, «900 €» sin contexto, «más de N habitaciones»). Cada frase declara sus `params` esperados,
+que han de pasar `searchQuerySchema`. `nl-search-evaluate.ts` puntúa por campo (acierto, omisión,
+error, espurio) y reutiliza `wilsonInterval` con confianza del 95 %. El test fija los aciertos y exige
+cero errores y espurios en los negativos. Medición al cerrar la U2b: reserva 13/14 = 92,9 % [68,5;
+98,7]; desarrollo 26/28 = 92,9 % [77,4; 98,0] (24/28 antes de ajustar); total 39/42 = 92,9 % [81,0;
+97,5]. La cifra sin sesgo es la de reserva; la de desarrollo es optimista porque el intérprete se
+ajustó sobre ella.
+
+**Alternativas descartadas.** Un único conjunto sin partición; informar solo del porcentaje sin
+intervalo.
+
+**Motivo.** Con 14 frases de reserva el intervalo es ancho: el porcentaje sin él sugeriría una
+precisión que la muestra no da. Fijar los recuentos en el test convierte cualquier regresión del
+intérprete en un fallo visible.
+
+---
+
+## 125 — Los scripts raíz `test`, `typecheck` y `lint` compilan antes los paquetes
+
+**Estado:** aceptada (enmienda la consecuencia de la 031)
+
+**Decisión.** Los tres scripts de la raíz empiezan por `pnpm --filter "./packages/*" build`, igual
+que `dev`, `dev:web` y `dev:ingestion`. Los consumidores (`packages/db`, `apps/web`,
+`apps/ingestion`) siguen resolviendo los paquetes internos por su `dist/` compilado.
+
+**Alternativas descartadas.** Scripts `pretest`/`pretypecheck`: pnpm no ejecuta los scripts `pre*`
+por defecto. Resolver los paquetes por sus fuentes (alias de Vitest o `paths` de TypeScript):
+cambia el modelo de consumo de la 031 y haría que tests y build vieran código distinto. Dejarlo a
+un paso de CI: el repositorio no tiene CI.
+
+**Motivo.** Con `dist/` desactualizado, los tests y el typecheck de los consumidores validan la
+versión anterior del paquete sin avisar. Pasó en la 031, en el paso 1.12 (`AI-NOTES.md`, 2026-09-18) y en el
+3.1. El coste es una compilación de `tsc` por ejecución.
+
+---
+
+## 126 — El plan de diseño de la web es un fichero aparte, `docs/DESIGN-ROADMAP.md`, con pasos `D.n`
+
+**Estado:** aceptada
+
+**Decisión.** El diseño de `apps/web` se planifica en `docs/DESIGN-ROADMAP.md`, con el mismo formato
+que `docs/ROADMAP.md` (prompt, Objetivo, Revisar, Notas), pasos numerados `D.0`-`D.17` y su propio
+registro de desviaciones. `docs/ROADMAP.md` lo enlaza desde la cabecera, y el registro obligatorio
+de `CLAUDE.md` dirige los pasos `D.n` a ese fichero. Cada paso se ejecuta como un cambio SDD propio.
+
+**Alternativas descartadas.** Una «Fase 4» dentro de `docs/ROADMAP.md`: el fichero ya ronda las 2000
+líneas y mezclaría la hoja de ruta funcional, ya completa, con la de diseño, que tiene otros
+artefactos (`PRODUCT.md`, `DESIGN.md`, capturas de referencia).
+
+**Motivo.** Separar las dos hojas de ruta también separa el material del capítulo de proceso. El
+riesgo de que diverjan se cubre con el enlace y con la regla de `CLAUDE.md`.
+
+---
+
+## 127 — Estilos con Tailwind v4, tokens en `@theme` y componentes propios
+
+**Estado:** aceptada (confirma la 010)
+
+**Decisión.** El diseño usa Tailwind v4 con tokens en `@theme` dentro de `globals.css` y componentes
+escritos en el proyecto.
+
+**Alternativas descartadas.** Una biblioteca *headless* (Radix, Base UI) y shadcn.
+
+**Motivo.** Ambas traen componentes de cliente y dependencias que chocan con el allowlist de dos
+ficheros de `'use client'` (decisión 113) y con el funcionamiento sin JavaScript. La 010 ya retuvo
+Tailwind v4.
+
+---
+
+## 128 — Tema oscuro según el sistema, con selector
+
+**Estado:** aceptada
+
+**Decisión.** La web sigue `prefers-color-scheme` por defecto y ofrece un selector (claro, oscuro,
+sistema). La lectura de la preferencia y su efecto sin JavaScript se deciden en el paso D.4.
+
+**Alternativas descartadas.** Solo tema claro; solo el tema del sistema, sin selector.
+
+**Motivo.** El usuario quiere poder fijar el tema. El coste es un script en línea, que la CSP ya
+admite, y un Route Handler para el caso sin JavaScript.
+
+---
+
+## 129 — Móvil y escritorio pesan lo mismo
+
+**Estado:** aceptada
+
+**Decisión.** Cada pantalla se diseña y se verifica a 320, 768 y 1280 px. Ningún ancho es secundario.
+
+**Alternativas descartadas.** Primero móvil (fue la primera respuesta del responsable, que la cambió
+después) y primero escritorio.
+
+**Motivo.** La búsqueda inmobiliaria se usa en los dos contextos, y la investigación recomienda
+disposiciones distintas para cada uno (vista dividida en escritorio, lista primero en móvil).
+
+---
+
+## 130 — Verificación visual con Playwright y axe, con capturas de referencia generadas en Linux
+
+**Estado:** aceptada
+
+**Decisión.** El paso D.1 añade Playwright y `@axe-core/playwright` como dependencias de desarrollo
+de `apps/web`, con una base de datos sembrada, teselas falsas y capturas de referencia generadas en
+Docker (Linux).
+
+**Alternativas descartadas.** Solo el MCP de Playwright: sirve para explorar, pero no deja una prueba
+reproducible ni versionada. Solo revisión manual: no deja evidencia comparable entre pasos.
+
+**Motivo.** Las capturas de referencia dependen de la plataforma; generarlas siempre en Linux evita
+diferencias falsas entre Windows y el contenedor.
+
+---
+
+## 131 — Las funciones nuevas de la ficha son pasos propios del plan de diseño
+
+**Estado:** aceptada
+
+**Decisión.** El histórico de precios (D.10), el mapa de ubicación (D.11) y la comparación de fuentes
+(D.12) entran en el plan como pasos separados de la presentación de la ficha (D.9).
+
+**Alternativas descartadas.** Limitar el plan a diseño puro, sin funciones nuevas.
+
+**Motivo.** Los datos ya existen (`listing_versions`, coordenadas, anuncios por vivienda) y dan
+sentido a la ficha. Separarlos mantiene cada paso dentro del presupuesto de revisión y deja claro qué
+pasos añaden consultas.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
@@ -2675,3 +3843,17 @@ detección y corrección.
   la base de datos apuntada por `DATABASE_URL`, que en desarrollo es la misma que contiene
   datos reales ingeridos. Requiere una segunda `DATABASE_URL` de test o un guardián que
   rechace truncar una base de datos que no sea la designada.
+  El paso 2.4 volvió a toparse con ello (ver `docs/AI-NOTES.md`); su banco ya usa bases
+  separadas con el guardián de nombre `_bench`, que podría reutilizarse aquí.
+- **Estimación de cardinalidad geográfica** (decisión 101): el planificador estima 100 filas
+  dentro de un radio de 25 km donde caen ~600.000. Revisar las estadísticas de
+  `location_geography` antes de confiar en otras decisiones del planificador sobre filtros
+  geográficos.
+- **Índice redundante** `properties_operation_property_type_idx` (decisiones 051 y 100): los dos
+  índices compuestos nuevos empiezan por las mismas columnas. Eliminarlo tras comprobar que
+  ningún plan lo prefiere.
+- **Valores operativos del refresco** (decisiones 103-105): `REFRESH_BUDGET_FRACTION`,
+  `MAINTENANCE_EVERY_TICKS` (20 por defecto en el script), `MAX_VERIFICATION_REQUESTS_PER_TICK` (2) y
+  `VERIFICATION_RADIUS_MARGIN_M` (500). Los fija el responsable por entorno.
+- ~~**Resultado de la sonda `adIds`** (decisión 105)~~: resuelto el 2026-09-30, `omitted`, y la
+  constante está en `true`.

@@ -70,3 +70,55 @@ describe('renderLedgerReport', () => {
     expect(report).not.toContain('AVISO');
   });
 });
+
+// ROADMAP 2.5 (refresh-retention-policy, S3; decisión 105, U3) — el tope de la
+// sonda pasa a ser configurable SIN cambiar el valor por defecto (1): la sonda
+// de `adIds` hace hasta 3 peticiones de búsqueda facturables y nada más.
+describe('createRequestLedger — tope configurable (S-LR-21)', () => {
+  it('por defecto el tope sigue siendo 1 por tipo (la sonda original no cambia)', () => {
+    const ledger = createRequestLedger();
+    ledger.spend('search');
+
+    expect(() => {
+      ledger.spend('search');
+    }).toThrow(/máximo 1/);
+  });
+
+  it('con tope de búsqueda 3 se permiten tres y la CUARTA se rechaza antes de contarse', () => {
+    const ledger = createRequestLedger({ search: 3 });
+    ledger.spend('search');
+    ledger.spend('search');
+    ledger.spend('search');
+
+    expect(() => {
+      ledger.spend('search');
+    }).toThrow(/máximo 3/);
+    expect(ledger.snapshot()).toEqual({ token: 0, search: 3 });
+  });
+
+  it('el tope de búsqueda configurado NO relaja el de token: sigue en 1 salvo que se configure', () => {
+    const ledger = createRequestLedger({ search: 3 });
+    ledger.spend('token');
+
+    expect(() => {
+      ledger.spend('token');
+    }).toThrow(/máximo 1/);
+  });
+
+  it('un tope de token configurado se respeta por separado', () => {
+    const ledger = createRequestLedger({ token: 2 });
+    ledger.spend('token');
+    ledger.spend('token');
+
+    expect(() => {
+      ledger.spend('token');
+    }).toThrow(/máximo 2/);
+  });
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    'un tope inválido (%s) se rechaza al construir el contador: nunca un tope implícito ni ilimitado',
+    (cap) => {
+      expect(() => createRequestLedger({ search: cap })).toThrow(RangeError);
+    }
+  );
+});

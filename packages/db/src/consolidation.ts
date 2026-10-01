@@ -23,6 +23,7 @@ import {
   properties,
   propertyListings,
 } from './tables.js';
+import { refreshPropertyVisibility } from './visibility.js';
 
 // Marcador de peso 0 para un listing sin duplicado detectado (D6): mismo
 // idioma ya establecido por `weights.ts`/`strategy.ts`/`classify.ts` en
@@ -136,6 +137,10 @@ export async function writeConsolidation(
       return row;
     }
 
+    // ROADMAP 2.5 (decisión 109): este mínimo (sobre TODO el grupo, activos o
+    // no) es solo el valor inicial de la fila. El paso 7 lo sobrescribe con
+    // `refreshPropertyVisibility`, que lo calcula entre los anuncios ACTIVOS
+    // (y solo cae al de todos si ninguno lo está).
     // D5: el precio consolidado es el MÍNIMO de las versiones VIGENTES de
     // TODO el grupo, deliberadamente no el del ganador (A5) — suelen ser
     // listings distintos. `::int` explícito por el mismo motivo que
@@ -338,6 +343,13 @@ export async function writeConsolidation(
       const memberRows = buildPropertyListingsRows(group, winner.currentVersionId, propertyRow.id);
       await tx.insert(propertyListings).values(memberRows);
     }
+
+    // Paso 7 (ROADMAP 2.5, decisión 109): caché de visibilidad. La caché entera
+    // se acaba de reconstruir, así que se recalcula para todas las viviendas
+    // (`active_listing_count` y precio mínimo solo de los anuncios activos) en
+    // la MISMA transacción. La agrupación de arriba sigue siendo ajena al
+    // estado (decisión 068): un anuncio inactivo es miembro del grupo igual.
+    await refreshPropertyVisibility(tx, { all: true });
 
     return { runId: run.id, propertiesCreated, startedAt: run.startedAt };
   });

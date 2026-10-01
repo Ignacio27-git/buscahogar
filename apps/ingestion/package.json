@@ -17,11 +17,16 @@
     "probe:homes": "node --env-file=../../.env --import tsx scripts/probe-idealista.ts --profile homes",
     "probe:premises": "node --env-file=../../.env --import tsx scripts/probe-idealista.ts --profile premises",
     "probe:analyse": "node --import tsx scripts/probe-idealista.ts --analyse",
+    "probe:adids": "node --env-file=../../.env --import tsx scripts/probe-idealista-adids.ts",
     "sweep": "node --env-file=../../.env --import tsx scripts/sweep-zone.ts",
     "calibrate": "node --env-file=../../.env --import tsx scripts/calibrate-blocking.ts",
+    "compare-strategies": "node --import tsx scripts/compare-dedup-strategies.ts",
     "reprocess": "node --env-file=../../.env --import tsx scripts/reprocess-dedup.ts",
     "worker": "node --env-file=../../.env --import tsx scripts/coverage-worker.ts",
-    "backfill-thumbnails": "node --env-file=../../.env --import tsx scripts/backfill-thumbnails.ts"
+    "backfill-thumbnails": "node --env-file=../../.env --import tsx scripts/backfill-thumbnails.ts",
+    "gen-corpus": "node --env-file=../../.env --import tsx scripts/generate-search-corpus.ts",
+    "bench-search": "node --env-file=../../.env --import tsx scripts/bench-search.ts",
+    "bench-report": "node --import tsx scripts/render-bench-report.ts"
   },
   "dependencies": {
     "@buscahogar/core": "workspace:*",
@@ -29,6 +34,7 @@
     "drizzle-orm": "0.45.2",
     "fast-xml-parser": "5.11.1",
     "pg": "8.23.0",
+    "sharp": "0.34.2",
     "zod": "4.5.4"
   },
   "devDependencies": {

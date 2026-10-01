@@ -15,19 +15,13 @@ import type { ReactElement } from 'react';
 
 import type { PropertySearchResult } from '@buscahogar/db';
 
+import { formatPriceCents } from '@/lib/format-price';
 import { buildPropertyDetailHref } from '@/lib/property-href';
 
 import { resolveThumbnailSource } from './thumbnail-source';
 
 export interface ResultCardProps {
   readonly result: PropertySearchResult;
-}
-
-function formatPriceCents(cents: number | null): string {
-  if (cents === null) {
-    return 'Precio no disponible';
-  }
-  return `${(cents / 100).toLocaleString('es-ES')} €`;
 }
 
 export function ResultCard({ result }: ResultCardProps): ReactElement {

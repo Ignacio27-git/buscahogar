@@ -23,13 +23,27 @@ function toSql(criteria: PropertySearchCriteria): { sql: string; params: unknown
 }
 
 describe('buildPropertySearchQuery — filtro ausente no añade predicado (7 filtros)', () => {
-  it('sin ningún filtro, no hay ningún WHERE de nivel superior entre FROM y ORDER BY', () => {
+  it('sin ningún filtro, el único predicado de nivel superior es el de visibilidad (active_listing_count > 0)', () => {
     const { sql } = toSql(BASE);
-    // El WHERE de la subconsulta correlacionada del recuento de fuentes
-    // (dentro de sus propios paréntesis) no cuenta: solo importa si el
-    // FROM principal encadena directamente con ORDER BY, sin ningún WHERE
-    // de nivel superior entre medias.
-    expect(sql).toMatch(/from "properties" order by/i);
+    // ROADMAP 2.5 (decisión 109): toda búsqueda exige al menos un anuncio
+    // activo. Es el ÚNICO predicado cuando no hay filtros de usuario: la regla
+    // NULL (A-2) sigue vigente para los siete filtros — un filtro ausente no
+    // añade nada más. El WHERE de la subconsulta correlacionada del recuento
+    // de fuentes (dentro de sus propios paréntesis) no cuenta.
+    expect(sql).toMatch(/from "properties" where "properties"\."active_listing_count" > 0 order by/i);
+  });
+});
+
+describe('buildPropertySearchQuery — visibilidad: solo viviendas con algún anuncio activo (PS-1, S-PS-2)', () => {
+  it('el predicado de visibilidad está presente con cualquier combinación de filtros', () => {
+    const { sql } = toSql({ ...BASE, operation: 'sale', minPriceCents: 1, sort: 'price', dir: 'asc' });
+    expect(sql).toMatch(/"properties"\."active_listing_count" > 0/);
+  });
+
+  it('es un filtro sobre la caché de properties: el FROM de nivel superior no lleva ningún join (PS-7)', () => {
+    const { sql } = toSql(BASE);
+    expect(sql).toMatch(/from "properties" where/i);
+    expect(sql).not.toMatch(/from "properties"\s+(inner |left |cross )?join/i);
   });
 });
 

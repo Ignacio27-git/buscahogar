@@ -1,0 +1,249 @@
+{
+  "sharp": "0.34.2",
+  "libvips": "8.16.1",
+  "algorithm": "dct-phash-64",
+  "cropMargin": 0.05,
+  "lowEntropyStddev": 10,
+  "entries": {
+    "fixture-image:calib/calib-facade-1-crop": {
+      "kind": "hashed",
+      "hash": "978545723a559acd",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-facade-1-jpeg": {
+      "kind": "hashed",
+      "hash": "95d44c73ab22c5ad",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-facade-1-original": {
+      "kind": "hashed",
+      "hash": "95d44c73ab22c5ad",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-facade-1-overlay": {
+      "kind": "hashed",
+      "hash": "95d44c73ab22c5ad",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-facade-1-portalA": {
+      "kind": "hashed",
+      "hash": "95d44c72ab2ac5ad",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-facade-1-portalB": {
+      "kind": "hashed",
+      "hash": "95d44c72abe2c5a9",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-facade-1-rescale": {
+      "kind": "hashed",
+      "hash": "95d44c73ab22c5ad",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-facade-1-webp": {
+      "kind": "hashed",
+      "hash": "95d44c73ab22c5ad",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-facade-2-crop": {
+      "kind": "hashed",
+      "hash": "afa555b614b495a4",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-facade-2-jpeg": {
+      "kind": "hashed",
+      "hash": "bd9452aad1d1d1d1",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-facade-2-original": {
+      "kind": "hashed",
+      "hash": "bd9452aad1d1d1d1",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-facade-2-overlay": {
+      "kind": "hashed",
+      "hash": "bd9452aad1d1d1d1",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-facade-2-portalA": {
+      "kind": "hashed",
+      "hash": "bd9452aad2d1d1c9",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-facade-2-portalB": {
+      "kind": "hashed",
+      "hash": "bd9452aa51d1d1d9",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-facade-2-rescale": {
+      "kind": "hashed",
+      "hash": "bd9452aad1d1d1d1",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-facade-2-webp": {
+      "kind": "hashed",
+      "hash": "bd9452aad1d1d1d1",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-kitchen-1-crop": {
+      "kind": "hashed",
+      "hash": "b9e20679b6798916",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-kitchen-1-jpeg": {
+      "kind": "hashed",
+      "hash": "b9e14e79a15c6916",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-kitchen-1-original": {
+      "kind": "hashed",
+      "hash": "b9e14e79a15c6916",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-kitchen-1-overlay": {
+      "kind": "hashed",
+      "hash": "d9e94679c1586996",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-kitchen-1-portalA": {
+      "kind": "hashed",
+      "hash": "b9e1ce78a154a996",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-kitchen-1-portalB": {
+      "kind": "hashed",
+      "hash": "f9e14c79a1d46994",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-kitchen-1-rescale": {
+      "kind": "hashed",
+      "hash": "b9e14e79a15c6916",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-kitchen-1-webp": {
+      "kind": "hashed",
+      "hash": "b9e14e79a15c6916",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-kitchen-2-crop": {
+      "kind": "hashed",
+      "hash": "e6ea31e6b8c2c23c",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-kitchen-2-jpeg": {
+      "kind": "hashed",
+      "hash": "e0ed31cec08bcf38",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-kitchen-2-original": {
+      "kind": "hashed",
+      "hash": "e0ed31cec08bcf38",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-kitchen-2-overlay": {
+      "kind": "hashed",
+      "hash": "c0ed31ced08bcf38",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-kitchen-2-portalA": {
+      "kind": "hashed",
+      "hash": "e0ed31ced08bc6b8",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-kitchen-2-portalB": {
+      "kind": "hashed",
+      "hash": "e0ed31cec08b4fb8",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-kitchen-2-rescale": {
+      "kind": "hashed",
+      "hash": "e0ed31cec08bcf38",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-kitchen-2-webp": {
+      "kind": "hashed",
+      "hash": "e0ed31cec08bcf38",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-living-room-1-crop": {
+      "kind": "hashed",
+      "hash": "975443af54a91ab5",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-living-room-1-jpeg": {
+      "kind": "hashed",
+      "hash": "975c46a97e692159",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-living-room-1-original": {
+      "kind": "hashed",
+      "hash": "975c46a97e692159",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-living-room-1-overlay": {
+      "kind": "hashed",
+      "hash": "975c46a97e692159",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-living-room-1-portalA": {
+      "kind": "hashed",
+      "hash": "975c40a9f4e9a1d9",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-living-room-1-portalB": {
+      "kind": "hashed",
+      "hash": "975444a57ceb315a",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-living-room-1-rescale": {
+      "kind": "hashed",
+      "hash": "975c46a97e692159",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-living-room-1-webp": {
+      "kind": "hashed",
+      "hash": "975c46a97e692159",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-living-room-2-crop": {
+      "kind": "hashed",
+      "hash": "a0d86757c891ba6e",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-living-room-2-jpeg": {
+      "kind": "hashed",
+      "hash": "b5ca6a72c891ba74",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-living-room-2-original": {
+      "kind": "hashed",
+      "hash": "b5ca6a72c891ba74",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-living-room-2-overlay": {
+      "kind": "hashed",
+      "hash": "95ca6a37d881f07c",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-living-room-2-portalA": {
+      "kind": "hashed",
+      "hash": "b5ca6a76c881b2f4",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-living-room-2-portalB": {
+      "kind": "hashed",
+      "hash": "95ca6a7648917af4",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-living-room-2-rescale": {
+      "kind": "hashed",
+      "hash": "b5ca6a76c881ba74",
+      "lowEntropy": false
+    },
+    "fixture-image:calib/calib-living-room-2-webp": {
+      "kind": "hashed",
+      "hash": "b5ca6a72c891ba74",
+      "lowEntropy": false
+    }
+  }
+}

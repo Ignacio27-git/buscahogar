@@ -24,6 +24,18 @@ function absent(detail: string): SignalScore {
   return { value: 0, weight: 0, detail };
 }
 
+// Extraída en ROADMAP 2.2 (decisión 088) del cálculo que scorePrice y
+// scoreSurface ya hacían inline, SIN cambiar el ratio: diferencia absoluta
+// sobre el MÁXIMO de los dos valores, nunca sobre la media ni sobre el
+// primer operando — así el ratio es simétrico. Reutilizada también por los
+// niveles graduados de la estrategia probabilística (strategies/probabilistic/,
+// decisión 085), que comparan contra los mismos puntos de corte medidos
+// aquí (10% relativo).
+export function relativeDifference(a: number, b: number): number {
+  const max = Math.max(a, b);
+  return Math.abs(a - b) / max;
+}
+
 // Distancia: decae linealmente hasta 0 a DISTANCE_ZERO_M = 100 m. Ausente si
 // falta `coordinates` en cualquiera de los dos lados.
 export function scoreDistance(a: Coordinates | undefined, b: Coordinates | undefined): SignalScore {
@@ -40,8 +52,7 @@ export function scoreDistance(a: Coordinates | undefined, b: Coordinates | undef
 // Precio: SIEMPRE evaluable — `priceCents` es obligatorio y positivo en
 // `listingSchema` (RDS-1a), así que esta función no admite `undefined`.
 export function scorePrice(priceCentsA: number, priceCentsB: number): SignalScore {
-  const maxPrice = Math.max(priceCentsA, priceCentsB);
-  const ratio = Math.abs(priceCentsA - priceCentsB) / maxPrice;
+  const ratio = relativeDifference(priceCentsA, priceCentsB);
   const value = clamp01(1 - ratio / PRICE_ZERO_RATIO);
 
   return { value, weight: WEIGHTS.price, detail: `diferencia de precio ${(ratio * 100).toFixed(1)}%` };
@@ -55,8 +66,7 @@ export function scoreSurface(a: number | undefined, b: number | undefined): Sign
     return absent('superficie ausente en uno de los dos anuncios');
   }
 
-  const maxSurface = Math.max(a, b);
-  const ratio = Math.abs(a - b) / maxSurface;
+  const ratio = relativeDifference(a, b);
   const value = clamp01(1 - ratio / SURFACE_ZERO_RATIO);
 
   return { value, weight: WEIGHTS.surface, detail: `diferencia de superficie ${(ratio * 100).toFixed(1)}%` };

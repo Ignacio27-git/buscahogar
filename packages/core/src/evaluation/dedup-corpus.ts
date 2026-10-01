@@ -1,6 +1,6 @@
-import type { Coordinates } from '../src/types/coordinates.js';
-import type { Listing } from '../src/schemas/listing.schema.js';
-import { makeListing } from './test-helpers.js';
+import type { Coordinates } from '../types/coordinates.js';
+import type { Listing } from '../schemas/listing.schema.js';
+import { makeListing } from './make-listing.js';
 
 // Corpus de pares etiquetados (CORP-1) para la primera DedupStrategy
 // (ROADMAP 1.9). Cada entrada lleva SIEMPRE una `rationale` no vacía
@@ -15,11 +15,20 @@ import { makeListing } from './test-helpers.js';
 // contra `classify(strategy.score(a, b))` en dedup-corpus.test.ts.
 export type ExpectedBand = 'accept' | 'undecided' | 'reject';
 
+// Verdad terreno (obs #284, maintainer-confirmed 2026-09-25), INDEPENDIENTE
+// de `expected`: `expected` es la banda DISEÑADA de rule-based, no verdad
+// terreno — por ejemplo hn-8 es 'accept' por diseño (RDS-7, falso positivo
+// irreducible) pero 'distinct' en verdad terreno. Las métricas de
+// evaluación (precision/recall/F1) se calculan siempre sobre `truth`, nunca
+// sobre `expected` (design.md, decisión 089).
+export type GroundTruth = 'duplicate' | 'distinct';
+
 export interface CorpusEntry {
   readonly id: string;
   readonly a: Listing;
   readonly b: Listing;
   readonly expected: ExpectedBand;
+  readonly truth: GroundTruth;
   readonly rationale: string;
 }
 
@@ -60,6 +69,7 @@ const truePositives: CorpusEntry[] = [
       address: 'Piso en Calle de Sagasta 12, Madrid',
     }),
     expected: 'accept',
+    truth: 'duplicate',
     rationale:
       'Mismo piso publicado dos veces: coordenadas casi idénticas (5 m), precio y superficie a menos de un 3% de diferencia, misma dirección de nivel de calle, mismas habitaciones y baños.',
   },
@@ -84,6 +94,7 @@ const truePositives: CorpusEntry[] = [
       address: 'Piso en Calle de Fuencarral, Trafalgar, Madrid',
     }),
     expected: 'accept',
+    truth: 'duplicate',
     rationale:
       'Mismo piso anunciado en dos fuentes distintas (idealista y fotocasa, sourceId distinto — CORP-2 exige al menos un caso así). Coordenadas, precio, superficie y dirección coinciden dentro de margen.',
   },
@@ -106,6 +117,7 @@ const truePositives: CorpusEntry[] = [
       address: 'Piso en Calle de Sagasta 12, Madrid',
     }),
     expected: 'accept',
+    truth: 'duplicate',
     rationale:
       'CORP-2a: superficie ausente en un lado, pero el resto de señales (distancia, precio, dirección, habitaciones, baños) siguen evaluándose a peso completo — RDS-3 exige que ninguna señal ausente penalice a las demás.',
   },
@@ -130,6 +142,7 @@ const truePositives: CorpusEntry[] = [
       address: 'Local en Calle de la Reina, Chueca-Justicia, Madrid',
     }),
     expected: 'accept',
+    truth: 'duplicate',
     rationale:
       'RDS-3a: par `premises` sin habitaciones ni baños (dato estructuralmente ausente en ese tipo de inmueble). La normalización por peso efectivo evita que la ausencia penalice: distancia, precio, superficie y dirección de nivel de calle bastan para aceptar.',
   },
@@ -152,6 +165,7 @@ const truePositives: CorpusEntry[] = [
       address: 'Piso en Calle de Carranza, Malasaña-Universidad, Madrid',
     }),
     expected: 'accept',
+    truth: 'duplicate',
     rationale:
       'Distancia mayor que en el resto de positivos (40 m, aún dentro del radio típico de bloqueo), compensada por precio, superficie, dirección de nivel de calle y habitaciones/baños casi idénticos.',
   },
@@ -174,6 +188,7 @@ const truePositives: CorpusEntry[] = [
       address: 'Piso en Calle de Trafalgar, Trafalgar, Madrid',
     }),
     expected: 'accept',
+    truth: 'duplicate',
     rationale:
       'Dos portales deletrean la dirección de forma distinta (evidencia débil en contra, peso 8 — decisión 047), pero coordenadas, precio, superficie, habitaciones y baños casi idénticos bastan para aceptar igualmente.',
   },
@@ -204,6 +219,7 @@ const easyNegatives: CorpusEntry[] = [
       address: 'Ático en Glorieta de Ruiz Giménez, Malasaña-Universidad, Madrid',
     }),
     expected: 'reject',
+    truth: 'distinct',
     rationale:
       'Viviendas inequívocamente distintas: 5 km de distancia, precio y superficie con márgenes enormes, direcciones y habitaciones/baños distintos.',
   },
@@ -226,6 +242,7 @@ const easyNegatives: CorpusEntry[] = [
       address: 'Local en Plaza de Pedro Zerolo, Chueca-Justicia, Madrid',
     }),
     expected: 'reject',
+    truth: 'distinct',
     rationale: 'Precio y superficie separados por márgenes muy por encima del punto de corte (10% relativo).',
   },
   {
@@ -249,6 +266,7 @@ const easyNegatives: CorpusEntry[] = [
       address: 'Piso en Calle de Sagasta 12, Madrid',
     }),
     expected: 'reject',
+    truth: 'distinct',
     rationale:
       'CORP-4a: coordenadas, precio y superficie IDÉNTICOS (score acumulado alto), pero `propertyType` distinto (flat vs. commercial). El veto (BAND-2) fuerza `reject` a pesar del score alto.',
   },
@@ -273,6 +291,7 @@ const easyNegatives: CorpusEntry[] = [
       address: 'Piso en Calle de Sagasta 12, Madrid',
     }),
     expected: 'reject',
+    truth: 'distinct',
     rationale:
       'Mismas coordenadas, precio y superficie, pero `operation` distinta (sale vs. rent — probablemente el mismo piso en venta y en alquiler, no la misma transacción). El veto fuerza `reject`.',
   },
@@ -295,6 +314,7 @@ const easyNegatives: CorpusEntry[] = [
       address: 'Piso en San Andres, Malasaña-Universidad, Madrid',
     }),
     expected: 'reject',
+    truth: 'distinct',
     rationale:
       'Habitaciones y baños coinciden, pero distancia (1 km), precio y superficie están muy por encima del punto de corte — coincidencia parcial que no basta.',
   },
@@ -317,6 +337,7 @@ const easyNegatives: CorpusEntry[] = [
       address: 'Piso en Malasaña-Universidad, Madrid',
     }),
     expected: 'reject',
+    truth: 'distinct',
     rationale: 'Distintos en distancia, precio, superficie, dirección, habitaciones y baños simultáneamente.',
   },
 ];
@@ -348,6 +369,7 @@ const hardNegatives: CorpusEntry[] = [
       address: 'Piso en Trafalgar, Madrid',
     }),
     expected: 'undecided',
+    truth: 'distinct',
     rationale:
       'CORP-3a: mismo bloque, comparten la cadena street-less "Piso en Trafalgar, Madrid" (obs #143, 10/50 anuncios reales, 45 pares) — degrada a addressZone (peso 8), nunca addressExact. Habitaciones distintas y precio/superficie con margen moderado: viviendas distintas del mismo edificio, nunca `accept`.',
   },
@@ -370,6 +392,7 @@ const hardNegatives: CorpusEntry[] = [
       address: 'Piso en Trafalgar, Madrid',
     }),
     expected: 'undecided',
+    truth: 'distinct',
     rationale:
       'Mismo bloque, misma cadena street-less "Piso en Trafalgar, Madrid" degradada a addressZone. Mismas habitaciones pero baños distintos, precio/superficie cercanos: parecido, pero no concluyente — nunca `accept`.',
   },
@@ -392,6 +415,7 @@ const hardNegatives: CorpusEntry[] = [
       address: 'Piso en Trafalgar, Madrid',
     }),
     expected: 'undecided',
+    truth: 'distinct',
     rationale:
       'Misma cadena street-less degradada a zona; mismas habitaciones/baños, pero precio y superficie separados por un margen amplio: evidencia mixta, nunca `accept`.',
   },
@@ -414,6 +438,7 @@ const hardNegatives: CorpusEntry[] = [
       address: 'Piso en Trafalgar, Madrid',
     }),
     expected: 'reject',
+    truth: 'distinct',
     rationale:
       'Misma cadena street-less degradada a zona, pero habitaciones, baños, precio y superficie distintos simultáneamente: la única prueba de similitud real es la zona — insuficiente, `reject`.',
   },
@@ -436,6 +461,7 @@ const hardNegatives: CorpusEntry[] = [
       address: 'Piso en Calle de Sagasta, Trafalgar, Madrid',
     }),
     expected: 'undecided',
+    truth: 'distinct',
     rationale:
       'Misma dirección de NIVEL DE CALLE (addressExact, peso 25 — evidencia fuerte), pero habitaciones distintas: dos pisos distintos del mismo edificio con el mismo portal. La dirección fuerte sola no basta para aceptar (RDS-4, el piso de evidencia).',
   },
@@ -458,6 +484,7 @@ const hardNegatives: CorpusEntry[] = [
       address: 'Piso en Calle de Fuencarral, Trafalgar, Madrid',
     }),
     expected: 'undecided',
+    truth: 'distinct',
     rationale:
       'Segunda pareja con dirección de nivel de calle igual pero habitaciones distintas, en una calle distinta a hn-5, para no depender de una sola cadena de dirección.',
   },
@@ -480,6 +507,7 @@ const hardNegatives: CorpusEntry[] = [
       address: 'Piso en Calle de Sagasta 12, Madrid',
     }),
     expected: 'undecided',
+    truth: 'distinct',
     rationale:
       'Misma dirección de nivel de calle Y mismas habitaciones/baños — probablemente el mismo edificio y el mismo tipo de piso, pero precio y superficie difieren lo bastante como para no ser concluyentes. Distinguir de verdad este caso (¿mismo piso, otro anuncio con precio desactualizado, o piso distinto en otra planta?) necesita la señal `floor`, fuera de alcance en ROADMAP 1.9 (texto libre sin normalizador todavía) — documentado como limitación, no resuelto aquí.',
   },
@@ -502,6 +530,12 @@ const hardNegatives: CorpusEntry[] = [
       address: 'Piso en Calle de Sagasta 12, Madrid',
     }),
     expected: 'accept',
+    // truth: 'distinct', NO 'duplicate' pese a expected: 'accept' — este es
+    // exactamente el "CRITICAL FINDING" del diseño (obs #283/#284): hn-8 es
+    // el falso positivo irreducible de RDS-7, aceptado por diseño pero DOS
+    // viviendas distintas en verdad terreno. Puntuar contra `expected` aquí
+    // sería circular.
+    truth: 'distinct',
     rationale:
       'RDS-7: idéntico en TODOS los campos estructurados que la estrategia evalúa (coordenadas, precio, superficie, dirección de nivel de calle, habitaciones, baños). Bajo la normalización por peso efectivo (decisión 049), esto normaliza a score EXACTAMENTE 1.0 por construcción — ninguna regla puede bajarlo sin inventar evidencia que no existe. Es el falso positivo IRREDUCIBLE de una estrategia solo de datos estructurados: distinguir "el mismo piso publicado dos veces" de "dos viviendas distintas que comparten por casualidad cada campo estructurado" exigiría una señal de imagen, diferida por decisión 006. Documentado como límite conocido, NO como negativo difícil superado.',
   },
@@ -534,6 +568,7 @@ const missingData: CorpusEntry[] = [
       address: 'Local en Calle de Pizarro, Malasaña-Universidad, Madrid',
     }),
     expected: 'accept',
+    truth: 'duplicate',
     rationale:
       'CORP-5 / RDS-3a: par `premises` sin habitaciones ni baños en ninguno de los dos lados (dato estructuralmente ausente para ese tipo). El resto de señales evaluadas (distancia, precio, superficie, dirección de nivel de calle) bastan para aceptar — la ausencia no penaliza sistemáticamente.',
   },
@@ -556,6 +591,10 @@ const missingData: CorpusEntry[] = [
       address: 'Piso en Calle de Sagasta 12, Madrid',
     }),
     expected: 'undecided',
+    // truth: 'duplicate' (maintainer-confirmed, obs #284) — falso negativo
+    // hoy para rule-based (`expected: 'undecided'`): evidencia insuficiente
+    // por diseño, no una vivienda distinta.
+    truth: 'duplicate',
     rationale:
       'CORP-5: coordenadas ausentes en un lado (fuente sin geolocalización en ese anuncio concreto) — `distance` queda marcada ausente, peso 0, excluida del denominador. El resto de señales, con margen moderado, deja el par en zona de revisión, no de aceptación automática.',
   },
@@ -578,6 +617,7 @@ const missingData: CorpusEntry[] = [
       address: undefined,
     }),
     expected: 'accept',
+    truth: 'duplicate',
     rationale:
       'ADX-5 / CORP-5: dirección ausente en los dos lados (ninguna fuente la aportó) — addressExact y addressZone quedan marcadas ausentes, peso 0, excluidas del denominador. Por diseño, la ausencia no arrastra el score hacia abajo como lo haría un desacuerdo (decisión 047): el resto de señales, todas fuertes, basta para aceptar.',
   },
@@ -600,6 +640,10 @@ const missingData: CorpusEntry[] = [
       address: undefined,
     }),
     expected: 'undecided',
+    // truth: 'duplicate' (maintainer-confirmed, obs #284) — falso negativo
+    // hoy para AMBAS estrategias por diseño (evidencia insuficiente, nunca
+    // alcanza `accept`), no una vivienda distinta.
+    truth: 'duplicate',
     rationale:
       'CORP-5a / RDS-4: solo `distance` y `price` son evaluables (peso efectivo máximo 25+15=40, por debajo del piso de 55) — aunque ambas coincidan casi al máximo, el piso de evidencia mínima (RDS-4) impide `accept` con solo dos señales. Nunca alcanza `accept`.',
   },

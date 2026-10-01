@@ -52,7 +52,66 @@ const EnvSchema = z.object({
   POLL_INTERVAL_MS: z.string().min(1).optional(),
   MAX_SEARCH_REQUESTS_PER_SWEEP: z.string().min(1).optional(),
   MAX_ATTEMPTS: z.string().min(1).optional(),
+  // ROADMAP 2.5 (decisión 104). Se validan con Zod más abajo (mensaje que
+  // nombra la variable); aquí solo se declara que existen. Sin `.min(1)` a
+  // propósito: una cadena vacía debe llegar al validador y rechazarse, no
+  // tratarse como ausente.
+  REFRESH_BUDGET_FRACTION: z.string().optional(),
+  MAINTENANCE_EVERY_TICKS: z.string().min(1).optional(),
+  // ROADMAP 2.5 (S3; decisión 105): verificación de presencia por `adIds`.
+  // Validadas más abajo; una cadena vacía se rechaza, no se trata como ausente.
+  MAX_VERIFICATION_REQUESTS_PER_TICK: z.string().optional(),
+  VERIFICATION_RADIUS_MARGIN_M: z.string().optional(),
 });
+
+// ROADMAP 2.5 (refresh-retention-policy, S1; decisión 104, S-ZRS-18) —
+// fracción del tope diario que el refresco puede gastar EN TOTAL. Es una
+// decisión de operación (decisión 066: nunca un número inventado en código):
+// AUSENTE = 0, el refresco queda desactivado y no gasta cuota. `0` lo
+// desactiva explícitamente; `1` deja todo el tope al refresco.
+const refreshBudgetFractionSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .transform(Number)
+  .pipe(z.number().min(0).max(1));
+const DEFAULT_REFRESH_BUDGET_FRACTION = 0;
+// El worker sondea cada `POLL_INTERVAL_MS` (15 s por defecto): 20 ticks ≈ 5
+// minutos entre pasadas de mantenimiento, con el primer tick incluido.
+const DEFAULT_MAINTENANCE_EVERY_TICKS = 20;
+// ROADMAP 2.5 (S3; decisión 105) — valores PRUDENTES por defecto: cada petición
+// de verificación es facturable y la cuota es mensual. Con la fracción de
+// refresco en 0 la verificación no corre, así que estos valores no gastan nada
+// por sí solos.
+const DEFAULT_MAX_VERIFICATION_REQUESTS_PER_TICK = 2;
+// Margen sobre el radio de barrido: evita que un anuncio cerca del borde (o con
+// coordenada ofuscada) quede fuera de la petición de verificación.
+const DEFAULT_VERIFICATION_RADIUS_MARGIN_M = 500;
+
+function parseNonNegativeInteger(name: string, value: string): number {
+  const parsed = z
+    .string()
+    .trim()
+    .regex(/^\d+$/)
+    .safeParse(value);
+  if (!parsed.success) {
+    throw new WorkerEnvError(`${name} inválido "${value}": se espera un entero no negativo.`);
+  }
+  return Number(parsed.data);
+}
+
+function parseRefreshBudgetFraction(value: string | undefined): number {
+  if (value === undefined) {
+    return DEFAULT_REFRESH_BUDGET_FRACTION;
+  }
+  const parsed = refreshBudgetFractionSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new WorkerEnvError(
+      `REFRESH_BUDGET_FRACTION inválido "${value}": se espera un número entre 0 y 1 (0 desactiva el refresco).`
+    );
+  }
+  return parsed.data;
+}
 
 const DEFAULT_POLL_INTERVAL_MS = 15_000;
 const DEFAULT_MAX_SEARCH_REQUESTS_PER_SWEEP = 10;
@@ -63,6 +122,8 @@ export interface WorkerEnv {
   readonly apiSecret: string;
   readonly databaseUrl: string;
   readonly options: CoverageWorkerOptions;
+  // Margen (m) que la verificación suma al radio de la zona (S3).
+  readonly verificationRadiusMarginM: number;
   readonly blockingThresholds: ReturnType<typeof blockingThresholdsSchema.parse>;
 }
 
@@ -119,7 +180,20 @@ export function readEnv(env: Readonly<Record<string, string | undefined>>): Work
       dailySearchCap: parsePositiveInteger('DAILY_SEARCH_CAP', raw.DAILY_SEARCH_CAP),
       maxAttempts:
         raw.MAX_ATTEMPTS !== undefined ? parsePositiveInteger('MAX_ATTEMPTS', raw.MAX_ATTEMPTS) : DEFAULT_MAX_ATTEMPTS,
+      refreshBudgetFraction: parseRefreshBudgetFraction(raw.REFRESH_BUDGET_FRACTION),
+      maintenanceEveryTicks:
+        raw.MAINTENANCE_EVERY_TICKS !== undefined
+          ? parsePositiveInteger('MAINTENANCE_EVERY_TICKS', raw.MAINTENANCE_EVERY_TICKS)
+          : DEFAULT_MAINTENANCE_EVERY_TICKS,
+      maxVerificationRequestsPerTick:
+        raw.MAX_VERIFICATION_REQUESTS_PER_TICK !== undefined
+          ? parsePositiveInteger('MAX_VERIFICATION_REQUESTS_PER_TICK', raw.MAX_VERIFICATION_REQUESTS_PER_TICK)
+          : DEFAULT_MAX_VERIFICATION_REQUESTS_PER_TICK,
     },
+    verificationRadiusMarginM:
+      raw.VERIFICATION_RADIUS_MARGIN_M !== undefined
+        ? parseNonNegativeInteger('VERIFICATION_RADIUS_MARGIN_M', raw.VERIFICATION_RADIUS_MARGIN_M)
+        : DEFAULT_VERIFICATION_RADIUS_MARGIN_M,
   };
 }
 
@@ -162,6 +236,8 @@ export async function main(): Promise<void> {
       maxSearchRequestsPerSweep: env.options.maxSearchRequestsPerSweep,
       maxAttempts: env.options.maxAttempts,
       dailySearchCap: env.options.dailySearchCap,
+      refreshBudgetFraction: env.options.refreshBudgetFraction,
+      presenceVerification: { operation: env.options.operation, radiusMarginM: env.verificationRadiusMarginM },
       blockingThresholds: env.blockingThresholds,
       io: {
         log: (line: string): void => {

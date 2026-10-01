@@ -15,9 +15,18 @@
 // Sin describeWithDb (D2): DATABASE_URL ya está garantizada por el
 // setupFile de esta config, mismo patrón que coverage-store.db.test.ts y
 // job-selection.db.test.ts.
-import { coverageJobs, dedupRuns, geographyPointWkt, listings, listingVersions, propertyListings, zones } from '@buscahogar/db';
+import {
+  coverageJobs,
+  dedupRuns,
+  geographyPointWkt,
+  listings,
+  listingVersions,
+  propertyListings,
+  reserveDailyBudget,
+  zones,
+} from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -226,5 +235,300 @@ describe('createRealCoverageWorkerPorts — CR-2: reutiliza runSweep/composeStor
     const linksA = await db.select().from(propertyListings).where(eq(propertyListings.listingId, listingA.id));
     const linksB = await db.select().from(propertyListings).where(eq(propertyListings.listingId, listingB.id));
     expect(linksA[0]?.propertyId).toBe(linksB[0]?.propertyId);
+  });
+});
+
+// ROADMAP 2.5 (refresh-retention-policy, S1; decisión 104, S-ZRS-9..13) — los
+// puertos REALES del carril de refresco contra PostgreSQL real, con la fuente
+// falsa: techo por carril sobre el gasto total, mantenimiento (señales +
+// re-encolado) y cortes de bucle. Ninguna llamada de red.
+
+// Cada página trae itemsPerPage elementos y `totalPages` enorme: el filtro
+// NUNCA se agota solo, así que solo el tope por barrido (o el presupuesto)
+// puede detener el bucle.
+function createNeverExhaustingSearchPort(): IdealistaSearchPort & { readonly calls: number } {
+  const state = { calls: 0 };
+  return {
+    get calls(): number {
+      return state.calls;
+    },
+    search(): Promise<TransportOutcome> {
+      state.calls += 1;
+      return Promise.resolve({
+        kind: 'ok',
+        status: 200,
+        headers: {},
+        body: {
+          elementList: [fakeElement(state.calls * 2), fakeElement(state.calls * 2 + 1)],
+          totalPages: 999,
+          actualPage: state.calls,
+          itemsPerPage: 2,
+          total: 1998,
+        },
+      });
+    },
+  };
+}
+
+function refreshOptions(overrides: Partial<CoverageWorkerOptions> = {}): CoverageWorkerOptions {
+  return {
+    operation: 'sale',
+    pollIntervalMs: 1,
+    maxSearchRequestsPerSweep: 10,
+    dailySearchCap: 500,
+    maxAttempts: 3,
+    maxTicks: 1,
+    refreshBudgetFraction: 0.2,
+    ...overrides,
+  };
+}
+
+describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)', () => {
+  let db: Database;
+  let pool: Pool;
+
+  beforeAll(() => {
+    ({ db, pool } = connectTestDb());
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  beforeEach(async () => {
+    await truncateAll(pool);
+  });
+
+  function buildPorts(
+    sourceUuid: string,
+    overrides: {
+      readonly searchPort?: IdealistaSearchPort;
+      readonly dailySearchCap?: number;
+      readonly maxSearchRequestsPerSweep?: number;
+      readonly refreshBudgetFraction?: number;
+    } = {}
+  ): ReturnType<typeof createRealCoverageWorkerPorts> {
+    return createRealCoverageWorkerPorts({
+      db,
+      sourceUuid,
+      searchPort: overrides.searchPort ?? createExhaustingSearchPort(),
+      tokenPort: createFakeTokenPort(),
+      maxSearchRequestsPerSweep: overrides.maxSearchRequestsPerSweep ?? 10,
+      maxAttempts: 3,
+      dailySearchCap: overrides.dailySearchCap ?? 500,
+      ...(overrides.refreshBudgetFraction !== undefined ? { refreshBudgetFraction: overrides.refreshBudgetFraction } : {}),
+      blockingThresholds: BLOCKING_THRESHOLDS,
+      io: { log: (): void => undefined },
+    });
+  }
+
+  async function seedCoveredZoneWithDoneJob(
+    sourceId: string,
+    sweptDaysAgo: number
+  ): Promise<{ readonly zoneId: string; readonly jobId: string }> {
+    const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
+    await db
+      .update(zones)
+      .set({ state: 'covered', lastSweptAt: sql`now() - (${sweptDaysAgo}::integer * interval '1 day')` })
+      .where(eq(zones.id, zoneId));
+    const [job] = await db
+      .insert(coverageJobs)
+      .values({ zoneId, sourceId, status: 'done' })
+      .returning({ id: coverageJobs.id });
+    if (!job) throw new Error('fixture no insertado');
+    await db.execute(sql`insert into zone_query_signals (zone_id) values (${zoneId})`);
+    return { zoneId, jobId: job.id };
+  }
+
+  it('S-ZRS-9: reserveBudget("refresh") aplica el techo floor(cap × fracción) sobre el gasto TOTAL; "on-demand" no tiene techo', async () => {
+    const sourceId = await insertSource(db);
+    const ports = buildPorts(sourceId, { dailySearchCap: 100, refreshBudgetFraction: 0.2 });
+    const reservation = { searchReserved: 10, tokenReserved: 1 };
+
+    expect(await ports.reserveBudget(reservation, 'refresh')).not.toBeNull(); // 10 <= 20
+    expect(await ports.reserveBudget(reservation, 'refresh')).not.toBeNull(); // 20 <= 20
+    expect(await ports.reserveBudget(reservation, 'refresh')).toBeNull(); // 30 > 20
+    expect(await ports.reserveBudget(reservation, 'on-demand')).not.toBeNull(); // 30 <= 100
+  });
+
+  it('S-ZRS-10: sin fracción (o 0) ninguna reserva de refresco se concede, y la demanda sigue reservando', async () => {
+    const sourceId = await insertSource(db);
+    const ports = buildPorts(sourceId, { dailySearchCap: 100 });
+    const reservation = { searchReserved: 1, tokenReserved: 0 };
+
+    expect(await ports.reserveBudget(reservation, 'refresh')).toBeNull();
+    expect(await ports.reserveBudget(reservation, 'on-demand')).not.toBeNull();
+  });
+
+  it('S-ZRS-12: con 95 de 100 gastados a demanda y fracción 0.2, un job de refresco pendiente NO se barre (cero peticiones) y sigue pendiente', async () => {
+    const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
+    const sourceId = await insertSource(db);
+    await db.insert(coverageJobs).values({ zoneId, sourceId, status: 'pending', refreshRequestedAt: new Date() });
+    await reserveDailyBudget(db, sourceId, { searchReserved: 95, tokenReserved: 0 }, 100);
+    const searchPort = createExhaustingSearchPort();
+    const ports = buildPorts(sourceId, { searchPort, dailySearchCap: 100, refreshBudgetFraction: 0.2 });
+
+    await runCoverageWorker(ports, refreshOptions({ dailySearchCap: 100 }));
+
+    expect(searchPort.calls).toBe(0);
+    const [job] = await db.select().from(coverageJobs).where(eq(coverageJobs.zoneId, zoneId));
+    expect(job?.status).toBe('pending');
+    expect(job?.attempts).toBe(0);
+  });
+
+  it('S-ZRS-13: un job de refresco con una fuente que NUNCA se agota se corta en el tope por barrido — el ciclo queda incompleto y en el carril de refresco', async () => {
+    const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
+    const sourceId = await insertSource(db);
+    await db.insert(coverageJobs).values({ zoneId, sourceId, status: 'pending', refreshRequestedAt: new Date() });
+    const searchPort = createNeverExhaustingSearchPort();
+    const ports = buildPorts(sourceId, { searchPort, maxSearchRequestsPerSweep: 3, refreshBudgetFraction: 1 });
+
+    await runCoverageWorker(ports, refreshOptions({ maxSearchRequestsPerSweep: 3, refreshBudgetFraction: 1 }));
+
+    expect(searchPort.calls).toBe(3);
+    const [job] = await db.select().from(coverageJobs).where(eq(coverageJobs.zoneId, zoneId));
+    expect(job?.status).toBe('pending');
+    expect(job?.cursor).not.toBeNull();
+    expect(job?.refreshRequestedAt).not.toBeNull();
+    const [zone] = await db.select().from(zones).where(eq(zones.id, zoneId));
+    expect(zone?.lastSweptAt).toBeNull();
+  });
+
+  it('maintenance.purgeZoneQuerySignals borra las señales de más de 180 días y conserva las recientes', async () => {
+    const { zoneId } = await insertLocationWithZone(db);
+    const sourceId = await insertSource(db);
+    await db.execute(sql`
+      insert into zone_query_signals (zone_id, day) values
+        (${zoneId}, (now() at time zone 'utc')::date - 200),
+        (${zoneId}, (now() at time zone 'utc')::date - 5)
+    `);
+    const ports = buildPorts(sourceId);
+
+    const deleted = await ports.maintenance?.purgeZoneQuerySignals();
+
+    expect(deleted).toBe(1);
+    const { rows } = await pool.query<{ count: string }>('select count(*)::text as count from zone_query_signals');
+    expect(rows[0]?.count).toBe('1');
+  });
+
+  it('un tick completo: zona covered vencida (barrida hace 8 días, señal de hoy) se re-encola, se barre en el MISMO tick y vuelve a estado "a demanda"', async () => {
+    const sourceId = await insertSource(db);
+    const { zoneId, jobId } = await seedCoveredZoneWithDoneJob(sourceId, 8);
+    const [before] = await db.select().from(coverageJobs).where(eq(coverageJobs.id, jobId));
+    const searchPort = createExhaustingSearchPort();
+    const ports = buildPorts(sourceId, { searchPort, refreshBudgetFraction: 0.2 });
+
+    await runCoverageWorker(ports, refreshOptions());
+
+    expect(searchPort.calls).toBe(5);
+    const [after] = await db.select().from(coverageJobs).where(eq(coverageJobs.id, jobId));
+    expect(after?.status).toBe('done');
+    expect(after?.refreshRequestedAt).toBeNull();
+    expect(after?.requestedAt.getTime()).toBe(before?.requestedAt.getTime());
+    const [zone] = await db.select().from(zones).where(eq(zones.id, zoneId));
+    expect(zone?.state).toBe('covered');
+  });
+
+  it('el mismo tick con fracción 0: la zona vencida NO se re-encola y no hay ninguna petición a la fuente', async () => {
+    const sourceId = await insertSource(db);
+    const { jobId } = await seedCoveredZoneWithDoneJob(sourceId, 8);
+    const searchPort = createExhaustingSearchPort();
+    const ports = buildPorts(sourceId, { searchPort, refreshBudgetFraction: 0 });
+
+    await runCoverageWorker(ports, refreshOptions({ refreshBudgetFraction: 0 }));
+
+    expect(searchPort.calls).toBe(0);
+    const [job] = await db.select().from(coverageJobs).where(eq(coverageJobs.id, jobId));
+    expect(job?.status).toBe('done');
+  });
+
+  it('una zona covered NO vencida (barrida hace 2 días) no se re-encola: cero peticiones', async () => {
+    const sourceId = await insertSource(db);
+    const { jobId } = await seedCoveredZoneWithDoneJob(sourceId, 2);
+    const searchPort = createExhaustingSearchPort();
+    const ports = buildPorts(sourceId, { searchPort, refreshBudgetFraction: 0.2 });
+
+    await runCoverageWorker(ports, refreshOptions());
+
+    expect(searchPort.calls).toBe(0);
+    const [job] = await db.select().from(coverageJobs).where(eq(coverageJobs.id, jobId));
+    expect(job?.status).toBe('done');
+  });
+
+  // ROADMAP 2.5 (S4; decisiones 107 y 108) — los dos planos de purga con los
+  // puertos REALES: purga de zonas (reinicio) y tombstone de anuncios.
+  async function seedPurgeableZone(sourceId: string): Promise<{ readonly zoneId: string; readonly jobId: string }> {
+    const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
+    await db.update(zones).set({ state: 'covered', lastSweptAt: sql`now() - interval '300 days'` }).where(eq(zones.id, zoneId));
+    const jobId = await pool
+      .query<{ id: string }>(
+        `insert into coverage_jobs (zone_id, source_id, status, requested_at)
+         values ($1, $2, 'done', now() - interval '200 days') returning id`,
+        [zoneId, sourceId]
+      )
+      .then((result) => result.rows[0]?.id);
+    if (!jobId) throw new Error('fixture no insertado');
+    return { zoneId, jobId };
+  }
+
+  async function seedListingAt(sourceId: string, externalId: string, location: { x: number; y: number }): Promise<string> {
+    const { rows } = await pool.query<{ id: string }>(
+      `insert into listings (source_id, external_id, url, location, thumbnail_url)
+       values ($1, $2, 'https://example.test/x', ST_SetSRID(ST_MakePoint($3, $4), 4326), 'https://cdn.example.test/x.jpg') returning id`,
+      [sourceId, externalId, location.x, location.y]
+    );
+    const id = rows[0]?.id;
+    if (!id) throw new Error('fixture no insertado');
+    return id;
+  }
+
+  it('maintenance.purgeZones reinicia la zona (job y señales fuera, zona uncovered) y retira sus anuncios huérfanos', async () => {
+    const sourceId = await insertSource(db);
+    const { zoneId } = await seedPurgeableZone(sourceId);
+    const listingId = await seedListingAt(sourceId, 'in-zone', { x: GRANADA.longitude, y: GRANADA.latitude });
+    const ports = buildPorts(sourceId);
+
+    const purged = await ports.maintenance?.purgeZones([zoneId]);
+
+    expect(purged).toBe(1);
+    const [zone] = await db.select().from(zones).where(eq(zones.id, zoneId));
+    expect(zone?.state).toBe('uncovered');
+    expect(zone?.lastSweptAt).toBeNull();
+    expect(await db.select().from(coverageJobs)).toHaveLength(0);
+    const [listing] = await db.select().from(listings).where(eq(listings.id, listingId));
+    expect(listing?.status).toBe('inactive');
+    expect(listing?.inactiveReason).toBe('zone_purged');
+  });
+
+  it('maintenance.tombstoneExpiredListings redacta los inactivos de >= 180 días y devuelve cuántos', async () => {
+    const sourceId = await insertSource(db);
+    const listingId = await seedListingAt(sourceId, 'old-inactive', { x: GRANADA.longitude, y: GRANADA.latitude });
+    await pool.query(
+      `update listings set status = 'inactive', inactive_reason = 'delisted', inactive_since = now() - interval '181 days' where id = $1`,
+      [listingId]
+    );
+    const ports = buildPorts(sourceId);
+
+    const tombstoned = await ports.maintenance?.tombstoneExpiredListings();
+
+    expect(tombstoned).toBe(1);
+    const [listing] = await db.select().from(listings).where(eq(listings.id, listingId));
+    expect(listing?.status).toBe('removed');
+    expect(listing?.thumbnailUrl).toBeNull();
+    expect(listing?.tombstonedAt).toBeInstanceOf(Date);
+  });
+
+  it('un tick completo: zona sin consultas desde hace 200 días se purga SIN ninguna petición a la fuente y no se refresca', async () => {
+    const sourceId = await insertSource(db);
+    const { zoneId } = await seedPurgeableZone(sourceId);
+    const searchPort = createExhaustingSearchPort();
+    const ports = buildPorts(sourceId, { searchPort, refreshBudgetFraction: 0.2 });
+
+    await runCoverageWorker(ports, refreshOptions());
+
+    expect(searchPort.calls).toBe(0);
+    expect(await db.select().from(coverageJobs)).toHaveLength(0);
+    const [zone] = await db.select().from(zones).where(eq(zones.id, zoneId));
+    expect(zone?.state).toBe('uncovered');
   });
 });

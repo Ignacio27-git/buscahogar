@@ -10,8 +10,11 @@ Consúltalos antes de proponer cambios estructurales.
 
 **No se consultan las fuentes externas en tiempo de búsqueda.** La búsqueda va siempre
 contra nuestra base de datos. Las fuentes se consultan solo desde `apps/ingestion`, de
-forma programada o mediante un `coverage_job`. Si una propuesta implica llamar a una API
-externa desde `apps/web`, es incorrecta.
+forma programada o mediante un `coverage_job`. Si una propuesta implica que el servidor de
+`apps/web` llame a una API o fuente de datos externa, es incorrecta. Única excepción del lado
+del navegador: las teselas del mapa, que el navegador pide directamente a OpenStreetMap (decisión
+112). No son una fuente de anuncios, no pasan por nuestro servidor y la CSP solo admite ese host en
+`img-src`.
 
 **La cuota de la API de Idealista es limitada y mensual.** Cualquier código que pagine
 debe tener corte explícito. Un bucle mal cerrado agota la cuota del mes. Nunca llamar a
@@ -19,14 +22,15 @@ la API real desde tests: usar fixtures grabados.
 
 **Credenciales de fuentes solo en `apps/ingestion`; `apps/web` tiene dos credenciales de base de
 datos, ambas de alcance mínimo.** (docs/DECISIONS.md, decisión 056, enmienda la 015; decisiones
-064/069 del paso 1.13; 076/082 del paso 1.15). `apps/web` nunca usa la credencial de
+064/069 del paso 1.13; 076/082 del paso 1.15; 102 del paso 2.5). `apps/web` nunca usa la credencial de
 propietario de `apps/ingestion`:
 
 - **Lectura:** rol de PostgreSQL de **solo lectura** — `DATABASE_URL` en `apps/web/.env.local`
   (local) o inyectada por Compose desde `WEB_DATABASE_URL` (contenedor).
-- **Escritura restringida (`web_coverage`, pasos 1.13 y 1.15):** rol acotado a `INSERT` en
-  `coverage_jobs` (1.13) y a `SELECT`/`INSERT`/`UPDATE`/`DELETE` en `coverage_client_quota` (cuota
-  diaria por cliente, 1.15) — `WEB_COVERAGE_DATABASE_URL` en `apps/web/.env.local` (local) o
+- **Escritura restringida (`web_coverage`, pasos 1.13, 1.15 y 2.5):** rol acotado a `INSERT` en
+  `coverage_jobs` (1.13), a `SELECT`/`INSERT`/`UPDATE`/`DELETE` en `coverage_client_quota` (cuota
+  diaria por cliente, 1.15) y a `INSERT` en `zone_query_signals` (señal de demanda por zona, 2.5,
+  sin `SELECT`/`UPDATE`/`DELETE`) — `WEB_COVERAGE_DATABASE_URL` en `apps/web/.env.local` (local) o
   inyectada por Compose (contenedor). Ningún otro `GRANT` sobre ninguna otra tabla.
 
 Ninguna credencial de las fuentes (Idealista u otra) llega nunca a `apps/web`, y ninguna
@@ -38,7 +42,10 @@ credencial de ningún tipo se expone como variable `NEXT_PUBLIC_*`.
 volver a gastar cuota.
 
 **`listings` no se sobrescribe.** Un cambio de precio genera una versión nueva. De ahí
-sale el histórico.
+sale el histórico. Única excepción (decisión 107): un anuncio que lleva 180 días inactivo pasa a
+`removed` y se redactan `listing_versions.description`, `listing_versions.raw` y
+`listings.thumbnail_url`. Los precios, los campos estructurados y la evidencia de deduplicación
+no se tocan, y nada se borra.
 
 ## Convenciones
 
@@ -77,7 +84,8 @@ la decisión final. Es la evidencia para la evaluación del TFM y no se puede re
 después.
 
 Al consolidar una vivienda a partir de varios anuncios, el precio mostrado es el más
-económico del grupo.
+económico de los anuncios activos. Una vivienda sin ningún anuncio activo no aparece en la
+búsqueda, y su detalle muestra el mínimo de todos (decisión 109).
 
 Prioridad: minimizar falsos positivos. Agrupar dos viviendas distintas es peor que no
 detectar un duplicado.
@@ -100,7 +108,8 @@ la tarea, no es opcional ni requiere que se te pida.
 1. `docs/PROMPTS.md` — una entrada con el prompt recibido, el tipo de tarea, la forma de
    especificación y si el resultado fue utilizable sin cambios, con retoques o descartado.
 2. `docs/ROADMAP.md` — actualiza el estado del paso correspondiente y rellena su apartado
-   de notas con lo relevante.
+   de notas con lo relevante. En los pasos de diseño (`D.n`), el fichero es
+   `docs/DESIGN-ROADMAP.md`.
 
 **Cuando aplique:**
 
@@ -112,8 +121,9 @@ la tarea, no es opcional ni requiere que se te pida.
    framework, código que compilaba pero no hacía lo correcto, contradicción con una regla
    de este fichero. Anótalo aunque lo hayas detectado tú mismo y aunque el resultado final
    sea correcto. Especialmente en ese caso: el fallo intermedio es el dato interesante.
-5. `docs/ROADMAP.md`, tabla de desviaciones — si el paso no se ha ejecutado como estaba
-   escrito, si ha habido que partirlo, reordenarlo o descartarlo.
+5. `docs/ROADMAP.md`, tabla de desviaciones (la de `docs/DESIGN-ROADMAP.md` en los pasos
+   `D.n`) — si el paso no se ha ejecutado como estaba escrito, si ha habido que partirlo,
+   reordenarlo o descartarlo.
 
 **Al final de la tarea, informa de qué ficheros de documentación has actualizado.** Si no has
 actualizado ninguno más allá de los dos obligatorios, dilo explícitamente.

@@ -21,6 +21,9 @@ es señal de que la instrucción se ha perdido en el contexto.
 
 **Estados:** `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[-]` descartado
 
+**Diseño de la web.** El plan de diseño de `apps/web` (pasos `D.n`) está en `docs/DESIGN-ROADMAP.md`,
+con su propio registro de desviaciones (decisión 126).
+
 ---
 
 # Fase 0 — Arranque
@@ -1588,7 +1591,7 @@ difíciles bien representados.
 
 ---
 
-## [ ] 2.2 · Comparación de estrategias de deduplicación
+## [x] 2.2 · Comparación de estrategias de deduplicación
 
 ```text
 Implementa una segunda DedupStrategy con un enfoque distinto a la basada en
@@ -1601,9 +1604,71 @@ La salida debe ser exportable para incluirla en la memoria.
 
 **Notas:**
 
+**Qué se construyó.** Ciclo SDD completo (explore → research → propose → `sdd-spec`/`sdd-design`
+→ `sdd-tasks` → `sdd-apply` en dos lotes) entregado en 6 commits sobre `feature-fase2`:
+
+1. Corpus etiquetado reubicado a `packages/core/src/evaluation/dedup-corpus.ts` (decisión 090),
+   con un campo `truth: 'duplicate' | 'distinct'` de verdad terreno en sus 24 entradas —
+   INDEPENDIENTE de `expected` (la banda diseñada de rule-based; decisión 089). Etiquetas
+   confirmadas por el responsable del proyecto: **10 duplicate, 14 distinct** (obs #284).
+2. `classify()` (rule-based) gana un segundo parámetro opcional `thresholds`, usado solo por la
+   evaluación offline; `isVetoed`/`relativeDifference` extraídas para compartirse entre
+   estrategias (decisión 088).
+3. Segunda `DedupStrategy` — Fellegi-Sunter con niveles graduados y m/u fijados a priori
+   (`probabilistic-fellegi-sunter`, decisiones 085-087).
+4. Métricas de evaluación puras (`wilsonInterval`, `computeMetrics`) y `evaluateStrategy` con una
+   rejilla de sweep por defecto de 20 combinaciones de umbrales (decisión 089/091).
+5. CLI de comparación en `apps/ingestion`, sin base de datos ni red (`pnpm --filter
+   @buscahogar/ingestion compare-strategies`), exportable en Markdown, JSON o CSV, con caveat de
+   muestra pequeña en los tres formatos (decisión 091).
+6. Este registro documental.
+
+**Resultado real de la comparación** (corpus de 24 pares, ejecución real de la CLI a fecha de
+cierre de este paso): a los umbrales por defecto de cada estrategia —
+
+| Estrategia | Umbrales | Precisión | Recall | F1 | Tasa indecisos |
+|---|---|---|---|---|---|
+| rule-based-structured | high=0.82, low=0.45 | 0.8889 | 0.8000 | 0.8421 | 0.3333 |
+| probabilistic-fellegi-sunter | high=0.95, low=0.50 | 0.8000 | 0.4000 | 0.5333 | 0.2917 |
+
+Sobre este corpus de 24 pares, rule-based domina en recall y F1: la exigencia implícita de FS de
+al menos tres campos fuertes de acuerdo (decisión 087, sin piso de evidencia explícito pero con el
+mismo efecto por aritmética de `M`) deja 6 de los 10 duplicados reales como `undecided`, frente a
+solo 2 de rule-based. Ambas estrategias comparten el mismo falso positivo irreducible (`hn-8`,
+RDS-7) y el mismo falso negativo por evidencia insuficiente (`md-4`). El caveat de muestra pequeña
+(n=24, parámetros fijados a priori, sin calibrar) se reproduce en los tres formatos de salida.
+
+**Workload/tamaño.** `sdd-tasks` pronosticó `400-line budget risk: High` (~1900-2100 líneas
+estimadas). El responsable del proyecto aceptó `size:exception` en una sola PR de 6 commits de
+trabajo (sin ramas nuevas), en vez de PRs encadenadas. Tamaño real, `git diff --shortstat
+c247b8e..HEAD`: ver la entrada de `AI-NOTES.md`/Engram de este paso para la cifra exacta.
+
+**Verificación final.** `pnpm test`/`pnpm typecheck`/`pnpm lint`/`pnpm build` en la raíz, en
+verde. La CLI se ejecutó realmente en los tres formatos sin `.env` ni base de datos configurada
+(`DATABASE_URL` desactivada explícitamente en una de las ejecuciones), exit 0. `git diff --stat
+c247b8e -- apps/ingestion/src/dedup/reprocess-core.ts` confirmó cero cambios: producción sigue
+usando rule-based con los umbrales por defecto, sin excepción (decisión 088). Ningún módulo nuevo
+importa `fetch`/`http`/`pg`/`drizzle`/`@buscahogar/db`.
+
+**Corrección post-verify (WARNING-1, decisión 092).** `sdd-verify` detectó que el FN/TN expuesto en
+los tres formatos no reconciliaba con el recall/precisión mostrados en la misma fila: por ejemplo,
+la fila por defecto de rule-based mostraba `false_negative=0` con `recall=0.8000`, un resultado
+irreconstruible sin sumar a mano la columna `undecided_duplicate`. Corregido solo en la capa de
+render (`apps/ingestion/src/strategy-comparison/render.ts`), sin tocar `packages/core` ni ningún
+valor de P/R/F1/tasa de indecisos/Wilson. Cifras reales expuestas tras la corrección, mismos
+umbrales por defecto que la tabla de arriba:
+
+| Estrategia | TP | FP | FN (incl. indecisos) | TN (incl. indecisos) | Suma |
+|---|---|---|---|---|---|
+| rule-based-structured | 8 | 1 | 2 | 13 | 24 |
+| probabilistic-fellegi-sunter | 4 | 1 | 6 | 13 | 24 |
+
+`recall=TP/(TP+FN)` y `precision=TP/(TP+FP)` ahora se reconstruyen directamente desde estas cuatro
+columnas visibles, en los tres formatos.
+
 ---
 
-## [ ] 2.3 · Comparación de imágenes
+## [x] 2.3 · Comparación de imágenes
 
 ```text
 Añade la comparación de imágenes como señal adicional mediante perceptual hashing,
@@ -1616,9 +1681,79 @@ estructurados, sobre el mismo conjunto etiquetado.
 
 **Notas:**
 
+**Qué se construyó.** Ciclo SDD completo (explore → research → preproposal en dos rondas de
+decisiones de producto → spec/design corregidos tras una ronda de validación → `sdd-tasks` →
+`sdd-apply` en varios lotes con una puerta de revisión fotográfica del responsable del proyecto)
+entregado en 5 slices de commit sobre `feature-fase2` (decisiones 093-099):
+
+1. `packages/core/src/strategies/image/`: comparador de Hamming puro, mapeo de nivel/razón
+   solo-positivo, formato/parseo determinista del desglose, decorador `withImageSignal`,
+   exclusión del piso de evidencia de rule-based — cero dependencias nativas ni de I/O.
+2. `apps/ingestion/src/image-hash/`: pipeline sharp + DCT pHash 64-bit propio (recorte 5%,
+   escala de grises, 32×32, umbral de entropía), `sharp` fijado en `0.34.2` como única
+   dependencia de producción nueva.
+3. 18 fotos CC0-1.0/PDM-1.0 de Wikimedia Commons (12 evaluación, 6 calibración, procedencia en
+   `provenance.json`), asignación pareja↔imagen congelada antes de generar ningún hash de
+   evaluación, calibración real del umbral sobre el conjunto de calibración por separado.
+4. Ablación en el CLI de comparación (ROADMAP 2.2): 4 filas (estructurado y +imagen, por
+   estrategia), columnas CSV/JSON nuevas, tabla de cambios de banda, test de determinismo del
+   hash contra los fixtures comitados.
+5. Este registro documental.
+
+**Umbral calibrado.** `T = min(10, dNegMin − 2)` sobre el conjunto de calibración separado (6
+fotos base, 48 pares positivos, 15 negativos) — nunca sobre las 24 parejas de evaluación (D8).
+Resultado real: `dNegMin = 20`, así que `T = 10` (rama fija, no `dNegMin − 2`). Recall positivo a
+`T`: **41/48 = 85,4%**. Procedencia: decisión 097.
+
+**Resultado real de la ablación** (ejecución real del CLI, corpus de 24 pares, umbrales por
+defecto de cada estrategia): la señal de imagen **no cambia ninguna banda** — `bandChanges` vacío
+para ambas estrategias, y las matrices de confusión con y sin imagen son idénticas:
+
+| Estrategia | TP | FP | FN (incl. indecisos) | TN (incl. indecisos) |
+|---|---|---|---|---|
+| rule-based (con y sin imagen) | 8 | 1 | 2 | 13 |
+| Fellegi-Sunter (con y sin imagen) | 4 | 1 | 6 | 13 |
+
+La aportación de la imagen SÍ es visible en la rejilla de sweep, a umbrales más bajos que el
+umbral por defecto de cada estrategia. Con `high=0.75`: rule-based pasa de P/R/F1
+0,8889/0,8000/0,8421 a 0,9000/0,9000/0,9000; Fellegi-Sunter pasa de 0,7778/0,7000/0,7368 a
+0,8333/1,0000/0,9091 — pero ninguno de los dos cambios cruza el umbral por defecto de su propia
+estrategia.
+
+Seis duplicados reales obtuvieron coincidencia fuerte de imagen (`tp-1` d=0, `tp-3` d=6, `tp-4`
+d=4, `tp-5` d=0, `md-1` d=6, `md-2` d=0). Dos duplicados reales NO la obtuvieron pese a serlo
+(`tp-2` d=16, `tp-6` d=24: combinaciones de transformación con distancia perceptual mayor).
+`md-4` sigue `undecided` bajo rule-based+imagen: distancia real 18, por encima de `T=10`, ni
+siquiera llega a coincidencia fuerte. El caso difícil a propósito `hn-1`/`hn-7` (misma fachada,
+`portalA` vs `portalB`, decisión 098) midió distancia real **14**, justo por encima de `T=10` —
+el margen de recorte del 5% del pipeline no cancela del todo la franja de chrome de portal
+simulada del 8%: un caso límite real, cerca de convertirse en coincidencia fuerte pero sin
+llegar. Ningún `hn-*` se convirtió en falso positivo nuevo. No se ajustó ningún peso, umbral ni la
+asignación del manifiesto para cambiar este resultado.
+
+**Advertencia de evidencia.** Toda la evidencia de imagen de este paso es **simulada**:
+transformaciones controladas (reescalado, recompresión, recorte, superposición de logo, chrome de
+portal sintético) sobre 18 fotos CC0/dominio público, **no** miniaturas reales de portales
+inmobiliarios. El CLI declara este caveat en los tres formatos exportados (Markdown, JSON, CSV).
+
+**Verificación final (Fase 6).** `pnpm test`/`pnpm typecheck`/`pnpm lint`/`pnpm build` en la raíz,
+con el contenedor de PostgreSQL levantado y sano: **5/5 workspaces en verde en las cuatro
+puertas** — `test` 1404 tests en 157 ficheros (`core` 615/615, `db` 123/123, `ingestion` 532/532,
+`web` 134/134), `typecheck` y `lint` 5/5, `build` 5/5 incluido `next build` (Turbopack) de
+`apps/web`. Sin contenedor levantado, los paquetes respaldados por PostgreSQL (`packages/db`,
+partes de `apps/web`) fallarían con `ECONNREFUSED 127.0.0.1:5432` — bloqueo de entorno ya
+documentado en pasos anteriores (1.2, 1.3, 1.7, 1.11), no una condición de este paso. El CLI se
+ejecutó realmente en los tres
+formatos (`--format markdown|json|csv`), exit 0, cero llamadas de red/base de datos en las tres.
+`apps/ingestion/src/dedup/reprocess-core.ts` y `packages/core/src/strategies/rule-based/
+classify.ts` (ambos de solo lectura para este cambio) confirmados con cero diferencias frente al
+commit previo al cambio (`aea93fe`). `sharp` es la única dependencia de producción nueva
+(`apps/ingestion/package.json`, fijada `0.34.2`). Ningún módulo nuevo de `image-hash`/`image`/
+`evaluation`/`strategy-comparison` importa `fetch`/`http`/`pg`/`drizzle-orm`/`@buscahogar/db`.
+
 ---
 
-## [ ] 2.4 · Indexación y medición de rendimiento
+## [x] 2.4 · Indexación y medición de rendimiento
 
 ```text
 Genera un volumen de datos suficiente para que la indexación importe y mide el
@@ -1633,9 +1768,53 @@ Objetivo: búsqueda sobre datos indexados por debajo de 500 ms.
 
 **Notas:**
 
+**Resultado.** Las 12 combinaciones de la matriz de búsqueda cumplen el objetivo de 500 ms sobre
+1M de viviendas sintéticas; el peor p95 final es 199 ms (`all-filters`). Antes, `deep-filtered`
+estaba en 510 ms y otras cinco entre 230 y 425 ms. Tabla completa, método y planes en
+`docs/SEARCH-PERFORMANCE.md`.
+
+| id | p95 antes (ms) | p95 después (ms) |
+|---|---|---|
+| default | 357,3 | 3,4 |
+| op-type | 239,0 | 2,3 |
+| price-desc | 334,3 | 2,5 |
+| rooms-baths | 232,0 | 2,0 |
+| geo-25km-price | 422,8 | 29,0 |
+| deep-default | 395,7 | 27,9 |
+| deep-filtered | 510,1 | 27,7 |
+| all-filters | 206,5 | 199,2 |
+
+**Qué se construyó.** Tres commits sobre `feature-fase2` (decisiones 100 y 101):
+
+1. Generador de corpus sintético con SQL masivo (`gen-corpus`) y guardián que solo acepta bases de
+   datos cuyo nombre termina en `_bench` y distintas de la de desarrollo.
+2. CLI de medición (`bench-search`: frío, calentamiento, 20 en caliente, p50/p95, `EXPLAIN (ANALYZE,
+   BUFFERS, FORMAT JSON)` de la consulta de producción) y CLI de informe antes/después
+   (`bench-report`).
+3. Migración `0012` con cinco índices de orden sobre `properties`, test de que cada uno aparece en
+   el plan de su combinación, `jit = off` para `web_readonly` y este registro.
+
+**Índices.** Se probaron siete candidatos uno a uno sobre la base de banco. Se entregan cinco
+`(updated_at DESC NULLS LAST, id)`, `(operation, property_type, updated_at DESC NULLS LAST, id)`,
+`(operation, property_type, min_price_cents, id)`, `(min_price_cents DESC NULLS LAST, id)` y
+`(surface_m2, id)`. Se descartan `(rooms)` y `(bathrooms)`, que empeoraban `rooms-baths`. El
+problema no era filtrar sino ordenar 1M de filas para devolver 25.
+
+**JIT.** Con solo los índices, `geo-25km-price` empeoró a 651 ms: el planificador estima 100 filas
+dentro de un radio donde caen ~600.000, el coste estimado activa el JIT y la compilación consume
+557 ms. Ningún índice lo arregla; se desactivó el JIT solo para el rol de la búsqueda
+(decisión 101), y bajó a 29 ms.
+
+**Entorno.** PostgreSQL 17 + PostGIS 3.5 en Docker Desktop (WSL2), `shared_buffers` 128 MB. Corpus
+de 1.000.000 de viviendas y 1.350.358 anuncios (1,9 GB) generado en 228 s. Base de desarrollo
+intacta durante el procedimiento de banco (conteos iguales antes y después: 1/1/0/0).
+
+**Seguimientos.** Estimación de cardinalidad geográfica; índice de la decisión 051 redundante; base
+de test separada para `packages/db` (decisión 046). Los tres en "Pendientes de decidir".
+
 ---
 
-## [ ] 2.5 · Refresco y retención
+## [x] 2.5 · Refresco y retención
 
 ```text
 Implementa la política de refresco y retención de docs/ARCHITECTURE.md:
@@ -1646,9 +1825,48 @@ inactivos y de zonas sin consultas.
 
 **Notas:**
 
+**Estado: completo (2026-09-30).** La sonda de `adIds` se ejecutó con autorización del responsable.
+Para elegir el anuncio dado de baja se hizo antes una búsqueda completa de un círculo de 170 m
+(42 anuncios, una página): `111037729`, grabado el 10 de septiembre a 86 m del centro, ya no aparecía.
+La sonda confirmó `delistedIdBehaviour: omitted`: la API devuelve el vivo `111715742` y omite el dado de
+baja pedido en la misma lista. También confirmó que `propertyType` restringe `adIds` y que la lista va
+separada por comas. Coste: 4 búsquedas facturables y 2 tokens. `DELISTED_OMISSION_CONFIRMED` pasa a
+`true` junto con la fixture `adids-2026-09-30`, así que la verificación ya retira los anuncios
+confirmados (decisión 105) en cuanto `REFRESH_BUDGET_FRACTION` sea mayor que 0. La purga de zonas sí retira ya
+(`zone_purged`) los anuncios de zonas con 180 días sin consultas, y el tombstone los redacta 180 días
+después. No gasta cuota y no depende de `REFRESH_BUDGET_FRACTION`, así que funciona desde el
+despliegue.
+
+**Qué se construyó.** Cuatro commits sobre `feature-fase2`, uno por unidad de trabajo (decisiones
+102-111, migraciones 0013-0016):
+
+| Unidad | Contenido | Migración |
+|---|---|---|
+| S1 | señal de demanda, política de cadencia en `core`, carril de refresco con techo de gasto, `runIsolatedStep` | 0013 |
+| S2 | ciclo de vida del anuncio y visibilidad en la búsqueda solo con anuncios activos | 0014 |
+| S3 | cola de candidatos, verificación por `adIds`, sonda operada y constante de evidencia | 0015 |
+| S4 | purga de zonas (reinicio), tombstone a 180 días, reaparición, documentación | 0016 |
+
+**Números.** Refresco semanal hasta 30 días sin consultas, mensual hasta 90, en espera hasta 179, purga
+de zona a los 180. Tombstone de anuncios a los 180 días inactivos. Señales caducan a los 180 días.
+
+**Pruebas al cerrar S4** (bases de datos desechables, nunca la de desarrollo): core 649, db 233,
+ingestion 811, `test:db` 107, web 160, consolidación 19, bloqueo 18, detalle 11; typecheck y lint
+limpios. Ninguna llamada real a Idealista.
+
+**Pendiente del responsable.** (1) Hecho el 2026-09-30: sonda ejecutada, fixture commiteada y
+constante en `true`. (2) Hecho: base de desarrollo en la 0016. (3) Hecho el 2026-09-30: base de
+banco en la 0016, corpus regenerado y matriz repetida. Las 12 combinaciones cumplen, sin coste
+medible del filtro de visibilidad (`SEARCH-PERFORMANCE.md`). (4) Valores operativos del refresco por
+entorno: el responsable fija `REFRESH_BUDGET_FRACTION=0.3` en `.env`, y el resto se deja en sus
+valores por defecto. (5) Hecho: `CLAUDE.md` actualizado (precio de los anuncios activos, `INSERT`
+en `zone_query_signals`, excepción del tombstone).
+
+**Riesgo abierto.** Ninguna fuente fija plazo de retención en lo comprobado (decisión 111).
+
 ---
 
-## [ ] 2.6 · Vista de mapa
+## [x] 2.6 · Vista de mapa
 
 ```text
 Añade la vista de mapa con las viviendas resultantes de la búsqueda y búsqueda
@@ -1657,11 +1875,75 @@ por zona dibujada sobre el mapa.
 
 **Notas:**
 
+**Estado: hecho (2026-10-01).** El código, los tests offline y la documentación se hicieron el
+2026-09-30. Docker estaba parado ese día, así que las comprobaciones que lo necesitan (suite de base de
+datos, banco y prueba de plan) y la aceptación en el navegador se hicieron el 2026-10-01. La
+verificación final da PASS con avisos: 31 requisitos y 101 escenarios, sin críticos.
+
+| Unidad | Contenido | Commit |
+|---|---|---|
+| U1 | códec del polígono, validación y esquemas en `core` | `cbe5b7a` |
+| U2 | filtro compartido, `ST_Covers` y consulta de puntos en `db` | `3d39da6` |
+| U3 | siete escenarios de banco y prueba de plan | `f25d9cd` |
+| U4a | precio compartido, enlaces, reductor de dibujo, CSP y guardas | `df6b480` |
+| U4b | Leaflet, control de dibujo y `page.tsx` | `7c95664` |
+| U5 | documentación (decisiones 112-119) | `7d77846` |
+
+**Qué hace.** `view=map` sustituye la lista por un mapa con hasta 500 puntos agrupados, y
+`polygon=lat,lng;...` filtra por una zona dibujada, tanto en el mapa como en la lista. Ninguna de las
+dos toca fuentes externas, `coverage_jobs` ni `zone_query_signals` (decisión 118). Sin migración.
+Decisiones 112-119; enmiendan la 080 (CSP) y la 065 (allowlist de `'use client'`).
+
+**Pruebas al cerrar U4b** (sin base de datos): typecheck y lint limpios; ficheros de `apps/web` que no
+necesitan base de datos, 161 tests en verde; `pnpm --filter @buscahogar/web build` compila.
+
+**Comprobaciones con Docker (2026-10-01).**
+
+1. Hecho: suite de base de datos `packages/db/test/search/search-map.db.test.ts`, 11 de 11, contra una
+   base nueva `buscahogar_test` (PostGIS y migraciones 0000-0016), nunca la de desarrollo (decisión
+   046). La primera ejecución dio 2 fallos del propio test: las siembras masivas caían en mitad del
+   borde sur del cuadrado, y el borde geodésico de `geography` las deja fuera. Es justo lo que DAS-9 no
+   garantiza; se movieron al interior (`AI-NOTES.md`).
+2. Hecho: tareas de banco 3.3-3.5 sobre `buscahogar_bench` (0016, 1.000.000 de viviendas, `jit = off`
+   durante la medición y restaurado). G1 cumple, con una suma máxima de 368,7 ms en el polígono
+   grande; G2 cumple, con un máximo de 30 ms en la lista. La prueba de plan da 12 de 12 en
+   `buscahogar_test_bench`, migrada a la 0016. Las doce combinaciones anteriores no cambian. Detalle en
+   `docs/SEARCH-PERFORMANCE.md`.
+
+3. Hecho: aceptación manual en el navegador (tarea 5.4), por el responsable el 2026-10-01. La base
+   de desarrollo estaba vacía, así que la web se arrancó contra `buscahogar_bench` con el rol
+   `web_readonly`. Se le dieron permisos temporales de solo lectura sobre esa base, retirados al
+   terminar. Se comprobó:
+   - Sin JavaScript, lista y mapa: recuento y enlace a la lista.
+   - Dibujar, cerrar y volver atrás; redibujar; quitar la zona.
+   - Agrupación con unos 300 puntos.
+   - Teselas cargadas bajo la CSP sin violaciones en la consola.
+   - Atribución visible; etiquetas de precio y enlace «Ver vivienda» del popup.
+   - Sin zoom por doble clic mientras se dibuja; los clics de la barra no añaden vértices.
+   - Forma inválida (lazo, vértice 51): mensaje y URL sin cambios.
+
+**Avisos de la verificación, aceptados.**
+
+- M se muestra sin separador de miles.
+- Se aceptan ceros a la izquierda en `polygon`.
+- Las dependencias del efecto de `map-draw-control.tsx` son frágiles si un día se activa la regla
+  `exhaustive-deps`.
+- La exclusividad entre criterios geográficos solo se detecta si los demás parámetros son válidos.
+- Un polígono que cruce el antimeridiano cerca del polo puede eludir el tope de área.
+- La evidencia TDD de `apply-progress` está en prosa, no en tabla.
+- `CLAUDE.md` no distinguía las teselas que carga el navegador de las llamadas externas desde el
+  servidor. Corregido el 2026-10-01 a petición del responsable: la regla prohíbe que el servidor de
+  `apps/web` consulte fuentes externas y admite solo las teselas de OSM en el navegador (decisión 112).
+
+**Riesgos abiertos.** El UMD de `leaflet.markercluster` depende del `L` global que fija importar
+`leaflet` antes (orden de imports en `map-cluster-layer.tsx`). La aceptación en el navegador lo confirmó, pero cambiar ese orden lo rompería en silencio. El
+peso del bundle de cliente, que importa el barril de `core`, no se ha medido.
+
 ---
 
 # Fase 3 — Si el tiempo lo permite
 
-## [ ] 3.1 · Búsqueda mediante lenguaje natural
+## [x] 3.1 · Búsqueda mediante lenguaje natural
 
 ```text
 Implementa la interpretación de consultas en lenguaje natural: transformar una
@@ -1673,6 +1955,52 @@ pueda corregir la interpretación antes de buscar.
 ```
 
 **Notas:**
+
+**Estado: hecho (2026-10-01).** Cinco unidades más una de corrección (U2b), un commit por unidad en
+`feature-fase2`. Sin migración. Decisiones 120-124. Sin ejecución en navegador: la rama `?q=` se
+comprobó renderizando la función de la página en los tests (`/?q=piso en alquiler en Getafe` rellena
+el panel y no hace ninguna llamada de búsqueda, cobertura ni señal).
+
+| Unidad | Contenido | Commit | Líneas (previstas / reales) |
+|---|---|---|---|
+| U1 | `minPrice`/`maxPrice` en euros en `searchQuerySchema` | `bc4b9a8` | 100-200 / 77 |
+| U2 | intérprete determinista en `core` (`nl-search/`), `nlQuerySchema` | `ed06b58` | 1000-1400 / 1529 |
+| U3 | corpus etiquetado y evaluador | `210158a` | 500-700 / 784 |
+| U2b | correcciones del intérprete halladas por el corpus | `e294517` | sin previsión / 52 |
+| U4 | rama `?q=`, formularios de servidor, resolución del lugar | `ca121ef` | 800-1100 / 720 |
+| U5 | documentación | este commit | 200-300 |
+
+**Qué hace.** `interpretSearchText` (en `core`, sin red ni LLM, decisión 120) convierte una frase en
+criterios que se validan con el mismo `searchQuerySchema`. `/?q=...` es una rama aparte que solo
+interpreta: muestra la interpretación en un formulario de servidor editable (`GET`, con
+`form=criteria`, decisión 123) y no busca. El lugar se resuelve contra nuestra base de datos y solo
+una coincidencia exacta selecciona la zona; el resto se ofrece como radios con «Sin zona» marcado
+(decisión 122, `PLACE_SUGGESTION_LIMIT` 25).
+
+**Medición sobre el corpus** (42 frases, 28 de desarrollo y 14 de reserva, decisión 124; intervalo de
+Wilson al 95 %):
+
+| Conjunto | Aciertos | Tasa | Intervalo |
+|---|---|---|---|
+| Reserva (cifra sin sesgo) | 13/14 | 92,9 % | [68,5; 98,7] |
+| Desarrollo, antes de ajustar | 24/28 | 85,7 % | |
+| Desarrollo, tras ajustar sobre él (optimista) | 26/28 | 92,9 % | [77,4; 98,0] |
+| Total | 39/42 | 92,9 % | [81,0; 97,5] |
+
+Criterios falsos en los negativos difíciles de desarrollo: de 2 a 0 (en reserva, 0). Fallos que
+quedan: `ho-10`, `dev-15` («entre 2 y 3 habitaciones», fijado como no reconocido: no es un mínimo) y
+`dev-23`.
+
+**Riesgos abiertos.**
+
+- ~~La CI debe construir `dist/` de `core` antes de `web`.~~ Resuelto tras el cierre: no hay CI,
+  así que los scripts raíz `test`, `typecheck` y `lint` compilan ahora los paquetes antes de
+  ejecutarse (decisión 125).
+- Con 14 frases de reserva el intervalo es ancho (límite inferior 68,5 %); `dev-15` queda fuera del
+  alcance del intérprete.
+- El intérprete se ajustó solo sobre desarrollo; la cifra de reserva se queda sin sesgo solo hasta
+  el primer ajuste que la use.
+- La rama `?q=` ignora `view` y los demás parámetros de la URL al interpretar, por diseño.
 
 ---
 
@@ -1736,3 +2064,23 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-24 | 1.15 | El orden de comprobación del registro de cobertura (tope global de solo lectura ANTES que el consumo por cliente) difiere del orden de la redacción original de la propuesta (que comprobaba primero el límite por cliente) | El diseño (#262, decisión 079), razonando desde el propio código de `coverage.ts`, invirtió el orden para no gastar nunca la cuota de un cliente en un registro que de todos modos iba a rechazarse por el tope global — obligó a una re-ejecución correctiva de `sdd-spec` (revisión 2). Ver decisión 079 y `docs/AI-NOTES.md`. |
 | 2026-09-24 | 1.15 | Se añadió al alcance el cableado de las variables de entorno nuevas de `apps/web` en `docker-compose.yml` (`WEB_COVERAGE_DATABASE_URL`, `NEW_ZONES_DAILY_CAP` y las del limitador) | El prompt del propio paso no lo pedía explícitamente, pero D5 del pre-proposal (obs #257) lo identificó como parte necesaria del cierre de seguridad: sin ese cableado, el servicio web en contenedor no podría usar ninguna de las credenciales/límites nuevos. |
 | 2026-09-24 | 1.15 | PR3 cerró en **1047 líneas cambiadas** (código 370: 334 inserciones/36 borrados; documentación obligatoria 677: `docs/AI-NOTES.md` 294, `docs/DECISIONS.md` 241, `docs/ROADMAP.md` 65, `docs/PROMPTS.md` 40, `docs/ARCHITECTURE.md` 22, `CLAUDE.md` 15) frente al presupuesto de sesión de 800 y a la previsión propia del diseño de ~300-400 | El código (370 líneas) cerró bien dentro de presupuesto; el exceso es enteramente documentación obligatoria por `CLAUDE.md` ("Registro obligatorio al terminar cada tarea"): once entradas nuevas de `docs/AI-NOTES.md` (un fallo intermedio real por entrada, de los tres PRs del paso completo) y once decisiones nuevas de `docs/DECISIONS.md` (074-084: 074-081 del diseño, 082 la purga programada D9, 083 el sobreconteo de cuota como fallo cerrado y 084 la corrección de `frame-ancestors`). No se recortó ninguna entrada para ajustar la cifra — mismo criterio que el resto del proyecto. Recomendado `size:exception` para esta PR3. |
+| 2026-09-25/28 | 2.3 | La integración en producción se aplaza deliberadamente: este paso queda evaluación-only, sin migración de esquema, sin ruta de descarga real y sin ningún cambio en `apps/ingestion/src/dedup/reprocess-core.ts` (D7, preproposal) | D7 fue una decisión de producto confirmada por el responsable del proyecto antes de la propuesta: medir la aportación de la imagen sobre el mismo conjunto etiquetado de 2.2 no requiere que la señal llegue a producción todavía, y añadirla habría exigido decisiones adicionales (descarga y almacenamiento de miniaturas reales, cuota) fuera del alcance de este paso. Queda como paso de ROADMAP futuro. |
+| 2026-09-25/28 | 2.3 | El requisito de determinismo del hash ("Reference platform is local Windows, no CI required" de la spec) se verificó solo en la máquina local del mantenedor, nunca contra un sistema de integración continua | Este repositorio no tiene ningún flujo de trabajo de CI (`.github/` no existe, mismo hueco ya registrado en el paso 1.13). El criterio "CI" de la propuesta original se reinterpretó, con acuerdo explícito reflejado en spec/design, como determinismo verificado en la plataforma de referencia real del proyecto — no como una promesa de reproducibilidad multiplataforma sin evidencia. |
+| 2026-09-25/28 | 2.3 | "El mismo conjunto etiquetado" (texto literal del prompt del paso) se satisface con imágenes SIMULADAS adjuntas a las mismas 24 parejas de 2.2, no con fotografías reales de esas parejas | El corpus de 24 parejas (packages/core/src/evaluation/dedup-corpus.ts, decisión 090) nunca tuvo imágenes — son `Listing` construidos a mano para el paso 1.9/2.2, sin miniatura real asociada. D2/D5 (preproposal) ya anticipaban esta limitación: transformaciones controladas de fotografías CC0 atadas a las MISMAS 24 parejas, no una fuente de imágenes nueva ni distinta. El caveat de evidencia simulada se declara en los tres formatos del CLI (decisión 099). |
+| 2026-09-25/28 | 2.3 | El paso se ejecutó en varios lotes de `sdd-apply` (núcleo puro → pipeline de ingesta → fixtures/calibración → ablación en el CLI → documentación), con una puerta de revisión fotográfica del responsable del proyecto entre el lote de núcleo/pipeline y el de fixtures | El pronóstico de `sdd-tasks` (~2100 líneas autoradas) superaba con holgura el presupuesto de sesión, y la propia tarea 3.1 (aportar o autorizar la descarga de las 18 fotos CC0) es una precondición exclusiva del mantenedor que ningún agente puede resolver por su cuenta — el mismo patrón de "precondición humana" ya visto en los pasos 1.13/1.5. `size:exception` aceptado explícitamente para la PR única resultante, con partición por commits (precedente: paso 2.2). |
+| 2026-09-29 | 2.4 | Además de índices, el paso cambió la configuración del entorno: `jit = off` para `web_readonly` (decisión 101) | Con los índices, `geo-25km-price` seguía por encima del objetivo (p95 651 ms) por la compilación JIT, no por falta de índice. El responsable eligió corregirlo en el rol de la búsqueda en vez de dejarlo como fallo pendiente. |
+| 2026-09-29 | 2.4 | Tres commits (generador → CLI de medición → índices y documentación) con el procedimiento de banco entre el segundo y el tercero, y `size:exception` aceptado | ~1.400 líneas autoradas frente al presupuesto de 800; el tercer commit depende de medir primero. Los dos primeros commits suspendieron la validación de contexto limpio y se corrigieron una vez cada uno (coordenadas del generador; `pg_buffercache_evict()` sin argumentos, inexistente en PostgreSQL 17, y el informe antes/después sin CLI). |
+| 2026-09-29 | 2.4 | La sesión se partió en dos por la cuota de uso: los commits A y B en la primera, el procedimiento de banco, el commit C y el registro en la segunda | Parada limpia entre commits validados, sin trabajo a medias. |
+| 2026-09-29/30 | 2.5 | Dividido en cuatro unidades de trabajo (S1-S4), un commit cada una, con `size:exception` aceptado | ~2.700, ~930, ~4.240 y ~1.450 líneas autoradas (código y tests, sin documentación ni snapshots generados) frente a una previsión total de 2.100-2.500 y un presupuesto de 800: la previsión de `sdd-tasks` se quedó unas tres veces corta y más de la mitad son tests. Cada unidad es desplegable y reversible por separado. |
+| 2026-09-29/30 | 2.5 | La purga de zonas reinicia la zona (`uncovered`, job y señales fuera) en lugar de borrar su fila | `zones` es el catálogo INE sembrado (~8.100 filas) que consultan la interfaz y `locations-query`; la propuesta original hablaba de borrar. Decisión 108. |
+| 2026-09-29/30 | 2.5 | El paso se entrega con la retirada de anuncios inactiva: `DELISTED_OMISSION_CONFIRMED = false` hasta que el responsable ejecute la sonda | No se sabe cómo responde la API a un `adIds` dado de baja y la documentación no lo dice; retirar sin evidencia marcaría inactivos anuncios vivos, y un falso positivo aquí hace desaparecer la vivienda de la búsqueda. La sonda gasta cuota real y no la ejecuta un agente. Decisión 105. |
+| 2026-09-29 | 2.5 | En S2, un `pnpm migrate` sin variables de entorno se ejecutó contra la base de DESARROLLO y aplicó la migración 0014 (con su relleno) | El entorno del shell no persiste entre llamadas de Bash y la variable de la base desechable no llegó al comando. Sin pérdida de datos (migración aditiva y compatible con el código anterior), pero contra la regla de no tocar esa base. Desde S3, todas las variables van en línea en el mismo comando. Detalle en `AI-NOTES.md`. |
+| 2026-09-30 | 2.5 | En S4, una ejecución de los tests de `apps/web` sin `WEB_DATABASE_URL` ni `WEB_COVERAGE_DATABASE_URL` en línea escribió dos filas de prueba en `coverage_client_quota` de la base de desarrollo | `.env` apunta esas dos variables a la base de desarrollo y solo `DATABASE_URL` se sobrescribió. Dos filas de cuota de un día, que la purga programada borra sola; nada más cambió (señales y jobs siguen en 0). Detalle en `AI-NOTES.md`. |
+| 2026-09-30 | 2.5 | La sonda de `adIds` la ejecutó el asistente, no el responsable, y el paso pasa a `[x]` | El responsable no conocía ningún anuncio dado de baja y autorizó 4-5 búsquedas. Una búsqueda completa de un círculo de 170 m cruzada con la fixture del 10 de septiembre identificó uno. La sonda confirmó `omitted` y la constante pasó a `true` junto con su fixture. Coste real: 4 búsquedas y 2 tokens. |
+| 2026-09-30 | 2.6 | La planificación necesitó una ronda de corrección extra, autorizada: la puerta de diseño falló dos veces | La especificación y el diseño, escritos en paralelo, se contradecían (vértice de cierre) y el diseño clasificaba mal el lazo como `degenerate`. Detalle en `AI-NOTES.md`. |
+| 2026-09-30 | 2.6 | El responsable sustituyó el «plugin de dibujo» de la propuesta (P2) por un control de dibujo propio | `leaflet-draw` está sin mantenimiento desde 2018 y tiene un error conocido en `showArea`; Geoman es pesado. Decisión 114. |
+| 2026-09-30 | 2.6 | La medición de U3 y los veredictos G1/G2 (tareas 3.3-3.5) quedan aplazados; los tests de base de datos están escritos y no ejecutados; el paso queda `[~]` | Docker estaba parado durante la aplicación. Se ejecutaron el 2026-10-01 (G1 y G2 cumplen; suite de base de datos 11 de 11 tras corregir el propio test), junto con la aceptación manual en el navegador; el paso pasa a `[x]`. |
+| 2026-09-30 | 2.6 | Los tests de guarda se escribieron en U4a pero se commitearon con U4b | Antes de existir los componentes fallaban por construcción; commitearlos con U4b mantiene verde cada commit. |
+| 2026-10-01 | 3.1 | El volumen superó el presupuesto de sesión (~3160 líneas autoradas frente a las 2400-3200 previstas, con U2 y U3 por encima de su tramo) y se aceptó `size:exception`; se partió en un commit por unidad (U1-U5) más una unidad extra de corrección, U2b | La previsión de `sdd-tasks` ya advertía de que el volumen era alto. U2b no estaba planificada: surgió al medir el corpus de desarrollo (decisión 124) y se hizo en un commit propio para mantener cada unidad con una finalidad. Precedente: pasos 2.2 y 2.3. |
+| 2026-10-01 | 3.1 | Las URL existentes con `minPrice`/`maxPrice` pasan a interpretarse en euros; antes el valor se pasaba sin convertir y se trataba como céntimos | Error latente: el formulario y las frases de lenguaje natural hablan euros, y dejar céntimos en la URL daba dos significados al mismo parámetro. Corregido dentro del 3.1 (U1, decisión 121). |
+| 2026-10-01 | 3.1 | La tarea 4.2 `buildInterpretHref` no se construyó | Ningún consumidor: la elección del lugar es un grupo de radios dentro del panel, así que no hace falta un enlace de vuelta a una interpretación. |

@@ -1,0 +1,112 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Limit",
+      "Actual Startup Time": 0.15,
+      "Actual Total Time": 3.42,
+      "Actual Rows": 25,
+      "Actual Loops": 1,
+      "Shared Hit Blocks": 120,
+      "Shared Read Blocks": 6,
+      "Plans": [
+        {
+          "Node Type": "Index Scan",
+          "Parent Relationship": "Outer",
+          "Relation Name": "properties",
+          "Alias": "properties",
+          "Index Name": "properties_updated_at_id_idx",
+          "Actual Startup Time": 0.12,
+          "Actual Total Time": 3.1,
+          "Actual Rows": 25,
+          "Actual Loops": 1,
+          "Shared Hit Blocks": 118,
+          "Shared Read Blocks": 6,
+          "Plans": [
+            {
+              "Node Type": "Aggregate",
+              "Parent Relationship": "SubPlan",
+              "Subplan Name": "SubPlan 1",
+              "Actual Startup Time": 0.02,
+              "Actual Total Time": 0.03,
+              "Actual Rows": 1,
+              "Actual Loops": 25,
+              "Shared Hit Blocks": 2,
+              "Shared Read Blocks": 0,
+              "Plans": [
+                {
+                  "Node Type": "Nested Loop",
+                  "Parent Relationship": "Outer",
+                  "Actual Startup Time": 0.01,
+                  "Actual Total Time": 0.02,
+                  "Actual Rows": 2,
+                  "Actual Loops": 25,
+                  "Shared Hit Blocks": 2,
+                  "Shared Read Blocks": 0,
+                  "Plans": [
+                    {
+                      "Node Type": "Seq Scan",
+                      "Parent Relationship": "Outer",
+                      "Relation Name": "property_listings",
+                      "Alias": "src_pl",
+                      "Actual Rows": 1,
+                      "Actual Loops": 25,
+                      "Shared Hit Blocks": 1,
+                      "Shared Read Blocks": 0
+                    },
+                    {
+                      "Node Type": "Index Scan",
+                      "Parent Relationship": "Inner",
+                      "Relation Name": "listings",
+                      "Alias": "src_l",
+                      "Index Name": "listings_pkey",
+                      "Actual Rows": 1,
+                      "Actual Loops": 25,
+                      "Shared Hit Blocks": 1,
+                      "Shared Read Blocks": 0
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "Node Type": "Limit",
+              "Parent Relationship": "SubPlan",
+              "Subplan Name": "SubPlan 2",
+              "Actual Startup Time": 0.01,
+              "Actual Total Time": 0.01,
+              "Actual Rows": 1,
+              "Actual Loops": 25,
+              "Shared Hit Blocks": 1,
+              "Shared Read Blocks": 0,
+              "Plans": [
+                {
+                  "Node Type": "Index Scan",
+                  "Parent Relationship": "Outer",
+                  "Relation Name": "property_listings",
+                  "Alias": "anchor_pl",
+                  "Index Name": "property_listings_property_id_listing_id_idx",
+                  "Actual Rows": 1,
+                  "Actual Loops": 25,
+                  "Shared Hit Blocks": 1,
+                  "Shared Read Blocks": 0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "Planning Time": 0.842,
+    "Execution Time": 3.671,
+    "JIT": {
+      "Functions": 6,
+      "Timing": {
+        "Generation": 0.612,
+        "Inlining": 0,
+        "Optimization": 0.9,
+        "Emission": 8.2,
+        "Total": 9.712
+      }
+    }
+  }
+]

@@ -37,12 +37,16 @@ const TABLES_IN_FK_ORDER = [
   'dedup_pair_evidence',
   'listing_features',
   'listing_versions',
+  // ROADMAP 2.5 (S3): cola de presencia; referencia listings y zones.
+  'listing_presence_checks',
   'coverage_jobs',
   'listings',
   'properties',
   'dedup_runs',
   'daily_request_budget',
   'coverage_client_quota',
+  // ROADMAP 2.5 (S1): referencia `zones` (ON DELETE CASCADE) — va antes.
+  'zone_query_signals',
   'zones',
   'sources',
   'locations',

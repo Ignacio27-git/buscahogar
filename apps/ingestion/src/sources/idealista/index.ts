@@ -54,3 +54,11 @@ export type {
   SweepLogger,
   TransportOutcome,
 } from './ports.js';
+
+// ROADMAP 2.5 (S3; decisión 105) — verificación de presencia por `adIds`.
+export { classifyPresence, readReturnedIds } from './presence-classify.js';
+export { DELISTED_OMISSION_CONFIRMED, omissionConfirmedByFixtureMeta } from './presence-evidence.js';
+export { filterForRawType } from './filter-for-raw-type.js';
+export { buildPresenceFields } from './presence-request.js';
+export { createIdealistaPresenceVerifier } from './presence-verifier.js';
+export type { IdealistaPresenceVerifier, IdealistaPresenceVerifierOptions } from './presence-verifier.js';

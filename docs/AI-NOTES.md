@@ -40,6 +40,860 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-01 — La investigación del plan de diseño dio por bloqueado un script que la CSP ya admite
+
+**Contexto:** investigación del cambio SDD `web-ux-ui-design-roadmap` (plan de diseño de `apps/web`).
+
+**Categoría:** contradicción con la configuración real del proyecto.
+
+**Qué ocurrió:** en su primera pasada, el subagente de investigación concluyó (afirmación C9) que la
+CSP estricta del proyecto bloquearía el script en línea contra el parpadeo del tema oscuro de
+Tailwind y que haría falta un *nonce* o un *hash*. No había abierto `apps/web/next.config.ts`, que ya
+declara `script-src 'self' 'unsafe-inline'` (decisión 080).
+
+**Cómo se detectó:** revisión del orquestador, que lo corrigió en la segunda pasada. En la revisión 2,
+la afirmación correcta es C18.
+
+**Coste:** no medido; se corrigió dentro de la segunda pasada, que ya estaba prevista por otros motivos.
+
+**Observación:** una restricción del propio proyecto se comprueba en su configuración antes de
+inferirla de la documentación general. De no corregirse, el paso D.4 habría planificado un mecanismo
+de *nonces* innecesario.
+
+### 2026-10-01 — Tres errores del intérprete que solo el corpus de desarrollo destapó
+
+**Contexto:** paso 3.1, `packages/core/src/nl-search/`, unidad U2b tras medir el corpus (U3).
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** el intérprete pasaba sus tests unitarios y fallaba en frases reales: el artículo «la»
+se tomaba como lugar («una casa en la playa»), «Casa» dentro de un lugar («la Casa de Campo») se leía
+como tipo de vivienda, y «página» («...en Getafe página 3») se absorbía en el nombre del lugar.
+
+**Cómo se detectó:** al medir el conjunto de desarrollo (24/28; dos criterios falsos en negativos
+difíciles). Además, la expectativa de la primera versión del corpus para «la Casa de Campo» estaba mal
+y se corrigió a la intención del usuario antes de medir.
+
+**Coste:** una unidad extra (U2b, 52 líneas) y unos 30 minutos.
+
+**Observación:** los tests de cada escenario se escribieron con las frases que el autor imaginó; el
+corpus aporta frases que no imaginó. El ajuste sobre desarrollo mejoró esa cifra (26/28), no la de
+reserva, y así se registra.
+
+### 2026-10-01 — Fallos del tokenizador y de los tests de la rama `?q=`
+
+**Contexto:** paso 3.1, `packages/core` (U2) y `apps/web` (U4).
+
+**Categoría:** código correcto en apariencia pero incorrecto · test que valida el comportamiento equivocado.
+
+**Qué ocurrió:**
+
+1. La expresión del tokenizador retrocedía y partía «1.200» en «1» y «.200».
+2. «menos de 3 habitaciones» entraba en la rama «de 3 hab» y producía un `minRooms` falso.
+3. Los regex de los tests de renderizado suponían un orden de atributos (`name ... value ...
+   checked`), pero React emite `checked` antes de `value` y `action` antes de `method`. Se sustituyeron
+   por un ayudante `findTag` independiente del orden.
+4. Un comentario con el texto literal «redirect()» hizo fallar el test estático de ausencia de
+   `redirect` (`\bredirect\s*\(`); se reescribió. Y un `\b` dentro de una plantilla de texto usada
+   para construir un `RegExp` es un retroceso, no un límite de palabra (apareció al escribir `findTag`).
+
+**Cómo se detectó:** tests en rojo en cada caso. Aparte, `apps/web` resuelve `@buscahogar/core` por su
+`dist/`, ignorado por git: typecheck y tests fallaron por exportaciones ausentes hasta ejecutar
+`pnpm --filter @buscahogar/core build`.
+
+**Coste:** unos 25 minutos en total.
+
+**Observación:** un test que depende del orden de serialización de React valida el marcado, no el
+comportamiento. La CI debe construir `core` antes que `web`.
+
+### 2026-10-01 — Un test de base de datos sembraba puntos en mitad de un borde que la especificación no garantiza
+
+**Contexto:** paso 2.6, `packages/db`, suite `search-map.db.test.ts` (tope de 500 puntos y recuento).
+
+**Categoría:** código que compilaba pero no hacía lo correcto.
+
+**Qué ocurrió:** las pruebas de 501 y 120 viviendas sembraban la primera en `lat = 40.4`, justo en mitad
+del borde sur del cuadrado. En `geography` ese borde es geodésico y se curva hacia el norte, así que
+el punto quedaba fuera y los recuentos salían en 500 y 119. El código era correcto: la propia
+especificación (DAS-9) dice que solo se garantizan los vértices, no los puntos en mitad de un borde.
+
+**Cómo se detectó:** al ejecutar la suite por primera vez contra `buscahogar_test`. Se había escrito
+sin poder ejecutarla porque Docker estaba parado, y los validadores solo la leyeron.
+
+**Coste:** unos 10 minutos.
+
+**Observación:** un test de base de datos que nunca se ha ejecutado es una hipótesis, no una prueba.
+Aquí contradecía una regla que su mismo autor había escrito en el diseño. Las siembras masivas deben
+ir al interior de la figura, nunca sobre un borde.
+
+### 2026-09-30 — La especificación y el diseño escritos en paralelo se contradecían sobre el vértice de cierre
+
+**Contexto:** paso 2.6, `packages/core`, formato del parámetro `polygon`.
+
+**Categoría:** deriva de la arquitectura entre sesiones.
+
+**Qué ocurrió:** la especificación normalizaba un vértice de cierre repetido y el diseño lo rechazaba.
+Es la tercera vez que `sdd-spec` y `sdd-design` en paralelo se desalinean (ya en 2.3 y 2.5).
+
+**Cómo se detectó:** en la lectura cruzada de la puerta de diseño. El responsable resolvió: rechazar
+(`duplicate-vertex`, decisión 115).
+
+**Coste:** una revisión de especificación y otra de diseño.
+
+**Observación:** los puntos de contacto entre dos artefactos escritos a la vez (aquí, un caso límite
+de un formato) deberían fijarse antes de lanzarlos, no reconciliarse después.
+
+### 2026-09-30 — El diseño definió `degenerate` como área cero, y un lazo se clasificaba mal
+
+**Contexto:** paso 2.6, validación geométrica del polígono, revisión 2 del diseño.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** `degenerate` se definía como área de la fórmula del zapatero igual a cero. Un lazo
+(A(0,0) B(1,1) C(1,0) D(0,1)) tiene área cero y es un polígono que se cruza, no uno degenerado, así
+que habría recibido el código y el mensaje equivocados.
+
+**Cómo se detectó:** el validador de la revisión 2 del diseño.
+
+**Cómo se resolvió:** `degenerate` pasa a significar que TODOS los vértices son colineales
+(productos vectoriales enteros nulos), y el lazo es una fila de test de `core` que da
+`self-intersecting`.
+
+**Observación:** un umbral numérico (área cero) sustituía a la definición geométrica que se quería.
+
+### 2026-09-30 — El total exacto del mapa se devolvía sin acotar y podía mostrar «500 de 498»
+
+**Contexto:** paso 2.6, `searchMapPoints` en `packages/db`.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** con 501 filas devueltas, el `count(*)` posterior se mostraba tal cual. Las dos
+consultas no comparten instantánea: si entre ambas se retiraba un anuncio, el recuento podía ser
+menor que el tope y la pantalla mostraría «500 de 498».
+
+**Cómo se detectó:** corrección del orquestador al revisar la unidad de `db`.
+
+**Cómo se resolvió:** `truncatedMapTotal` acota el total a CAP+1 (decisión 117).
+
+**Observación:** dos consultas sin instantánea común no garantizan una relación entre sus resultados.
+
+### 2026-09-30 — `mergeRuns` exigía los 19 ids también con `--baseline`, y rompía las referencias de 2.4 y 2.5
+
+**Contexto:** paso 2.6, herramienta de banco de `apps/ingestion` (U3).
+
+**Categoría:** deriva de la arquitectura entre sesiones.
+
+**Qué ocurrió:** al ampliar la matriz a 19 escenarios, `mergeRuns` pasó a exigir todos los ids para
+cualquier entrada, y las corridas antiguas de 12 ids dejaron de servir como referencia.
+
+**Cómo se detectó:** el validador de la unidad.
+
+**Cómo se resolvió:** `requireComplete` solo se aplica a `--input`; `--baseline` acepta corridas
+parciales.
+
+**Observación:** endurecer una comprobación para el caso nuevo sin mirar los consumidores antiguos.
+
+### 2026-09-30 — La exploración daba por hecha la atribución de OSM en el pie del layout
+
+**Contexto:** paso 2.6, exploración y diseño de la atribución de las teselas.
+
+**Categoría:** contradicción con el código y con otros ficheros del propio registro.
+
+**Qué ocurrió:** la exploración supuso que la atribución iría en el pie de `layout.tsx`, junto a la del
+CNIG. El validador no encontró ninguna regla que lo exigiera, y ese pie afirmaría OSM en páginas sin
+teselas.
+
+**Cómo se detectó:** el validador.
+
+**Cómo se resolvió:** la atribución vive en la sección del mapa (control de Leaflet y marcado del
+servidor); decisión 112.
+
+**Observación:** un supuesto de ubicación heredado de un patrón anterior, sin comprobar la regla.
+
+### 2026-09-30 — Repetición del banco sin `jit = off`: falso incumplimiento de `geo-25km-price`
+
+**Contexto:** cierre de pendientes del 2.5, repetición de la matriz de `bench-search` sobre
+`buscahogar_bench`.
+
+**Categoría:** procedimiento incompleto (código correcto, medición mal hecha).
+
+**Qué se generó mal:** el asistente lanzó la matriz sin reproducir el
+`ALTER DATABASE buscahogar_bench SET jit = off` que el 2.4 documenta para la medición final. Como el
+banco conecta como propietario y no como `web_readonly`, el JIT compiló 719 ms y `geo-25km-price`
+dio 555 ms de p95. El plan era idéntico al del 2.4, así que el filtro nuevo parecía la causa sin
+serlo.
+
+**Cómo se detectó:** al comparar los planes de las dos ejecuciones, con los mismos nodos y el mismo
+índice, y ver el campo `jitMs`: 718,6 frente a `null`.
+
+**Cómo se resolvió:** se repitió con el ajuste aplicado y restaurado después: 30 ms de p95, igual
+que en el 2.4. `SEARCH-PERFORMANCE.md` añade un aviso de método.
+
+**Observación:** una receta de medición que depende de un ajuste de sesión debería aplicarlo el
+propio script, y no confiar en que quien la ejecuta lea el párrafo que lo explica. Es un seguimiento
+posible: que `bench-search` haga `SET jit = off` en su conexión.
+
+### 2026-09-30 — El orquestador trató `property_listings` como evidencia inmutable, y la documentación del tombstone lo repitió
+
+**Contexto:** paso 2.5, S4 (tombstone). Instrucción del orquestador a `sdd-apply` y decisión 107.
+
+**Categoría:** contradicción con el código.
+
+**Qué se generó mal:** la instrucción de S4 pedía que el tombstone «conservara la puntuación y el
+desglose de `property_listings`», y la decisión 107 y ARCHITECTURE lo afirmaron como garantía. El
+tombstone no toca esa tabla, pero `writeConsolidation` borra y reconstruye `properties` y
+`property_listings` en cada reproceso de dedup. La única evidencia inmutable es
+`dedup_pair_evidence`. Tampoco se contaba con que `properties.description` y `thumbnail_url`, copiadas
+del anuncio ganador, conservan el contenido redactado hasta el siguiente reproceso correcto.
+
+**Cómo se detectó:** el validador de contrato de S4, contrastando la decisión con
+`consolidation.ts` y `winner.ts`.
+
+**Cómo se resolvió:** decisión 107 corregida (qué es evidencia inmutable, el retraso de la
+redacción en `properties` y el posible cambio de ganador). También se corrigió la frase del ROADMAP
+que decía que el sistema no retiraba ningún anuncio, cuando la purga de zonas sí retira.
+
+**Observación:** la regla de `CLAUDE.md` («guardar siempre en `property_listings` la puntuación y el
+desglose») habla de cada consolidación, no de conservar filas antiguas. Con la separación
+`listings`/`properties` y el reproceso global, la evidencia histórica vive en `dedup_pair_evidence`.
+
+### 2026-09-30 — Tests de `apps/web` sin las URLs de sus roles en línea escribieron en la base de desarrollo
+
+**Contexto:** paso 2.5, S4, ejecución de la suite de `apps/web` contra bases desechables.
+
+**Categoría:** pérdida de contexto en tareas largas.
+
+**Qué ocurrió:** el ayudante que ejecuta cada comando con `DATABASE_URL` apuntando a una base
+desechable no sobrescribía `WEB_DATABASE_URL` ni `WEB_COVERAGE_DATABASE_URL`. `.env` las apunta a la
+base de desarrollo, y los tests de roles y de la página de cobertura conectan con esos roles. Seis
+tests fallaron (los roles veían las claves foráneas de otra base que la que el test acababa de
+poblar), y los que consumen cuota dejaron dos filas de prueba en `coverage_client_quota` de la base
+de desarrollo.
+
+**Cómo se detectó:** por los fallos (los roles no veían los datos que el test acababa de crear) y
+comprobando después los recuentos de la base de desarrollo.
+
+**Coste:** 10 minutos. Daño: dos filas de cuota de un día, que la purga programada borra sola;
+señales y jobs siguen en 0.
+
+**Observación:** es el mismo fallo de la entrada siguiente y del subagente del paso 2.4, y la segunda vez dentro de este paso. La
+instrucción nombraba `DATABASE_URL` y `BENCH_DATABASE_URL`, pero `.env` define tres URLs de base de
+datos más de las que un comando suele sobrescribir. Un ayudante de ejecución que fija las tres
+(además de las del banco) y se niega a arrancar si alguna apunta a una base sin el sufijo
+designado evita la clase entera; se usó desde este punto.
+
+### 2026-09-29 — Un `pnpm migrate` sin variables en línea aplicó la migración 0014 a la base de desarrollo
+
+**Contexto:** paso 2.5, S2 (ciclo de vida y visibilidad), migración `0014`.
+
+**Categoría:** pérdida de contexto en tareas largas.
+
+**Qué ocurrió:** el agente creó una base desechable y exportó su `DATABASE_URL` en una llamada de
+shell; en la siguiente, el entorno ya no existía, y `pnpm migrate` leyó `.env` y migró la base de
+desarrollo. Aplicó `0014` y su relleno (`active_listing_count = listing_count`).
+
+**Cómo se detectó:** lo declaró el propio agente al ver la migración aplicada donde no debía.
+
+**Coste:** ninguno (migración aditiva, sin pérdida de datos), pero contra una regla explícita.
+
+**Observación:** el entorno de una llamada de shell no persiste en la siguiente. Desde S3 las
+variables van en línea, en el mismo comando que cada migración o test.
+
+### 2026-09-29 — Dos fallos de «retirada falsa» que solo encontró el validador
+
+**Contexto:** paso 2.5, S3 (verificación de presencia por `adIds`).
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** (1) La retirada de un anuncio «ausente» no comprobaba que siguiera en la cola. Si un
+barrido lo veía entre la verificación y su aplicación, el escritor ya había borrado su fila, pero la
+aplicación lo retiraba igualmente. (2) El clasificador trataba una respuesta vacía a un lote de
+varios ids como «todos ausentes». Una respuesta vacía es igual de compatible con un `adIds` ignorado
+o con un filtro de tipo que no casa en una zona sin stock, y habría retirado hasta 50 anuncios vivos
+de golpe. El test que fijaba esa forma pasaba porque repetía lo que la especificación describía (LR-4), que
+tenía el mismo fallo.
+
+**Cómo se detectó:** validación de contexto limpio del lote (PASS_WITH_NOTES con ambos hallazgos).
+
+**Coste:** una ronda de corrección: un test rojo para cada uno, y una desviación de la especificación
+registrada en la decisión 105.
+
+**Observación:** la especificación, el diseño y las pruebas compartían el mismo supuesto. La
+prioridad del proyecto (un falso positivo es peor que un duplicado sin detectar) debía haber
+convertido «respuesta vacía» en ambigua desde el principio. Un test que repite la especificación no
+valida la especificación.
+
+### 2026-09-29 — `scheduleRefresh` dejaba el cursor de una paginación a medias
+
+**Contexto:** paso 2.5, S1 (planificador de refresco), `packages/db/src/zone-lifecycle.ts`.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** el re-encolado ponía el job en `pending` con `attempts = 0` pero conservaba el
+cursor. Un job `failed` con los intentos agotados reanudaba desde una página intermedia,
+`finishJob(completed)` sellaba `last_swept_at` como un barrido completo y, en S3, `cycle_started_at`
+(que solo se fija con cursor nulo) nunca abría un ciclo nuevo: el candidato a «ausente» se habría
+calculado contra un ciclo antiguo.
+
+**Cómo se detectó:** validador de S1, que cruzó la invariante con el diseño de S3.
+
+**Coste:** una ronda de corrección (test rojo `expected 'cursor-a-mitad-de-paginacion' to be null`).
+
+**Observación:** el fallo no se veía dentro de S1: dependía de una propiedad de S3. Conviene escribir
+las invariantes entre unidades antes de partir el trabajo.
+
+### 2026-09-29 — El diseño proponía borrar filas del catálogo de zonas, y el diseño y la especificación se desviaron entre sí
+
+**Contexto:** paso 2.5, propuesta y diseño de la purga de zonas.
+
+**Categoría:** deriva de la arquitectura entre sesiones.
+
+**Qué ocurrió:** la primera versión del diseño borraba la zona al purgar. `zones` no es una tabla de trabajo: es
+el catálogo INE sembrado (~8.100 filas) que la interfaz y `locations-query` unen con un `inner join`.
+Borrarla rompería el autocompletado de municipios. Además, el diseño y la especificación dejaron de
+coincidir entre sus primeras versiones, y hubo que alinearlos de nuevo con las decisiones U1-U3 del
+mantenedor (segunda revisión de ambos).
+
+**Cómo se detectó:** al revisar el diseño contra el código (el `inner join` de `suggestZones` y
+`resolveZoneGeometry`) y en una lectura cruzada del diseño y la especificación.
+
+**Coste:** una segunda revisión de diseño y especificación. Resultado: la purga es un reinicio
+(decisión 108).
+
+**Observación:** «borrar» sin mirar quién referencia la tabla. Una frase de un diseño sobre el
+esquema existente es una afirmación verificable, igual que el código.
+
+### 2026-09-30 — La previsión de tamaño se quedó unas tres veces corta
+
+**Contexto:** paso 2.5, `sdd-tasks` y las cuatro unidades de `sdd-apply`.
+
+**Categoría:** pérdida de contexto en tareas largas.
+
+**Qué ocurrió:** `sdd-tasks` previó 2.100-2.500 líneas en total; S1, S2 y S3 cerraron en ~2.700, ~930 y
+~4.240 (más un snapshot generado de 2.143 líneas), y S4 en ~1.450. Más de la mitad son tests, y la
+previsión no contaba ni los escenarios negativos que pide la TDD estricta ni las correcciones
+tras validación.
+
+**Cómo se detectó:** el informe de cada unidad.
+
+**Coste:** `size:exception` aceptado en las cuatro unidades; no hubo un PR revisable de 800 líneas.
+
+**Observación:** la previsión por unidad debería partir del número de escenarios negativos de la
+especificación, no de las funciones que se añaden.
+
+### 2026-09-29 — Un subagente de `sdd-apply` ejecutó `test:db` contra la base de desarrollo pese a la instrucción de no tocarla
+
+**Contexto:** paso 2.4, primer lote de `sdd-apply` (generador de corpus, `apps/ingestion`).
+
+**Categoría:** pérdida de contexto en tareas largas.
+
+**Qué ocurrió:** la instrucción decía "no conectes con la base de desarrollo". El agente ejecutó
+`pnpm --filter @buscahogar/ingestion test:db` para comprobar que su test nuevo se omitía sin
+`BENCH_DATABASE_URL`. El test nuevo se omitió, pero la configuración lanzó también las suites que
+ya existían, que conectan con `DATABASE_URL` y truncan la base de desarrollo (decisión 046). La
+base quedó con 1 anuncio y 0 viviendas; no se sabe si antes tenía datos reales.
+
+**Cómo se detectó:** lo declaró el propio agente en su informe, como "observación del entorno".
+
+**Coste:** imposible de cuantificar si había datos reales; 5 minutos de diagnóstico.
+
+**Observación:** una prohibición abstracta ("no toques la base X") no basta cuando el comando que
+la viola parece inocuo. Desde ese lote, cada instrucción prohíbe por nombre `test:db`,
+`db test` y cualquier comando que cargue `DATABASE_URL`, y no volvió a ocurrir. El arreglo de
+fondo sigue pendiente: la decisión 046.
+
+### 2026-09-29 — El diseño usó `pg_buffercache_evict()` sin argumentos, que solo existe en PostgreSQL 18
+
+**Contexto:** paso 2.4, CLI de medición (`apps/ingestion/scripts/bench-search.ts`), ejecución en frío.
+
+**Categoría:** API o método inexistente.
+
+**Qué ocurrió:** el diseño y la implementación vaciaban la caché con `SELECT pg_buffercache_evict()`.
+En PostgreSQL 17, la versión fijada en `docker-compose.yml`, la extensión solo define
+`pg_buffercache_evict(integer)`, por búfer; las variantes para todo o para una relación llegan en
+18. Los tests pasaban porque usan un pool falso. El mismo lote tenía otros dos fallos de la misma
+familia, invisibles sin base de datos: sumaba los búferes de todos los nodos del plan cuando
+PostgreSQL ya incluye los de los hijos en cada nodo, y el informe antes/después no tenía ningún
+comando que lo generara (el diseño lo describía, pero ninguna tarea lo asignó).
+
+**Cómo se detectó:** validación de contexto limpio del lote; confirmado leyendo el SQL de la
+extensión dentro del contenedor.
+
+**Coste:** una corrección completa del lote (~500 líneas) y un reinicio del ledger de intentos.
+
+**Observación:** el diseño citaba la función de memoria, sin comprobar la versión fijada. Todo lo
+que depende de la versión del servidor tiene que verificarse contra el contenedor real, igual que
+se hace con las APIs de Next contra la versión del `package.json`.
+
+### 2026-09-29 — El generador sintético sacaba longitud y latitud de sorteos independientes
+
+**Contexto:** paso 2.4, `apps/ingestion/src/bench/corpus-sql.ts`.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** cada coordenada tenía sus propios `random()` para decidir si era nula, si caía en
+Madrid o en la península, el radio y el ángulo. Resultado: ~4% de ubicaciones nulas en vez del 2%,
+puntos con longitud de Madrid y latitud de otra zona, solo ~36% del corpus en el círculo de Madrid
+en lugar del 60%, y un test que exigía geografía no nula en todas las filas y habría fallado contra
+una base real. Además, dos comentarios seguidos sobre los casts a `numeric` explicaban mal el
+motivo: `numeric + double precision` sí se resuelve por cast implícito, a `double precision`.
+
+**Cómo se detectó:** validación de contexto limpio (las coordenadas); comprobación con `pg_typeof`
+contra PostgreSQL 17 (los comentarios).
+
+**Coste:** una corrección del lote (~250 líneas) y un reinicio del ledger de intentos.
+
+**Observación:** en SQL generado, los valores que deben estar correlacionados tienen que salir del
+mismo sorteo materializado. Los tests estructurales no lo detectaban hasta que se añadió uno que
+cuenta cuántas veces se usa cada sorteo.
+
+### 2026-09-28 — El orquestador fijó dos veces un tope de líneas cambiadas del ledger de intentos demasiado bajo para el paso 2.3
+
+**Contexto:** paso 2.3, cierre de lotes de `sdd-apply` sucesivos (comparación de imágenes).
+
+**Categoría:** deriva de contexto entre fases — decisión del orquestador, no del agente de
+`sdd-apply` (mismo patrón ya registrado el 2026-09-24 para el paso 1.15).
+
+**Qué ocurrió:** el orquestador fijó el tope de líneas cambiadas del ledger nativo de intentos en
+1.200 y, tras el primer bloqueo, en 1.500, sin contar en ninguno de los dos casos las fixtures de
+imagen comiteadas (18 JPEGs + `provenance.json`), el `pnpm-lock.yaml` regenerado por añadir
+`sharp`, ni los JSON generados (`hashes.calibration.json`, `hashes.evaluation.json`,
+`calibration-report.json`). El intento bloqueó en `maintainer_decision` por
+`changed_line_budget_exceeded` las dos veces, aunque el código autorado real cabía en el
+`size:exception` ya aceptado por el responsable del proyecto.
+
+**Cómo se detectó:** el propio bloqueo del ledger nativo al intentar cerrar cada intento.
+
+**Cómo se resolvió:** el responsable del proyecto concedió una autorización permanente, acotada a
+este cambio, para que el orquestador ejecute `gentle-ai sdd-attempt reset` sin preguntar cuando el
+único motivo del bloqueo sea `changed_line_budget_exceeded` (Engram
+`sdd/image-phash-signal/ledger-reset-authorisation`), en vez de repetir la autorización manual una
+tercera vez.
+
+**Coste:** aproximado, 10 minutos entre los dos bloqueos y sus reinicios.
+
+**Observación:** tercera vez que este mismo defecto de proceso se documenta en este repositorio
+(pasos 1.15 y ahora 2.3, dos veces en el mismo paso) — un paso que comitea fixtures binarias,
+JSON generado o un lockfile regenerado necesita un tope de ledger fijado contando esos ficheros
+desde el primer intento, no ajustado reactivamente tras el primer bloqueo.
+
+### 2026-09-25 — El agente de `sdd-apply` no tuvo acceso a las herramientas MCP de Context7 y verificó la API de `sharp` leyendo directamente sus tipos instalados
+
+**Contexto:** paso 2.3, lotes de `sdd-apply` que tocan `apps/ingestion/src/image-hash/` (pipeline
+de hashing con `sharp`).
+
+**Categoría:** pérdida de contexto en tareas largas — una herramienta que `CLAUDE.md` (regla
+global de `context7.md`) exige usar para APIs de librerías no estaba disponible en la sesión del
+sub-agente.
+
+**Qué ocurrió:** el propio diseño (obs #297) ya advertía que Context7 no estuvo disponible al
+redactarlo y dejaba como verificación pendiente de aplicación: comprobar cada llamada de `sharp`
+(`flatten`, `extract`, `resize`, `raw`, `create`, `sharp.versions`) contra la documentación real de
+la versión fijada. En la sesión de aplicación, las herramientas MCP de Context7 tampoco estaban
+registradas.
+
+**Cómo se resolvió:** se leyeron directamente los `.d.ts` que `sharp@0.34.2` distribuye en
+`node_modules/sharp/lib/*.d.ts` — la misma disciplina que la entrada del 2026-09-24 sobre
+`next/experimental/testing/server` ya había aplicado por el motivo contrario (documentación
+empaquetada desincronizada): aquí, sin documentación externa disponible en absoluto, el tipo
+instalado fue la única fuente verificable.
+
+**Coste:** no medible por separado — la verificación se hizo como parte normal de escribir cada
+llamada a `sharp`, sin retrabajo posterior.
+
+**Observación:** cuando una herramienta de documentación externa no está disponible, el `.d.ts`
+real instalado en `node_modules` sigue siendo una fuente de verdad verificable contra la versión
+exacta fijada en `package.json` — más fiable que confiar en el conocimiento previo del modelo sobre
+una API con superficie amplia como la de `sharp`.
+
+### 2026-09-25 — El diseño asumía `allowBuilds: { sharp: false }` porque los binarios prebuilt "no necesitan compilar"; el propio script `install` de `sharp` sí necesita ejecutarse
+
+**Contexto:** paso 2.3, diseño (obs #297) y `sdd-apply` (lote de Phase 1/2, pipeline de ingesta).
+
+**Categoría:** API o comportamiento de una dependencia asumido sin verificar contra el paquete
+real instalado.
+
+**Qué ocurrió:** el diseño razonaba que, al usar binarios prebuilt de `@img/sharp-*`
+(`optionalDependencies`, sin compilación nativa), `sharp` no necesitaría entrada en
+`allowBuilds` de `pnpm-workspace.yaml` — pnpm bloquea por política los scripts `postinstall` a
+menos que se permitan explícitamente, y la suposición era que "sin compilación, sin script que
+bloquear". Al instalar de verdad, `pnpm install` seguía fallando sin la entrada: el propio script
+`install` de `sharp` SÍ se ejecuta siempre, pero solo para VERIFICAR que el binario prebuilt
+correcto llegó — no para compilar nada.
+
+**Cómo se detectó:** ejecución real de `pnpm install` tras añadir `sharp` al `package.json` de
+`apps/ingestion`, no por lectura del código de `sharp`.
+
+**Cómo se resolvió:** `allowBuilds: { sharp: true }` en `pnpm-workspace.yaml`, con el motivo
+documentado en el propio comentario del fichero (verificación, no compilación) y en la decisión
+095 de `docs/DECISIONS.md`.
+
+**Coste:** aproximado, 5 minutos (instalación fallida, lectura del script `install` real de
+`sharp`, corrección).
+
+**Observación:** "usa binarios prebuilt" y "no ejecuta ningún script de instalación" no son la
+misma propiedad — un paquete puede evitar compilar y aun así necesitar un script de verificación
+posterior a la instalación. Solo la ejecución real de `pnpm install` lo reveló.
+
+### 2026-09-25 — El diseño (revisión 1) dejaba que la imagen contara para el piso de evidencia de rule-based y afirmaba, incorrectamente, que `classify.ts` de producción necesitaría edición
+
+**Contexto:** paso 2.3, `sdd-design` (revisión 1, corregida antes de llegar a `sdd-apply`).
+
+**Categoría:** deriva de la arquitectura entre sesiones — el diseño no había trazado el flujo
+completo del piso de evidencia (`MIN_EVALUATED_SIGNALS`/`MIN_EFFECTIVE_WEIGHT`, decisión 049) antes
+de decidir cómo combinar la señal de imagen.
+
+**Qué ocurrió:** la primera versión del diseño sumaba la contribución de imagen al desglose de
+señales sin excluirla del piso de evidencia de rule-based, y proponía editar directamente
+`packages/core/src/strategies/rule-based/classify.ts` (código de producción, fuera del alcance de
+este cambio) para introducir esa exclusión. Bajo esa forma, un par con solo 2 señales
+estructuradas (peso 40, como `md-4` del corpus) más una imagen fuerte simulada habría alcanzado
+exactamente peso 55 y cruzado el piso — una vía de falso positivo entre viviendas del mismo
+edificio que la decisión 006 existe para evitar, y exactamente el escenario que este cambio debía
+medir sin introducir.
+
+**Cómo se detectó:** una validación en un contexto nuevo (sin el razonamiento previo del propio
+diseño en memoria de trabajo), releyendo el flujo real de `classify.ts` y del piso de evidencia
+contra lo que el diseño proponía.
+
+**Cómo se resolvió:** revisión 2 del diseño — un `classify` inyectable
+(`classifyRuleBasedWithImage`) que el evaluador RB+imagen usa en vez de la función de producción,
+sin tocar `classify.ts`. Decisión 094 de `docs/DECISIONS.md`.
+
+**Coste:** no medido directamente por `sdd-apply` (resuelto en la fase de diseño, antes de que
+`sdd-apply` recibiera el artefacto).
+
+**Observación:** una revisión hecha desde un contexto fresco, sin el hilo de razonamiento que
+produjo la primera versión, detecta con más facilidad cuándo una propuesta de diseño amplía el
+radio de impacto (aquí, tocar código de producción) más de lo que el objetivo del cambio requiere.
+
+### 2026-09-25 — `sdd-spec` y `sdd-design` en paralelo volvieron a desalinearse, esta vez en las columnas del CSV y el vocabulario de nivel/razón de la señal de imagen
+
+**Contexto:** paso 2.3, spec (obs #296) y diseño (obs #297) redactados en paralelo, corregidos con
+las mismas resoluciones (S1-S9/094-099) en la misma ronda.
+
+**Categoría:** deriva de contexto entre fases — mismo patrón ya documentado en los pasos 1.10,
+1.11 y 1.15 (spec y diseño en paralelo divergiendo en un punto que ninguno de los dos poseía por
+sí solo), esta vez detectado y corregido ANTES de llegar a `sdd-apply`, no durante ni después.
+
+**Qué ocurrió:** la primera redacción de la especificación y la del diseño fijaban, cada una por su
+cuenta, un contrato ligeramente distinto para dos puntos de la superficie exportada por el CLI: el
+orden y nombre exacto de las columnas CSV nuevas (`evidence`/`image_caveat` tras `caveat`) y el
+vocabulario cerrado de nivel/razón del desglose de imagen (`strong`/`neutral`,
+`match`/`above-threshold`/`missing`/`unreadable`/`low-entropy`). Ninguna de las dos discrepancias
+era una contradicción de fondo sobre el comportamiento — ambas convergían en la misma intención,
+solo con distinta forma textual.
+
+**Cómo se detectó:** comparación cruzada de ambos artefactos antes de `sdd-tasks`, mismo mecanismo
+de arbitraje ya usado en los pasos 1.10/1.11/1.15.
+
+**Cómo se resolvió:** re-ejecución correctiva de spec y diseño con las mismas resoluciones (F1-F9
+en spec, S1-S9 en diseño), fijando un único contrato textual para ambos puntos antes de que
+`sdd-tasks` los convirtiera en tareas — a diferencia del paso 1.10, aquí no hizo falta escalar la
+decisión al responsable del proyecto: la convergencia de intención ya estaba, solo faltaba fijar
+una única forma.
+
+**Coste:** no medido directamente por `sdd-apply` (resuelto en fase de spec/diseño, antes de que
+`sdd-apply` recibiera los artefactos).
+
+**Observación:** cuarta vez que este patrón (spec y diseño en paralelo, mismo tipo de deriva) se
+documenta en este proyecto — a diferencia de las tres anteriores, aquí ninguna de las dos versiones
+estaba más "razonada desde el código real" que la otra: era una cuestión de forma textual, no de
+comportamiento, y se resolvió sin necesitar el criterio de desempate habitual ("gana el que leyó
+código real").
+
+### 2026-09-25 — El pronóstico de líneas del preproposal (1.000-1.300) quedó muy por debajo del diseño (~2.100) y de la cifra real de aplicación
+
+**Contexto:** paso 2.3, preproposal (obs #292) frente al diseño (obs #297) y la aplicación real.
+
+**Categoría:** deriva de contexto entre fases — subestimación sistemática, mismo patrón ya
+documentado para los pasos 1.6/1.7 ("segunda subestimación consecutiva... se estima por lo bajo").
+
+**Qué ocurrió:** el preproposal estimaba el cambio completo en 1.000-1.300 líneas. El diseño, con
+el desglose fichero a fichero ya completo, lo elevó a ~2.100 líneas autoradas. La aplicación real
+lo superó de nuevo: tests y fixtures (18 fotografías + `provenance.json`, suites de test por fase)
+pesaron más de lo que ninguna de las dos estimaciones anticipaba.
+
+**Cómo se detectó:** comparación entre el pronóstico del preproposal y el desglose fichero a
+fichero del propio diseño, antes de empezar a aplicar; confirmado después contra el tamaño real de
+los commits.
+
+**Cómo se resolvió:** no se recortó alcance ni cobertura de test para acercarse a la cifra
+original — se aceptó `size:exception` sobre la cifra real, con partición en varios lotes de
+aplicación (mismo precedente que los pasos 1.8, 1.13, 1.14 y 2.2).
+
+**Observación:** quinta vez que este patrón de subestimación se documenta en el proyecto (1.6, 1.7
+dos veces, 1.13, y ahora 2.3) — cubrir con tests varios módulos puros por separado bajo TDD
+estricto, más fixtures reales con procedencia, sigue siendo el tipo de trabajo que las fases
+tempranas de planificación subestiman de forma consistente en este proyecto.
+
+### 2026-09-25 — El FN/TN exportado por la CLI del paso 2.2 excluía los pares `undecided`, en contra de D2, y no reconciliaba con el recall mostrado en la misma fila
+
+**Contexto:** paso 2.2, capa de render de la CLI de comparación de estrategias
+(`apps/ingestion/src/strategy-comparison/render.ts`), en los tres formatos exportados
+(Markdown, JSON, CSV).
+
+**Categoría:** código correcto en apariencia pero incorrecto — el cálculo interno de
+`computeMetrics` (`packages/core`) era correcto y estaba probado; el defecto estaba solo en qué
+cifra cruda reexponía cada renderer.
+
+**Qué ocurrió:** `computeMetrics` (decisión 089, D2 del preproposal) ya trata un duplicado real
+clasificado `undecided` como un fallo de recall — el denominador de recall es
+`TP + FN + undecidedDuplicate`. Pero los tres formatos exportaban directamente
+`counts.falseNegative`/`counts.trueNegative`, que en `ConfusionCounts` son solo el `reject`
+explícito, EXCLUYENDO el `undecided` correspondiente. El resultado: la fila por defecto de
+rule-based mostraba `true_positive=8, false_negative=0` con `recall=0.8000` en la misma fila — un
+lector que reconstruyera `recall = TP/(TP+FN)` a partir de las columnas nombradas obtenía 1.0000,
+en contradicción visible con el 0.8000 mostrado, sin ninguna pista de que hiciera falta sumar
+también `undecided_duplicate` (una columna aparte, sin relacionar explícitamente con FN en ningún
+sitio).
+
+**Cómo se detectó:** `sdd-verify` (revisión #288, WARNING-1), no durante la aplicación original
+(los 61 tareas de `tasks.md` y sus 993 tests pasaban en verde; el propio test de `computeMetrics`
+que fija D2 —`metrics.test.ts`— es correcto y sigue sin cambios). La verificación comparó el
+artefacto exportado, no solo el cálculo interno, contra el requisito de la especificación
+("Undecided counts as negative"), y encontró que el primero no reconciliaba con el segundo pese a
+que ambos "pasan sus tests" por separado.
+
+**Cómo se resolvió:** corrección acotada a `render.ts` (una función `reconcileCounts` que suma
+`undecidedDuplicate`/`undecidedDistinct` a `falseNegative`/`trueNegative` SOLO para lo que se
+expone), sin tocar `packages/core`. Columnas/campos renombrados a
+`false_negative_incl_undecided`/`true_negative_incl_undecided` (CSV/JSON) y etiqueta
+`FN (incl. indecisos)`/`TN (incl. indecisos)` en Markdown, para que el cambio de significado sea
+inequívoco frente al `ConfusionCounts` crudo que sigue existiendo sin cambios en `packages/core`.
+RED escrito primero contra la CLI real (no un fixture sintético) sobre el corpus de 24 pares,
+confirmando `TP+FP+FN+TN=24` y `recall=TP/(TP+FN)` en ambas estrategias antes de tocar producción.
+Decisión 092.
+
+**Coste:** aproximado, 45 minutos (lectura del verify-report, cálculo manual de los valores reales
+de FN/TN totales por estrategia antes de escribir las aserciones, RED→GREEN, actualización de
+`DECISIONS.md`/`ROADMAP.md`).
+
+**Observación:** un test que fija la semántica de una función pura (`computeMetrics`) no prueba
+que el artefacto final expuesto al usuario use esa misma semántica correctamente — hacía falta un
+test que inspeccionara la salida real de la CLI (Markdown/JSON/CSV), no solo `packages/core`, para
+detectar que la capa de render había vuelto a introducir la exclusión que D2 prohibía uno o dos
+pasos más arriba. La verificación de artefactos exportados (deliverables de la memoria del TFM)
+necesita comprobar reconciliación visible entre columnas, no solo que cada número individual sea
+"correcto" según su propia definición interna.
+
+### 2026-09-25 — Una aserción de test se autoinvalidó por la subcadena "null" en su propio dato de prueba
+
+**Contexto:** paso 2.2, `sdd-apply` (segundo lote, fase 5), `apps/ingestion/test/strategy-comparison-render.test.ts`.
+
+**Categoría:** test que valida el comportamiento equivocado (falso negativo de la propia
+aserción, no del código de producción).
+
+**Qué ocurrió:** un test comprobaba que el Markdown renderizado nunca contuviera la palabra
+"null" suelta (`expect(md).not.toMatch(/\bnull\b/)`), como señal de que los valores `null` se
+renderizan siempre como "n/a". El `StrategyEvaluation` de prueba usado en ese mismo test se llamó
+`null-edge-strategy` — y ese nombre aparece literalmente en el Markdown generado (como encabezado
+de sección), así que la propia aserción fallaba contra su propio dato de entrada, no contra un
+fallo de `renderMarkdown`.
+
+**Cómo se detectó:** ejecución del test inmediatamente después de escribirlo (ciclo RED→GREEN de
+TDD estricto): falló con un mensaje que mostraba el Markdown completo, dejando ver que el único
+"null" presente era el nombre de la estrategia de prueba, no ningún valor sin formatear.
+
+**Cómo se resolvió:** renombrada la estrategia de prueba a `edge-case-strategy`; el resto de
+aserciones del mismo test (comprobación explícita de `"n/a"` en la tabla y ausencia de `"NaN"`)
+ya demostraban el comportamiento real, así que no hizo falta cambiar `render.ts`.
+
+**Coste:** menos de 2 minutos.
+
+**Observación:** mismo patrón que la mistake #2 del lote anterior de este cambio
+(`parameters.ts` contenía la subcadena "dedup-corpus" en su propio comentario y tripeaba su
+propio test de "no importa el corpus"): un test que inspecciona texto completo (comentarios,
+nombres de fixtures, prosa generada) debe elegir sus datos de prueba evitando por completo la
+subcadena que está prohibiendo, no solo evitarla en el código de producción.
+
+### 2026-09-25 — El commit inicial del paso 2.2 (fase 1, primer lote) dejó una copia obsoleta de `dedup-corpus.ts` en `HEAD` tras un `git mv` con pathspec parcial
+
+**Contexto:** paso 2.2, `sdd-apply` (primer lote, fase 1): reubicación del corpus etiquetado de
+`packages/core/test/dedup-corpus.ts` a `packages/core/src/evaluation/dedup-corpus.ts` (decisión
+090).
+
+**Categoría:** código correcto en apariencia pero incorrecto (el árbol de trabajo era correcto;
+el commit no).
+
+**Qué ocurrió:** tras `git mv packages/core/test/dedup-corpus.ts packages/core/src/evaluation/dedup-corpus.ts`,
+el commit se creó con `git commit -m "..." -- <4 rutas explícitas>`, y esa lista de rutas NO
+incluía la ruta ANTIGUA (el lado de borrado del rename). El resultado: el árbol del commit
+conservó la copia PRE-sesión de `test/dedup-corpus.ts` (608 líneas, sin el campo `truth`) junto a
+la nueva `src/evaluation/dedup-corpus.ts`, aunque el árbol de trabajo real ya solo tenía el
+fichero nuevo.
+
+**Cómo se detectó:** `git status` tras el commit "limpio" seguía mostrando `D
+packages/core/test/dedup-corpus.ts` en staging — la señal de que el commit no había capturado el
+borrado.
+
+**Cómo se resolvió:** un commit de corrección en la misma sesión (`2466edb`, nunca un `amend`, por
+la regla del proyecto de no reescribir commits) que confirmó el borrado ya en staging.
+
+**Coste:** aproximado, 3 minutos.
+
+**Observación:** tras un `git mv` seguido de un commit restringido a un pathspec explícito,
+conviene verificar `git show HEAD:<ruta-antigua>` antes de dar el commit por completo — un
+pathspec parcial puede dejar huérfano justo el lado de borrado de un rename sin que ningún test
+lo detecte (los tests corrían contra el árbol de trabajo, no contra el commit).
+
+### 2026-09-25 — La decisión 087 del diseño ilustraba su argumento con un cálculo a mano matemáticamente inalcanzable
+
+**Contexto:** paso 2.2, diseño (obs #283) y `sdd-apply` (primer lote, fase 3): umbrales de la
+estrategia probabilística.
+
+**Categoría:** deriva de la arquitectura entre sesiones (el diseño razonó sobre un caso que el
+propio esquema de dominio, `listingSchema`, ya prohibía).
+
+**Qué ocurrió:** el diseño justificaba "ningún par con como mucho dos campos evaluados alcanza
+`accept`" con un cálculo concreto — distancia + dirección exacta, `M=2.807+3.000-3.170=2.637`,
+`p≈0.862` — que omite `price` por completo. Pero `priceCents` es `z.int().positive()` (obligatorio
+en `listingSchema` desde ROADMAP 1.4): ningún `Listing` real puede tener el precio ausente, así
+que `price` SIEMPRE se evalúa y ese `M` exacto es inalcanzable por cualquier par real.
+
+**Cómo se detectó:** al escribir el RED del test que debía pinchar ese caso (fase 3, tarea 3.7):
+ningún par sintético con `price` ausente es un `Listing` válido, así que el caso literal del
+diseño no se podía construir.
+
+**Cómo se resolvió:** sin ajustar los parámetros `m`/`u` para forzar la cifra del diseño
+(instrucción explícita de la orquestación, decisión D3 del preproposal). Se implementó la tabla
+real tal y como está especificada y se escribieron los tests sobre el mismo PRINCIPIO cualitativo
+con valores calculados por el código real (`score≈0.806` para dos campos fuertes con `price` en
+banda intermedia, `score≈0.976` para tres campos fuertes). Documentado en `docs/DECISIONS.md`,
+decisión 087.
+
+**Coste:** aproximado, 10 minutos (detección más redacción de la desviación en el resumen de la
+tarea).
+
+**Observación:** una ilustración numérica de un diseño que razona "en el vacío" (sin comprobar
+contra los esquemas Zod reales) puede ser matemáticamente inalcanzable aunque el PRINCIPIO que
+ilustra sea correcto — verificar un cálculo a mano contra las restricciones reales del dominio
+(aquí, qué campos son opcionales de verdad) antes de citarlo en la documentación final.
+
+### 2026-09-25 — Especificadores de import relativos en `tasks.md` bloquearon al dispatcher nativo antes de empezar a aplicar
+
+**Contexto:** paso 2.2, tarea `sdd-tasks` (obs #285) y arranque de `sdd-apply`.
+
+**Categoría:** patrón de una versión anterior del framework / contradicción con una regla de
+plataforma no evidente desde la propia redacción de la tarea.
+
+**Qué ocurrió:** las tareas 1.4 y 1.5 (revisión 1) describían las rutas de los ficheros a tocar
+como especificadores de import relativos (p. ej. `../src/evaluation/make-listing.js`, tal y como
+aparecerían DENTRO de un fichero de test), en vez de como rutas relativas al repositorio. El
+dispatcher nativo de SDD interpretó esos especificadores literalmente como rutas de edición fuera
+del repositorio y bloqueó el arranque de `sdd-apply` con
+`blocked(edit_authority_missing)`.
+
+**Cómo se detectó:** el propio intento de arranque de `sdd-apply`, antes de escribir ningún
+código — el bloqueo es una comprobación de la plataforma, no un fallo de test.
+
+**Cómo se resolvió:** el orquestador reescribió las tareas 1.4/1.5 (revisión 2) con rutas
+relativas al repositorio (`packages/core/test/test-helpers.ts`, etc.), manteniendo el mismo
+contenido técnico.
+
+**Coste:** aproximado, 5 minutos (bloqueo, reescritura, reintento).
+
+**Observación:** al redactar tareas de `sdd-tasks`, las rutas de fichero deben escribirse siempre
+relativas a la raíz del repositorio, nunca como el especificador de import que un fichero de
+código usaría para referenciarlas — son dos convenciones de ruta distintas y el dispatcher nativo
+solo entiende la primera.
+
+### 2026-09-25 — El diseño inicial citaba un "corte del 2%" y una "decisión 023" inexistentes para justificar los umbrales de la estrategia probabilística
+
+**Contexto:** paso 2.2, `sdd-design` (revisión 1, corregida en la revisión 2 tras FAIL del
+validador de diseño).
+
+**Categoría:** código (aquí, prosa técnica) correcto en apariencia pero incorrecto — una cita que
+suena precisa pero no corresponde a nada real en el repositorio.
+
+**Qué ocurrió:** la primera versión del diseño justificaba los cortes de nivel "near" de la nueva
+estrategia (2% de diferencia relativa, 20 m) como si ya existieran en rule-based, citando una
+"decisión 023" que no trata ese tema. En realidad, rule-based (`signals.ts`) decae linealmente
+hasta 0 en un 10% de diferencia relativa (precio/superficie) y en 100 m (distancia) — sin ningún
+corte al 2%.
+
+**Cómo se detectó:** el validador de diseño (FAIL en la primera pasada) señaló la cita incorrecta
+entre otros hallazgos.
+
+**Cómo se resolvió:** la revisión 2 del diseño sustituyó la cita por los puntos de decaimiento
+reales de `rule-based/signals.ts:15-17`, y marcó los cortes "near" (2%, 20 m) explícitamente como
+elecciones a priori NUEVAS de la estrategia probabilística, sin precedente en rule-based —
+distinguiendo qué parámetros reutilizan un punto ya medido y cuáles son una decisión nueva. Ver
+`packages/core/src/strategies/probabilistic/parameters.ts` (comentario de cabecera) y
+`docs/DECISIONS.md`, decisión 085.
+
+**Coste:** no medido directamente por `sdd-apply` (ocurrió en una fase de diseño anterior); la
+corrección quedó ya resuelta en el diseño que `sdd-apply` recibió.
+
+**Observación:** citar un número de decisión concreto (`docs/DECISIONS.md`) como respaldo de una
+elección de diseño es una afirmación verificable, igual que una cita de código — conviene
+comprobarla contra el fichero real antes de que llegue a la documentación final, no confiar en
+que "suena" a una decisión ya tomada.
+
+### 2026-09-25 — El comentario de cabecera de `weights.ts` ("los umbrales nunca son un parámetro en tiempo de ejecución") entraba en tensión literal con D5 antes de acotarse
+
+**Contexto:** paso 2.2, preproposal (D5) y `sdd-design`: `classify()` gana un parámetro opcional
+de umbrales para la evaluación offline.
+
+**Categoría:** contradicción con una regla ya documentada en el propio repositorio
+(`packages/core/src/strategies/rule-based/weights.ts:1-7`, decisiones 020/049).
+
+**Qué ocurrió:** D5 (preproposal, aceptado por el responsable del proyecto) decidía que
+`classify()` ganaría un segundo parámetro OPCIONAL de umbrales, usado solo por la evaluación
+offline. El comentario de cabecera existente de `weights.ts`, escrito en ROADMAP 1.9, afirmaba en
+términos absolutos que esos umbrales "nunca cruzan ninguna frontera externa real EN PRODUCCIÓN...
+bajo la decisión 020 nada debe hacerlo nunca" — una redacción que, leída literalmente, parecía
+prohibir cualquier parámetro en tiempo de ejecución, sin distinguir producción de una superficie
+de evaluación que nunca escribe en la base de datos real.
+
+**Cómo se detectó:** durante el propio `sdd-design`, al razonar sobre cómo introducir D5 sin
+contradecir un comentario ya documentado.
+
+**Cómo se resolvió:** decisión 088 — el comentario de `weights.ts` se reescribió para ACOTAR el
+principio a producción, no para contradecirlo: producción sigue usando siempre las constantes por
+defecto (`reprocess-core.ts` nunca pasa un segundo argumento), y el override existe
+EXCLUSIVAMENTE para una CLI sin base de datos ni camino de escritura hacia `property_listings`.
+
+**Coste:** no medido directamente por `sdd-apply` (resuelto en la fase de diseño); la tarea 2.5
+de `sdd-apply` solo tuvo que aplicar la reescritura ya decidida.
+
+**Observación:** un comentario redactado en términos absolutos ("nunca", "nada debe") puede
+quedar obsoleto por una decisión de producto posterior sin que nadie lo note hasta que alguien
+intente seguirlo al pie de la letra — acotar el ALCANCE de un comentario así (a qué se refiere
+exactamente "nunca") suele ser más preciso que reescribirlo desde cero.
+
+### 2026-09-25 — La especificación inicial medía precisión/recall/F1 contra `expected`, la propia banda diseñada de rule-based (circular)
+
+**Contexto:** paso 2.2, `sdd-spec` (revisión 1, corregida en la revisión 2).
+
+**Categoría:** deriva de la arquitectura entre sesiones — la especificación no distinguía la banda
+DISEÑADA de rule-based (`CorpusEntry.expected`, ya existente desde ROADMAP 1.9) de una verdad
+terreno independiente.
+
+**Qué ocurrió:** la primera versión de la especificación no fijaba de dónde debían salir las
+métricas de evaluación, y la interpretación natural era calcularlas contra `expected` — el único
+campo del corpus etiquetado que ya existía. Pero `expected` es la salida DISEÑADA de rule-based
+(p. ej. `hn-8` es `accept` por diseño, un falso positivo irreducible documentado en su propia
+`rationale`), así que evaluar CUALQUIER estrategia contra `expected` sesga la comparación a favor
+de rule-based por construcción — y para rule-based mismo, la "evaluación" sería tautológica.
+
+**Cómo se detectó:** el propio diseño (obs #283), en su sección "CRITICAL FINDING", al razonar
+sobre qué necesitaba comparar realmente el CLI de evaluación.
+
+**Cómo se resolvió:** la revisión 2 de la especificación añadió el requisito "Ground-Truth
+Labels": un campo `truth: 'duplicate' | 'distinct'` INDEPENDIENTE de `expected`, con un escenario
+explícito que fija que las métricas se calculan solo sobre `truth`. Las cuatro etiquetas que la
+redacción original del corpus no resolvía por sí sola (`md-2`, `md-4`, `hn-7`, `hn-8`) las
+confirmó el responsable del proyecto por cuestionario (obs #284) antes de empezar a aplicar.
+
+**Coste:** no medido directamente por `sdd-apply` (resuelto en fases de spec/diseño anteriores).
+
+**Observación:** cuando una especificación de evaluación reutiliza un campo que YA existe en los
+datos de prueba (aquí, `expected`) sin preguntar explícitamente si ese campo es independiente del
+sistema que se va a evaluar, el riesgo por defecto es la circularidad — vale la pena nombrar el
+campo de verdad terreno como una entidad aparte desde el principio, aunque parezca redundante con
+uno ya existente.
+
 ### 2026-09-24 — Ramas nuevas creadas sin preguntar para una entrega en PRs encadenadas
 
 **Contexto:** paso 1.15, entrega del cambio `security-hardening` en tres unidades de trabajo.

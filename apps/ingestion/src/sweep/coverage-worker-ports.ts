@@ -10,23 +10,59 @@
 // `createIdealistaSource` + `buildReport` SIN CAMBIOS — nunca
 // `runSweepZone` completo, que abre su propio pool por invocación y se
 // resuelve por un `--zone` de CLI (la propia acoplación que 1.13 elimina).
-import type { AreaQuery, BlockingThresholds } from '@buscahogar/core';
 import {
+  LISTING_TOMBSTONE_AFTER_INACTIVE_DAYS,
+  LISTING_TOMBSTONE_BATCH_SIZE,
+  PRESENCE_BATCH_SIZE,
+  PRESENCE_MAX_CHECK_ATTEMPTS,
+  PRESENCE_RETRY_BACKOFF_DAYS,
+  planPresenceBatches,
+  PURGE_DEMAND_AGE_DAYS,
+  SIGNAL_PURGE_MAX_ROWS_PER_TICK,
+  SIGNAL_RETENTION_DAYS,
+} from '@buscahogar/core';
+import type {
+  AreaQuery,
+  BlockingThresholds,
+  PartitionedPresence,
+  PresenceBatch,
+  PresenceCandidate,
+  PresenceVerdict,
+} from '@buscahogar/core';
+import {
+  applyPresenceVerdicts,
+  listDuePresenceCandidates,
+  listZoneLifecycle,
+  markAbsenceCandidates,
   purgeExpiredClientQuota,
+  purgeExpiredZoneQuerySignals,
+  purgeZones,
   reconcileDailyBudget,
+  refreshLaneCeiling,
   reserveDailyBudget,
   resolveZoneGeometryById,
+  scheduleRefresh,
+  tombstoneExpiredListings,
 } from '@buscahogar/db';
 import type { BudgetReservation, BudgetSnapshotLike, Database, LedgerState, ZoneGeometry } from '@buscahogar/db';
 
 import { runReprocessCore } from '../dedup/reprocess-core.js';
 import type { ReprocessIo } from '../dedup/reprocess-core.js';
 import { createIdealistaSource, IdealistaListingNormalizer } from '../sources/idealista/index.js';
+import { filterForRawType } from '../sources/idealista/filter-for-raw-type.js';
 import type { IdealistaSearchPort, IdealistaTokenPort } from '../sources/idealista/ports.js';
+import { createIdealistaPresenceVerifier } from '../sources/idealista/presence-verifier.js';
 import { composeStore } from './compose-store.js';
-import type { CoverageWorkerPorts, SweepTickResult } from './coverage-worker.js';
+import type {
+  CoverageWorkerPorts,
+  PresencePlan,
+  PresenceVerification,
+  PresenceVerificationPorts,
+  SweepTickResult,
+  ZoneMaintenancePorts,
+} from './coverage-worker.js';
 import { markJobFailedWithoutClaim, selectNextClaimableJob } from './job-selection.js';
-import type { PollJob } from './job-selection.js';
+import type { JobLane, PollJob } from './job-selection.js';
 import { buildReport } from './report.js';
 import { runSweep } from './sweep-runner.js';
 
@@ -41,6 +77,18 @@ export interface CoverageWorkerRealDeps {
   readonly maxSearchRequestsPerSweep: number;
   readonly maxAttempts: number;
   readonly dailySearchCap: number;
+  // ROADMAP 2.5 (decisión 104): fracción del tope diario que el carril de
+  // refresco puede gastar EN TOTAL, en [0, 1] (validada con Zod en el
+  // composition root). Ausente = 0: el refresco no gasta nada por defecto.
+  readonly refreshBudgetFraction?: number;
+  // ROADMAP 2.5 (S3; decisión 105): verificación de presencia por `adIds`.
+  // Ausente = sin verificación (composiciones anteriores a S3). `operation` es
+  // la del worker (un proceso cubre UNA operación); `radiusMarginM` se suma al
+  // radio de la zona en la petición.
+  readonly presenceVerification?: {
+    readonly operation: 'sale' | 'rent';
+    readonly radiusMarginM: number;
+  };
   readonly blockingThresholds: BlockingThresholds;
   readonly io: ReprocessIo;
 }
@@ -56,7 +104,115 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
   // composición reutilizada por scripts/sweep-zone.ts (CR-2).
   const store = composeStore(deps.db);
 
+  // ROADMAP 2.5 — mantenimiento de zonas sobre el MISMO pool propietario.
+  // Solo delega en `packages/db`: la política (qué zonas, cuándo) vive en
+  // `packages/core`, y el reloj es el de Postgres (DD-11).
+  const maintenance: ZoneMaintenancePorts = {
+    purgeZoneQuerySignals(): Promise<number> {
+      return purgeExpiredZoneQuerySignals(deps.db, {
+        retentionDays: SIGNAL_RETENTION_DAYS,
+        maxRows: SIGNAL_PURGE_MAX_ROWS_PER_TICK,
+      });
+    },
+    listZoneLifecycle() {
+      return listZoneLifecycle(deps.db, { sourceId: deps.sourceUuid, maxAttempts: deps.maxAttempts });
+    },
+    async purgeZones(zoneIds: readonly string[]): Promise<number> {
+      const result = await purgeZones(deps.db, {
+        sourceId: deps.sourceUuid,
+        zoneIds,
+        purgeAfterDays: PURGE_DEMAND_AGE_DAYS,
+      });
+      // Una zona cuya transacción falló se revirtió entera: se registra el
+      // mensaje de la base de datos (sin credenciales) y el resto sigue.
+      for (const failure of result.failed) {
+        deps.io.log(`coverage-worker: purga de la zona "${failure.zoneId}" revertida: ${failure.message}`);
+      }
+      return result.purged.length;
+    },
+    scheduleRefresh(zoneIds: readonly string[]): Promise<number> {
+      return scheduleRefresh(deps.db, { sourceId: deps.sourceUuid, zoneIds, maxAttempts: deps.maxAttempts });
+    },
+    tombstoneExpiredListings(): Promise<number> {
+      return tombstoneExpiredListings(deps.db, {
+        retentionDays: LISTING_TOMBSTONE_AFTER_INACTIVE_DAYS,
+        batchSize: LISTING_TOMBSTONE_BATCH_SIZE,
+      });
+    },
+  };
+
+  const presenceDeps = deps.presenceVerification;
+  const verification: PresenceVerificationPorts | undefined = presenceDeps && {
+    markAbsenceCandidates(job: PollJob, area: AreaQuery): Promise<number> {
+      return markAbsenceCandidates(deps.db, { jobId: job.jobId, operation: area.operation });
+    },
+
+    async nextPresenceBatches(maxBatches: number): Promise<PresencePlan> {
+      // Se leen como mucho `maxBatches` lotes completos de candidatos: la
+      // verificación de un tick nunca es ilimitada (corte explícito).
+      const due = await listDuePresenceCandidates(deps.db, {
+        sourceId: deps.sourceUuid,
+        operation: presenceDeps.operation,
+        limit: maxBatches * PRESENCE_BATCH_SIZE,
+        retryBackoffDays: PRESENCE_RETRY_BACKOFF_DAYS,
+      });
+
+      const candidates: PresenceCandidate[] = [];
+      const listingIdByExternalId = new Map<string, string>();
+      const unverifiableListingIds: string[] = [];
+      for (const row of due) {
+        // El filtro de la petición no se guarda: se reconstruye del tipo crudo
+        // de la versión vigente. Sin mapa no se pide nada (S-LR-11).
+        const filter = filterForRawType(row.rawPropertyType);
+        if (filter === null) {
+          unverifiableListingIds.push(row.listingId);
+          continue;
+        }
+        candidates.push({
+          externalId: row.externalId,
+          center: row.center,
+          radiusMeters: row.radiusMeters,
+          operation: row.operation,
+          groupKey: filter,
+        });
+        listingIdByExternalId.set(row.externalId, row.listingId);
+      }
+      return { batches: planPresenceBatches(candidates), listingIdByExternalId, unverifiableListingIds };
+    },
+
+    async verifyPresence(batches: readonly PresenceBatch[]): Promise<PresenceVerification> {
+      // Una instancia POR llamada (token propio) y con el tope duro = nº de
+      // lotes: el propio presupuesto impide una petición de más.
+      const verifier = createIdealistaPresenceVerifier({
+        searchPort: deps.searchPort,
+        tokenPort: deps.tokenPort,
+        radiusMarginM: presenceDeps.radiusMarginM,
+        maxRequests: batches.length,
+        log: (line: string): void => {
+          deps.io.log(line);
+        },
+      });
+      const verdicts = new Map<string, PresenceVerdict>();
+      for (const batch of batches) {
+        for (const [externalId, verdict] of await verifier.verifyBatch(batch)) {
+          verdicts.set(externalId, verdict);
+        }
+      }
+      return { verdicts, actual: verifier.budgetSnapshot() };
+    },
+
+    async applyPresence(result: PartitionedPresence): Promise<void> {
+      const applied = await applyPresenceVerdicts(deps.db, result, PRESENCE_MAX_CHECK_ATTEMPTS);
+      deps.io.log(
+        `coverage-worker: verificación de presencia aplicada — presentes=${String(applied.present)}, ` +
+          `ausentes=${String(applied.absent)}, ambiguos=${String(applied.ambiguous)}, descartados=${String(applied.dropped)}.`
+      );
+    },
+  };
+
   return {
+    maintenance,
+    ...(verification ? { verification } : {}),
     selectNextJob(): Promise<PollJob | null> {
       return selectNextClaimableJob(deps.db, deps.maxAttempts);
     },
@@ -77,8 +233,14 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
       return markJobFailedWithoutClaim(deps.db, jobId, reason);
     },
 
-    reserveBudget(reservation: BudgetReservation): Promise<LedgerState | null> {
-      return reserveDailyBudget(deps.db, deps.sourceUuid, reservation, deps.dailySearchCap);
+    // ROADMAP 2.5 (ZRS-11): el carril de refresco reserva contra el TECHO
+    // `least(cap, floor(cap × fracción))` sobre el gasto total del día — el
+    // gasto a demanda también cuenta contra él. La demanda no lleva techo y
+    // conserva siempre al menos `cap × (1 - fracción)`.
+    reserveBudget(reservation: BudgetReservation, lane: JobLane): Promise<LedgerState | null> {
+      const ceiling =
+        lane === 'refresh' ? refreshLaneCeiling(deps.dailySearchCap, deps.refreshBudgetFraction ?? 0) : undefined;
+      return reserveDailyBudget(deps.db, deps.sourceUuid, reservation, deps.dailySearchCap, ceiling);
     },
 
     reconcileBudget(reserved: BudgetReservation, actual: BudgetSnapshotLike): Promise<void> {

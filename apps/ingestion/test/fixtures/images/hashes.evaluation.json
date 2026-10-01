@@ -1,0 +1,244 @@
+{
+  "sharp": "0.34.2",
+  "libvips": "8.16.1",
+  "algorithm": "dct-phash-64",
+  "cropMargin": 0.05,
+  "lowEntropyStddev": 10,
+  "entries": {
+    "fixture-image:eval/en-1-lejos-y-distinto-a": {
+      "kind": "hashed",
+      "hash": "f4ec0b72bc4963b0",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/en-1-lejos-y-distinto-b": {
+      "kind": "hashed",
+      "hash": "bdd20dcc6612732d",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/en-2-precio-y-superficie-muy-distintos-a": {
+      "kind": "hashed",
+      "hash": "e7c6425468e9d716",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/en-2-precio-y-superficie-muy-distintos-b": {
+      "kind": "hashed",
+      "hash": "dec9299e114abe85",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/en-3-veto-tipo-de-inmueble-a": {
+      "kind": "hashed",
+      "hash": "9bc4c2e41b166add",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/en-3-veto-tipo-de-inmueble-b": {
+      "kind": "hashed",
+      "hash": "a1867829f6d269d6",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/en-4-veto-operacion-a": {
+      "kind": "hashed",
+      "hash": "8d8cd2d16363f4cc",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/en-4-veto-operacion-b": {
+      "kind": "hashed",
+      "hash": "c5f4aa1549e49acd",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/en-5-rooms-bathrooms-coinciden-resto-no-a": {
+      "kind": "hashed",
+      "hash": "98b924d1676a97ac",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/en-5-rooms-bathrooms-coinciden-resto-no-b": {
+      "kind": "hashed",
+      "hash": "d5512a66912cf25f",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/en-6-distinto-en-casi-todo-a": {
+      "kind": "hashed",
+      "hash": "94fc4f827a87689c",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/en-6-distinto-en-casi-todo-b": {
+      "kind": "hashed",
+      "hash": "d4c09afe93126dc9",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/hn-1-trafalgar-street-less-rooms-distintos-a": {
+      "kind": "hashed",
+      "hash": "9bc4c2e499b46acd",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/hn-1-trafalgar-street-less-rooms-distintos-b": {
+      "kind": "hashed",
+      "hash": "9bc4c6a0199b6e9b",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/hn-2-trafalgar-street-less-bathrooms-distintos-a": {
+      "kind": "hashed",
+      "hash": "e7c6425468e9d716",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/hn-2-trafalgar-street-less-bathrooms-distintos-b": {
+      "kind": "hashed",
+      "hash": "94fc4f827a87689c",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/hn-3-trafalgar-street-less-precio-superficie-lejos-a": {
+      "kind": "hashed",
+      "hash": "c5f4aa1549e49acd",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/hn-3-trafalgar-street-less-precio-superficie-lejos-b": {
+      "kind": "hashed",
+      "hash": "d5512a66912cf25f",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/hn-4-trafalgar-street-less-casi-todo-distinto-a": {
+      "kind": "hashed",
+      "hash": "98b924d1676a97ac",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/hn-4-trafalgar-street-less-casi-todo-distinto-b": {
+      "kind": "hashed",
+      "hash": "dec9299e114abe85",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/hn-5-street-level-igual-rooms-distintos-a": {
+      "kind": "hashed",
+      "hash": "d78228d728d1d6d3",
+      "lowEntropy": true
+    },
+    "fixture-image:eval/hn-5-street-level-igual-rooms-distintos-b": {
+      "kind": "hashed",
+      "hash": "d78228d728d1d6d3",
+      "lowEntropy": true
+    },
+    "fixture-image:eval/hn-6-street-level-otra-calle-rooms-distintos-a": {
+      "kind": "hashed",
+      "hash": "d4c09afe93126dc9",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/hn-6-street-level-otra-calle-rooms-distintos-b": {
+      "kind": "hashed",
+      "hash": "a1867829f6d269d6",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/hn-7-misma-direccion-mismas-rooms-necesita-floor-a": {
+      "kind": "hashed",
+      "hash": "9bc4c6a0199b6e9b",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/hn-7-misma-direccion-mismas-rooms-necesita-floor-b": {
+      "kind": "hashed",
+      "hash": "9bc4c2e499b46acd",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/hn-8-identico-en-todo-falso-positivo-irreducible-a": {
+      "kind": "hashed",
+      "hash": "d5512a66912cf25f",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/hn-8-identico-en-todo-falso-positivo-irreducible-b": {
+      "kind": "hashed",
+      "hash": "c5f4aa1549e49acd",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/md-1-premises-sin-rooms-bathrooms-a": {
+      "kind": "hashed",
+      "hash": "94fd4f827a87a894",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/md-1-premises-sin-rooms-bathrooms-b": {
+      "kind": "hashed",
+      "hash": "94fc5f827a83689c",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/md-2-coordenadas-ausentes-un-lado-a": {
+      "kind": "hashed",
+      "hash": "d4c09afe93126dc9",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/md-2-coordenadas-ausentes-un-lado-b": {
+      "kind": "hashed",
+      "hash": "d4c09afe93126dc9",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/md-3-direccion-ausente-ambos-lados-a": {
+      "kind": "hashed",
+      "hash": "a1867829d6d269f6",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/md-4-solo-dos-senales-evaluables-a": {
+      "kind": "hashed",
+      "hash": "a1867829f6d269d6",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/md-4-solo-dos-senales-evaluables-b": {
+      "kind": "hashed",
+      "hash": "a8875a69975a6734",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/tp-1-mismo-anuncio-cerca-a": {
+      "kind": "hashed",
+      "hash": "f4ec0b72bc4963b0",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/tp-1-mismo-anuncio-cerca-b": {
+      "kind": "hashed",
+      "hash": "f4ec0b72bc4963b0",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/tp-2-otra-fuente-otro-sourceId-a": {
+      "kind": "hashed",
+      "hash": "bdd20dcc6612732d",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/tp-2-otra-fuente-otro-sourceId-b": {
+      "kind": "hashed",
+      "hash": "b8f308c96e967a19",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/tp-3-superficie-ausente-un-lado-a": {
+      "kind": "hashed",
+      "hash": "e5c64a5468e9d716",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/tp-3-superficie-ausente-un-lado-b": {
+      "kind": "hashed",
+      "hash": "e7c6425478e99792",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/tp-4-premises-sin-rooms-bathrooms-a": {
+      "kind": "hashed",
+      "hash": "de8929be11ca3e85",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/tp-4-premises-sin-rooms-bathrooms-b": {
+      "kind": "hashed",
+      "hash": "dec9299e114abe85",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/tp-5-distancia-mayor-resto-fuerte-a": {
+      "kind": "hashed",
+      "hash": "98b924d1676a97ac",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/tp-5-distancia-mayor-resto-fuerte-b": {
+      "kind": "hashed",
+      "hash": "98b924d1676a97ac",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/tp-6-direccion-en-desacuerdo-resto-fuerte-a": {
+      "kind": "hashed",
+      "hash": "87526df2996c926c",
+      "lowEntropy": false
+    },
+    "fixture-image:eval/tp-6-direccion-en-desacuerdo-resto-fuerte-b": {
+      "kind": "hashed",
+      "hash": "d5594a2cd12cf25d",
+      "lowEntropy": false
+    }
+  }
+}

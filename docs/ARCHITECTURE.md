@@ -130,19 +130,65 @@ catálogo committeado (`packages/db/src/municipality-catalogue.generated.ts`).
 
 ## Refresco y retención
 
-- Zonas con consultas recientes: refresco semanal.
-- Zonas sin actividad: frecuencia menor o en espera hasta nueva solicitud.
-- Anuncio que desaparece de la fuente: se marca inactivo, sale de la búsqueda, se conserva
-  internamente (alimenta el histórico y el conjunto de evaluación).
-- Purga en dos planos: los inactivos se retienen un periodo acotado; las zonas sin consultas
-  dejan de refrescarse mucho antes de purgarse.
-- Si las condiciones de uso de una fuente fijan un plazo máximo de retención, ese plazo
-  prevalece.
+Implementado en el paso 2.5 (decisiones 102-111). La política es pura (`packages/core/src/retention`),
+la aplican `packages/db` y el tick del worker de `apps/ingestion`, y todo el tiempo se mide con el
+reloj de Postgres (días UTC).
+
+**Demanda y cadencia.** Cada búsqueda que resuelve a una zona registra una señal
+`(zona, día)` en `zone_query_signals` (`web_coverage`, solo `INSERT`). Con `d` = días desde la
+última señal (o desde `coverage_jobs.requested_at` si no hay):
+
+| `d` (días) | Cadencia |
+|---|---|
+| ≤ 30 | semanal (vence a los 7 días del último barrido) |
+| 31 – 90 | mensual (30 días) |
+| 91 – 179 | en espera, nunca vence; una consulta nueva la devuelve a semanal |
+| ≥ 180 | purga de zona |
+
+**Refresco.** El mantenimiento del tick (primer tick y luego cada `MAINTENANCE_EVERY_TICKS`) re-encola
+los jobs vencidos en un carril propio, tras los jobs a demanda. El gasto de refresco y de
+verificación tiene un techo sobre el gasto total del día (`REFRESH_BUDGET_FRACTION` × tope diario);
+con fracción 0 no hay refresco.
+
+**Anuncio que desaparece.** Un barrido completo solo nomina: los anuncios activos de la zona no vistos
+en el ciclo entran en una cola. Se confirman con una petición por lote (`adIds`, hasta 50) sobre el
+carril de refresco, y solo se retiran (`inactive` / `delisted`) si la sonda ha demostrado que la API
+omite los anuncios dados de baja (`DELISTED_OMISSION_CONFIRMED`); cualquier respuesta dudosa deja el
+anuncio activo. La sonda del 2026-09-30 confirmó la omisión (fixture `adids-2026-09-30`), así que la
+retirada por verificación está activa cuando lo está el carril de refresco. Un anuncio inactivo sale de la búsqueda (`active_listing_count > 0`), se
+conserva y se reactiva si la fuente vuelve a publicarlo.
+
+**Purga en dos planos.**
+
+- *Zonas*, a los 180 días sin consultas: la zona vuelve a `uncovered` (la fila de `zones` es el
+  catálogo INE y no se borra), se borran su job y sus señales, y los anuncios que solo cubría su
+  círculo pasan a `inactive` / `zone_purged`. No gasta cuota.
+- *Anuncios*, a los 180 días inactivos: tombstone. Se redactan la descripción y el `raw` de todas sus
+  versiones y la miniatura, y pasan a `removed`. Se conservan el historial de precios y la
+  evidencia de deduplicación (`dedup_pair_evidence`). `property_listings` se recalcula en cada
+  reproceso de dedup, así que su puntuación y desglose reflejan la consolidación vigente. Es irreversible salvo que
+  la fuente vuelva a publicar el anuncio.
+
+Cada paso del tick está aislado: una avería de uno no detiene los demás ni el barrido.
+
+**Plazo de la fuente.** Si las condiciones de uso de una fuente fijan un plazo máximo de retención,
+ese plazo prevalece. Hoy ninguna lo fija en lo que se ha podido comprobar (decisión 111); los 180
+días son una elección del proyecto y viven como constantes en `policy.ts`.
 
 ## Capa web
 
 - Server Components consultando `db` directamente para listado y detalle.
-- Filtros en search params, no en estado de cliente.
+- Filtros en search params, no en estado de cliente. Incluye la zona dibujada (`polygon`) y la
+  vista (`view=map`), ROADMAP 2.6.
+- Vista de mapa (2.6): el servidor calcula los puntos (máximo 500) y el recuento; un único envoltorio
+  de cliente carga Leaflet con `next/dynamic` y dibuja en el navegador (decisiones 113-119). Las
+  teselas de OpenStreetMap las descarga el navegador, no el servidor (decisión 112).
+- Búsqueda en lenguaje natural (3.1): `interpretSearchText` (`core`, función pura y determinista)
+  convierte la frase en una `NlSearchInterpretation`, que se valida con el mismo `searchQuerySchema`
+  que los filtros. La rama `?q=` de `page.tsx` solo interpreta y muestra el resultado en un formulario
+  editable (el envío lleva `form=criteria`): no ejecuta la búsqueda ni toca cobertura, señales ni
+  cuota. El lugar se resuelve contra nuestra base de datos (`suggestZones`, solo lectura) y solo una
+  coincidencia exacta selecciona la zona. Decisiones 120-124.
 - No se usan TanStack Query ni Zustand en la ruta principal.
 - Imágenes remotas servidas mediante la optimización de imágenes de Next; no se almacenan.
 
@@ -178,7 +224,7 @@ Fuera del alcance: colas externas, Redis, caché distribuida, autenticación.
 - Cabeceras de seguridad y política de contenido: CSP estática sin nonces + conjunto OWASP
   (HSTS, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors 'none'`/
   `X-Frame-Options: DENY`, COOP, CORP, sin COEP) vía `headers()` en `next.config.ts`; sin
-  `X-Powered-By`.
+  `X-Powered-By`. `img-src` admite el host de teselas de OpenStreetMap (decisión 112).
 - Módulos de `apps/web/src/server` con handles de base de datos o secretos guardados con
   `import 'server-only'`, para que un import accidental desde código de cliente falle en build.
 - Secretos en variables de entorno, fuera del control de versiones.

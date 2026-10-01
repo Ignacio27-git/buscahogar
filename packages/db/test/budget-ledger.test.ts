@@ -278,3 +278,87 @@ describeWithDb('reserveDailyBudget — dos reservas concurrentes cerca del tope 
     expect(finalState?.searchRequests).toBe(3);
   });
 });
+
+// ROADMAP 2.5 (refresh-retention-policy, S1; decisión 104, S-ZRS-9, 10, 12) —
+// el carril de refresco tiene un TECHO sobre el gasto TOTAL del día
+// (`least(cap, laneCeiling)`), no un contador propio: el gasto a demanda
+// cuenta contra él y, a la vez, conserva siempre al menos `cap - ceiling`.
+// El techo se comprueba en AMBAS ramas de la sentencia (INSERT inicial y
+// ON CONFLICT), igual que el tope (corrección de 1.13).
+describeWithDb('reserveDailyBudget — techo del carril de refresco sobre el gasto total (ZRS-11)', () => {
+  let db: Database;
+  let pool: Pool;
+
+  beforeAll(() => {
+    ({ db, pool } = connectTestDb());
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  beforeEach(async () => {
+    await truncateAll(pool);
+  });
+
+  it('S-ZRS-9: cap 100, techo 20, gasto ya en 15 (a demanda): solo caben 5 más de refresco; en 20 se deniega aunque queden 80', async () => {
+    const sourceId = await insertBudgetSource(db);
+    await reserveDailyBudget(db, sourceId, { searchReserved: 15, tokenReserved: 0 }, 100);
+
+    const fits = await reserveDailyBudget(db, sourceId, { searchReserved: 5, tokenReserved: 0 }, 100, 20);
+    expect(fits).toEqual({ searchRequests: 20, tokenRequests: 0 });
+
+    const denied = await reserveDailyBudget(db, sourceId, { searchReserved: 1, tokenReserved: 0 }, 100, 20);
+    expect(denied).toBeNull();
+
+    // La denegación no toca la fila, y la demanda del usuario sigue pudiendo
+    // gastar hasta el tope entero (sin techo).
+    const onDemand = await reserveDailyBudget(db, sourceId, { searchReserved: 80, tokenReserved: 0 }, 100);
+    expect(onDemand).toEqual({ searchRequests: 100, tokenRequests: 0 });
+  });
+
+  it('S-ZRS-12: con 90 de 100 gastados por la demanda y techo 20, el refresco se deniega y la demanda conserva sus 10', async () => {
+    const sourceId = await insertBudgetSource(db);
+    await reserveDailyBudget(db, sourceId, { searchReserved: 90, tokenReserved: 0 }, 100);
+
+    const refresh = await reserveDailyBudget(db, sourceId, { searchReserved: 1, tokenReserved: 0 }, 100, 20);
+    expect(refresh).toBeNull();
+
+    const onDemand = await reserveDailyBudget(db, sourceId, { searchReserved: 10, tokenReserved: 0 }, 100);
+    expect(onDemand).toEqual({ searchRequests: 100, tokenRequests: 0 });
+  });
+
+  it('rama INSERT: la PRIMERA reserva del día del carril de refresco por encima del techo devuelve null y no inserta fila', async () => {
+    const sourceId = await insertBudgetSource(db);
+
+    const result = await reserveDailyBudget(db, sourceId, { searchReserved: 25, tokenReserved: 0 }, 100, 20);
+    expect(result).toBeNull();
+
+    const rows = await db.execute<{ count: string }>(sql`select count(*)::text as count from daily_request_budget`);
+    expect(rows.rows[0]?.count).toBe('0');
+  });
+
+  it('rama INSERT: una primera reserva de refresco IGUAL al techo tiene éxito', async () => {
+    const sourceId = await insertBudgetSource(db);
+
+    const result = await reserveDailyBudget(db, sourceId, { searchReserved: 20, tokenReserved: 0 }, 100, 20);
+    expect(result).toEqual({ searchRequests: 20, tokenRequests: 0 });
+  });
+
+  it('S-ZRS-10: techo 0 (fracción 0) — ninguna reserva de refresco tiene éxito, ni en la primera ni en las siguientes', async () => {
+    const sourceId = await insertBudgetSource(db);
+
+    expect(await reserveDailyBudget(db, sourceId, { searchReserved: 1, tokenReserved: 0 }, 100, 0)).toBeNull();
+
+    await reserveDailyBudget(db, sourceId, { searchReserved: 3, tokenReserved: 0 }, 100);
+    expect(await reserveDailyBudget(db, sourceId, { searchReserved: 1, tokenReserved: 0 }, 100, 0)).toBeNull();
+  });
+
+  it('un techo MAYOR que el tope no lo relaja: rige el tope (least)', async () => {
+    const sourceId = await insertBudgetSource(db);
+    await reserveDailyBudget(db, sourceId, { searchReserved: 8, tokenReserved: 0 }, 10);
+
+    const denied = await reserveDailyBudget(db, sourceId, { searchReserved: 5, tokenReserved: 0 }, 10, 500);
+    expect(denied).toBeNull();
+  });
+});

@@ -236,4 +236,119 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     // CR-12 en la lista de sugerencias: el municipio sin centroide aparece IGUAL, marcado.
     expect(html).toMatch(/sin cobertura/i);
   });
+
+  // ROADMAP 2.5 (refresh-retention-policy, S1; decisión 102, spec QSR-3,
+  // S-QSR-1, S-QSR-7, S-PS-9) — la señal de demanda se registra desde la
+  // página, con el rol `web_coverage`, y NUNCA rompe la búsqueda.
+  async function countSignals(zoneId: string): Promise<number> {
+    const { rows } = await pool.query<{ count: string }>(
+      'select count(*)::text as count from zone_query_signals where zone_id = $1',
+      [zoneId]
+    );
+    return Number(rows[0]?.count);
+  }
+
+  it.skipIf(!process.env.WEB_COVERAGE_DATABASE_URL)(
+    'S-QSR-1: una búsqueda sobre zona COVERED registra exactamente una señal (zona, hoy), aunque se repita',
+    async () => {
+      const ineCode = randomIneCode();
+      const { zoneId } = await insertMunicipality(db, {
+        ineCode,
+        municipality: 'Zona Cubierta',
+        searchName: 'zona cubierta',
+        state: 'covered',
+        centroid: { latitude: 37.1, longitude: -3.6 },
+      });
+
+      await renderHome({ zone: ineCode });
+      await renderHome({ zone: ineCode });
+
+      expect(await countSignals(zoneId)).toBe(1);
+    }
+  );
+
+  it.skipIf(!process.env.WEB_COVERAGE_DATABASE_URL)(
+    'la señal se registra también para una zona UNCOVERED con centroide (cualquier estado)',
+    async () => {
+      const ineCode = randomIneCode();
+      const { zoneId } = await insertMunicipality(db, {
+        ineCode,
+        municipality: 'Zona Sin Cubrir',
+        searchName: 'zona sin cubrir',
+        centroid: { latitude: 37.2, longitude: -3.7 },
+      });
+
+      await renderHome({ zone: ineCode });
+
+      expect(await countSignals(zoneId)).toBe(1);
+    }
+  );
+
+  it.skipIf(!process.env.WEB_COVERAGE_DATABASE_URL)(
+    'un municipio SIN centroide no registra señal (no es barrible, no genera demanda de refresco)',
+    async () => {
+      const ineCode = randomIneCode();
+      const { zoneId } = await insertMunicipality(db, {
+        ineCode,
+        municipality: 'Sin Centroide',
+        searchName: 'sin centroide',
+      });
+
+      await renderHome({ zone: ineCode });
+
+      expect(await countSignals(zoneId)).toBe(0);
+    }
+  );
+
+  it('S-QSR-7: sin WEB_COVERAGE_DATABASE_URL la búsqueda se renderiza igual y el error se registra sin secretos', async () => {
+    const ineCode = randomIneCode();
+    await insertMunicipality(db, {
+      ineCode,
+      municipality: 'Zona Cubierta',
+      searchName: 'zona cubierta',
+      state: 'covered',
+      centroid: { latitude: 37.1, longitude: -3.6 },
+    });
+    const holder = globalThis as unknown as { buscahogarCoverageDb?: unknown };
+    const cachedHandle = holder.buscahogarCoverageDb;
+    const originalUrl = process.env.WEB_COVERAGE_DATABASE_URL;
+    delete holder.buscahogarCoverageDb;
+    delete process.env.WEB_COVERAGE_DATABASE_URL;
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    try {
+      const html = await renderHome({ zone: ineCode });
+
+      expect(html).toMatch(/resultados? en esta página/);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(String(errorSpy.mock.calls[0]?.[0])).toMatch(/señal de demanda.*WEB_COVERAGE_DATABASE_URL/);
+    } finally {
+      errorSpy.mockRestore();
+      holder.buscahogarCoverageDb = cachedHandle;
+      if (originalUrl !== undefined) {
+        process.env.WEB_COVERAGE_DATABASE_URL = originalUrl;
+      }
+    }
+  });
+
+  it('S-PS-9: con fetch global sustituido por uno que lanza, la búsqueda funciona y fetch nunca se llama', async () => {
+    const ineCode = randomIneCode();
+    await insertMunicipality(db, {
+      ineCode,
+      municipality: 'Zona Cubierta',
+      searchName: 'zona cubierta',
+      state: 'covered',
+      centroid: { latitude: 37.1, longitude: -3.6 },
+    });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('la web no debe llamar a fuentes externas'));
+
+    try {
+      const html = await renderHome({ zone: ineCode });
+
+      expect(html).toMatch(/resultados? en esta página/);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });

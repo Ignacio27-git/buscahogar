@@ -85,6 +85,41 @@
       "when": 1790258382858,
       "tag": "0011_bumpy_king_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790696516750,
+      "tag": "0012_numerous_wraith",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790700822506,
+      "tag": "0013_zone_query_signals_refresh_lane",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790703308115,
+      "tag": "0014_listing_lifecycle_visibility",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790757611731,
+      "tag": "0015_listing_presence_verification",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790760242673,
+      "tag": "0016_listing_tombstone",
+      "breakpoints": true
     }
   ]
 }

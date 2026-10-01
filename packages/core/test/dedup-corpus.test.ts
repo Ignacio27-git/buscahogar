@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { classify } from '../src/strategies/rule-based/classify.js';
 import { ruleBasedDedupStrategy } from '../src/strategies/rule-based/strategy.js';
-import { dedupCorpus } from './dedup-corpus.js';
+import { dedupCorpus } from '../src/evaluation/dedup-corpus.js';
 
 // CORP-1a: todo el corpus tiene rationale no vacía — las 24 entradas
 // completas (6 verdaderos positivos, 6 negativos fáciles, 8 negativos
@@ -184,5 +184,67 @@ describe('dedup-corpus — bandeado completo: classify(strategy.score(a, b)) ===
 
   it('el corpus completo tiene 24 entradas', () => {
     expect(dedupCorpus).toHaveLength(24);
+  });
+});
+
+// truth (verdad terreno, maintainer-confirmed obs #284) es INDEPENDIENTE de
+// `expected` (la banda diseñada de rule-based) — el "CRITICAL FINDING" del
+// diseño: `expected` no es verdad terreno (p. ej. hn-8 es 'accept' por
+// diseño pero 'distinct' en verdad terreno). Este bloque fija solo el valor
+// de `truth`, nunca reutiliza `expected` como oráculo.
+describe('dedup-corpus — truth: etiqueta de verdad terreno para evaluación', () => {
+  const duplicateIds = [
+    'tp-1-mismo-anuncio-cerca',
+    'tp-2-otra-fuente-otro-sourceId',
+    'tp-3-superficie-ausente-un-lado',
+    'tp-4-premises-sin-rooms-bathrooms',
+    'tp-5-distancia-mayor-resto-fuerte',
+    'tp-6-direccion-en-desacuerdo-resto-fuerte',
+    'md-1-premises-sin-rooms-bathrooms',
+    'md-2-coordenadas-ausentes-un-lado',
+    'md-3-direccion-ausente-ambos-lados',
+    'md-4-solo-dos-senales-evaluables',
+  ];
+
+  const distinctIds = [
+    'en-1-lejos-y-distinto',
+    'en-2-precio-y-superficie-muy-distintos',
+    'en-3-veto-tipo-de-inmueble',
+    'en-4-veto-operacion',
+    'en-5-rooms-bathrooms-coinciden-resto-no',
+    'en-6-distinto-en-casi-todo',
+    'hn-1-trafalgar-street-less-rooms-distintos',
+    'hn-2-trafalgar-street-less-bathrooms-distintos',
+    'hn-3-trafalgar-street-less-precio-superficie-lejos',
+    'hn-4-trafalgar-street-less-casi-todo-distinto',
+    'hn-5-street-level-igual-rooms-distintos',
+    'hn-6-street-level-otra-calle-rooms-distintos',
+    'hn-7-misma-direccion-mismas-rooms-necesita-floor',
+    'hn-8-identico-en-todo-falso-positivo-irreducible',
+  ];
+
+  it.each(duplicateIds)('%s: truth === duplicate', (id) => {
+    const entry = dedupCorpus.find((e) => e.id === id);
+    expect(entry).toBeDefined();
+    expect(entry?.truth).toBe('duplicate');
+  });
+
+  it.each(distinctIds)('%s: truth === distinct', (id) => {
+    const entry = dedupCorpus.find((e) => e.id === id);
+    expect(entry).toBeDefined();
+    expect(entry?.truth).toBe('distinct');
+  });
+
+  it('toda entrada del corpus tiene un truth definido (duplicate o distinct), ninguna ausente', () => {
+    for (const entry of dedupCorpus) {
+      expect(['duplicate', 'distinct']).toContain(entry.truth);
+    }
+  });
+
+  it('el corpus tiene 10 duplicate y 14 distinct (obs #284)', () => {
+    const duplicateCount = dedupCorpus.filter((entry) => entry.truth === 'duplicate').length;
+    const distinctCount = dedupCorpus.filter((entry) => entry.truth === 'distinct').length;
+    expect(duplicateCount).toBe(10);
+    expect(distinctCount).toBe(14);
   });
 });

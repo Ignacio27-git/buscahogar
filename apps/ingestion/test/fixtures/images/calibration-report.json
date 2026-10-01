@@ -1,0 +1,337 @@
+{
+  "positives": [
+    {
+      "label": "calib-facade-1:original-vs-rescale",
+      "distance": 0
+    },
+    {
+      "label": "calib-facade-1:original-vs-jpeg",
+      "distance": 0
+    },
+    {
+      "label": "calib-facade-1:original-vs-webp",
+      "distance": 0
+    },
+    {
+      "label": "calib-facade-1:original-vs-crop",
+      "distance": 24
+    },
+    {
+      "label": "calib-facade-1:original-vs-overlay",
+      "distance": 0
+    },
+    {
+      "label": "calib-facade-1:original-vs-portalA",
+      "distance": 2
+    },
+    {
+      "label": "calib-facade-1:original-vs-portalB",
+      "distance": 4
+    },
+    {
+      "label": "calib-facade-1:portalA-vs-portalB",
+      "distance": 4
+    },
+    {
+      "label": "calib-facade-2:original-vs-rescale",
+      "distance": 0
+    },
+    {
+      "label": "calib-facade-2:original-vs-jpeg",
+      "distance": 0
+    },
+    {
+      "label": "calib-facade-2:original-vs-webp",
+      "distance": 0
+    },
+    {
+      "label": "calib-facade-2:original-vs-crop",
+      "distance": 26
+    },
+    {
+      "label": "calib-facade-2:original-vs-overlay",
+      "distance": 0
+    },
+    {
+      "label": "calib-facade-2:original-vs-portalA",
+      "distance": 4
+    },
+    {
+      "label": "calib-facade-2:original-vs-portalB",
+      "distance": 2
+    },
+    {
+      "label": "calib-facade-2:portalA-vs-portalB",
+      "distance": 4
+    },
+    {
+      "label": "calib-kitchen-1:original-vs-rescale",
+      "distance": 0
+    },
+    {
+      "label": "calib-kitchen-1:original-vs-jpeg",
+      "distance": 0
+    },
+    {
+      "label": "calib-kitchen-1:original-vs-webp",
+      "distance": 0
+    },
+    {
+      "label": "calib-kitchen-1:original-vs-crop",
+      "distance": 14
+    },
+    {
+      "label": "calib-kitchen-1:original-vs-overlay",
+      "distance": 8
+    },
+    {
+      "label": "calib-kitchen-1:original-vs-portalA",
+      "distance": 6
+    },
+    {
+      "label": "calib-kitchen-1:original-vs-portalB",
+      "distance": 6
+    },
+    {
+      "label": "calib-kitchen-1:portalA-vs-portalB",
+      "distance": 8
+    },
+    {
+      "label": "calib-kitchen-2:original-vs-rescale",
+      "distance": 0
+    },
+    {
+      "label": "calib-kitchen-2:original-vs-jpeg",
+      "distance": 0
+    },
+    {
+      "label": "calib-kitchen-2:original-vs-webp",
+      "distance": 0
+    },
+    {
+      "label": "calib-kitchen-2:original-vs-crop",
+      "distance": 18
+    },
+    {
+      "label": "calib-kitchen-2:original-vs-overlay",
+      "distance": 2
+    },
+    {
+      "label": "calib-kitchen-2:original-vs-portalA",
+      "distance": 4
+    },
+    {
+      "label": "calib-kitchen-2:original-vs-portalB",
+      "distance": 2
+    },
+    {
+      "label": "calib-kitchen-2:portalA-vs-portalB",
+      "distance": 4
+    },
+    {
+      "label": "calib-living-room-1:original-vs-rescale",
+      "distance": 0
+    },
+    {
+      "label": "calib-living-room-1:original-vs-jpeg",
+      "distance": 0
+    },
+    {
+      "label": "calib-living-room-1:original-vs-webp",
+      "distance": 0
+    },
+    {
+      "label": "calib-living-room-1:original-vs-crop",
+      "distance": 20
+    },
+    {
+      "label": "calib-living-room-1:original-vs-overlay",
+      "distance": 0
+    },
+    {
+      "label": "calib-living-room-1:original-vs-portalA",
+      "distance": 8
+    },
+    {
+      "label": "calib-living-room-1:original-vs-portalB",
+      "distance": 10
+    },
+    {
+      "label": "calib-living-room-1:portalA-vs-portalB",
+      "distance": 12
+    },
+    {
+      "label": "calib-living-room-2:original-vs-rescale",
+      "distance": 2
+    },
+    {
+      "label": "calib-living-room-2:original-vs-jpeg",
+      "distance": 0
+    },
+    {
+      "label": "calib-living-room-2:original-vs-webp",
+      "distance": 0
+    },
+    {
+      "label": "calib-living-room-2:original-vs-crop",
+      "distance": 14
+    },
+    {
+      "label": "calib-living-room-2:original-vs-overlay",
+      "distance": 10
+    },
+    {
+      "label": "calib-living-room-2:original-vs-portalA",
+      "distance": 4
+    },
+    {
+      "label": "calib-living-room-2:original-vs-portalB",
+      "distance": 6
+    },
+    {
+      "label": "calib-living-room-2:portalA-vs-portalB",
+      "distance": 6
+    }
+  ],
+  "negatives": [
+    {
+      "label": "calib-facade-1:portalA-vs-calib-facade-2:portalA",
+      "distance": 28
+    },
+    {
+      "label": "calib-facade-1:portalA-vs-calib-kitchen-1:portalA",
+      "distance": 28
+    },
+    {
+      "label": "calib-facade-1:portalA-vs-calib-kitchen-2:portalA",
+      "distance": 34
+    },
+    {
+      "label": "calib-facade-1:portalA-vs-calib-living-room-1:portalA",
+      "distance": 28
+    },
+    {
+      "label": "calib-facade-1:portalA-vs-calib-living-room-2:portalA",
+      "distance": 28
+    },
+    {
+      "label": "calib-facade-2:portalA-vs-calib-kitchen-1:portalA",
+      "distance": 32
+    },
+    {
+      "label": "calib-facade-2:portalA-vs-calib-kitchen-2:portalA",
+      "distance": 30
+    },
+    {
+      "label": "calib-facade-2:portalA-vs-calib-living-room-1:portalA",
+      "distance": 20
+    },
+    {
+      "label": "calib-facade-2:portalA-vs-calib-living-room-2:portalA",
+      "distance": 28
+    },
+    {
+      "label": "calib-kitchen-1:portalA-vs-calib-kitchen-2:portalA",
+      "distance": 40
+    },
+    {
+      "label": "calib-kitchen-1:portalA-vs-calib-living-room-1:portalA",
+      "distance": 34
+    },
+    {
+      "label": "calib-kitchen-1:portalA-vs-calib-living-room-2:portalA",
+      "distance": 28
+    },
+    {
+      "label": "calib-kitchen-2:portalA-vs-calib-living-room-1:portalA",
+      "distance": 32
+    },
+    {
+      "label": "calib-kitchen-2:portalA-vs-calib-living-room-2:portalA",
+      "distance": 28
+    },
+    {
+      "label": "calib-living-room-1:portalA-vs-calib-living-room-2:portalA",
+      "distance": 30
+    }
+  ],
+  "positiveHistogram": [
+    {
+      "distance": 0,
+      "count": 20
+    },
+    {
+      "distance": 2,
+      "count": 5
+    },
+    {
+      "distance": 4,
+      "count": 7
+    },
+    {
+      "distance": 6,
+      "count": 4
+    },
+    {
+      "distance": 8,
+      "count": 3
+    },
+    {
+      "distance": 10,
+      "count": 2
+    },
+    {
+      "distance": 12,
+      "count": 1
+    },
+    {
+      "distance": 14,
+      "count": 2
+    },
+    {
+      "distance": 18,
+      "count": 1
+    },
+    {
+      "distance": 20,
+      "count": 1
+    },
+    {
+      "distance": 24,
+      "count": 1
+    },
+    {
+      "distance": 26,
+      "count": 1
+    }
+  ],
+  "negativeHistogram": [
+    {
+      "distance": 20,
+      "count": 1
+    },
+    {
+      "distance": 28,
+      "count": 7
+    },
+    {
+      "distance": 30,
+      "count": 2
+    },
+    {
+      "distance": 32,
+      "count": 2
+    },
+    {
+      "distance": 34,
+      "count": 2
+    },
+    {
+      "distance": 40,
+      "count": 1
+    }
+  ],
+  "dNegMin": 20,
+  "threshold": 10,
+  "positiveRecallAtThreshold": 0.8541666666666666
+}

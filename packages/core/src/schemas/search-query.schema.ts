@@ -18,9 +18,11 @@
 // ninguno de los nombres de search params.
 import { z } from 'zod';
 
+import type { PolygonRing } from '../geo/polygon.js';
 import { OPERATION_TYPES } from '../types/operation-type.js';
 import { PROPERTY_TYPES } from '../types/property-type.js';
 import { areaQuerySchema } from './area-query.schema.js';
+import { polygonParamSchema } from './polygon-param.schema.js';
 import { zoneSelectionSchema } from './zone-selection.schema.js';
 
 // Un entero decimal sin signo: la ausencia de `-?` es lo que rechaza un
@@ -43,6 +45,23 @@ function nonNegativeDecimalParam(field: string) {
   return decimalParam(field).pipe(z.number().nonnegative(`${field}: no puede ser negativo`));
 }
 
+// ROADMAP 3.1 (decisión 121) — `minPrice`/`maxPrice` llegan en EUROS, con a
+// lo sumo dos decimales, y salen en céntimos (`minPriceCents`). Sin signo: el
+// negativo se rechaza por la propia expresión. Más de dos decimales es un
+// rechazo nombrado, nunca un redondeo: así `Math.round` solo corrige el error
+// binario (19.99 * 100 = 1998.9999…) y jamás cambia la intención del usuario.
+// La columna es bigint(number), de modo que el resultado debe ser un entero
+// seguro.
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+function priceEurosParam(field: string) {
+  return z
+    .string()
+    .trim()
+    .regex(/^\d+(\.\d{1,2})?$/, `${field}: se esperaba un importe en euros con hasta dos decimales`)
+    .transform((value) => Math.round(Number(value) * 100))
+    .pipe(z.number().refine((cents) => Number.isSafeInteger(cents), `${field}: importe demasiado grande`));
+}
+
 // `page` en un rango fijo (D2): 1..100 — el mismo tope que impone el máximo
 // offset (A-4) expresado aquí como límite de página, nunca clamped, siempre
 // un rechazo nombrado por encima.
@@ -52,8 +71,9 @@ const rawSearchQuerySchema = z
   .object({
     operation: z.enum(OPERATION_TYPES).optional(),
     propertyType: z.enum(PROPERTY_TYPES).optional(),
-    minPrice: nonNegativeDecimalParam('minPrice').optional(),
-    maxPrice: nonNegativeDecimalParam('maxPrice').optional(),
+    // Ya en céntimos tras el parseo (decisión 121).
+    minPrice: priceEurosParam('minPrice').optional(),
+    maxPrice: priceEurosParam('maxPrice').optional(),
     minSurface: nonNegativeDecimalParam('minSurface').optional(),
     maxSurface: nonNegativeDecimalParam('maxSurface').optional(),
     minRooms: intParam('minRooms').optional(),
@@ -73,8 +93,37 @@ const rawSearchQuerySchema = z
     // (decisión 057) en vez de duplicar su regex: una sola definición del
     // patrón de código INE.
     zone: zoneSelectionSchema.optional(),
+    // ROADMAP 2.6 (decisión 115) — tercera forma de indicar la zona: un
+    // polígono dibujado. Excluyente con zone y con cualquier parte de
+    // lat/lng/radius (comprobado primero en el superRefine).
+    polygon: polygonParamSchema.optional(),
   })
   .superRefine((data, ctx) => {
+    // ROADMAP 2.6 — `polygon` no se combina con ningún otro modo geográfico:
+    // rechazo NOMBRADO con los parámetros presentes, sin precedencia. Va
+    // antes que el resto, así un geo parcial junto a `polygon` se nombra por
+    // este motivo y no por «bloque incompleto».
+    if (data.polygon !== undefined) {
+      const conflicting = (
+        [
+          ['zone', data.zone],
+          ['lat', data.lat],
+          ['lng', data.lng],
+          ['radius', data.radius],
+        ] as const
+      )
+        .filter(([, value]) => value !== undefined)
+        .map(([name]) => name);
+      if (conflicting.length > 0) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `polygon no puede combinarse con ${conflicting.join(', ')}`,
+          path: ['polygon'],
+        });
+        return;
+      }
+    }
+
     // CR-6 (arbitraje) — `zone` junto con CUALQUIER parte de lat/lng/radius
     // es un rechazo NOMBRADO, nunca una precedencia silenciosa: mismo
     // idioma que este propio fichero ya declara en su cabecera («nunca un
@@ -140,6 +189,7 @@ export const searchQuerySchema = rawSearchQuerySchema.transform(
       ? { geo: { lon: data.lng, lat: data.lat, radiusMeters: data.radius } }
       : {}),
     ...(data.zone !== undefined ? { zone: data.zone } : {}),
+    ...(data.polygon !== undefined ? { polygon: data.polygon } : {}),
     // D2: absent ≠ malformed — default descendente por fecha de
     // actualización cuando no se pide ningún `sort`.
     sort: data.sort ?? 'updated',
@@ -166,6 +216,9 @@ export interface PropertySearchCriteria {
   // ignora este campo — no es una columna de `properties`, no filtra nada
   // por sí solo.
   readonly zone?: string;
+  // ROADMAP 2.6 — anillo abierto ya validado (decisión 115). Ausente = sin
+  // predicado; activo = excluye las filas con ubicación NULL.
+  readonly polygon?: PolygonRing;
   readonly sort: 'price' | 'surface' | 'updated';
   readonly dir: 'asc' | 'desc';
   readonly page: number;

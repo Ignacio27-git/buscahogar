@@ -30,6 +30,331 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-01 — Hoja de ruta del diseño UX/UI de la web (`docs/DESIGN-ROADMAP.md`)
+
+**Tipo de tarea:** planificación (hoja de ruta de diseño)
+**Forma de especificación:** SDD parcial: exploración, investigación en dos pasadas (evidencia
+parcial aceptada por el responsable) y propuesta. Especificación, diseño y tareas se omitieron a
+petición del responsable, y el documento se escribió directamente desde la propuesta.
+**Resultado:** pendiente de revisión
+**Prompt:**
+
+> `/gentle-sdd-new` Muy bien ahora que hemos terminado con el roadmap queda una cosa muy importante
+> por hacer ya que la web no está terminada ni muchísimo menos, ya que el diseño UX/UI actualmente
+> es inexistente, por ello he instalado las siguientes skills:
+> - https://github.com/emilkowalski/skills
+> - https://github.com/pbakaus/impeccable
+>
+> Y he instalado el mcp de playwright para que puedas visualizar la web y probarla y comprobar como
+> funciona todo, su diseño y demás.
+> Ahora habría que hacer otro roadmap para el diseño de la web (entiendo que un roadmap es la mejor
+> forma, no hacerlo todo del tirón), planificando y diseñando todo, ya que están las
+> funcionalidades pero el diseño de la web ahora mismo es nulo.
+
+**Observación:** se hicieron dos tandas de preguntas de producto. En la de dispositivos, el
+responsable cambió su respuesta de «primero móvil» a «ambos por igual» (decisión 129). El resultado
+son 18 pasos, D.0-D.17, con D.6 y D.8 partidos en a/b, y las decisiones 126-131. La investigación
+tuvo que corregirse en su segunda pasada por una restricción de CSP inferida sin mirar la
+configuración (ver `AI-NOTES.md`).
+
+### 2026-10-01 — Instalación de la skill de diseño Impeccable en el proyecto
+
+**Tipo de tarea:** configuración
+**Forma de especificación:** referencia externa (URL del repositorio `pbakaus/impeccable`)
+**Resultado:** utilizable con retoques
+**Prompt:**
+
+> instala la skill de este repositorio: https://github.com/pbakaus/impeccable
+>
+> lo vamos a usar en buscahogar por lo tanto instala eso también
+
+**Observación:** el instalador recomendado (`npx impeccable install`) falló al descargar
+(«invalid zip data»), así que se copió a mano la compilación para Claude Code del repositorio
+(`.claude/skills/impeccable`, cuatro agentes y los hooks de `settings.json`). Primero se instaló
+solo de forma global, y ahí los hooks no hacen nada porque buscan la skill dentro del proyecto;
+por eso hizo falta el segundo prompt. `.claude/` está en `.gitignore`: la instalación no queda
+versionada y cada clon tiene que repetirla.
+
+### 2026-10-01 — Cierre de pendientes del 3.1 (scripts raíz y especificación obsoleta)
+
+**Tipo de tarea:** configuración
+**Forma de especificación:** iterativo (referencia a la lista de pendientes del cierre del 3.1)
+**Resultado:** utilizable sin cambios
+**Prompt:**
+
+> soluciona lo que está pendiente y ya hago el push para pasar a la siguiente fase
+
+**Observación:** el pendiente decía «la CI debe construir `dist/`», pero el repositorio no tiene
+CI: el hueco real eran los scripts raíz `test`, `typecheck` y `lint`, que no compilaban los
+paquetes (decisión 125). Era la tercera vez que aparecía (decisión 031, paso 1.12 en `AI-NOTES.md`
+y el 3.1). Se comprobó borrando `packages/core/dist` y lanzando los tres scripts desde cero. Además
+se corrigió en Engram (obs #174) el escenario de `web-search-listing` que seguía diciendo que no
+hay ningún `'use client'`.
+
+### 2026-10-01 — Búsqueda mediante lenguaje natural (3.1)
+
+**Tipo de tarea:** dominio (intérprete en `core`) + interfaz (rama `?q=` en `apps/web`) + evaluación
+**Forma de especificación:** SDD completo (explorar, proponer, especificación, diseño, tareas, aplicar) en cinco unidades más una de corrección (U2b)
+**Resultado:** utilizable con retoques. La U2b corrigió tres fallos del intérprete que el conjunto de desarrollo del corpus destapó (artículo «la» como lugar, «Casa» leído como tipo dentro de un lugar, «página» absorbida en el lugar). Además, la decisión 122 estrechó un escenario de la especificación: un único lugar que solo coincide por prefijo se ofrece, no se selecciona solo.
+**Prompt:**
+
+> Implementa la interpretación de consultas en lenguaje natural: transformar una frase del usuario en los criterios estructurados del motor de búsqueda, validados con el mismo esquema Zod que los filtros.
+>
+> La consulta interpretada debe mostrarse al usuario de forma editable, para que pueda corregir la interpretación antes de buscar.
+
+(Paso 3.1 de `docs/ROADMAP.md`, literal; invocado vía `/gentle-sdd-new`.)
+
+**Observación:** el paso se resolvió sin LLM (decisión 120), así que el comportamiento se puede medir sobre un corpus etiquetado. Lo que más rindió fue separar el corpus en desarrollo y reserva (decisión 124): la cifra de desarrollo mejoró al ajustar el intérprete sobre él, y solo la de reserva es una estimación sin sesgo. Un error de unidades latente (precio en euros frente a céntimos en las URL) apareció al diseñar y se corrigió dentro del paso (U1). Detalle en `docs/ROADMAP.md`, paso 3.1.
+
+### 2026-10-01 — Aceptación en el navegador y cierre del 2.6
+
+**Tipo de tarea:** verificación manual + cierre del ciclo SDD (verificación y archivo)
+**Forma de especificación:** dos órdenes breves del responsable sobre el procedimiento ya escrito
+**Resultado:** utilizable sin cambios. La verificación da PASS con avisos (31 requisitos y 101
+escenarios, sin críticos).
+**Prompt:**
+
+> arráncame el proyecto y lo pruebo en el navegador
+
+> muy bien ya puedes cerrar el 2.6
+
+**Observación:** la base de desarrollo estaba vacía. El responsable eligió probar con el corpus de
+banco, y la web lo leyó con su rol de solo lectura, nunca con el de propietario. Esos permisos
+temporales se retiraron al terminar. El registro nativo de intentos pidió un reset explícito, que
+autorizó el responsable: el 30-09 se había reservado una verificación antes de tiempo y se cerró como
+interrumpida.
+
+### 2026-10-01 — Comprobaciones con Docker del 2.6 (suite de base de datos, banco y prueba de plan)
+
+**Tipo de tarea:** verificación con base de datos real + medición de rendimiento
+**Forma de especificación:** continuación del ciclo SDD del 2.6, con el procedimiento que dejaron
+escrito las notas del paso
+**Resultado:** utilizable con retoques — la suite de base de datos falló en su primera ejecución por
+un defecto del propio test (siembras sobre un borde geodésico), corregido; G1 y G2 cumplen sin
+necesidad de decisión del responsable.
+**Prompt:**
+
+> docker ya está arrancado, continúa por donde ibas
+
+**Observación:** se creó `buscahogar_test` y se migró `buscahogar_test_bench` a la 0016. Las URLs se
+derivaron del `.env` sin imprimirlas, y `jit = off` se aplicó solo durante la medición. El único
+hallazgo fue del test, no del código: un test de base de datos escrito sin poder ejecutarlo
+contradecía la especificación (`AI-NOTES.md`).
+
+### 2026-09-30 — Vista de mapa y búsqueda por zona dibujada (2.6), ciclo SDD completo en cinco commits
+
+**Tipo de tarea:** interfaz (mapa de cliente) + dominio (validación geométrica) + consulta SQL
+(filtro espacial) + configuración (CSP, dependencias) + escenarios de banco
+**Forma de especificación:** ciclo SDD — explore → propuesta con decisiones P1-P8 del responsable →
+`sdd-spec` y `sdd-design` en paralelo (tres revisiones del diseño, con dos rechazos de la puerta) →
+`sdd-tasks` → `sdd-apply` en cinco unidades (core, db, banco, web pura, web con interfaz) más
+documentación, cada una validada antes de su commit
+**Resultado:** utilizable con retoques — el validador exigió correcciones en cada paso, y el
+orquestador hizo una corrección en `db` (el total exacto se devolvía sin acotar). La medición de
+banco y la aceptación en el navegador quedan pendientes del responsable.
+**Prompt:**
+
+> Añade la vista de mapa con las viviendas resultantes de la búsqueda y búsqueda por zona dibujada
+> sobre el mapa.
+
+Invocado vía `/gentle-sdd-new`.
+
+**Observación:** el prompt une dos funciones con muy distinto riesgo. El mapa es sobre todo interfaz;
+la zona dibujada es entrada externa no confiable y cambia el modelo de coste de la búsqueda (un
+polígono no tiene municipio, así que no hay cobertura ni señal de demanda posibles). Casi todo lo
+valioso salió de las preguntas previas: si cerrar el anillo o rechazarlo, qué cuenta en el total del
+mapa, y si usar un plugin de dibujo (el responsable lo sustituyó por un control propio). Los fallos
+del proceso están en `docs/AI-NOTES.md`; las decisiones, en la 112-119.
+
+### 2026-09-30 — Cierre de los pendientes del responsable tras el 2.5
+
+**Tipo de tarea:** documentación de reglas + medición de rendimiento + operación de bases de datos
+**Forma de especificación:** petición conversacional. El asistente explicó los cuatro pendientes y el
+responsable decidió cada uno con un cuestionario: editar `CLAUDE.md`, fracción de refresco 0,3,
+migrar y medir el banco, y hacer push al final.
+**Resultado:** utilizable con retoques. La primera repetición de la matriz se hizo sin
+`jit = off` y dio un falso incumplimiento en `geo-25km-price` (555 ms). Se repitió con el
+procedimiento documentado del 2.4 y las 12 combinaciones cumplen.
+**Prompt:**
+
+> lo que sigue pendiente de mi vamos a abordarlo, explícame que pasa
+
+**Observación:** el corpus de banco se había perdido (0 filas) sin que nada lo avisara; la semilla
+fija permitió regenerarlo idéntico. La diferencia entre la medición falsa y la buena no estaba en el
+plan, sino en el ajuste de sesión: comparar el campo `jitMs` del plan lo aclaró sin adivinar.
+
+### 2026-09-30 — Sonda de `adIds` ejecutada por el asistente (cierre del 2.5)
+
+**Tipo de tarea:** operación contra la API real (cuota facturable) + evidencia de comportamiento
+**Forma de especificación:** petición conversacional sin especificación previa. El asistente propuso
+cómo conseguir los dos códigos que faltaban y el coste, y el responsable lo autorizó (4-5 búsquedas).
+**Resultado:** utilizable sin cambios. Una búsqueda completa de un círculo de 170 m dio 42 anuncios.
+Cruzada con la fixture del 10 de septiembre, identificó `111037729` como dado de baja; como vivo se
+usó `111715742`. La sonda devolvió `omitted`, y `DELISTED_OMISSION_CONFIRMED` pasó a `true` con TDD:
+el test de atadura a la fixture falló primero. Coste: 4 búsquedas y 2 tokens.
+**Prompt:**
+
+> porque no haces tú la sonda contra idealista? / tú no puedes obtener los códigos que necesitas?
+> porque yo no lo se tampoco
+
+**Observación:** el bloqueo aparente era que «solo el responsable sabe qué anuncio está dado de
+baja». En realidad bastaba un mecanismo independiente del que se prueba: un barrido completo, sin
+paginación truncada, en lugar del filtro `adIds`. Así se evita el razonamiento circular sin
+inspeccionar el portal a mano. Las instrucciones de operador del agente de S3 traían un error de
+uso (`pnpm probe:adids -- …`: pnpm pasa el `--` literal y el script lo rechaza). Se detectó en el
+ensayo sin red, antes de gastar cuota.
+
+### 2026-09-29/30 — Refresco y retención (2.5), ciclo SDD completo en cuatro unidades de trabajo
+
+**Tipo de tarea:** dominio (política pura) + planificación de ingesta + esquema y migraciones + consulta
+SQL + privacidad de datos (redacción)
+**Forma de especificación:** ciclo SDD — explore → research → propuesta (decisiones D1-D10 del
+mantenedor) → `sdd-spec` y `sdd-design` (dos revisiones, la segunda con las decisiones U1-U3) → `sdd-tasks` →
+`sdd-apply` en cuatro unidades (S1-S4), cada una validada y commiteada antes de la siguiente
+**Resultado:** utilizable con retoques — tres correcciones. (1) S1, tras validación:
+`scheduleRefresh` dejaba un cursor obsoleto. (2) S3, tras validación: una carrera entre la verificación y un barrido
+podía retirar un anuncio recién visto, y una respuesta vacía a un lote de varios ids se habría
+tratado como «todos dados de baja». (3) En el diseño: se proponía borrar filas de `zones`, que es el
+catálogo INE sembrado: se cambió a un reinicio. Además, la previsión de tamaño se quedó unas tres
+veces corta y el paso se entrega con la retirada de anuncios inactiva hasta que el responsable
+ejecute la sonda.
+**Prompt:**
+
+> Implementa la política de refresco y retención de docs/ARCHITECTURE.md:
+> refresco semanal para zonas con consultas recientes y menor para las inactivas,
+> marcado de anuncios desaparecidos como inactivos, y purga separada de anuncios
+> inactivos y de zonas sin consultas.
+
+**Observación:** el prompt nombra cuatro comportamientos y deja sin decidir casi todo lo que los hace
+seguros: qué cuenta como «consulta reciente» (hubo que crear una señal de demanda y un nuevo
+privilegio), cómo se sabe que un anuncio «desapareció» sin gastar la cuota (la ausencia en un
+barrido no basta: decisión 105), y qué significa «purgar» algo que la regla de `CLAUDE.md` dice que
+no se sobrescribe (tombstone como redacción, decisión 107). Esas preguntas se resolvieron con el
+mantenedor antes de la propuesta y otra vez tras el diseño. Lo más valioso lo encontró el
+validador, no la planificación: las dos correcciones de S3 eran falsos positivos de retirada, el
+fallo que más caro sale en un agregador. Los fallos del proceso están en `docs/AI-NOTES.md`.
+
+### 2026-09-29 — Indexación y medición de rendimiento (2.4), ciclo SDD completo en dos sesiones
+
+**Tipo de tarea:** consulta SQL (planes de ejecución e índices) + herramienta de medición + datos
+sintéticos
+**Forma de especificación:** ciclo SDD — explore → preproposal con siete decisiones del mantenedor
+(volumen, base separada, alcance, metodología, registro, ubicación, generación) → propuesta →
+`sdd-spec`/`sdd-design` en paralelo (una corrección del diseño tras validación) → `sdd-tasks` →
+`sdd-apply` en dos lotes → procedimiento de banco y commit C hechos por el orquestador
+**Resultado:** utilizable con retoques — los dos lotes de `sdd-apply` suspendieron la validación de
+contexto limpio y necesitaron una corrección cada uno; el objetivo final se alcanzó con un cambio
+que el prompt no pedía (JIT desactivado para el rol de la búsqueda)
+**Prompt:**
+
+> Genera un volumen de datos suficiente para que la indexación importe y mide el
+> rendimiento de las consultas de búsqueda:
+>
+> - Analiza los planes de ejecución de las consultas principales.
+> - Propón los índices necesarios y aplícalos.
+> - Vuelve a medir y dame los tiempos antes y después.
+>
+> Objetivo: búsqueda sobre datos indexados por debajo de 500 ms.
+
+**Observación:** el prompt deja abierto casi todo lo que decide si la medición vale como evidencia:
+cuánto volumen, dónde viven los datos sintéticos, qué cuenta como "consulta principal" y cómo se
+mide (una ejecución o percentiles, frío o caliente). Esas siete decisiones se resolvieron con el
+mantenedor antes de la propuesta. Lo más valioso salió de medir, no de planificar: con los índices,
+11 de 12 combinaciones cumplían, pero `geo-25km-price` empeoraba a 651 ms por la compilación JIT,
+algo que ningún artefacto previo había previsto. La frase "propón los índices necesarios" invitaba a
+un índice por filtro; medido, `(rooms)` y `(bathrooms)` empeoraban la consulta, y los índices útiles
+fueron los de orden. Los fallos del proceso (API de PostgreSQL 18 usada en 17, un informe antes/
+después sin CLI que lo produjera, un subagente que truncó la base de desarrollo) están en
+`docs/AI-NOTES.md`.
+
+### 2026-09-25/28 — Comparación de imágenes (2.3), ciclo SDD completo con research y dos rondas de decisiones del mantenedor
+
+**Tipo de tarea:** dominio puro (comparador/decorador de señal, sin I/O) + pipeline de ingesta con
+dependencia nativa (`sharp`) + fixtures reales con procedencia + calibración de umbral + ablación
+en la CLI ya existente de 2.2
+**Forma de especificación:** ciclo SDD completo — explore → research (web, admisión concedida) →
+preproposal en dos rondas de decisiones confirmadas por el mantenedor (D1-D8) → `sdd-spec`/
+`sdd-design` en paralelo (con una ronda correctiva tras un validador en rojo) → `sdd-tasks` →
+`sdd-apply` en varios lotes (núcleo puro y pipeline de ingesta → puerta de fotos del mantenedor →
+fixtures/calibración → ablación en el CLI → este registro documental)
+**Resultado:** utilizable con retoques — spec y diseño necesitaron una ronda correctiva antes de
+aplicar (columnas CSV y vocabulario de nivel/razón desalineados entre ambos artefactos escritos en
+paralelo); durante la aplicación, un hallazgo empírico corrigió una afirmación errónea del diseño
+sobre `sharp` (ver `docs/AI-NOTES.md`)
+**Prompt:**
+
+> Añade la comparación de imágenes como señal adicional mediante perceptual hashing,
+> teniendo en cuenta que cada portal reescala y recomprime, por lo que la comparación
+> exacta no sirve.
+>
+> Mide su aportación real frente a la deduplicación basada solo en datos
+> estructurados, sobre el mismo conjunto etiquetado.
+
+**Observación:** el prompt fija el QUÉ (perceptual hashing, medir aportación real, mismo conjunto
+etiquetado) pero deja abiertas decisiones de producto que el preproposal tuvo que escalar en dos
+rondas: de dónde salen las imágenes (D2/D5: fotografías CC0 reales con transformaciones
+controladas, nunca miniaturas de portal), si la señal solo suma o también resta (D3: solo-positivo,
+nunca negativo), alcance de producción (D7: evaluación-only, aplazado) y cómo calibrar el umbral
+sin contaminar el corpus de evaluación (D8: conjunto separado, regla fija antes de medir). El
+resultado real de la ablación (ejecución real de la CLI sobre el corpus de 24 pares, a los umbrales
+por defecto de cada estrategia) es que la señal de imagen **no cambia ninguna banda** —
+`bandChanges` vacío para ambas estrategias, matrices de confusión idénticas con y sin imagen— pero
+sí mejora precisión/recall/F1 de forma visible en la rejilla de sweep a umbrales más bajos (por
+ejemplo rule-based con `high=0.75`: F1 0,8421 → 0,9000). El caso difícil diseñado a propósito
+(`hn-1`/`hn-7`, misma fachada, distinto anuncio) midió distancia real 14, justo por encima del
+umbral calibrado `T=10`: un casi-empate real entre el margen de recorte del pipeline (5%) y la
+franja de chrome de portal simulada (8%), no ajustado para forzar ningún resultado. El coste
+principal del proceso fue de tamaño, no de especificación: `sdd-tasks` pronosticó ~2100 líneas
+autoradas frente al presupuesto de sesión, y la tarea de fotos (3.1) es una precondición exclusiva
+del mantenedor —aportar o autorizar la descarga de 18 fotografías CC0— que partió la aplicación en
+varios lotes con una puerta de revisión intermedia.
+
+### 2026-09-25 — Comparación de estrategias de deduplicación (2.2), ciclo SDD completo en dos lotes de aplicación
+
+**Tipo de tarea:** dominio (segunda `DedupStrategy`) + métricas de evaluación + CLI de exportación
+**Forma de especificación:** ciclo SDD completo — explore → research (web, admisión concedida) →
+propose → `sdd-spec` y `sdd-design` (con una ronda correctiva tras FAIL del validador) →
+`sdd-tasks` → `sdd-apply` en dos lotes (fases 1-3, commits 1-3; fases 4-7, commits 4-6)
+**Resultado:** utilizable con retoques — spec y diseño corregidos tras un FAIL del validador; las
+cuatro etiquetas de verdad terreno que faltaban (md-2, md-4, hn-7, hn-8) las aportó el responsable
+del proyecto por cuestionario; una tarea con especificadores de import relativos bloqueó al
+dispatcher nativo (`blocked(edit_authority_missing)`) y se reescribió con rutas relativas al
+repositorio
+**Prompt:**
+
+> Implementa una segunda DedupStrategy con un enfoque distinto a la basada en
+> reglas, y un comando que ejecute varias estrategias sobre el mismo conjunto
+> etiquetado y reporte precisión, recall y F1 de cada una, además del efecto de
+> mover los umbrales.
+>
+> La salida debe ser exportable para incluirla en la memoria.
+
+**Observación:** el prompt no fija QUÉ segunda estrategia usar ni cómo evaluar "verdad terreno"
+frente a la banda ya diseñada de rule-based — ambos huecos los resolvió el ciclo de
+especificación, no la implementación. El hallazgo más caro fue que la especificación inicial
+media precisión/recall/F1 contra `expected` (la banda DISEÑADA de rule-based), lo que habría hecho
+la comparación circular: por construcción, `expected` es la salida de UNA de las dos estrategias
+comparadas. Se corrigió separando un campo `truth` de verdad terreno independiente. El diseño
+inicial también citaba un "corte del 2%" y una "decisión 023" inexistentes para justificar los
+umbrales de nivel de la nueva estrategia; la revisión los sustituyó por los puntos de decaimiento
+reales de `rule-based/signals.ts` (10% relativo, 100 m) y marcó los cortes "near" (2%, 20 m) como
+elecciones a priori nuevas, sin precedente. El diseño ilustraba además el argumento de "dos campos
+no bastan" con un cálculo a mano que omitía `price` — inalcanzable en la práctica porque
+`priceCents` es obligatorio (decisión 087, detalle en `AI-NOTES.md`); `sdd-apply` no ajustó los
+parámetros para forzar esa cifra, sino que probó el mismo principio con valores reales. Resultado
+real de la comparación (corpus de 24 pares, `pnpm --filter @buscahogar/ingestion
+compare-strategies`, ejecución real sobre el corpus a fecha de esta entrada): a los umbrales por
+defecto de cada estrategia, rule-based obtiene precisión 0.8889/recall 0.8000/F1 0.8421, y la
+estrategia probabilística obtiene precisión 0.8000/recall 0.4000/F1 0.5333 — la exigencia
+implícita de FS de al menos tres campos fuertes de acuerdo (decisión 087) deja 6 de los 10
+duplicados reales como `undecided`, frente a 2 de rule-based. Aplicado en dos lotes por el
+pronóstico de carga de revisión (`400-line budget risk: High`, ~1900-2100 líneas estimadas): el
+responsable del proyecto aceptó `size:exception` en una sola PR con 6 commits de trabajo sobre
+`feature-fase2`, sin ramas nuevas. Dos correcciones propias detectadas y resueltas dentro de la
+propia aplicación, sin intervención externa: un commit con pathspec parcial tras `git mv` que dejó
+una copia obsoleta en el primer lote, y una aserción de test que se autoinvalidó por contener la
+subcadena "null" en su propio dato de prueba en el segundo lote — ambas en `AI-NOTES.md`.
+
 ### 2026-09-19/22 — Cobertura bajo demanda (1.13), ciclo SDD completo en cuatro unidades de trabajo secuenciales
 
 **Tipo de tarea:** interfaz + consulta SQL + migración de esquema + worker/daemon + importador de

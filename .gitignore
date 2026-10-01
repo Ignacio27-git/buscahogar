@@ -55,3 +55,4 @@ apps/ingestion/test/fixtures/**/raw/
 docs/BD_Municipios-Entidades/
 docs/BD_Municipios-Entidades.zip
 docs/diccionario26.xlsx
+/docs/api_idealista

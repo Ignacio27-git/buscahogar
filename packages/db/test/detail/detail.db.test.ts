@@ -6,6 +6,7 @@
 // suite de detalle es nueva y no puede demostrar nada con un verde vacío,
 // mismo criterio que `vitest.consolidation.config.ts` (ROADMAP 1.10).
 import { randomUUID } from 'node:crypto';
+import { inArray } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -234,6 +235,49 @@ describe('detail.ts — Q1/Q2 contra Postgres real (diseño D3)', () => {
     expect(header).toBeDefined();
     expect(sourceRows).toHaveLength(1);
     expect(sourceRows[0]?.status).toBe('removed');
+  });
+
+  // ROADMAP 2.5 (S2, decisión 109; PS-4, S-PS-6): la visibilidad afecta solo a
+  // la búsqueda. El detalle sigue listando TODOS los anuncios, incluidos los
+  // inactivos, y una vivienda sin ningún anuncio activo no da 404.
+  it('S-PS-6: una vivienda con todos los anuncios inactivos sigue resolviendo y lista todos sus anuncios (sin 404)', async () => {
+    const sourceId = await insertSourceKeyed(db, 'idealista');
+    const listingA = await insertListingRow(db, sourceId, { status: 'inactive' });
+    const listingB = await insertListingRow(db, sourceId, { status: 'inactive' });
+    await insertCurrentVersion(db, listingA, { priceCents: 200_000_00 });
+    await insertCurrentVersion(db, listingB, { priceCents: 180_000_00 });
+    await db
+      .update(listings)
+      .set({ inactiveSince: new Date(), inactiveReason: 'delisted' })
+      .where(inArray(listings.id, [listingA, listingB]));
+
+    await writeConsolidation(
+      db,
+      baseConsolidationInput({
+        listingsConsidered: 2,
+        pairs: [
+          {
+            listingAId: listingA < listingB ? listingA : listingB,
+            listingBId: listingA < listingB ? listingB : listingA,
+            band: 'accept',
+            score: 0.95,
+            signals: { exactAddress: { value: 1, weight: 0.7 } },
+          },
+        ],
+        groups: [{ listingIds: [listingA, listingB].sort(), winnerId: listingA }],
+      })
+    );
+
+    const header = await getPropertyDetailHeader(db, listingA);
+    expect(header).toBeDefined();
+    expect(header?.listingCount).toBe(2);
+    expect(header?.minPriceCents).toBe(180_000_00);
+
+    const [property] = await db.select().from(properties);
+    expect(property?.activeListingCount).toBe(0);
+    const sourceRows = await getPropertySources(db, property?.id ?? '');
+    expect(sourceRows).toHaveLength(2);
+    expect(sourceRows.every((row) => row.status === 'inactive')).toBe(true);
   });
 
   it('404: uuid bien formado pero sin fila property_listings coincidente (listing inexistente por completo)', async () => {
