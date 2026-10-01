@@ -1893,16 +1893,21 @@ Decisiones 112-119; enmiendan la 080 (CSP) y la 065 (allowlist de `'use client'`
 **Pruebas al cerrar U4b** (sin base de datos): typecheck y lint limpios; ficheros de `apps/web` que no
 necesitan base de datos, 161 tests en verde; `pnpm --filter @buscahogar/web build` compila.
 
-**Pendiente del responsable** (ninguno se ha ejecutado):
+**Comprobaciones con Docker (2026-10-01).**
 
-1. Suite de base de datos `packages/db/test/search/search-map.db.test.ts`, con `TEST_DATABASE_URL`
-   apuntando a una base `*_test`, nunca la de desarrollo (decisión 046).
-2. Tareas de banco 3.3-3.5 sobre `buscahogar_bench` en la migración 0016 y con `jit = off` (restaurarlo
-   después): medir los siete escenarios nuevos, anotar los veredictos G1 y G2 y repetir la medición.
-   Las corridas antiguas de 12 ids sirven de referencia. Si `count` por sí solo supera 500 ms de p95,
-   G1 obliga a decidir entre un recuento acotado («más de 10.000»), un área máxima menor o aceptarlo
-   solo en la vista de mapa. Registrar el resultado en `docs/SEARCH-PERFORMANCE.md`. Incluye la prueba
-   de plan de `polygon-small` en `search-bench.db.test.ts`.
+1. Hecho: suite de base de datos `packages/db/test/search/search-map.db.test.ts`, 11 de 11, contra una
+   base nueva `buscahogar_test` (PostGIS y migraciones 0000-0016), nunca la de desarrollo (decisión
+   046). La primera ejecución dio 2 fallos del propio test: las siembras masivas caían en mitad del
+   borde sur del cuadrado, y el borde geodésico de `geography` las deja fuera. Es justo lo que DAS-9 no
+   garantiza; se movieron al interior (`AI-NOTES.md`).
+2. Hecho: tareas de banco 3.3-3.5 sobre `buscahogar_bench` (0016, 1.000.000 de viviendas, `jit = off`
+   durante la medición y restaurado). G1 cumple, con una suma máxima de 368,7 ms en el polígono
+   grande; G2 cumple, con un máximo de 30 ms en la lista. La prueba de plan da 12 de 12 en
+   `buscahogar_test_bench`, migrada a la 0016. Las doce combinaciones anteriores no cambian. Detalle en
+   `docs/SEARCH-PERFORMANCE.md`.
+
+**Pendiente del responsable:**
+
 3. Aceptación manual en el navegador (tarea 5.4):
    - Sin JavaScript, lista y mapa: recuento y enlace a la lista.
    - Dibujar, cerrar y volver atrás; redibujar; quitar la zona.
@@ -1911,7 +1916,7 @@ necesitan base de datos, 161 tests en verde; `pnpm --filter @buscahogar/web buil
    - Atribución visible; etiquetas de precio y enlace «Ver vivienda» del popup.
    - Sin zoom por doble clic mientras se dibuja; los clics de la barra no añaden vértices.
    - Forma inválida (lazo, vértice 51): mensaje y URL sin cambios.
-4. Con esas tres hechas, pasar el paso a `[x]`.
+4. Con la 3 hecha, pasar el paso a `[x]`.
 
 **Riesgos abiertos.** El UMD de `leaflet.markercluster` depende del `L` global que fija importar
 `leaflet` antes (orden de imports en `map-cluster-layer.tsx`): solo comprobado en compilación. El
@@ -2011,5 +2016,5 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-30 | 2.5 | La sonda de `adIds` la ejecutó el asistente, no el responsable, y el paso pasa a `[x]` | El responsable no conocía ningún anuncio dado de baja y autorizó 4-5 búsquedas. Una búsqueda completa de un círculo de 170 m cruzada con la fixture del 10 de septiembre identificó uno. La sonda confirmó `omitted` y la constante pasó a `true` junto con su fixture. Coste real: 4 búsquedas y 2 tokens. |
 | 2026-09-30 | 2.6 | La planificación necesitó una ronda de corrección extra, autorizada: la puerta de diseño falló dos veces | La especificación y el diseño, escritos en paralelo, se contradecían (vértice de cierre) y el diseño clasificaba mal el lazo como `degenerate`. Detalle en `AI-NOTES.md`. |
 | 2026-09-30 | 2.6 | El responsable sustituyó el «plugin de dibujo» de la propuesta (P2) por un control de dibujo propio | `leaflet-draw` está sin mantenimiento desde 2018 y tiene un error conocido en `showArea`; Geoman es pesado. Decisión 114. |
-| 2026-09-30 | 2.6 | La medición de U3 y los veredictos G1/G2 (tareas 3.3-3.5) quedan aplazados; los tests de base de datos están escritos y no ejecutados; el paso queda `[~]` | Docker estaba parado durante la aplicación. Pasa al procedimiento del responsable descrito en las notas del paso. |
+| 2026-09-30 | 2.6 | La medición de U3 y los veredictos G1/G2 (tareas 3.3-3.5) quedan aplazados; los tests de base de datos están escritos y no ejecutados; el paso queda `[~]` | Docker estaba parado durante la aplicación. Se ejecutaron el 2026-10-01 (G1 y G2 cumplen; suite de base de datos 11 de 11 tras corregir el propio test); queda solo la aceptación manual en el navegador. |
 | 2026-09-30 | 2.6 | Los tests de guarda se escribieron en U4a pero se commitearon con U4b | Antes de existir los componentes fallaban por construcción; commitearlos con U4b mantiene verde cada commit. |

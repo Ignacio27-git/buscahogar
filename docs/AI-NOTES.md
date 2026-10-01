@@ -40,6 +40,26 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-01 — Un test de base de datos sembraba puntos en mitad de un borde que la especificación no garantiza
+
+**Contexto:** paso 2.6, `packages/db`, suite `search-map.db.test.ts` (tope de 500 puntos y recuento).
+
+**Categoría:** código que compilaba pero no hacía lo correcto.
+
+**Qué ocurrió:** las pruebas de 501 y 120 viviendas sembraban la primera en `lat = 40.4`, justo en mitad
+del borde sur del cuadrado. En `geography` ese borde es geodésico y se curva hacia el norte, así que
+el punto quedaba fuera y los recuentos salían en 500 y 119. El código era correcto: la propia
+especificación (DAS-9) dice que solo se garantizan los vértices, no los puntos en mitad de un borde.
+
+**Cómo se detectó:** al ejecutar la suite por primera vez contra `buscahogar_test`. Se había escrito
+sin poder ejecutarla porque Docker estaba parado, y los validadores solo la leyeron.
+
+**Coste:** unos 10 minutos.
+
+**Observación:** un test de base de datos que nunca se ha ejecutado es una hipótesis, no una prueba.
+Aquí contradecía una regla que su mismo autor había escrito en el diseño. Las siembras masivas deben
+ir al interior de la figura, nunca sobre un borde.
+
 ### 2026-09-30 — La especificación y el diseño escritos en paralelo se contradecían sobre el vértice de cierre
 
 **Contexto:** paso 2.6, `packages/core`, formato del parámetro `polygon`.

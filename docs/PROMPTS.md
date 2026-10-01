@@ -30,6 +30,23 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-01 — Comprobaciones con Docker del 2.6 (suite de base de datos, banco y prueba de plan)
+
+**Tipo de tarea:** verificación con base de datos real + medición de rendimiento
+**Forma de especificación:** continuación del ciclo SDD del 2.6, con el procedimiento que dejaron
+escrito las notas del paso
+**Resultado:** utilizable con retoques — la suite de base de datos falló en su primera ejecución por
+un defecto del propio test (siembras sobre un borde geodésico), corregido; G1 y G2 cumplen sin
+necesidad de decisión del responsable.
+**Prompt:**
+
+> docker ya está arrancado, continúa por donde ibas
+
+**Observación:** se creó `buscahogar_test` y se migró `buscahogar_test_bench` a la 0016. Las URLs se
+derivaron del `.env` sin imprimirlas, y `jit = off` se aplicó solo durante la medición. El único
+hallazgo fue del test, no del código: un test de base de datos escrito sin poder ejecutarlo
+contradecía la especificación (`AI-NOTES.md`).
+
 ### 2026-09-30 — Vista de mapa y búsqueda por zona dibujada (2.6), ciclo SDD completo en cinco commits
 
 **Tipo de tarea:** interfaz (mapa de cliente) + dominio (validación geométrica) + consulta SQL

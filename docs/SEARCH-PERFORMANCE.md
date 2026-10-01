@@ -180,6 +180,37 @@ propietario y no hereda el ajuste de `web_readonly`. Cualquier medición futura 
 `ALTER DATABASE … SET jit = off`.
 
 
-### Pendiente tras el paso 2.6: escenarios de mapa y polígono
+### Paso 2.6: escenarios de mapa y polígono (2026-10-01)
 
-El paso 2.6 añadió siete escenarios a `bench-search` (`polygon-small`, `polygon-large-price`, `polygon-sparse`, `map-points-default`, `map-count-default`, `map-points-polygon-large`, `map-count-polygon-large`) y una prueba de plan de `polygon-small`. **Ninguno se ha medido**: Docker estaba parado durante la aplicación. Pendientes los veredictos G1 (puntos + recuento por debajo de 500 ms de p95 en el mapa) y G2 (polígonos en la lista por debajo de 500 ms). Procedimiento en las notas del paso 2.6 de `docs/ROADMAP.md`; el resultado se anotará aquí.
+El paso 2.6 añadió siete escenarios a `bench-search`. Se midieron sobre el mismo corpus de 1.000.000
+de viviendas (base de banco en la 0016), con el mismo método: 20 corridas, `cold-mode evict` y
+`jit = off` durante la medición, restaurado después.
+
+| id | qué mide | p95 (ms) | frío (ms) | plan |
+|---|---|---|---|---|
+| polygon-small | lista, polígono de ≈1 km² en Madrid | 30,0 | 132,2 | GiST de `location_geography` |
+| polygon-large-price | lista, polígono de ≈2.400 km² en Madrid, orden por precio | 2,4 | 4,4 | índice de precio; el polígono se filtra al vuelo |
+| polygon-sparse | lista, polígono de ≈2.400 km² en zona dispersa | 16,0 | 78,5 | GiST de `location_geography` |
+| map-points-default | puntos del mapa (`LIMIT 501`), sin filtros | 4,7 | 20,9 | índice de `updated_at` |
+| map-count-default | recuento M, sin filtros | 76,5 | 82,4 | `Seq Scan` en paralelo |
+| map-points-polygon-large | puntos del mapa, polígono grande | 17,4 | 22,3 | índice de `updated_at` |
+| map-count-polygon-large | recuento M, polígono grande | 351,3 | 817,1 | GiST de `location_geography` |
+
+**Veredictos.**
+
+- **G1 (mapa: p95 de puntos + p95 de recuento por debajo de 500 ms) cumple.** La suma es 81,2 ms sin
+  filtros y 368,7 ms con el polígono grande. No hace falta ninguna de las alternativas registradas
+  en la decisión 117.
+- **G2 (lista con polígono por debajo de 500 ms) cumple.** El peor caso es `polygon-small`, con 30 ms.
+- **La prueba de plan pasa** (12 de 12 en `buscahogar_test_bench`): `polygon-small` usa
+  `properties_location_geography_idx`.
+
+Las doce combinaciones anteriores conservan sus planes y sus cifras (`all-filters`: 200,1 ms de p95),
+así que mover `buildFilters` a `search-filters.ts` no cambia la lista.
+
+**Margen y límites.** El recuento con el polígono grande es el caso más caro. Está cerca del área
+máxima (2.500 km²) en la zona más densa del corpus, y se queda en 351 ms de p95. En frío llega a
+817 ms; el objetivo, como en el resto de la matriz, es el p95 en caliente (`geo-1km` ya daba 719 ms en
+frío). El recuento solo se ejecuta cuando hay más de 500 puntos (decisión 117). Si el corpus real
+fuera más denso que el sintético, este sería el primer escenario que habría que repetir. Resultados
+en `apps/ingestion/.bench/run-2026-10-01T11-43-14-647Z.json`.
