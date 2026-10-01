@@ -30,6 +30,24 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-01 — Instalación de la skill de diseño Impeccable en el proyecto
+
+**Tipo de tarea:** configuración
+**Forma de especificación:** referencia externa (URL del repositorio `pbakaus/impeccable`)
+**Resultado:** utilizable con retoques
+**Prompt:**
+
+> instala la skill de este repositorio: https://github.com/pbakaus/impeccable
+>
+> lo vamos a usar en buscahogar por lo tanto instala eso también
+
+**Observación:** el instalador recomendado (`npx impeccable install`) falló al descargar
+(«invalid zip data»), así que se copió a mano la compilación para Claude Code del repositorio
+(`.claude/skills/impeccable`, cuatro agentes y los hooks de `settings.json`). Primero se instaló
+solo de forma global, y ahí los hooks no hacen nada porque buscan la skill dentro del proyecto;
+por eso hizo falta el segundo prompt. `.claude/` está en `.gitignore`: la instalación no queda
+versionada y cada clon tiene que repetirla.
+
 ### 2026-10-01 — Cierre de pendientes del 3.1 (scripts raíz y especificación obsoleta)
 
 **Tipo de tarea:** configuración
