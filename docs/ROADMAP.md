@@ -1990,8 +1990,9 @@ quedan: `ho-10`, `dev-15` («entre 2 y 3 habitaciones», fijado como no reconoci
 
 **Riesgos abiertos.**
 
-- La CI debe construir `dist/` de `core` antes de `web`: `apps/web` lo resuelve por ahí y el
-  directorio no se versiona.
+- ~~La CI debe construir `dist/` de `core` antes de `web`.~~ Resuelto tras el cierre: no hay CI,
+  así que los scripts raíz `test`, `typecheck` y `lint` compilan ahora los paquetes antes de
+  ejecutarse (decisión 125).
 - Con 14 frases de reserva el intervalo es ancho (límite inferior 68,5 %); `dev-15` queda fuera del
   alcance del intérprete.
 - El intérprete se ajustó solo sobre desarrollo; la cifra de reserva se queda sin sesgo solo hasta

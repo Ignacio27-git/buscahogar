@@ -30,6 +30,22 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-01 — Cierre de pendientes del 3.1 (scripts raíz y especificación obsoleta)
+
+**Tipo de tarea:** configuración
+**Forma de especificación:** iterativo (referencia a la lista de pendientes del cierre del 3.1)
+**Resultado:** utilizable sin cambios
+**Prompt:**
+
+> soluciona lo que está pendiente y ya hago el push para pasar a la siguiente fase
+
+**Observación:** el pendiente decía «la CI debe construir `dist/`», pero el repositorio no tiene
+CI: el hueco real eran los scripts raíz `test`, `typecheck` y `lint`, que no compilaban los
+paquetes (decisión 125). Era la tercera vez que aparecía (decisión 031, paso 1.12 en `AI-NOTES.md`
+y el 3.1). Se comprobó borrando `packages/core/dist` y lanzando los tres scripts desde cero. Además
+se corrigió en Engram (obs #174) el escenario de `web-search-listing` que seguía diciendo que no
+hay ningún `'use client'`.
+
 ### 2026-10-01 — Búsqueda mediante lenguaje natural (3.1)
 
 **Tipo de tarea:** dominio (intérprete en `core`) + interfaz (rama `?q=` en `apps/web`) + evaluación

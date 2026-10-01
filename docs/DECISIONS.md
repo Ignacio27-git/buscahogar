@@ -3717,6 +3717,25 @@ intérprete en un fallo visible.
 
 ---
 
+## 125 — Los scripts raíz `test`, `typecheck` y `lint` compilan antes los paquetes
+
+**Estado:** aceptada (enmienda la consecuencia de la 031)
+
+**Decisión.** Los tres scripts de la raíz empiezan por `pnpm --filter "./packages/*" build`, igual
+que `dev`, `dev:web` y `dev:ingestion`. Los consumidores (`packages/db`, `apps/web`,
+`apps/ingestion`) siguen resolviendo los paquetes internos por su `dist/` compilado.
+
+**Alternativas descartadas.** Scripts `pretest`/`pretypecheck`: pnpm no ejecuta los scripts `pre*`
+por defecto. Resolver los paquetes por sus fuentes (alias de Vitest o `paths` de TypeScript):
+cambia el modelo de consumo de la 031 y haría que tests y build vieran código distinto. Dejarlo a
+un paso de CI: el repositorio no tiene CI.
+
+**Motivo.** Con `dist/` desactualizado, los tests y el typecheck de los consumidores validan la
+versión anterior del paquete sin avisar. Pasó en la 031, en el paso 1.12 (`AI-NOTES.md`, 2026-09-18) y en el
+3.1. El coste es una compilación de `tsc` por ejecución.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
