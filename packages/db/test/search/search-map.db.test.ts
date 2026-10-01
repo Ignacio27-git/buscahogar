@@ -108,8 +108,11 @@ describeWithTestDb('búsqueda por polígono y puntos del mapa contra Postgres re
     expect(await idsIn(SQUARE_CCW)).toEqual([]);
   });
 
+  // Las siembras masivas van al INTERIOR del cuadrado, no sobre el borde sur: el borde
+  // de `geography` es geodésico y se curva hacia el polo, así que un punto en mitad
+  // de un borde de latitud constante queda fuera (DAS-9 solo garantiza los vértices).
   it('501 viviendas: 500 puntos, total 501 y truncado', async () => {
-    await db.insert(properties).values(Array.from({ length: 501 }, (_, i) => ({ activeListingCount: 1, location: { x: -3.705, y: 40.4 + i * 1e-6 } })));
+    await db.insert(properties).values(Array.from({ length: 501 }, (_, i) => ({ activeListingCount: 1, location: { x: -3.705, y: 40.401 + i * 1e-6 } })));
     const result = await searchMapPoints(db, { ...BASE, polygon: SQUARE_CCW });
     expect(result.points).toHaveLength(MAP_POINT_CAP);
     expect(result.total).toBe(501);
@@ -117,7 +120,7 @@ describeWithTestDb('búsqueda por polígono y puntos del mapa contra Postgres re
   });
 
   it('120 viviendas: total 120, sin truncar', async () => {
-    await db.insert(properties).values(Array.from({ length: 120 }, (_, i) => ({ activeListingCount: 1, location: { x: -3.705, y: 40.4 + i * 1e-6 } })));
+    await db.insert(properties).values(Array.from({ length: 120 }, (_, i) => ({ activeListingCount: 1, location: { x: -3.705, y: 40.401 + i * 1e-6 } })));
     const result = await searchMapPoints(db, { ...BASE, polygon: SQUARE_CCW });
     expect(result.points).toHaveLength(120);
     expect(result.total).toBe(120);
