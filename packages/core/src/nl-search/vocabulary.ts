@@ -223,6 +223,10 @@ export const PLACE_TRIGGERS = phraseTable<true>([
   ['zona', true],
 ]);
 
+// Artículos que pueden seguir al disparador de lugar ("cerca de la Casa de
+// Campo"): no son el lugar ni lo cortan.
+export const PLACE_ARTICLES: ReadonlySet<string> = new Set(['el', 'la', 'los', 'las']);
+
 // Palabras de las que un lugar nunca forma parte: cortan la ristra que sigue
 // al disparador.
 export const PLACE_STOP_WORDS: ReadonlySet<string> = new Set([
@@ -247,6 +251,9 @@ export const PLACE_STOP_WORDS: ReadonlySet<string> = new Set([
   'maximo',
   'cerca',
   'zona',
+  // Paginación: nunca forma parte de un lugar.
+  'pagina',
+  'pag',
 ]);
 
 // Palabras de relleno: se descartan en los bordes de un fragmento no

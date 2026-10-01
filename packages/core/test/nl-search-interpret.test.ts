@@ -301,6 +301,20 @@ describe('interpretSearchText — lugar', () => {
     expect(same.conflicts).toEqual([]);
   });
 
+  it('el artículo tras el disparador no es el lugar y "Casa" dentro del lugar no es el tipo', () => {
+    const result = interpretSearchText('piso cerca de la Casa de Campo');
+    expect(result.placeText).toBe('Casa de Campo');
+    expect(result.params.propertyType).toBe('flat');
+    expect(result.conflicts).toEqual([]);
+  });
+
+  it('"página" corta el lugar y la paginación queda sin reconocer', () => {
+    const result = interpretSearchText('piso en Getafe página 3');
+    expect(result.placeText).toBe('Getafe');
+    expect(result.params.propertyType).toBe('flat');
+    expect(result.unrecognised).toEqual(['página 3']);
+  });
+
   it('sin lugar: placeText nulo', () => {
     expect(interpretSearchText('piso en alquiler').placeText).toBeNull();
   });

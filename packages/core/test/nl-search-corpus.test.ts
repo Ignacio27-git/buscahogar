@@ -172,15 +172,15 @@ describe('nlSearchCorpus — tasa de aciertos medida con el intérprete real', (
       dev: [result.dev.hitRate.hits, result.dev.hitRate.trials],
       holdout: [result.holdout.hitRate.hits, result.holdout.hitRate.trials],
       all: [result.all.hitRate.hits, result.all.hitRate.trials],
-    }).toEqual({ dev: [24, 28], holdout: [13, 14], all: [37, 42] });
+    }).toEqual({ dev: [26, 28], holdout: [13, 14], all: [39, 42] });
   });
 
-  // La tasa que cuenta es la de holdout: ningún negativo difícil produce un
-  // criterio falso. En dev hay 2, ambos en el lugar (fallos reales del
-  // intérprete documentados abajo: no se retoca el intérprete en esta unidad).
+  // Ningún negativo difícil produce un criterio falso. Antes de la unidad U2b
+  // el dev tenía 2 (dev-27 y dev-28, ambos en el lugar); se corrigieron en el
+  // intérprete a partir de dev, sin mirar el holdout.
   it('negativos difíciles: criterios equivocados o espurios por conjunto', () => {
     expect(result.holdout.hardNegativeFalseCriteria).toBe(0);
-    expect(result.dev.hardNegativeFalseCriteria).toBe(2);
+    expect(result.dev.hardNegativeFalseCriteria).toBe(0);
   });
 
   it('las entradas no exactas son exactamente estas, con su resultado por campo', () => {
@@ -194,10 +194,6 @@ describe('nlSearchCorpus — tasa de aciertos medida con el intérprete real', (
       ['dev-15-entre-habitaciones', { propertyType: 'correct', minRooms: 'missed' }],
       // Número sin unidad: no reconocido por prudencia (especificación).
       ['dev-23-cifra-sin-unidad', { propertyType: 'correct', maxPrice: 'missed' }],
-      // Fallo del intérprete: el artículo "la" corta el lugar y "Casa" cuenta como tipo.
-      ['dev-27-casa-de-campo', { propertyType: 'missed', place: 'wrong' }],
-      // Fallo del intérprete: "página" se queda dentro del texto del lugar.
-      ['dev-28-pagina', { propertyType: 'correct', place: 'wrong' }],
     ]);
   });
 });

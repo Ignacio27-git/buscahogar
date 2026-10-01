@@ -25,6 +25,7 @@ import {
   NUMBER_WORDS,
   OPERATIONS,
   ORDINAL_WORDS,
+  PLACE_ARTICLES,
   PLACE_STOP_WORDS,
   PLACE_TRIGGERS,
   PROPERTY_TYPE_PHRASES,
@@ -394,6 +395,12 @@ function isCountOrOrdinal(token: Token): boolean {
 // garaje"), un número u ordinal ("casa de dos pisos", "segundo piso") o un
 // disparador de lugar ("en Casa de Campo").
 function isTypeBlocked(ctx: Context, index: number): boolean {
+  // Un artículo entre el disparador y el nombre ("cerca de la Casa de Campo")
+  // no lo saca del lugar: se mira el token anterior al artículo.
+  const article = ctx.tokens[index - 1];
+  if (article !== undefined && !article.punctAfter && PLACE_ARTICLES.has(article.norm) && index >= 2) {
+    return isTypeBlocked(ctx, index - 1);
+  }
   const previous = ctx.tokens[index - 1];
   if (previous === undefined || previous.punctAfter) {
     return false;
@@ -428,7 +435,15 @@ function matchPlaces(ctx: Context): void {
     if (trigger === null) {
       continue;
     }
-    const start = index + trigger.length;
+    let start = index + trigger.length;
+    // El artículo inicial ('cerca de la Casa de Campo') no forma parte del texto.
+    while (
+      PLACE_ARTICLES.has(ctx.tokens[start]?.norm ?? '') &&
+      ctx.tokens[start]?.punctAfter !== true &&
+      isFree(ctx, start)
+    ) {
+      start += 1;
+    }
     let end = start;
     while (end < ctx.tokens.length && ctx.tokens[end - 1]?.punctAfter !== true) {
       const token = ctx.tokens[end];
