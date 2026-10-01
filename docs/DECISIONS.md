@@ -3828,6 +3828,199 @@ pasos añaden consultas.
 
 ---
 
+## 132 — Contrato de dirección visual: Buscahogar, herramienta factual, mundo «Hoja del Mapa Topográfico»
+
+**Estado:** aceptada. Cierra el paso D.0 junto con la 133 (ficha) y la 134 (registro del texto). No
+cambia la 128 (tema oscuro según el sistema, con selector).
+
+**Decisión.**
+
+- **Nombre:** Buscahogar. Sustituye a «Agregador inmobiliario» en la interfaz; el cambio en el título
+  y la cabecera es de D.5.
+- **Tono:** herramienta factual. Voz de servicio, datos claros y sin lenguaje comercial. Referencias
+  del responsable: comparadores como Google Flights o Kayak (precio protagonista, densidad y filtros
+  visibles).
+- **Tipografía:** pila tipográfica del sistema, sin fuentes propias; la CSP no cambia. Cifras
+  tabulares en precios y datos comparables.
+- **Paleta (intención; los tokens y el contraste los fija D.3).** Estrategia contenida: neutros y un
+  solo acento.
+  - `#ffffff`: fondo.
+  - `#1c1f22`: tinta, para texto y cifras.
+  - `#e4e2dc`: filetes y superficie neutra. Sobre blanco no llega a 3:1, así que no sirve como
+    borde de un control; D.3 define ese borde aparte.
+  - `#1f5fa8`: acento único, azul de hidrografía, para enlaces, selección y foco.
+  - `#b0662b`: siena, solo para la trama de lo aproximado. Nunca texto, fondo ni acento.
+- **Densidad:** alta y constante, como en un comparador: filas de altura fija y mucho dato por
+  pantalla, con objetivos de al menos 24 px (C12) y sin desplazamiento horizontal a 320 px (R10).
+- **Tema:** el claro es la referencia de este contrato. La paleta oscura no se decide aquí: depende
+  de los experimentos de D.2 (huecos b y c) y la deriva D.3.
+- **Disposición de la búsqueda:** en escritorio, vista dividida, con la barra horizontal de filtros y
+  orden arriba, la lista a la izquierda y el mapa a la derecha, sin superposiciones sobre el mapa
+  (C1, C2, C4). En móvil, la lista primero y el conmutador «Ver mapa», que sigue siendo un enlace
+  con `view` (C3, C4, R3). La disposición a 768 px la decide D.8a.
+- **Mundo visual: «Hoja del Mapa Topográfico»**, con la hoja del Mapa Topográfico Nacional 1:25.000
+  del IGN como linaje. El contrato, en los seis bloques de impeccable:
+  - **THESIS.** Cada búsqueda es una hoja de mapa: margen sobrio, leyenda que filtra y dato al
+    milímetro. Rechaza la disposición por defecto del sector: tarjetas de resultado con foto grande
+    como unidad de lectura.
+  - **OWN-WORLD.** Fondo blanco, tinta casi negra, filetes finos como el marco de la hoja, un único
+    azul para lo que se pulsa y una sola trama rayada en siena para lo aproximado. Cifras tabulares.
+    Un solo marco y una sola trama: ninguna otra marginalia cartográfica.
+  - **STORY.** El usuario ve cada vivienda una vez, con su precio más económico y el número de
+    fuentes en que aparece. Compara filas de un vistazo, abre la ficha y llega al anuncio de origen.
+    Confía en que dos filas son dos viviendas y en que lo aproximado está marcado.
+  - **FIRST VIEWPORT.** En escritorio, arriba va la barra de filtros, leída como la leyenda de la
+    hoja y con la acción principal. Debajo, la lista densa a la izquierda, con los precios en una
+    columna fija a la derecha, y el mapa a la derecha, enmarcado como una hoja. En móvil, la barra
+    de filtros y la lista; el mapa, tras «Ver mapa». Interacción propia: la leyenda filtra, y cada
+    filtro aplicado se lee y se quita desde ella. El movimiento es de D.16.
+  - **FORM.** «Hoja del Mapa Topográfico». Ocupa la posición 3 de la lista propia, ordenada por
+    resonancia, y la asignó el sorteo con la semilla `95c485be` (modo *operate*). Ruta *code-led*:
+    sin imagen de referencia, así que la ambición vive en este contrato.
+  - **FINISH.** Texto literal de impeccable, que se conserva en inglés. En este plan, la revisión
+    final y `DESIGN.md` corresponden a D.17.
+
+    «unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance»
+- **Mejoras tomadas de los aspirantes descartados.** Cada una viene de su donante, y se toma la
+  disciplina, no el aspecto:
+  - Retícula de Crouwel: «Una retícula estricta y declarada, común a lista, mapa y ficha, como la cuadrícula de la hoja.»
+  - Folio botánico: «Misma escala y mismo fondo en toda comparación: fotos a proporción fija e histórico con eje constante.»
+  - Carátula de casete (*j-card*): «Los precios ocupan una columna derecha fija con cifras tabulares, pegada al margen.»
+  - Muestrario de Emigre: «Escala tipográfica cerrada en pocos pasos, sin tamaños intermedios.»
+  - Muestrario de fuente variable: «Cero ornamento: la jerarquía la llevan solo el tamaño y el peso.»
+- El contrato es de desarrollo. No se copia al código ni a nada que llegue al navegador
+  (comentarios, atributos, metadatos). Los pasos que usen impeccable lo toman de aquí.
+
+**Alternativas descartadas.**
+
+- «Horario de bolsillo» (horarios de aerolínea de 1971: un único cuerpo de letra, con el rango
+  marcado por el peso), alternativa competitiva. Gana en claridad para comparar en densidad, pero
+  quien busca piso no se reconoce en un horario aéreo, y su fondo dorado choca con lo sobrio.
+- «Anuncios por palabras» (Segundamano y las páginas de pisos de los diarios), la propuesta preferida
+  de la skill. Es la más cercana a lo que ya hacen los comparadores y, en móvil, se vuelve críptica
+  si abrevia como el papel.
+- El estándar del sector (un comparador limpio al estilo de Google Flights, con tarjetas con foto):
+  indistinguible de la competencia.
+- Fuente propia autoalojada con `next/font/local`: daría una identidad uniforme y cifras
+  controladas, a cambio de 30-80 KB y de elegir la fuente. La pila del sistema no pesa nada, no hace
+  peticiones y cumple la CSP sin tocarla.
+- Tono de portal del sector (convenciones de Idealista o Fotocasa): se reconoce al instante, pero la
+  identidad se diluye.
+- Conmutador lista/mapa en todos los anchos, como hoy: en escritorio se pierde la relación entre la
+  lista y el mapa. Mapa primero: favorece explorar zonas, pero C1-C4 respaldan la vista dividida.
+
+**Motivo.** Buscahogar es una herramienta de uso frecuente con una ficha de lectura (`PRODUCT.md`):
+la paleta contenida, la densidad y las cifras tabulares sirven para comparar. El mundo cartográfico
+sale del propio producto (zonas, mapa, ubicación aproximada, nomenclátor del IGN en el pie) y le da
+un lugar visual a la incertidumbre. Lo decidió el responsable el 2026-10-01. El contrato evita que
+D.1-D.17 apliquen los valores por defecto de la skill (manda el brief).
+
+---
+
+## 133 — Presentación de la ficha de la vivienda
+
+**Estado:** aceptada. Resuelve el hueco a de la investigación de diseño. La aplican D.9
+(presentación), D.10 (histórico), D.11 (ubicación) y D.12 (comparación), según la 131.
+
+**Decisión.** Punto por punto, con el paso que lo construye:
+
+1. **Disposición (D.9).** En escritorio, dos columnas. A la izquierda van la galería y la
+   descripción; a la derecha, un panel fijo (`position: sticky`, sin JS) con el precio, los datos
+   clave y los anuncios de origen. En móvil se apila: precio → galería → resto. D.10 y D.11 sitúan
+   sus secciones dentro de esta disposición. D.9 comprueba que el panel no tape el foco (C10) y que
+   no quede cortado cuando no cabe en la altura de la ventana.
+2. **Precio (D.9).** Es el más económico de los anuncios activos y, si no hay ninguno activo, el
+   mínimo de todos (109). Es la cifra con más peso de la ficha, con cifras tabulares.
+3. **Datos clave (D.9).** Lista de definiciones con etiquetas en español (134). «No consolidado —
+   ver anuncios de origen» se explica una vez, no en cada campo, y no usa la trama, porque no es una
+   ubicación aproximada (132).
+4. **Anuncios de origen junto al precio (D.9 los sitúa; D.12 los compara).** Van en el panel,
+   pegados al precio: la fuente con su nombre legible, el precio de cada anuncio y un enlace saliente
+   reconocible, con «(no disponible)» como insignia. Con una sola fuente es una lista de una fila. El
+   más económico de los activos va marcado (109). El cálculo en `packages/core`, los empates y el
+   caso sin anuncios activos son de D.12.
+5. **Galería (D.9).** Sigue el patrón de carrusel de la APG: estática, la mueve el usuario, sin
+   avance automático, con «Foto N de M» y anclas sin JS (C15, C16). Todas las fotos tienen la misma
+   proporción fija (132) y un ancho fluido en lugar de 480 px. Siempre con `next/image` (R2). El alt
+   lo decide D.9.
+6. **Histórico de precios (D.10).** Un gráfico escalonado pequeño en SVG, generado en el servidor,
+   y una tabla accesible con fecha, fuente, precio y variación. Funciona sin JS. Todos los anuncios
+   de la vivienda comparten los mismos ejes (eje constante, 132). D.10 diseña el caso de una sola
+   versión.
+7. **Ubicación aproximada (D.11).** Un mapa estático renderizado en el servidor, sin JS y sin zoom.
+   Lo forman unas pocas teselas de `tile.openstreetmap.org` como `<img>` nativo, que pide el
+   navegador, y encima el área aproximada con la trama siena, nunca un punto exacto. Lleva el texto
+   «Ubicación aproximada» y la atribución «© OpenStreetMap» enlazada (R7, 112). El servidor solo
+   calcula qué teselas pedir y no descarga ninguna (R8). No hay ningún componente de cliente nuevo
+   (R4). El radio del área se fija con datos reales (coordenadas ofuscadas, `CLAUDE.md`).
+
+**Excepción a R2: la registra D.11.** R2 prohíbe el `<img>` nativo, y `csp-image-policy.test.ts` lo
+vigila. Servir las teselas con `next/image` haría que el optimizador las descargase desde el
+servidor, contra R8. El responsable lo resolvió el 2026-10-01: D.11 registra su propia decisión, que
+enmienda R2 con una excepción acotada (`<img>` nativo solo para teselas de `tile.openstreetmap.org`,
+el host que la 112 ya admite en `img-src`), y ajusta `csp-image-policy.test.ts` para que admita
+exactamente esa excepción y nada más. Esta decisión no enmienda R2. Queda además un punto abierto
+para D.11, que el responsable no ha decidido: la 112 y `map-guards.test.ts` (SMV-9) solo admiten hoy
+el host de teselas en `search-map-canvas.tsx`, y D.11 tiene que resolver ese límite en su propia
+decisión.
+
+**Alternativas descartadas.**
+
+- Disposición: «Precio primero» (una sola columna, con la galería debajo) y «Galería primero» (la
+  convención del sector, que aleja el precio).
+- Anuncios de origen en una sección al final, como hoy: esconde el mecanismo de agregación.
+- Histórico solo en tabla, menos legible de un vistazo, o como una línea de resumen con la tabla
+  plegada en `<details>`.
+- Ubicación:
+  - Mapa interactivo con área difusa: exige JS y ampliar R4 con su propia decisión, como la 113.
+  - Teselas como fondos CSS: cumplen la letra de R2, pero esquivan su intención sin dejarlo
+    decidido.
+  - Solo texto: no orienta visualmente.
+  - Teselas con `next/image`: el optimizador las descargaría desde el servidor (R8).
+
+**Motivo.** La investigación no encontró evidencia primaria sobre la ficha (hueco a), así que es una
+decisión de producto, tomada por el responsable el 2026-10-01. Poner las fuentes junto al precio
+enseña lo único que un portal individual no puede mostrar (`PRODUCT.md`). El mapa estático y la
+trama dicen que la ubicación es aproximada sin exigir JavaScript.
+
+---
+
+## 134 — Registro del texto: tuteo uniforme y etiquetas en español
+
+**Estado:** aceptada. Corrige la premisa del prompt de D.0 («hoy tuteo»): el texto actual mezcla
+tuteo, primera persona e impersonal.
+
+**Decisión.**
+
+- Todo el texto de la interfaz trata de tú, con la voz factual de la 132 y sin lenguaje comercial.
+  Las frases en primera persona («Esto es lo que he entendido», «No he entendido:») y las
+  impersonales («No se pudo interpretar la búsqueda», «No se encontraron viviendas con esos
+  filtros») se reescriben al tuteo en el paso que toca su pantalla.
+- Ningún valor interno llega a la interfaz: ni enumerados en crudo («flat», «rent»), ni la clave de
+  la fuente, ni fechas ISO.
+- El tipo y la operación usan los rótulos de `apps/web/src/lib/search-labels.ts`
+  (`PROPERTY_TYPE_LABELS`, `OPERATION_LABELS`), tipados sobre las uniones del núcleo. No se duplican.
+  La fuente se muestra con su nombre legible («Idealista»), nunca con `sourceKey`. Los rótulos que
+  faltan (nombre de la fuente, estado del anuncio) siguen el mismo patrón de `Record` tipado.
+- Cada texto lo reescribe el paso que ya toca su componente:
+
+| Texto | Hoy | Paso |
+|---|---|---|
+| Tipo y operación en crudo | `result-card.tsx` | D.6b |
+| Tipo y operación en crudo; «No consolidado…» explicado una vez | `property-header.tsx` | D.9 |
+| Nombre de la fuente (`sourceKey`) e insignia «(no disponible)» | `source-list.tsx` | D.9 |
+| «Esto es lo que he entendido», «No he entendido:», «No se pudo interpretar la búsqueda» en la rama `?q=` | `criteria-form.tsx`, `page.tsx` | D.7 |
+| Avisos de cobertura y estado del barrido (fecha ISO, «00:00 UTC») | `page.tsx`, `coverage-status.tsx` | D.13 |
+| Estados vacíos y parámetros inválidos («Ninguna vivienda…», «No se encontraron viviendas…», «No se pudo interpretar la búsqueda» de la búsqueda con filtros) | `page.tsx` | D.14 |
+
+**Alternativas descartadas.** Usted: es más formal, pero obliga a reescribir casi todo el texto.
+Impersonal («Se han encontrado 12 viviendas»): es más neutro, pero también más largo y más frío.
+
+**Motivo.** El tuteo es lo habitual en los portales españoles y ya domina el texto actual («Describe
+lo que buscas»). Las etiquetas existen desde el paso 3.1 y solo las usa `criteria-form.tsx`.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

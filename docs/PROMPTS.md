@@ -30,6 +30,51 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-01 — Contexto de producto y dirección visual (paso D.0, `PRODUCT.md`, decisiones 132-134)
+
+**Tipo de tarea:** diseño (contexto de producto y dirección visual)
+**Forma de especificación:** SDD en modo automático (exploración, propuesta, especificación, diseño,
+tareas y aplicación), con `impeccable init` e `impeccable shape` y varias tandas de preguntas al
+responsable.
+**Resultado:** pendiente de revisión
+**Prompt:**
+
+> `/gentle-sdd-new` con el bloque `text` del paso D.0 de `docs/DESIGN-ROADMAP.md`, literal.
+> Retomado después con `/gentle-sdd-continue design-direction-d0`. Texto del bloque:
+>
+> Paso D.0 de docs/DESIGN-ROADMAP.md. No toques código, estilos ni tests.
+>
+> Carga la skill impeccable. Ejecuta `impeccable init` para crear PRODUCT.md en la raíz
+> del repositorio y después `impeccable shape` para fijar conmigo la dirección visual.
+> Antes de decidir nada, pregúntame:
+>
+> 1. Nombre e identidad del producto (hoy «Agregador inmobiliario»), tono y productos
+>    de referencia.
+> 2. Tipografía: pila del sistema o fuente propia autoalojada (la CSP solo admite
+>    font-src 'self').
+> 3. Presentación de la ficha de la vivienda: jerarquía del precio, galería, anuncios de
+>    origen, histórico de precios y ubicación aproximada. La investigación no encontró
+>    evidencia primaria (hueco a), así que es una decisión de producto.
+> 4. Disposición de la búsqueda: vista dividida lista + mapa en escritorio y lista primero
+>    con conmutador en móvil, o la alternativa que prefiera.
+> 5. Registro del texto (hoy tuteo) y etiquetas en español para los valores de enumerado
+>    que hoy salen en crudo («flat», «rent»).
+>
+> Lee antes CLAUDE.md, docs/ARCHITECTURE.md, las reglas transversales R1-R12 de
+> docs/DESIGN-ROADMAP.md y la web actual: apps/web/src/app/page.tsx,
+> apps/web/src/app/properties/[listingId]/page.tsx y apps/web/src/components. Es una
+> herramienta de búsqueda de uso frecuente con una ficha de lectura: la dirección debe ser
+> sobria.
+>
+> Registra el contrato de dirección en docs/DECISIONS.md y anota en las notas de D.9 lo que
+> afecte a la ficha.
+
+**Observación:** el sorteo de impeccable (semilla `95c485be`, modo *operate*) asignó la tercera
+dirección de la lista propia, «Hoja del Mapa Topográfico», y el responsable la eligió. Sin generación
+de imágenes, la ruta es *code-led*. Se incorporan cinco mejoras de los aspirantes descartados. La
+opción del mapa estático no avisaba del choque con R2 y R8, y hubo que volver a preguntar (ver
+`AI-NOTES.md`). El responsable pidió parar tras la propuesta, y el cambio se retomó en otra orden.
+
 ### 2026-10-01 — Hoja de ruta del diseño UX/UI de la web (`docs/DESIGN-ROADMAP.md`)
 
 **Tipo de tarea:** planificación (hoja de ruta de diseño)

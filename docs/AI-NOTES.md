@@ -40,6 +40,30 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-01 — La opción «Mapa estático sin JS» se presentó como compatible con las reglas sin serlo
+
+**Contexto:** paso D.0 del plan de diseño (cambio SDD `design-direction-d0`), preguntas al
+responsable sobre la ficha.
+
+**Categoría:** contradicción con una regla del proyecto.
+
+**Qué ocurrió:** la descripción de la opción afirmaba que cumplía R5 y la CSP, pero omitía que R2
+prohíbe el `<img>` nativo (lo vigila `csp-image-policy.test.ts`) y que servir las teselas con
+`next/image` haría que el servidor las descargara, contra R8. En el diseño apareció otro choque: la
+112 y `map-guards.test.ts` (SMV-9) solo admiten el host de teselas en `search-map-canvas.tsx`.
+Además, la premisa «hoy tuteo» del prompt de D.0, escrita al planificar la hoja de ruta, era
+inexacta: el texto mezcla tuteo, primera persona e impersonal.
+
+**Cómo se detectó:** la fase de propuesta contrastó la opción con R2 y con los tests, y se volvió a
+preguntar al responsable, que mantuvo el mapa estático con una excepción acotada a R2 que registra
+D.11 (decisión 133). El límite de SMV-9 lo detectó la fase de diseño al leer el test. La premisa del
+tuteo, la exploración al inventariar el texto.
+
+**Coste:** una ronda de preguntas adicional.
+
+**Observación:** una opción que se presenta como compatible con las reglas se contrasta antes con
+R1-R12 y con los tests de guarda, no solo con la CSP.
+
 ### 2026-10-01 — La investigación del plan de diseño dio por bloqueado un script que la CSP ya admite
 
 **Contexto:** investigación del cambio SDD `web-ux-ui-design-roadmap` (plan de diseño de `apps/web`).

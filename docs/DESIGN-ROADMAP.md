@@ -128,7 +128,7 @@ Todo paso las cumple. Un paso que necesite saltarse una la enmienda con una entr
 
 # Bloque 1 — Contexto y herramientas
 
-## [ ] D.0 · Contexto de producto y dirección visual
+## [x] D.0 · Contexto de producto y dirección visual
 
 ```text
 Paso D.0 de docs/DESIGN-ROADMAP.md. No toques código, estilos ni tests.
@@ -172,11 +172,20 @@ Resuelve el hueco a.
 
 **Notas:**
 
-- **Ficheros:** `PRODUCT.md` (nuevo), `docs/DECISIONS.md`. Sin tests.
+- **Ficheros:** `PRODUCT.md` (nuevo), `docs/DECISIONS.md` (132-134), este fichero (D.0, notas de D.9
+  y referencias en otros pasos), `docs/PROMPTS.md` y `docs/AI-NOTES.md`. Sin tests.
 - **Riesgos:** que la skill elija la marca sin el responsable; los valores por defecto de impeccable
   frente al brief (manda el brief).
 - **Tamaño:** S.
 - **Evidencia:** C1-C4 (disposición de la búsqueda), C9 (histórico, secundaria); hueco a.
+- **Resultado (2026-10-01):** el contrato de dirección queda en la 132 (Buscahogar, herramienta
+  factual, pila del sistema, paleta contenida, mundo «Hoja del Mapa Topográfico», búsqueda dividida
+  en escritorio y lista primero en móvil). La ficha se decide punto por punto en la 133, copiada
+  abajo en D.9, y el registro y las etiquetas en la 134. Hueco a resuelto.
+- **impeccable:** `init` escribió `PRODUCT.md`, y `shape` sorteó la dirección (semilla `95c485be`,
+  posición 3), que eligió el responsable. Sin generación de imágenes, la ruta es *code-led*. El
+  contrato vive en la 132, no en un brief de impeccable, y los pasos que usen la skill se lo pasan.
+  `DESIGN.md` y la revisión final llegan en D.17.
 
 ---
 
@@ -317,6 +326,10 @@ oscuro según el sistema.
   build necesita red; `next/font/local` no. Decidirlo y registrarlo.
 - **Tamaño:** M.
 - **Evidencia:** C10, C21, C22, C25, C26, C27, C32.
+- **Contrato de D.0 (132):** pila tipográfica del sistema, sin `next/font` (ver desviaciones);
+  paleta `#ffffff`, `#1c1f22`, `#e4e2dc`, acento `#1f5fa8` y siena `#b0662b` solo para la trama;
+  escala tipográfica cerrada y cifras tabulares. `#e4e2dc` no llega a 3:1 como borde de control. El
+  oscuro se deriva aquí tras D.2.
 
 ---
 
@@ -482,6 +495,9 @@ Paso D.6b de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable clari
 - **Riesgos:** R6; la política de `alt`.
 - **Tamaño:** L, mitad b.
 - **Evidencia:** C5, C8, C12.
+- **Contrato de D.0 (132, 134):** filas densas con el precio en una columna derecha fija y cifras
+  tabulares, en lugar de la rejilla de una a tres columnas (ver desviaciones); tipo y operación con
+  los rótulos de `search-labels.ts`.
 
 ---
 
@@ -519,6 +535,8 @@ confirmación, nunca busca (decisión 122).
 - **Riesgos:** R6 y los tests del 3.1.
 - **Tamaño:** M.
 - **Evidencia:** C6, C7, C13.
+- **Registro (134):** tuteo uniforme; se reescriben «Esto es lo que he entendido», «No he
+  entendido:» y «No se pudo interpretar la búsqueda».
 
 ---
 
@@ -561,6 +579,9 @@ Paso D.8a de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable adapt
   abierto del 2.6); R4 (sin ficheros de cliente nuevos).
 - **Tamaño:** L, mitad a.
 - **Evidencia:** C1, C2, C3, C4, C14, C34.
+- **Contrato de D.0 (132):** confirmada la disposición por defecto (dividida en escritorio, lista
+  primero con «Ver mapa» en móvil). El mapa va enmarcado como una hoja, con un solo filete y sin más
+  marginalia. Aquí se decide la disposición a 768 px.
 
 ---
 
@@ -639,6 +660,21 @@ Paso D.9 de docs/DESIGN-ROADMAP.md. Aplica la presentación de la ficha decidida
 - **Riesgos:** R6; conservar la búsqueda sin estado en el cliente (R3).
 - **Tamaño:** M.
 - **Evidencia:** C8, C15, C16; hueco a.
+- **Presentación decidida en D.0 (decisión 133):**
+  1. Escritorio a dos columnas: galería y descripción a la izquierda; panel fijo (`sticky`, sin JS) a
+     la derecha con precio, datos clave y anuncios de origen. En móvil: precio → galería → resto. El
+     panel no tapa el foco (C10) ni queda cortado si no cabe en la altura de la ventana.
+  2. Precio: el más económico de los activos o, sin activos, el mínimo de todos (109); la cifra con
+     más peso, con cifras tabulares.
+  3. Datos clave en `<dl>` con etiquetas de `search-labels.ts` (134); «No consolidado» se explica
+     una vez y sin trama.
+  4. Anuncios de origen en el panel, junto al precio, con nombre legible de la fuente, precio, enlace
+     saliente e insignia «(no disponible)». El marcado del más económico es de D.12.
+  5. Galería APG estática, «Foto N de M», anclas sin JS, proporción fija igual para todas, ancho
+     fluido, `next/image`; el alt se decide aquí.
+  6. Histórico (D.10): gráfico escalonado en SVG del servidor y tabla accesible, con eje constante.
+  7. Ubicación (D.11): mapa estático del servidor con teselas como `<img>` y área con la trama
+     siena; la excepción a R2 la registra D.11.
 
 ---
 
@@ -677,6 +713,9 @@ histórico de precios de los anuncios de la vivienda.
 - **Riesgos:** decisión 107; `listings` frente a `properties`; rendimiento de la consulta.
 - **Tamaño:** M.
 - **Evidencia:** C9 (fragmento secundario sin verificar, S36).
+- **Contrato de D.0 (133):** gráfico escalonado en SVG generado en el servidor y, además, la tabla
+  accesible (fecha, fuente, precio y variación). Los dos, no «si aporta». Todos los anuncios sobre
+  los mismos ejes (eje constante, 132).
 
 ---
 
@@ -712,6 +751,13 @@ en la ficha.
 - **Riesgos:** coordenadas ofuscadas (escollo de `CLAUDE.md`); R4.
 - **Tamaño:** M.
 - **Evidencia:** C3, C14, C34.
+- **Contrato de D.0 (133):** mapa estático del servidor, sin JS ni componente de cliente, con
+  teselas como `<img>` nativo y el área con la trama siena; sustituye al envoltorio de cliente del
+  prompt (ver desviaciones). Este paso registra la decisión que enmienda R2 (solo teselas de
+  `tile.openstreetmap.org`) y ajusta `csp-image-policy.test.ts` a esa excepción y nada más. Punto
+  abierto, que el responsable no ha decidido: el límite de la 112 y de `map-guards.test.ts` (SMV-9),
+  que solo admite el host de teselas en `search-map-canvas.tsx`; lo resuelve este paso en su propia
+  decisión. Ficheros y tests de estas notas se revisan al planificar.
 
 ---
 
@@ -745,6 +791,8 @@ anuncios de origen en una comparación.
 - **Tamaño:** M.
 - **Evidencia:** ninguna afirmación directa. La investigación no encontró fuentes primarias sobre
   fichas con varias fuentes (hueco a).
+- **Contrato de D.0 (133):** desde D.9, la lista ya va junto al precio; este paso añade la
+  comparación y marca el más económico de los activos.
 
 ---
 
@@ -782,6 +830,7 @@ Paso D.13 de docs/DESIGN-ROADMAP.md. Usa `impeccable clarify`.
 - **Riesgos:** el sondeo del cliente; la zona horaria del servidor.
 - **Tamaño:** S-M.
 - **Evidencia:** C13.
+- **Registro (134):** tuteo; fechas legibles en español en lugar de ISO.
 
 ---
 
@@ -823,6 +872,7 @@ el estado vacío.
 - **Riesgos:** C20 (resuelto en D.4), C24, R4.
 - **Tamaño:** M.
 - **Evidencia:** C13, C20, C24, C28, C29, C30.
+- **Registro (134):** estados vacíos y error de parámetros en tuteo.
 
 ---
 
@@ -1033,3 +1083,7 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 
 | Fecha | Paso | Cambio | Motivo |
 | ----- | ---- | ------ | ------ |
+| 2026-10-01 | D.0 | La premisa «hoy tuteo» del punto 5 del prompt era inexacta: el texto mezcla tuteo, primera persona e impersonal. Se decide tuteo uniforme y la reescritura se reparte entre D.6b, D.7, D.9, D.13 y D.14. | Decisión 134; ver `AI-NOTES.md`. |
+| 2026-10-01 | D.3 | Sin fuente propia: pila del sistema. El paso ya no autoaloja una fuente con `next/font` ni elige entre `next/font/google` y `next/font/local`. | Decisión 132. |
+| 2026-10-01 | D.6b | La rejilla de una a tres columnas del prompt cede ante filas densas con el precio en una columna derecha fija. | Decisión 132 (FIRST VIEWPORT y mejora de la carátula de casete). |
+| 2026-10-01 | D.11 | El mapa de ubicación pasa de un mapa de cliente (reutilizar `search-map.tsx`, carga diferida, `noscript`) a un mapa estático del servidor, sin JS, con teselas de OSM como `<img>` nativo y el área tramada. Exige una decisión propia de D.11 que enmiende R2 con la excepción solo para teselas de `tile.openstreetmap.org`, y el ajuste de `csp-image-policy.test.ts` a esa excepción y nada más. Queda abierto para D.11, sin decidir, el límite de `map-guards.test.ts` (SMV-9). | Decisión 133, del responsable. Descartados: teselas como fondos CSS (esquivan R2 sin decidirlo), mapa de cliente (amplía R4) y solo texto (no orienta). |
