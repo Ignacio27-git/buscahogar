@@ -50,6 +50,8 @@ export default defineConfig({
   // Sin plataforma en la ruta (R10/S10.1): solo hay baselines de Linux/Docker.
   snapshotPathTemplate: '{testDir}/baselines/screenshots/{projectName}/{arg}{ext}',
   retries: 0,
+  // Fusiona las huellas axe preparadas en una ejecución de actualización (D.1b).
+  globalTeardown: './e2e/global-teardown.ts',
   workers: 1,
   reporter: [['list']],
   outputDir: 'test-results',

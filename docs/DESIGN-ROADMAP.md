@@ -189,7 +189,7 @@ Resuelve el hueco a.
 
 ---
 
-## [~] D.1 · Verificación visual con Playwright y axe
+## [x] D.1 · Verificación visual con Playwright y axe
 
 ```text
 Paso D.1 de docs/DESIGN-ROADMAP.md. Añade la verificación visual y de accesibilidad de
@@ -242,9 +242,9 @@ red y sin tocar la base de desarrollo.
   el repositorio; una siembra que toque la base de desarrollo.
 - **Tamaño:** M (posible partición a/b).
 - **Evidencia:** C34, C35, C36, C37, C38.
-- **Estado (2026-10-01): D.1a hecha, D.1b pendiente.** D.1a (herramienta y siembra) queda en un commit
-  propio; D.1b (specs, capturas de referencia, línea base axe) irá en un segundo commit del mismo PR
-  (`size:exception` aceptado por el responsable, una rama, dos commits). Decisiones 135-137.
+- **Estado (2026-10-01): D.1 hecha (D.1a y D.1b).** D.1a (herramienta y siembra) en un commit propio; D.1b
+  (specs, capturas de referencia, línea base axe) en un segundo commit del mismo PR (`size:exception`
+  aceptado por el responsable, una rama, dos commits). Decisiones 135-138.
 - **D.1a, qué hay:** guard y siembra `_e2e` (`packages/db/src/e2e/`, subpath `@buscahogar/db/e2e`),
   configuración de Playwright con 6 proyectos, guard de red a nivel de contexto con tesela local,
   servicio `e2e` de Compose y `Dockerfile.e2e`, scripts `pnpm e2e` y `pnpm e2e:update`.
@@ -261,6 +261,26 @@ red y sin tocar la base de desarrollo.
   llamó `provide`.
 - **Nota para D.1b:** el servidor no necesita `WEB_COVERAGE_DATABASE_URL`: la ruta `?q=` solo lee
   (decisión 122) y la zona de Getafe se siembra `covered`, así que no registra barridos.
+- **D.1b, qué hay:** `routes.ts` (6 rutas; los identificadores de vivienda salen de `@buscahogar/db/e2e`),
+  `visual.spec.ts` (captura de página completa por ruta y proyecto), `a11y.spec.ts` (axe con
+  `wcag2a/2aa/21a/21aa/22aa`), `axe-baseline.ts` (lógica pura con 20 tests), `axe-files.ts` y
+  `global-teardown.ts`. 36 capturas PNG (6 rutas x 6 proyectos) y `axe-baseline.json`, generados solo en
+  Docker con `pnpm e2e:update`.
+- **D.1b, verificación en Docker:** una ejecución de actualización y DOS ejecuciones consecutivas de
+  `pnpm e2e`, ambas con 74 pasados y 10 omitidos, resultados idénticos por test y sin tocar los baselines. La
+  ruta del mapa espera marcadores y teselas cargadas (la tesela es un PNG local); no hizo falta ninguna
+  máscara. Las dos 404 (`/no-existe` y vivienda inexistente) producen la misma página y, por tanto, el mismo
+  PNG en cada proyecto.
+- **Punto de partida de D.15: violaciones axe registradas (solo `target-size`, WCAG 2.5.8, nivel AA):**
+  `home` y `map` a 320 px de ancho, en claro y en oscuro (4 de 36 combinaciones).
+  - `target-size|a[href="/?view=map"]` en `home` (enlace «Ver mapa»), `w320-light` y `w320-dark`.
+  - `target-size|a[href="/?"]` en `map` (enlace «Ver lista»), `w320-light` y `w320-dark`.
+  - Las otras 32 combinaciones no registran violaciones. Ojo: la aplicación actual aún no tiene estilos de
+    diseño (D.0 solo fijó la dirección), así que el resultado casi limpio no vale para los pasos de estilo:
+    cada D.n que cambie la interfaz debe reactualizar la línea base de forma deliberada (decisión 138).
+- **Windows no es autoritativo:** una ejecución de `test:e2e` en el anfitrión Windows fallará en las capturas
+  por diferencias de fuentes y sistema; es lo esperado, no un fallo que arreglar. Las capturas se generan y
+  comprueban solo con `pnpm e2e` / `pnpm e2e:update` (README).
 
 ---
 
@@ -1103,7 +1123,7 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | Fecha | Paso | Cambio | Motivo |
 | ----- | ---- | ------ | ------ |
 | 2026-10-01 | D.0 | La premisa «hoy tuteo» del punto 5 del prompt era inexacta: el texto mezcla tuteo, primera persona e impersonal. Se decide tuteo uniforme y la reescritura se reparte entre D.6b, D.7, D.9, D.13 y D.14. | Decisión 134; ver `AI-NOTES.md`. |
-| 2026-10-01 | D.1 | El paso se parte en D.1a (herramienta y siembra) y D.1b (specs, capturas de referencia y línea base axe), como ya preveía el prompt para más de 800 líneas. D.1a mide bastante más de lo estimado (~790) porque se separó el dataset en `fixture-data.ts` con su test y porque Prettier reparte las líneas largas; el responsable aceptó `size:exception`. Un solo PR con dos commits, sin ramas nuevas. | Decisiones 135-137; presupuesto de revisión (R9). |
+| 2026-10-01 | D.1 | El paso se parte en D.1a (herramienta y siembra) y D.1b (specs, capturas de referencia y línea base axe), como ya preveía el prompt para más de 800 líneas. D.1a mide bastante más de lo estimado (~790) porque se separó el dataset en `fixture-data.ts` con su test y porque Prettier reparte las líneas largas; el responsable aceptó `size:exception`. Un solo PR con dos commits, sin ramas nuevas. | Decisiones 135-138; presupuesto de revisión (R9). |
 | 2026-10-01 | D.3 | Sin fuente propia: pila del sistema. El paso ya no autoaloja una fuente con `next/font` ni elige entre `next/font/google` y `next/font/local`. | Decisión 132. |
 | 2026-10-01 | D.6b | La rejilla de una a tres columnas del prompt cede ante filas densas con el precio en una columna derecha fija. | Decisión 132 (FIRST VIEWPORT y mejora de la carátula de casete). |
 | 2026-10-01 | D.11 | El mapa de ubicación pasa de un mapa de cliente (reutilizar `search-map.tsx`, carga diferida, `noscript`) a un mapa estático del servidor, sin JS, con teselas de OSM como `<img>` nativo y el área tramada. Exige una decisión propia de D.11 que enmiende R2 con la excepción solo para teselas de `tile.openstreetmap.org`, y el ajuste de `csp-image-policy.test.ts` a esa excepción y nada más. Queda abierto para D.11, sin decidir, el límite de `map-guards.test.ts` (SMV-9). | Decisión 133, del responsable. Descartados: teselas como fondos CSS (esquivan R2 sin decidirlo), mapa de cliente (amplía R4) y solo texto (no orienta). |

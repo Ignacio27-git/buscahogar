@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "tags": [
+    "wcag21a",
+    "wcag21aa",
+    "wcag22aa",
+    "wcag2a",
+    "wcag2aa"
+  ],
+  "entries": {
+    "detail": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "home": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [
+        "target-size|a[href=\"/?view=map\"]"
+      ],
+      "w320-light": [
+        "target-size|a[href=\"/?view=map\"]"
+      ],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "map": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [
+        "target-size|a[href=\"/?\"]"
+      ],
+      "w320-light": [
+        "target-size|a[href=\"/?\"]"
+      ],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "nl-query": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "not-found-property": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "not-found-route": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    }
+  }
+}

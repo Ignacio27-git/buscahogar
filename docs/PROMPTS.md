@@ -30,13 +30,13 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
-### 2026-10-01 — Verificación visual y de accesibilidad: herramienta y siembra (paso D.1a, decisiones 135-137)
+### 2026-10-01 — Verificación visual y de accesibilidad: herramienta, siembra, specs y capturas (pasos D.1a y D.1b, decisiones 135-138)
 
 **Tipo de tarea:** configuración (herramienta de test, siembra de base de datos, Docker)
 **Forma de especificación:** SDD en modo automático, con especificación, diseño y tareas escritos antes de
 aplicar; el prompt del paso D.1 de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. La aplicación
 se hizo con TDD estricto y el paso se partió en D.1a/D.1b antes de aplicar.
-**Resultado:** pendiente de revisión (D.1a aplicada; D.1b pendiente)
+**Resultado:** pendiente de revisión (D.1a y D.1b aplicadas)
 **Prompt:**
 
 > `/gentle-sdd-new` Paso D.1 de docs/DESIGN-ROADMAP.md. Añade la verificación visual y de
@@ -62,6 +62,9 @@ sobre `http://127.0.0.1`. La estimación de ~790 líneas se quedó corta: el dat
 puro con su test (no estaba en el diseño) y Prettier reparte las líneas largas; el responsable ya había
 aceptado `size:exception`. El agente no puede leer el `.env`: las variables `E2E_*` se derivaron con un
 script que no imprime los valores.
+D.1b (specs, capturas y línea base axe) se aplicó en un segundo commit, también con TDD estricto para la lógica
+pura de huellas (20 tests escritos antes). Las capturas y la línea base se generaron solo en Docker; dos
+ejecuciones consecutivas dieron resultados idénticos y no hizo falta ninguna máscara. Utilizable sin cambios.
 
 ### 2026-10-01 — Contexto de producto y dirección visual (paso D.0, `PRODUCT.md`, decisiones 132-134)
 

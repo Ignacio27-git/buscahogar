@@ -74,6 +74,28 @@ Alternativa quirúrgica, con el contenedor ya parado:
 docker volume rm buscahogar_postgres_data
 ```
 
+## Pruebas e2e visuales y de accesibilidad
+
+Capturas con Playwright (3 anchos x tema claro/oscuro) y comprobación de accesibilidad con axe. **Solo
+se ejecutan en Docker**: las capturas dependen del sistema operativo y de las fuentes, y los baselines son
+de Linux.
+
+```bash
+pnpm e2e           # comprueba contra los baselines (apps/web/e2e/baselines)
+pnpm e2e:update    # regenera capturas y la línea base axe (revisar el diff antes de commitear)
+```
+
+- Requieren `docker compose up -d` y, en el `.env` de la raíz, las variables `E2E_DATABASE_URL`
+  (propietario de la base `buscahogar_e2e`, host `db`) y `E2E_WEB_DATABASE_URL` (rol `web_readonly` sobre
+  esa base). Ver `.env.example`; el servidor de la web solo recibe la segunda. La siembra recrea
+  `buscahogar_e2e` en cada ejecución y rechaza cualquier base cuyo nombre no termine en `_e2e`; nunca toca
+  la de desarrollo.
+- Una ejecución de `test:e2e` en el anfitrión (Windows) NO es autoritativa: fallará en las capturas por
+  diferencias de renderizado. Es lo esperado; no se arregla.
+- La primera ejecución descarga la imagen de Playwright (varios GB).
+- La línea base axe (`apps/web/e2e/baselines/axe-baseline.json`) falla tanto con violaciones nuevas como
+  con entradas obsoletas; se reescribe solo con `pnpm e2e:update` (decisión 138).
+
 ## Estructura
 
 ```text

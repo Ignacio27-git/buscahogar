@@ -4136,6 +4136,37 @@ suite en lugar de pasar desapercibida.
 
 ---
 
+## 138 — Línea base de accesibilidad por huellas axe: las entradas nuevas y las obsoletas fallan
+
+**Estado:** aceptada
+
+**Decisión.** `apps/web/e2e/baselines/axe-baseline.json` guarda, por ruta y proyecto, el conjunto de
+huellas `regla|objetivo` de las violaciones que axe (`@axe-core/playwright` 4.13.0, etiquetas `wcag2a`,
+`wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa`) detecta HOY. Se registran, no se corrigen: corregirlas es D.15.
+La lógica (huella, comparación, fusión, serialización) es pura, vive en `apps/web/e2e/axe-baseline.ts` y se
+prueba con vitest en `apps/web/test/e2e-axe-baseline.test.ts`.
+
+- Comparación por conjuntos (el orden no importa). Una huella NUEVA falla; una huella OBSOLETA (en la línea
+  base y ya no reproducida) también falla, con el mensaje «ejecuta `pnpm e2e:update`». Una clave (ruta,
+  proyecto) ausente falla, y también unas etiquetas distintas de las de la ejecución.
+- Solo `test:e2e:update` (`--update-snapshots=changed`) reescribe la línea base: cada test prepara sus
+  huellas en `test-results/axe-staging/` y pasa; `globalTeardown` las fusiona, reemplazando cada clave
+  entera (así las huellas obsoletas desaparecen) y ordenando rutas, proyectos y huellas (JSON con 2 espacios y
+  LF). Una ejecución parcial conserva las claves que no se ejecutaron.
+- El objetivo se normaliza: se aplanan marcos y shadow DOM con « >>> », se colapsan los espacios y se
+  deduplica.
+
+**Alternativas descartadas.** Solo anotar lo obsoleto sin fallar: una entrada obsoleta enmascararía que la
+violación vuelva a aparecer después. Corregir las violaciones ahora: fuera del alcance de D.1 (no se tocan
+estilos ni componentes) y es D.15. Anotaciones sin comparación, o `toMatchSnapshot` sobre el resultado entero
+de axe: las primeras no se contrastan en cada ejecución y la segunda es opaca y frágil ante campos que no
+importan (HTML, ayuda, URLs).
+
+**Motivo.** La línea base debe poder solo encogerse y de forma deliberada: cualquier cambio en el conjunto de
+violaciones, a mejor o a peor, exige una actualización explícita y revisable en el diff.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
