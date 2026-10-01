@@ -30,6 +30,33 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-01 — Hoja de ruta del diseño UX/UI de la web (`docs/DESIGN-ROADMAP.md`)
+
+**Tipo de tarea:** planificación (hoja de ruta de diseño)
+**Forma de especificación:** SDD parcial: exploración, investigación en dos pasadas (evidencia
+parcial aceptada por el responsable) y propuesta. Especificación, diseño y tareas se omitieron a
+petición del responsable, y el documento se escribió directamente desde la propuesta.
+**Resultado:** pendiente de revisión
+**Prompt:**
+
+> `/gentle-sdd-new` Muy bien ahora que hemos terminado con el roadmap queda una cosa muy importante
+> por hacer ya que la web no está terminada ni muchísimo menos, ya que el diseño UX/UI actualmente
+> es inexistente, por ello he instalado las siguientes skills:
+> - https://github.com/emilkowalski/skills
+> - https://github.com/pbakaus/impeccable
+>
+> Y he instalado el mcp de playwright para que puedas visualizar la web y probarla y comprobar como
+> funciona todo, su diseño y demás.
+> Ahora habría que hacer otro roadmap para el diseño de la web (entiendo que un roadmap es la mejor
+> forma, no hacerlo todo del tirón), planificando y diseñando todo, ya que están las
+> funcionalidades pero el diseño de la web ahora mismo es nulo.
+
+**Observación:** se hicieron dos tandas de preguntas de producto. En la de dispositivos, el
+responsable cambió su respuesta de «primero móvil» a «ambos por igual» (decisión 129). El resultado
+son 18 pasos, D.0-D.17, con D.6 y D.8 partidos en a/b, y las decisiones 126-131. La investigación
+tuvo que corregirse en su segunda pasada por una restricción de CSP inferida sin mirar la
+configuración (ver `AI-NOTES.md`).
+
 ### 2026-10-01 — Instalación de la skill de diseño Impeccable en el proyecto
 
 **Tipo de tarea:** configuración

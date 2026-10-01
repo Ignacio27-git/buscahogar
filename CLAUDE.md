@@ -108,7 +108,8 @@ la tarea, no es opcional ni requiere que se te pida.
 1. `docs/PROMPTS.md` — una entrada con el prompt recibido, el tipo de tarea, la forma de
    especificación y si el resultado fue utilizable sin cambios, con retoques o descartado.
 2. `docs/ROADMAP.md` — actualiza el estado del paso correspondiente y rellena su apartado
-   de notas con lo relevante.
+   de notas con lo relevante. En los pasos de diseño (`D.n`), el fichero es
+   `docs/DESIGN-ROADMAP.md`.
 
 **Cuando aplique:**
 
@@ -120,8 +121,9 @@ la tarea, no es opcional ni requiere que se te pida.
    framework, código que compilaba pero no hacía lo correcto, contradicción con una regla
    de este fichero. Anótalo aunque lo hayas detectado tú mismo y aunque el resultado final
    sea correcto. Especialmente en ese caso: el fallo intermedio es el dato interesante.
-5. `docs/ROADMAP.md`, tabla de desviaciones — si el paso no se ha ejecutado como estaba
-   escrito, si ha habido que partirlo, reordenarlo o descartarlo.
+5. `docs/ROADMAP.md`, tabla de desviaciones (la de `docs/DESIGN-ROADMAP.md` en los pasos
+   `D.n`) — si el paso no se ha ejecutado como estaba escrito, si ha habido que partirlo,
+   reordenarlo o descartarlo.
 
 **Al final de la tarea, informa de qué ficheros de documentación has actualizado.** Si no has
 actualizado ninguno más allá de los dos obligatorios, dilo explícitamente.

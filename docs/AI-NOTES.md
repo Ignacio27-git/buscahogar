@@ -40,6 +40,26 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-01 — La investigación del plan de diseño dio por bloqueado un script que la CSP ya admite
+
+**Contexto:** investigación del cambio SDD `web-ux-ui-design-roadmap` (plan de diseño de `apps/web`).
+
+**Categoría:** contradicción con la configuración real del proyecto.
+
+**Qué ocurrió:** en su primera pasada, el subagente de investigación concluyó (afirmación C9) que la
+CSP estricta del proyecto bloquearía el script en línea contra el parpadeo del tema oscuro de
+Tailwind y que haría falta un *nonce* o un *hash*. No había abierto `apps/web/next.config.ts`, que ya
+declara `script-src 'self' 'unsafe-inline'` (decisión 080).
+
+**Cómo se detectó:** revisión del orquestador, que lo corrigió en la segunda pasada. En la revisión 2,
+la afirmación correcta es C18.
+
+**Coste:** no medido; se corrigió dentro de la segunda pasada, que ya estaba prevista por otros motivos.
+
+**Observación:** una restricción del propio proyecto se comprueba en su configuración antes de
+inferirla de la documentación general. De no corregirse, el paso D.4 habría planificado un mecanismo
+de *nonces* innecesario.
+
 ### 2026-10-01 — Tres errores del intérprete que solo el corpus de desarrollo destapó
 
 **Contexto:** paso 3.1, `packages/core/src/nl-search/`, unidad U2b tras medir el corpus (U3).

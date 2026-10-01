@@ -3736,6 +3736,98 @@ versión anterior del paquete sin avisar. Pasó en la 031, en el paso 1.12 (`AI-
 
 ---
 
+## 126 — El plan de diseño de la web es un fichero aparte, `docs/DESIGN-ROADMAP.md`, con pasos `D.n`
+
+**Estado:** aceptada
+
+**Decisión.** El diseño de `apps/web` se planifica en `docs/DESIGN-ROADMAP.md`, con el mismo formato
+que `docs/ROADMAP.md` (prompt, Objetivo, Revisar, Notas), pasos numerados `D.0`-`D.17` y su propio
+registro de desviaciones. `docs/ROADMAP.md` lo enlaza desde la cabecera, y el registro obligatorio
+de `CLAUDE.md` dirige los pasos `D.n` a ese fichero. Cada paso se ejecuta como un cambio SDD propio.
+
+**Alternativas descartadas.** Una «Fase 4» dentro de `docs/ROADMAP.md`: el fichero ya ronda las 2000
+líneas y mezclaría la hoja de ruta funcional, ya completa, con la de diseño, que tiene otros
+artefactos (`PRODUCT.md`, `DESIGN.md`, capturas de referencia).
+
+**Motivo.** Separar las dos hojas de ruta también separa el material del capítulo de proceso. El
+riesgo de que diverjan se cubre con el enlace y con la regla de `CLAUDE.md`.
+
+---
+
+## 127 — Estilos con Tailwind v4, tokens en `@theme` y componentes propios
+
+**Estado:** aceptada (confirma la 010)
+
+**Decisión.** El diseño usa Tailwind v4 con tokens en `@theme` dentro de `globals.css` y componentes
+escritos en el proyecto.
+
+**Alternativas descartadas.** Una biblioteca *headless* (Radix, Base UI) y shadcn.
+
+**Motivo.** Ambas traen componentes de cliente y dependencias que chocan con el allowlist de dos
+ficheros de `'use client'` (decisión 113) y con el funcionamiento sin JavaScript. La 010 ya retuvo
+Tailwind v4.
+
+---
+
+## 128 — Tema oscuro según el sistema, con selector
+
+**Estado:** aceptada
+
+**Decisión.** La web sigue `prefers-color-scheme` por defecto y ofrece un selector (claro, oscuro,
+sistema). La lectura de la preferencia y su efecto sin JavaScript se deciden en el paso D.4.
+
+**Alternativas descartadas.** Solo tema claro; solo el tema del sistema, sin selector.
+
+**Motivo.** El usuario quiere poder fijar el tema. El coste es un script en línea, que la CSP ya
+admite, y un Route Handler para el caso sin JavaScript.
+
+---
+
+## 129 — Móvil y escritorio pesan lo mismo
+
+**Estado:** aceptada
+
+**Decisión.** Cada pantalla se diseña y se verifica a 320, 768 y 1280 px. Ningún ancho es secundario.
+
+**Alternativas descartadas.** Primero móvil (fue la primera respuesta del responsable, que la cambió
+después) y primero escritorio.
+
+**Motivo.** La búsqueda inmobiliaria se usa en los dos contextos, y la investigación recomienda
+disposiciones distintas para cada uno (vista dividida en escritorio, lista primero en móvil).
+
+---
+
+## 130 — Verificación visual con Playwright y axe, con capturas de referencia generadas en Linux
+
+**Estado:** aceptada
+
+**Decisión.** El paso D.1 añade Playwright y `@axe-core/playwright` como dependencias de desarrollo
+de `apps/web`, con una base de datos sembrada, teselas falsas y capturas de referencia generadas en
+Docker (Linux).
+
+**Alternativas descartadas.** Solo el MCP de Playwright: sirve para explorar, pero no deja una prueba
+reproducible ni versionada. Solo revisión manual: no deja evidencia comparable entre pasos.
+
+**Motivo.** Las capturas de referencia dependen de la plataforma; generarlas siempre en Linux evita
+diferencias falsas entre Windows y el contenedor.
+
+---
+
+## 131 — Las funciones nuevas de la ficha son pasos propios del plan de diseño
+
+**Estado:** aceptada
+
+**Decisión.** El histórico de precios (D.10), el mapa de ubicación (D.11) y la comparación de fuentes
+(D.12) entran en el plan como pasos separados de la presentación de la ficha (D.9).
+
+**Alternativas descartadas.** Limitar el plan a diseño puro, sin funciones nuevas.
+
+**Motivo.** Los datos ya existen (`listing_versions`, coordenadas, anuncios por vivienda) y dan
+sentido a la ficha. Separarlos mantiene cada paso dentro del presupuesto de revisión y deja claro qué
+pasos añaden consultas.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

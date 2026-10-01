@@ -21,6 +21,9 @@ es señal de que la instrucción se ha perdido en el contexto.
 
 **Estados:** `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[-]` descartado
 
+**Diseño de la web.** El plan de diseño de `apps/web` (pasos `D.n`) está en `docs/DESIGN-ROADMAP.md`,
+con su propio registro de desviaciones (decisión 126).
+
 ---
 
 # Fase 0 — Arranque
