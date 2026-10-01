@@ -4021,6 +4021,121 @@ lo que buscas»). Las etiquetas existen desde el paso 3.1 y solo las usa `criter
 
 ---
 
+## 135 — Base de datos e2e `_e2e`, guard, siembra determinista y subpath puro `@buscahogar/db/e2e`
+
+**Estado:** aceptada
+
+**Decisión.** El paso D.1a (cambio `visual-a11y-verification`) añade una base de datos desechable,
+`buscahogar_e2e`, y la siembra en `packages/db/src/e2e/`:
+
+- **Guard** (`guard.ts`, puro): `assertE2eOwnerDatabaseUrl` exige que el nombre cumpla
+  `^[a-z0-9_]+_e2e$` (también es un identificador seguro para el `DROP`/`CREATE DATABASE`, que no admiten
+  parámetros), que no sea el de la base de desarrollo y que la URL no sea idéntica a `DATABASE_URL` ni a
+  `WEB_DATABASE_URL`. `assertE2eWebDatabaseUrl` exige el usuario `web_readonly` y, respecto a la del
+  propietario, mismo host, puerto y base. El seed lo ejecuta ANTES de crear un `Pool` o un `Client`.
+- **Siembra** (`seed.ts`): `DROP DATABASE ... WITH (FORCE)` y `CREATE DATABASE` desde la base `postgres`,
+  migraciones programáticas (`drizzle-orm/node-postgres/migrator`), preflight del rol `web_readonly`
+  (existe y no es superusuario; nunca se crea), `GRANT CONNECT/USAGE/SELECT`, `jit = off` por base y
+  comprobación posterior de que no puede escribir, y una transacción con el dataset. Tercera excepción
+  documentada a «`packages/db` no lee `process.env`», tras `seed.ts` y `drizzle.config.ts`.
+- **Dataset** (`fixture-data.ts`, datos puros) con identificadores y marcas de tiempo fijos (`e2eUuid`,
+  `2026-09-15T10:00:00Z`): dos siembras seguidas dejan volcados idénticos (comprobado en Docker con
+  `pg_dump` y `sha256`).
+- **Subpath `./e2e`** en el `exports` de `packages/db` (junto con `.`): solo reexporta `fixture-ids` y
+  `guard`, módulos puros. `seed.ts` no se exporta, así que `apps/web` no puede alcanzar nada que borre
+  una base. Un test de vitest fija que `public.ts`, `guard.ts` y `fixture-ids.ts` no importan `pg` ni
+  drizzle.
+- **Variables** en el `.env` raíz: `E2E_DATABASE_URL` (propietario, host `db`) y
+  `E2E_WEB_DATABASE_URL` (`web_readonly`). Compose las pasa con `${VAR:-}` junto con
+  `E2E_DEV_DATABASE_NAME`; nunca `env_file`, nunca `NEXT_PUBLIC_*`.
+- **La siembra va antes del servidor web, con el propietario ya eliminado del entorno.** El `webServer`
+  de Playwright arranca con `{...process.env, ...webServer.env}` (verificado en 1.63.0 con Context7),
+  de modo que no basta con no pasar la credencial en `env`: el entrypoint hace
+  `exec env -u E2E_DATABASE_URL` y `playwright.config.ts` lanza un error si sigue definida. Además anula
+  `WEB_DATABASE_URL` y `WEB_COVERAGE_DATABASE_URL`.
+
+**Alternativas descartadas.** Reutilizar o parametrizar el guard `_bench` de `apps/ingestion`: obliga a
+editar ingestion y a que `apps/web` importe de él, y la frontera entre ambos es una regla fija. Sembrar
+desde `apps/web`: pondría la credencial de propietario en la aplicación web (regla de CLAUDE.md). Importar
+`dist/` por ruta profunda o duplicar los UUID en las specs: dos fuentes de verdad. Derivar las URL e2e de
+`WEB_DATABASE_URL`/`POSTGRES_*` por manipulación de cadenas: la codificación de las contraseñas lo hace
+frágil; declararlas explícitas es más simple. Separar el dataset del seed no estaba en el diseño: se hizo
+para poder probar su forma (S4.x) y su determinismo sin base de datos.
+
+**Motivo.** El `DROP DATABASE` es la única operación destructiva del plan de diseño; la barrera tiene que
+ser verificable sin conexión y no alcanzable desde la web. El rol `web_readonly` ya existe en el servidor
+(decisión 056), así que el e2e prueba la misma credencial que la producción.
+
+---
+
+## 136 — Capturas solo en Docker (Linux), `next build` + `next start`, ruta sin plataforma y CSP verificada
+
+**Estado:** aceptada
+
+**Decisión.** El e2e se ejecuta únicamente en el servicio `e2e` de Compose (perfil `e2e`), basado en
+`mcr.microsoft.com/playwright:v1.63.0-noble` (misma versión que `@playwright/test`, que está fijado
+exacto, igual que `@axe-core/playwright@4.13.0`):
+
+- El código se COPIA a la imagen (`pnpm fetch` y después instalación `--offline --frozen-lockfile`); los
+  `node_modules` del host son binarios de win32. Solo se montan `apps/web/e2e/baselines` y
+  `apps/web/test-results`. `init: true` e `ipc: host` por Chromium. `pnpm e2e` y `pnpm e2e:update` lanzan
+  `docker compose --profile e2e run --rm --build e2e [update]`.
+- `webServer`: `next build && next start --hostname 127.0.0.1 --port 3100`, `reuseExistingServer: false`,
+  sin `next dev` (overlay y CSP de desarrollo distintos).
+- 6 proyectos (`w320|w768|w1280` por `light|dark`), `reducedMotion: 'reduce'`, `updateSnapshots: 'none'`
+  en la configuración (un baseline ausente falla sin escribirse; solo `test:e2e:update`, que pasa
+  `--update-snapshots=changed`, escribe) y `snapshotPathTemplate` sin plataforma: solo hay baselines de
+  Linux, en git plano.
+- **CSP.** La CSP de producción lleva `upgrade-insecure-requests` (decisión 080). Se verificó en el
+  navegador del contenedor: sobre `http://127.0.0.1:3100` Chromium NO mejora a https el documento ni los
+  recursos (la prueba de humo `S7.1` registra los orígenes de todas las peticiones y solo aparece el de la
+  aplicación). No hace falta ningún apaño, y el previsto como último recurso (reescribir la cabecera en la
+  fixture o `bypassCSP`) no se aplica; nunca se toca `next.config.ts`. HSTS sobre http lo ignoran los
+  navegadores.
+- `.gitattributes` fija `*.sh` a LF (el entrypoint corre en Linux aunque se edite en Windows).
+
+**Alternativas descartadas.** Montar el código fuente en el contenedor: arrastra binarios de otra
+plataforma. `next dev`: añade el overlay de desarrollo y una CSP distinta. Git LFS para las capturas:
+añade infraestructura para ~36 PNG pequeños. Baselines por plataforma (`-win32`, `-linux`): doble
+mantenimiento y las de Windows nunca serían autoritativas. Cambiar la CSP en `next.config.ts` para el e2e:
+es código de la aplicación, fuera del alcance de D.1.
+
+**Motivo.** Las capturas dependen del sistema operativo y de las fuentes (decisión 130); un único
+entorno las hace reproducibles y deja la prueba de «dos ejecuciones idénticas» como criterio objetivo.
+
+---
+
+## 137 — Guard de red a nivel de contexto, clasificación por origen y tesela local
+
+**Estado:** aceptada
+
+**Decisión.** Una única fixture automática (`auto: true`, no opt-in) de Playwright instala UNA ruta
+`context.route('**/*')` y clasifica cada petición con `classifyRequest(url, appOrigin)`, función pura en
+`apps/web/e2e/network-policy.ts`, probada con vitest en `apps/web/test`:
+
+- `tile`: `https://tile.openstreetmap.org` exacto (el host de la decisión 112) se sirve desde
+  `e2e/assets/tile.png` (256×256, color sólido), nunca de la red.
+- `app`: el origen de la aplicación (esquema + host + puerto) continúa. Un origen mejorado a https es OTRO
+  origen y se clasifica como externo, así que el propio guard delata un fallo de la CSP.
+- `inline` (`data:`, `blob:`) continúa; todo lo demás, incluida una URL ilegible, es `external`: se
+  aborta, se registra y el test FALLA al terminar con `expect(blocked).toEqual([])` en el cierre de la
+  fixture, nombrando la URL.
+- Autoprueba (`S8.3`): `test.fail()` sobre un test que pide `https://example.com/x`. Se comprobó que
+  `test.fail()` cubre el fallo lanzado en el cierre de una fixture automática (sin `test.fail()` el test
+  falla exactamente con ese mensaje). La petición sale desde `about:blank`: desde la aplicación la bloquea
+  antes la propia CSP (sin `connect-src`, `default-src 'self'`) y el guard no llegaría a verla.
+
+**Alternativas descartadas.** `page.route` en cada test: no cubre popups y es opt-in. Solo abortar sin
+registrar: un abort no falla ningún test por sí solo, y una carga externa silenciosa daría un falso verde.
+Confiar solo en la CSP: no ve las navegaciones ni las peticiones de recursos que la CSP permite
+(`img-src` incluye el host de las teselas).
+
+**Motivo.** La regla de CLAUDE.md es que nada consulte fuentes externas salvo las teselas del navegador
+(decisión 112); en el e2e las teselas tampoco salen a la red, y cualquier otra petición debe romper la
+suite en lugar de pasar desapercibida.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

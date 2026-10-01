@@ -1,0 +1,56 @@
+// Paso D.1a (spec e2e-test-database R3, diseño A2; decisión 135) — identificadores
+// fijos de la base e2e. Módulo PURO (sin pg ni drizzle): lo importan el seed y,
+// a través del subpath `@buscahogar/db/e2e`, las specs de `apps/web`, que así
+// comparten una única fuente de verdad sin duplicar UUID.
+
+// UUID con forma v4 (versión 4, variante 8) para que `z.uuid()` los acepte; el
+// prefijo `e2e00000` los hace reconocibles a simple vista en cualquier volcado.
+export function e2eUuid(index: number): string {
+  if (!Number.isInteger(index) || index < 0) {
+    throw new RangeError(
+      `e2eUuid: el índice debe ser un entero no negativo (recibido ${String(index)}).`
+    );
+  }
+  return `e2e00000-0000-4000-8000-${index.toString(16).padStart(12, '0')}`;
+}
+
+// Fuentes (rango 1x), localidad/zona (2x), viviendas (3x), anuncios (4x) y
+// versiones (5x): los rangos solo sirven para leer los IDs, no son semántica.
+export const E2E_SOURCE_IDS = {
+  idealista: e2eUuid(0x11),
+  kyero: e2eUuid(0x12),
+} as const;
+
+export const E2E_GETAFE = {
+  locationId: e2eUuid(0x21),
+  zoneId: e2eUuid(0x22),
+  ineCode: '28065',
+} as const;
+
+// P1..P6 (spec R4). P3 solo tiene anuncios retirados; P6 no tiene ubicación.
+export const E2E_PROPERTY_IDS = {
+  p1: e2eUuid(0x31),
+  p2: e2eUuid(0x32),
+  p3: e2eUuid(0x33),
+  p4: e2eUuid(0x34),
+  p5: e2eUuid(0x35),
+  p6: e2eUuid(0x36),
+} as const;
+
+export const E2E_LISTING_IDS = {
+  p1Idealista: e2eUuid(0x41),
+  p1Kyero: e2eUuid(0x42),
+  p2Active: e2eUuid(0x43),
+  p2Removed: e2eUuid(0x44),
+  p3RemovedA: e2eUuid(0x45),
+  p3RemovedB: e2eUuid(0x46),
+  p4: e2eUuid(0x47),
+  p5: e2eUuid(0x48),
+  p6: e2eUuid(0x49),
+} as const;
+
+// Rutas de las specs: el detalle con dos anuncios (uno activo, uno retirado) y
+// un UUID válido que no existe (segundo 404, S9.3).
+export const E2E_DETAIL_LISTING_ID = E2E_LISTING_IDS.p2Active;
+export const E2E_REMOVED_ONLY_LISTING_ID = E2E_LISTING_IDS.p3RemovedA;
+export const E2E_MISSING_LISTING_ID = e2eUuid(0xffff);

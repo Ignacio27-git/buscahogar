@@ -189,7 +189,7 @@ Resuelve el hueco a.
 
 ---
 
-## [ ] D.1 · Verificación visual con Playwright y axe
+## [~] D.1 · Verificación visual con Playwright y axe
 
 ```text
 Paso D.1 de docs/DESIGN-ROADMAP.md. Añade la verificación visual y de accesibilidad de
@@ -242,6 +242,25 @@ red y sin tocar la base de desarrollo.
   el repositorio; una siembra que toque la base de desarrollo.
 - **Tamaño:** M (posible partición a/b).
 - **Evidencia:** C34, C35, C36, C37, C38.
+- **Estado (2026-10-01): D.1a hecha, D.1b pendiente.** D.1a (herramienta y siembra) queda en un commit
+  propio; D.1b (specs, capturas de referencia, línea base axe) irá en un segundo commit del mismo PR
+  (`size:exception` aceptado por el responsable, una rama, dos commits). Decisiones 135-137.
+- **D.1a, qué hay:** guard y siembra `_e2e` (`packages/db/src/e2e/`, subpath `@buscahogar/db/e2e`),
+  configuración de Playwright con 6 proyectos, guard de red a nivel de contexto con tesela local,
+  servicio `e2e` de Compose y `Dockerfile.e2e`, scripts `pnpm e2e` y `pnpm e2e:update`.
+- **D.1a, verificación en Docker:** `playwright test --list` muestra 6 proyectos; la siembra ejecutada
+  tres veces deja volcados idénticos (37 filas, mismo `sha256`); `web_readonly` puede `SELECT` y no
+  puede `INSERT`/`UPDATE`/`DELETE`; la prueba de humo pasa y la autoprueba del guard falla como se
+  espera (`test.fail()`). La base de desarrollo se rechaza por nombre antes de abrir una conexión.
+- **CSP resuelta:** sobre `http://127.0.0.1:3100` con `next start`, Chromium no aplica
+  `upgrade-insecure-requests`; no hace falta ningún apaño en las fixtures (decisión 136).
+- **Comprobaciones del diseño (resueltas al aplicar):** `docker compose run --build` existe en
+  Compose v5.5.1; `test.fail()` sí cubre un fallo lanzado en el cierre de una fixture automática; el
+  mapa `exports` no rompe `pnpm typecheck`, el build web ni los tests de ingestion; el lint no marcó
+  el parámetro `use` de la fixture (el plugin de React Hooks no está activo en `apps/web`), aun así se
+  llamó `provide`.
+- **Nota para D.1b:** el servidor no necesita `WEB_COVERAGE_DATABASE_URL`: la ruta `?q=` solo lee
+  (decisión 122) y la zona de Getafe se siembra `covered`, así que no registra barridos.
 
 ---
 
@@ -1084,6 +1103,7 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | Fecha | Paso | Cambio | Motivo |
 | ----- | ---- | ------ | ------ |
 | 2026-10-01 | D.0 | La premisa «hoy tuteo» del punto 5 del prompt era inexacta: el texto mezcla tuteo, primera persona e impersonal. Se decide tuteo uniforme y la reescritura se reparte entre D.6b, D.7, D.9, D.13 y D.14. | Decisión 134; ver `AI-NOTES.md`. |
+| 2026-10-01 | D.1 | El paso se parte en D.1a (herramienta y siembra) y D.1b (specs, capturas de referencia y línea base axe), como ya preveía el prompt para más de 800 líneas. D.1a mide bastante más de lo estimado (~790) porque se separó el dataset en `fixture-data.ts` con su test y porque Prettier reparte las líneas largas; el responsable aceptó `size:exception`. Un solo PR con dos commits, sin ramas nuevas. | Decisiones 135-137; presupuesto de revisión (R9). |
 | 2026-10-01 | D.3 | Sin fuente propia: pila del sistema. El paso ya no autoaloja una fuente con `next/font` ni elige entre `next/font/google` y `next/font/local`. | Decisión 132. |
 | 2026-10-01 | D.6b | La rejilla de una a tres columnas del prompt cede ante filas densas con el precio en una columna derecha fija. | Decisión 132 (FIRST VIEWPORT y mejora de la carátula de casete). |
 | 2026-10-01 | D.11 | El mapa de ubicación pasa de un mapa de cliente (reutilizar `search-map.tsx`, carga diferida, `noscript`) a un mapa estático del servidor, sin JS, con teselas de OSM como `<img>` nativo y el área tramada. Exige una decisión propia de D.11 que enmiende R2 con la excepción solo para teselas de `tile.openstreetmap.org`, y el ajuste de `csp-image-policy.test.ts` a esa excepción y nada más. Queda abierto para D.11, sin decidir, el límite de `map-guards.test.ts` (SMV-9). | Decisión 133, del responsable. Descartados: teselas como fondos CSS (esquivan R2 sin decidirlo), mapa de cliente (amplía R4) y solo texto (no orienta). |

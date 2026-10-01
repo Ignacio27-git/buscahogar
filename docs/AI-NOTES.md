@@ -40,6 +40,28 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-01 — Dos errores de Playwright en la autoprueba del guard de red (paso D.1a)
+
+**Contexto:** `apps/web/e2e/network-guard.spec.ts`, la prueba de humo y la autoprueba del guard de red
+(cambio SDD `visual-a11y-verification`).
+
+**Categoría:** API o método inexistente · código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** (1) Se escribió `test.skip(({}, testInfo) => testInfo.project.name !== 'w1280-light', ...)`,
+una firma que no existe: el callback de `test.skip` recibe solo las fixtures, no `testInfo`. (2) El diseño
+y la primera versión de la autoprueba hacían el `fetch` externo desde la propia aplicación. La CSP de la
+aplicación (`default-src 'self'`, sin `connect-src`) bloquea esa petición antes de que llegue a la capa de
+red, así que el guard nunca la habría visto: el test habría pasado por la razón equivocada.
+
+**Cómo se detectó:** (1) `tsc --noEmit` (error TS2769). (2) Razonando sobre la CSP antes de ejecutar; la
+autoprueba se movió a `about:blank` (sin CSP) y se comprobó en Docker que, sin `test.fail()`, el test falla
+exactamente con el mensaje del cierre de la fixture, es decir, que `test.fail()` no enmascara otro fallo.
+
+**Coste:** unos 10 minutos.
+
+**Observación:** una autoprueba que debe fallar necesita una segunda comprobación de que falla POR EL
+MOTIVO que se quiere probar; `test.fail()` solo no lo demuestra.
+
 ### 2026-10-01 — La opción «Mapa estático sin JS» se presentó como compatible con las reglas sin serlo
 
 **Contexto:** paso D.0 del plan de diseño (cambio SDD `design-direction-d0`), preguntas al

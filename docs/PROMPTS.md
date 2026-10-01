@@ -30,6 +30,39 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-01 — Verificación visual y de accesibilidad: herramienta y siembra (paso D.1a, decisiones 135-137)
+
+**Tipo de tarea:** configuración (herramienta de test, siembra de base de datos, Docker)
+**Forma de especificación:** SDD en modo automático, con especificación, diseño y tareas escritos antes de
+aplicar; el prompt del paso D.1 de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. La aplicación
+se hizo con TDD estricto y el paso se partió en D.1a/D.1b antes de aplicar.
+**Resultado:** pendiente de revisión (D.1a aplicada; D.1b pendiente)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.1 de docs/DESIGN-ROADMAP.md. Añade la verificación visual y de
+> accesibilidad de apps/web. No cambies estilos ni componentes.
+>
+> - Dependencias de desarrollo en apps/web con versión exacta: @playwright/test y
+>   @axe-core/playwright. [...] Scripts test:e2e y test:e2e:update.
+> - Matriz de proyectos: 320, 768 y 1280 px de ancho, cada uno en tema claro y oscuro.
+> - Rutas: /, /?view=map, /?q=<frase de ejemplo>, una ficha /properties/<id> y una 404.
+> - Base de datos dedicada (nombre terminado en _e2e) con un guardián que se niegue a sembrar
+>   cualquier otra, como el de las bases _bench (decisión 046). Siembra determinista. [...]
+> - La web arranca con el rol de solo lectura. Las teselas se sirven desde un PNG local y
+>   cualquier otra petición a un host externo aborta y hace fallar el test.
+> - toHaveScreenshot con animations: 'disabled'. Capturas de referencia solo en Docker. [...]
+>
+> Si la previsión supera 800 líneas, parte el paso en D.1a (herramienta y siembra) y D.1b
+> (specs y capturas de referencia).
+
+**Observación:** el diseño pedía revisar cuatro puntos al aplicar y los cuatro se resolvieron sin
+cambiar de rumbo: `docker compose run --build` existe, `test.fail()` cubre el fallo del cierre de una
+fixture automática, el mapa `exports` no rompe nada y la CSP `upgrade-insecure-requests` no se aplica
+sobre `http://127.0.0.1`. La estimación de ~790 líneas se quedó corta: el dataset se separó en un fichero
+puro con su test (no estaba en el diseño) y Prettier reparte las líneas largas; el responsable ya había
+aceptado `size:exception`. El agente no puede leer el `.env`: las variables `E2E_*` se derivaron con un
+script que no imprime los valores.
+
 ### 2026-10-01 — Contexto de producto y dirección visual (paso D.0, `PRODUCT.md`, decisiones 132-134)
 
 **Tipo de tarea:** diseño (contexto de producto y dirección visual)

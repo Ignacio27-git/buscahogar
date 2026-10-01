@@ -1,0 +1,30 @@
+# Runner autoritativo del e2e visual y de accesibilidad (paso D.1a, decisión 136).
+#
+# Los baselines de capturas dependen del sistema operativo y de las fuentes, así
+# que solo se generan y comprueban DENTRO de esta imagen (Linux, versión de
+# Playwright fijada). Una ejecución en Windows no es autoritativa.
+#
+# El código se COPIA (no se monta): los node_modules del host son binarios de
+# win32 y no sirven aquí. Solo se montan, desde docker-compose.yml, los
+# baselines (resultado que se versiona) y los resultados del test.
+FROM mcr.microsoft.com/playwright:v1.63.0-noble
+
+# Misma versión que `packageManager` del package.json raíz.
+RUN npm install --global pnpm@11.25.0
+
+ENV CI=true \
+    NEXT_TELEMETRY_DISABLED=1
+
+WORKDIR /app
+
+# `pnpm fetch` solo necesita el lockfile: esta capa se reutiliza mientras no cambien las dependencias.
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm fetch
+
+COPY . .
+# El `prepare` raíz compila los packages (core, db, config): por eso va después del COPY.
+RUN pnpm install --frozen-lockfile --offline
+
+# Se invoca con `sh` para no depender del bit de ejecución del fichero (Windows).
+ENTRYPOINT ["sh", "/app/apps/web/e2e/docker-entrypoint.sh"]
+CMD ["run"]

@@ -14,6 +14,8 @@
     "lint": "pnpm --filter \"./packages/*\" build && pnpm -r lint",
     "typecheck": "pnpm --filter \"./packages/*\" build && pnpm -r typecheck",
     "test": "pnpm --filter \"./packages/*\" build && pnpm -r test",
+    "e2e": "docker compose --profile e2e run --rm --build e2e",
+    "e2e:update": "docker compose --profile e2e run --rm --build e2e update",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "pnpm --filter @buscahogar/db run generate",

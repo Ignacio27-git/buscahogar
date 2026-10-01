@@ -104,6 +104,40 @@ services:
       db:
         condition: service_healthy
 
+  # Paso D.1a (decisión 136) — runner autoritativo del e2e visual y de
+  # accesibilidad. Perfil propio: `docker compose up -d` sigue levantando solo
+  # `db`. Se lanza con `pnpm e2e` / `pnpm e2e:update` (package.json raíz).
+  e2e:
+    profiles: ['e2e']
+    build:
+      context: .
+      dockerfile: Dockerfile.e2e
+    # `init`: Playwright lanza Chromium y Next como procesos hijos; sin un init
+    # que recoja huérfanos quedan zombis. `ipc: host`: Chromium usa memoria
+    # compartida y falla sin ella (recomendación oficial de la imagen).
+    init: true
+    ipc: host
+    # Nunca `env_file` (decisión 135, igual que `web`): solo estas variables, y
+    # sin `:?` por el mismo motivo que en `web` — un `:?` abortaría la
+    # interpolación del fichero ENTERO también para `docker compose up -d`. El
+    # fallo ruidoso vive en el guard del seed (`packages/db/src/e2e/guard.ts`).
+    # Ninguna es `NEXT_PUBLIC_*`. La credencial de propietario solo la lee el
+    # seed: el entrypoint la elimina antes de lanzar Playwright.
+    environment:
+      # Propietario de `buscahogar_e2e` (host `db`, red de Compose).
+      E2E_DATABASE_URL: '${E2E_DATABASE_URL:-}'
+      # `web_readonly` sobre la misma base: la única URL que ve el servidor Next.
+      E2E_WEB_DATABASE_URL: '${E2E_WEB_DATABASE_URL:-}'
+      # Nombre de la base de desarrollo, para que el guard la rechace por nombre.
+      E2E_DEV_DATABASE_NAME: '${POSTGRES_DB:-}'
+    volumes:
+      # Solo lo que se versiona o se inspecciona. El código NO se monta.
+      - ./apps/web/e2e/baselines:/app/apps/web/e2e/baselines
+      - ./apps/web/test-results:/app/apps/web/test-results
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   postgres_data:
     # Nombre fijado explícitamente para que `docker volume rm buscahogar_postgres_data`

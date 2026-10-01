@@ -1,0 +1,32 @@
+# Contexto de construcción de Dockerfile.e2e (paso D.1a). Lo que no se copia no
+# puede filtrar credenciales ni arrastrar binarios del host.
+
+# Binarios y artefactos del host (win32): dentro se reinstalan y recompilan.
+**/node_modules
+**/.next
+**/dist
+**/*.tsbuildinfo
+
+# Credenciales y entorno local: nunca entran en una imagen.
+.env
+.env.*
+!.env.example
+
+# Control de versiones y herramientas de agentes.
+.git
+.codegraph
+.claude
+.atl
+
+# Resultados de ejecuciones anteriores (se montan, no se copian).
+**/test-results
+**/playwright-report
+**/blob-report
+**/playwright/.cache
+
+# Fuentes crudas de terceros y fixtures sin anonimizar (ver .gitignore).
+docs/BD_Municipios-Entidades
+docs/BD_Municipios-Entidades.zip
+docs/diccionario26.xlsx
+docs/api_idealista
+apps/ingestion/test/fixtures/**/raw
