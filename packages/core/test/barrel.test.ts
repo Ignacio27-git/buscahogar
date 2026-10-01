@@ -33,6 +33,17 @@ describe('barril público de @buscahogar/core', () => {
     expect(barrel.searchViewSchema.parse(undefined)).toBe('list');
   });
 
+  it('ROADMAP 3.1: expone el intérprete de lenguaje natural y nlQuerySchema, con comportamiento real', () => {
+    expect(barrel.nlQuerySchema.parse('  piso en Getafe ')).toBe('piso en Getafe');
+    expect(barrel.NL_PARAM_KEYS).toContain('maxPrice');
+    expect(barrel.NL_PARAM_KEYS).not.toContain('page');
+    const result = barrel.interpretSearchText('piso en alquiler hasta 900 €');
+    expect(result.params).toEqual({ operation: 'rent', propertyType: 'flat', maxPrice: '900' });
+    // Internos: no forman parte de la superficie pública.
+    expect(barrel).not.toHaveProperty('tokenize');
+    expect(barrel).not.toHaveProperty('parseSpanishNumber');
+  });
+
   it('ROADMAP 1.9: expone haversineDistanceMeters, ruleBasedDedupStrategy y classify', () => {
     expect(typeof barrel.haversineDistanceMeters).toBe('function');
     expect(barrel.ruleBasedDedupStrategy).toBeDefined();

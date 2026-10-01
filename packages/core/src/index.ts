@@ -50,6 +50,17 @@ export { propertyDetailParamsSchema } from './schemas/property-detail-params.sch
 export { zoneQuerySchema, zoneSelectionSchema } from './schemas/zone-selection.schema.js';
 // Búsqueda por zona dibujada y vista de mapa (ROADMAP 2.6, decisiones 115/118).
 export { polygonParamSchema } from './schemas/polygon-param.schema.js';
+// Búsqueda en lenguaje natural (ROADMAP 3.1, decisión 120): intérprete puro de
+// español a parámetros de búsqueda. tokenize, amount y vocabulary son internos.
+export { nlQuerySchema } from './schemas/nl-query.schema.js';
+export { interpretSearchText, NL_PARAM_KEYS } from './nl-search/index.js';
+export type {
+  NlConflict,
+  NlParamKey,
+  NlSearchInterpretation,
+  RecognisedFragment,
+  TextSpan,
+} from './nl-search/index.js';
 export type { SearchView } from './schemas/search-view.schema.js';
 export { SEARCH_VIEWS, searchViewSchema } from './schemas/search-view.schema.js';
 
