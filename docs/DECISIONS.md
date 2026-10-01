@@ -3604,6 +3604,119 @@ bundle); `router.push` al hacer clic en el marcador.
 
 ---
 
+## 120 — La interpretación de lenguaje natural es un intérprete determinista en `core`, sin LLM
+
+**Estado:** aceptada
+
+**Decisión.** `interpretSearchText(texto)` en `packages/core/src/nl-search/` es una función pura y
+determinista (tokenizador, importes, vocabulario y reglas) que devuelve una `NlSearchInterpretation`:
+parámetros reconocidos, fragmentos no entendidos y texto del lugar. Esa interpretación es el punto de
+sustitución: otra implementación (por ejemplo un modelo de lenguaje) tendría que producir el mismo
+tipo. Nunca emite `page`, `view`, `lat`, `lng`, `radius`, `polygon` ni `zone`; los parámetros pasan
+por el mismo `searchQuerySchema` que los filtros.
+
+**Alternativas descartadas.** Un LLM llamado desde el servidor de `apps/web`, desde el navegador o
+desde un canal lateral de `apps/ingestion`.
+
+**Motivo.** El servidor de `apps/web` no puede llamar a servicios externos en tiempo de búsqueda ni
+guardar sus credenciales (reglas de `CLAUDE.md`), el navegador tampoco puede hacerlo sin ampliar la
+CSP, y un canal por `apps/ingestion` añade latencia y estado a una función que debe responder al
+momento. Un intérprete determinista se puede medir sobre un corpus etiquetado (decisión 124) y se
+prueba sin red.
+
+---
+
+## 121 — Los precios en la URL son euros con hasta dos decimales y se convierten a céntimos
+
+**Estado:** aceptada
+
+**Decisión.** `minPrice` y `maxPrice` se leen como euros con la forma `^\d+(\.\d{1,2})?$` y se
+convierten con `Math.round(valor * 100)`; el resultado debe cumplir `Number.isSafeInteger`. Un precio
+con más de dos decimales, negativo, vacío o fuera de rango seguro se rechaza. Cambia el comportamiento
+de las URL existentes: antes el valor pasaba sin convertir y se trataba como céntimos (error latente
+corregido dentro del 3.1).
+
+**Alternativas descartadas.** Mantener céntimos en la URL y convertir solo en el intérprete;
+redondear en silencio los decimales sobrantes.
+
+**Motivo.** Una frase como «hasta 900 euros» y un formulario editable tienen que hablar la misma
+unidad que ve el usuario; convertir solo en un lado dejaba dos significados para el mismo parámetro.
+Rechazar en lugar de redondear evita aceptar un precio distinto del escrito.
+
+---
+
+## 122 — `?q=` es una rama aparte que interpreta y pide confirmación; solo una coincidencia exacta selecciona zona
+
+**Estado:** aceptada
+
+**Decisión.** Si `q` está presente en la URL (incluso vacío o con criterios), la página renderiza solo la
+interpretación: no llama a `searchProperties`, `searchMapPoints`, `resolveZoneGeometry`, cobertura,
+señal de demanda ni cuota. `q` se valida con `nlQuerySchema` (texto, 1-200 caracteres); si no es
+válido se muestra un mensaje con `role="alert"` y no se interpreta. El lugar se resuelve contra
+nuestra base con `suggestZones` en modo solo lectura, con `PLACE_SUGGESTION_LIMIT = 25` (el
+autocompletado usa 10): exactamente una coincidencia exacta del nombre normalizado selecciona esa
+zona; cualquier otro caso con una o más sugerencias ofrece un grupo de radios con «Sin zona» marcado;
+sin sugerencias, «en <lugar>» se añade a «No he entendido:». Estrecha a propósito el escenario de la
+especificación «una coincidencia, zona fijada»: una única coincidencia por prefijo se ofrece, no se
+selecciona (por ejemplo «madrid» frente a «madridejos»). `suggestZones` ordena por `search_name`, así
+que un nombre exacto precede siempre a sus extensiones y el límite no lo oculta. Varias coincidencias
+exactas (mismo nombre en provincias distintas) también se ofrecen.
+
+**Alternativas descartadas.** Redirigir de `?q=` a la búsqueda con los criterios ya interpretados;
+seleccionar zona con una única coincidencia por prefijo.
+
+**Motivo.** El usuario debe poder corregir la interpretación antes de buscar (enunciado del paso), y
+elegir sola una zona por prefijo falla en el caso común de un municipio cuyo nombre es prefijo de otro.
+Mantener la rama sin efectos conserva la regla de no consultar fuentes externas y evita gastar cuota o
+registrar señales por una frase que aún no se ha confirmado.
+
+---
+
+## 123 — El formulario de criterios marca `form=criteria` y la página limpia los campos vacíos
+
+**Estado:** aceptada
+
+**Decisión.** El formulario de criterios envía un campo oculto `form=criteria`. En el límite de la
+página, `canonicalizeFormSubmission` (`apps/web/src/lib/search-href.ts`) descarta el marcador y los
+valores vacíos tras recortar, incluidas las entradas vacías de los arrays, y solo cuando
+`form === 'criteria'`. Un `?minPrice=` sin marcador se sigue rechazando por su nombre. Los
+constructores de enlaces reciben los parámetros ya limpios, de modo que la paginación no arrastra
+`form=criteria`. Es un formulario de servidor: sin `redirect()` y sin JavaScript de cliente (el
+allowlist de `'use client'` sigue en dos ficheros, decisión 113).
+
+**Alternativas descartadas.** Redirigir tras el envío para limpiar la URL (choca con la guarda
+estática de `redirect()`); aceptar `''` como ausente en el esquema (debilitaría la validación para
+cualquier URL escrita a mano); un script de cliente que retire los campos vacíos.
+
+**Motivo.** Un formulario HTML envía los campos vacíos, y el esquema no debe tratarlos como valor. La
+limpieza en el límite de la página, acotada al marcador, mantiene estricta la validación del resto de
+entradas.
+
+---
+
+## 124 — Formato del corpus de lenguaje natural, partición desarrollo/reserva, recuentos fijados e intervalo de Wilson
+
+**Estado:** aceptada
+
+**Decisión.** `packages/core/src/evaluation/nl-search-corpus.ts` contiene 42 frases etiquetadas: 28
+de desarrollo y 14 de reserva (`holdout`), con negativos difíciles (lugar inexistente, varios
+municipios, «900 €» sin contexto, «más de N habitaciones»). Cada frase declara sus `params` esperados,
+que han de pasar `searchQuerySchema`. `nl-search-evaluate.ts` puntúa por campo (acierto, omisión,
+error, espurio) y reutiliza `wilsonInterval` con confianza del 95 %. El test fija los aciertos y exige
+cero errores y espurios en los negativos. Medición al cerrar la U2b: reserva 13/14 = 92,9 % [68,5;
+98,7]; desarrollo 26/28 = 92,9 % [77,4; 98,0] (24/28 antes de ajustar); total 39/42 = 92,9 % [81,0;
+97,5]. La cifra sin sesgo es la de reserva; la de desarrollo es optimista porque el intérprete se
+ajustó sobre ella.
+
+**Alternativas descartadas.** Un único conjunto sin partición; informar solo del porcentaje sin
+intervalo.
+
+**Motivo.** Con 14 frases de reserva el intervalo es ancho: el porcentaje sin él sugeriría una
+precisión que la muestra no da. Fijar los recuentos en el test convierte cualquier regresión del
+intérprete en un fallo visible.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

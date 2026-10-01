@@ -1940,7 +1940,7 @@ peso del bundle de cliente, que importa el barril de `core`, no se ha medido.
 
 # Fase 3 — Si el tiempo lo permite
 
-## [ ] 3.1 · Búsqueda mediante lenguaje natural
+## [x] 3.1 · Búsqueda mediante lenguaje natural
 
 ```text
 Implementa la interpretación de consultas en lenguaje natural: transformar una
@@ -1952,6 +1952,51 @@ pueda corregir la interpretación antes de buscar.
 ```
 
 **Notas:**
+
+**Estado: hecho (2026-10-01).** Cinco unidades más una de corrección (U2b), un commit por unidad en
+`feature-fase2`. Sin migración. Decisiones 120-124. Sin ejecución en navegador: la rama `?q=` se
+comprobó renderizando la función de la página en los tests (`/?q=piso en alquiler en Getafe` rellena
+el panel y no hace ninguna llamada de búsqueda, cobertura ni señal).
+
+| Unidad | Contenido | Commit | Líneas (previstas / reales) |
+|---|---|---|---|
+| U1 | `minPrice`/`maxPrice` en euros en `searchQuerySchema` | `bc4b9a8` | 100-200 / 77 |
+| U2 | intérprete determinista en `core` (`nl-search/`), `nlQuerySchema` | `ed06b58` | 1000-1400 / 1529 |
+| U3 | corpus etiquetado y evaluador | `210158a` | 500-700 / 784 |
+| U2b | correcciones del intérprete halladas por el corpus | `e294517` | sin previsión / 52 |
+| U4 | rama `?q=`, formularios de servidor, resolución del lugar | `ca121ef` | 800-1100 / 720 |
+| U5 | documentación | este commit | 200-300 |
+
+**Qué hace.** `interpretSearchText` (en `core`, sin red ni LLM, decisión 120) convierte una frase en
+criterios que se validan con el mismo `searchQuerySchema`. `/?q=...` es una rama aparte que solo
+interpreta: muestra la interpretación en un formulario de servidor editable (`GET`, con
+`form=criteria`, decisión 123) y no busca. El lugar se resuelve contra nuestra base de datos y solo
+una coincidencia exacta selecciona la zona; el resto se ofrece como radios con «Sin zona» marcado
+(decisión 122, `PLACE_SUGGESTION_LIMIT` 25).
+
+**Medición sobre el corpus** (42 frases, 28 de desarrollo y 14 de reserva, decisión 124; intervalo de
+Wilson al 95 %):
+
+| Conjunto | Aciertos | Tasa | Intervalo |
+|---|---|---|---|
+| Reserva (cifra sin sesgo) | 13/14 | 92,9 % | [68,5; 98,7] |
+| Desarrollo, antes de ajustar | 24/28 | 85,7 % | |
+| Desarrollo, tras ajustar sobre él (optimista) | 26/28 | 92,9 % | [77,4; 98,0] |
+| Total | 39/42 | 92,9 % | [81,0; 97,5] |
+
+Criterios falsos en los negativos difíciles de desarrollo: de 2 a 0 (en reserva, 0). Fallos que
+quedan: `ho-10`, `dev-15` («entre 2 y 3 habitaciones», fijado como no reconocido: no es un mínimo) y
+`dev-23`.
+
+**Riesgos abiertos.**
+
+- La CI debe construir `dist/` de `core` antes de `web`: `apps/web` lo resuelve por ahí y el
+  directorio no se versiona.
+- Con 14 frases de reserva el intervalo es ancho (límite inferior 68,5 %); `dev-15` queda fuera del
+  alcance del intérprete.
+- El intérprete se ajustó solo sobre desarrollo; la cifra de reserva se queda sin sesgo solo hasta
+  el primer ajuste que la use.
+- La rama `?q=` ignora `view` y los demás parámetros de la URL al interpretar, por diseño.
 
 ---
 
@@ -2032,3 +2077,6 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-30 | 2.6 | El responsable sustituyó el «plugin de dibujo» de la propuesta (P2) por un control de dibujo propio | `leaflet-draw` está sin mantenimiento desde 2018 y tiene un error conocido en `showArea`; Geoman es pesado. Decisión 114. |
 | 2026-09-30 | 2.6 | La medición de U3 y los veredictos G1/G2 (tareas 3.3-3.5) quedan aplazados; los tests de base de datos están escritos y no ejecutados; el paso queda `[~]` | Docker estaba parado durante la aplicación. Se ejecutaron el 2026-10-01 (G1 y G2 cumplen; suite de base de datos 11 de 11 tras corregir el propio test), junto con la aceptación manual en el navegador; el paso pasa a `[x]`. |
 | 2026-09-30 | 2.6 | Los tests de guarda se escribieron en U4a pero se commitearon con U4b | Antes de existir los componentes fallaban por construcción; commitearlos con U4b mantiene verde cada commit. |
+| 2026-10-01 | 3.1 | El volumen superó el presupuesto de sesión (~3160 líneas autoradas frente a las 2400-3200 previstas, con U2 y U3 por encima de su tramo) y se aceptó `size:exception`; se partió en un commit por unidad (U1-U5) más una unidad extra de corrección, U2b | La previsión de `sdd-tasks` ya advertía de que el volumen era alto. U2b no estaba planificada: surgió al medir el corpus de desarrollo (decisión 124) y se hizo en un commit propio para mantener cada unidad con una finalidad. Precedente: pasos 2.2 y 2.3. |
+| 2026-10-01 | 3.1 | Las URL existentes con `minPrice`/`maxPrice` pasan a interpretarse en euros; antes el valor se pasaba sin convertir y se trataba como céntimos | Error latente: el formulario y las frases de lenguaje natural hablan euros, y dejar céntimos en la URL daba dos significados al mismo parámetro. Corregido dentro del 3.1 (U1, decisión 121). |
+| 2026-10-01 | 3.1 | La tarea 4.2 `buildInterpretHref` no se construyó | Ningún consumidor: la elección del lugar es un grupo de radios dentro del panel, así que no hace falta un enlace de vuelta a una interpretación. |

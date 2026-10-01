@@ -30,6 +30,21 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-01 — Búsqueda mediante lenguaje natural (3.1)
+
+**Tipo de tarea:** dominio (intérprete en `core`) + interfaz (rama `?q=` en `apps/web`) + evaluación
+**Forma de especificación:** SDD completo (explorar, proponer, especificación, diseño, tareas, aplicar) en cinco unidades más una de corrección (U2b)
+**Resultado:** utilizable con retoques. La U2b corrigió tres fallos del intérprete que el conjunto de desarrollo del corpus destapó (artículo «la» como lugar, «Casa» leído como tipo dentro de un lugar, «página» absorbida en el lugar). Además, la decisión 122 estrechó un escenario de la especificación: un único lugar que solo coincide por prefijo se ofrece, no se selecciona solo.
+**Prompt:**
+
+> Implementa la interpretación de consultas en lenguaje natural: transformar una frase del usuario en los criterios estructurados del motor de búsqueda, validados con el mismo esquema Zod que los filtros.
+>
+> La consulta interpretada debe mostrarse al usuario de forma editable, para que pueda corregir la interpretación antes de buscar.
+
+(Paso 3.1 de `docs/ROADMAP.md`, literal; invocado vía `/gentle-sdd-new`.)
+
+**Observación:** el paso se resolvió sin LLM (decisión 120), así que el comportamiento se puede medir sobre un corpus etiquetado. Lo que más rindió fue separar el corpus en desarrollo y reserva (decisión 124): la cifra de desarrollo mejoró al ajustar el intérprete sobre él, y solo la de reserva es una estimación sin sesgo. Un error de unidades latente (precio en euros frente a céntimos en las URL) apareció al diseñar y se corrigió dentro del paso (U1). Detalle en `docs/ROADMAP.md`, paso 3.1.
+
 ### 2026-10-01 — Aceptación en el navegador y cierre del 2.6
 
 **Tipo de tarea:** verificación manual + cierre del ciclo SDD (verificación y archivo)

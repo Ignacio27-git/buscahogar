@@ -183,6 +183,12 @@ días son una elección del proyecto y viven como constantes en `policy.ts`.
 - Vista de mapa (2.6): el servidor calcula los puntos (máximo 500) y el recuento; un único envoltorio
   de cliente carga Leaflet con `next/dynamic` y dibuja en el navegador (decisiones 113-119). Las
   teselas de OpenStreetMap las descarga el navegador, no el servidor (decisión 112).
+- Búsqueda en lenguaje natural (3.1): `interpretSearchText` (`core`, función pura y determinista)
+  convierte la frase en una `NlSearchInterpretation`, que se valida con el mismo `searchQuerySchema`
+  que los filtros. La rama `?q=` de `page.tsx` solo interpreta y muestra el resultado en un formulario
+  editable (el envío lleva `form=criteria`): no ejecuta la búsqueda ni toca cobertura, señales ni
+  cuota. El lugar se resuelve contra nuestra base de datos (`suggestZones`, solo lectura) y solo una
+  coincidencia exacta selecciona la zona. Decisiones 120-124.
 - No se usan TanStack Query ni Zustand en la ruta principal.
 - Imágenes remotas servidas mediante la optimización de imágenes de Next; no se almacenan.
 

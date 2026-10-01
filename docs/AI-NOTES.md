@@ -40,6 +40,52 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-01 — Tres errores del intérprete que solo el corpus de desarrollo destapó
+
+**Contexto:** paso 3.1, `packages/core/src/nl-search/`, unidad U2b tras medir el corpus (U3).
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** el intérprete pasaba sus tests unitarios y fallaba en frases reales: el artículo «la»
+se tomaba como lugar («una casa en la playa»), «Casa» dentro de un lugar («la Casa de Campo») se leía
+como tipo de vivienda, y «página» («...en Getafe página 3») se absorbía en el nombre del lugar.
+
+**Cómo se detectó:** al medir el conjunto de desarrollo (24/28; dos criterios falsos en negativos
+difíciles). Además, la expectativa de la primera versión del corpus para «la Casa de Campo» estaba mal
+y se corrigió a la intención del usuario antes de medir.
+
+**Coste:** una unidad extra (U2b, 52 líneas) y unos 30 minutos.
+
+**Observación:** los tests de cada escenario se escribieron con las frases que el autor imaginó; el
+corpus aporta frases que no imaginó. El ajuste sobre desarrollo mejoró esa cifra (26/28), no la de
+reserva, y así se registra.
+
+### 2026-10-01 — Fallos del tokenizador y de los tests de la rama `?q=`
+
+**Contexto:** paso 3.1, `packages/core` (U2) y `apps/web` (U4).
+
+**Categoría:** código correcto en apariencia pero incorrecto · test que valida el comportamiento equivocado.
+
+**Qué ocurrió:**
+
+1. La expresión del tokenizador retrocedía y partía «1.200» en «1» y «.200».
+2. «menos de 3 habitaciones» entraba en la rama «de 3 hab» y producía un `minRooms` falso.
+3. Los regex de los tests de renderizado suponían un orden de atributos (`name ... value ...
+   checked`), pero React emite `checked` antes de `value` y `action` antes de `method`. Se sustituyeron
+   por un ayudante `findTag` independiente del orden.
+4. Un comentario con el texto literal «redirect()» hizo fallar el test estático de ausencia de
+   `redirect` (`\bredirect\s*\(`); se reescribió. Y un `\b` dentro de una plantilla de texto usada
+   para construir un `RegExp` es un retroceso, no un límite de palabra (apareció al escribir `findTag`).
+
+**Cómo se detectó:** tests en rojo en cada caso. Aparte, `apps/web` resuelve `@buscahogar/core` por su
+`dist/`, ignorado por git: typecheck y tests fallaron por exportaciones ausentes hasta ejecutar
+`pnpm --filter @buscahogar/core build`.
+
+**Coste:** unos 25 minutos en total.
+
+**Observación:** un test que depende del orden de serialización de React valida el marcado, no el
+comportamiento. La CI debe construir `core` antes que `web`.
+
 ### 2026-10-01 — Un test de base de datos sembraba puntos en mitad de un borde que la especificación no garantiza
 
 **Contexto:** paso 2.6, `packages/db`, suite `search-map.db.test.ts` (tope de 500 puntos y recuento).
