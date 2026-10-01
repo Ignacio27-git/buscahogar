@@ -30,6 +30,24 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-01 — Aceptación en el navegador y cierre del 2.6
+
+**Tipo de tarea:** verificación manual + cierre del ciclo SDD (verificación y archivo)
+**Forma de especificación:** dos órdenes breves del responsable sobre el procedimiento ya escrito
+**Resultado:** utilizable sin cambios. La verificación da PASS con avisos (31 requisitos y 101
+escenarios, sin críticos).
+**Prompt:**
+
+> arráncame el proyecto y lo pruebo en el navegador
+
+> muy bien ya puedes cerrar el 2.6
+
+**Observación:** la base de desarrollo estaba vacía. El responsable eligió probar con el corpus de
+banco, y la web lo leyó con su rol de solo lectura, nunca con el de propietario. Esos permisos
+temporales se retiraron al terminar. El registro nativo de intentos pidió un reset explícito, que
+autorizó el responsable: el 30-09 se había reservado una verificación antes de tiempo y se cerró como
+interrumpida.
+
 ### 2026-10-01 — Comprobaciones con Docker del 2.6 (suite de base de datos, banco y prueba de plan)
 
 **Tipo de tarea:** verificación con base de datos real + medición de rendimiento

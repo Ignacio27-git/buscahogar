@@ -1863,7 +1863,7 @@ en `zone_query_signals`, excepción del tombstone).
 
 ---
 
-## [~] 2.6 · Vista de mapa
+## [x] 2.6 · Vista de mapa
 
 ```text
 Añade la vista de mapa con las viviendas resultantes de la búsqueda y búsqueda
@@ -1872,9 +1872,10 @@ por zona dibujada sobre el mapa.
 
 **Notas:**
 
-**Estado: en curso (2026-09-30).** El código, los tests offline y la documentación están hechos; queda
-la parte que necesita Docker y el navegador, y Docker estaba parado durante la aplicación, así que
-ninguna de esas comprobaciones se ejecutó.
+**Estado: hecho (2026-10-01).** El código, los tests offline y la documentación se hicieron el
+2026-09-30. Docker estaba parado ese día, así que las comprobaciones que lo necesitan (suite de base de
+datos, banco y prueba de plan) y la aceptación en el navegador se hicieron el 2026-10-01. La
+verificación final da PASS con avisos: 31 requisitos y 101 escenarios, sin críticos.
 
 | Unidad | Contenido | Commit |
 |---|---|---|
@@ -1883,7 +1884,7 @@ ninguna de esas comprobaciones se ejecutó.
 | U3 | siete escenarios de banco y prueba de plan | `f25d9cd` |
 | U4a | precio compartido, enlaces, reductor de dibujo, CSP y guardas | `df6b480` |
 | U4b | Leaflet, control de dibujo y `page.tsx` | `7c95664` |
-| U5 | documentación (decisiones 112-119) | este commit |
+| U5 | documentación (decisiones 112-119) | `7d77846` |
 
 **Qué hace.** `view=map` sustituye la lista por un mapa con hasta 500 puntos agrupados, y
 `polygon=lat,lng;...` filtra por una zona dibujada, tanto en el mapa como en la lista. Ninguna de las
@@ -1906,9 +1907,10 @@ necesitan base de datos, 161 tests en verde; `pnpm --filter @buscahogar/web buil
    `buscahogar_test_bench`, migrada a la 0016. Las doce combinaciones anteriores no cambian. Detalle en
    `docs/SEARCH-PERFORMANCE.md`.
 
-**Pendiente del responsable:**
-
-3. Aceptación manual en el navegador (tarea 5.4):
+3. Hecho: aceptación manual en el navegador (tarea 5.4), por el responsable el 2026-10-01. La base
+   de desarrollo estaba vacía, así que la web se arrancó contra `buscahogar_bench` con el rol
+   `web_readonly`. Se le dieron permisos temporales de solo lectura sobre esa base, retirados al
+   terminar. Se comprobó:
    - Sin JavaScript, lista y mapa: recuento y enlace a la lista.
    - Dibujar, cerrar y volver atrás; redibujar; quitar la zona.
    - Agrupación con unos 300 puntos.
@@ -1916,10 +1918,21 @@ necesitan base de datos, 161 tests en verde; `pnpm --filter @buscahogar/web buil
    - Atribución visible; etiquetas de precio y enlace «Ver vivienda» del popup.
    - Sin zoom por doble clic mientras se dibuja; los clics de la barra no añaden vértices.
    - Forma inválida (lazo, vértice 51): mensaje y URL sin cambios.
-4. Con la 3 hecha, pasar el paso a `[x]`.
+
+**Avisos de la verificación, aceptados.**
+
+- M se muestra sin separador de miles.
+- Se aceptan ceros a la izquierda en `polygon`.
+- Las dependencias del efecto de `map-draw-control.tsx` son frágiles si un día se activa la regla
+  `exhaustive-deps`.
+- La exclusividad entre criterios geográficos solo se detecta si los demás parámetros son válidos.
+- Un polígono que cruce el antimeridiano cerca del polo puede eludir el tope de área.
+- La evidencia TDD de `apply-progress` está en prosa, no en tabla.
+- `CLAUDE.md` no distingue las teselas que carga el navegador de las llamadas externas desde el
+  servidor (pendiente de que lo decida el responsable).
 
 **Riesgos abiertos.** El UMD de `leaflet.markercluster` depende del `L` global que fija importar
-`leaflet` antes (orden de imports en `map-cluster-layer.tsx`): solo comprobado en compilación. El
+`leaflet` antes (orden de imports en `map-cluster-layer.tsx`). La aceptación en el navegador lo confirmó, pero cambiar ese orden lo rompería en silencio. El
 peso del bundle de cliente, que importa el barril de `core`, no se ha medido.
 
 ---
@@ -2016,5 +2029,5 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-09-30 | 2.5 | La sonda de `adIds` la ejecutó el asistente, no el responsable, y el paso pasa a `[x]` | El responsable no conocía ningún anuncio dado de baja y autorizó 4-5 búsquedas. Una búsqueda completa de un círculo de 170 m cruzada con la fixture del 10 de septiembre identificó uno. La sonda confirmó `omitted` y la constante pasó a `true` junto con su fixture. Coste real: 4 búsquedas y 2 tokens. |
 | 2026-09-30 | 2.6 | La planificación necesitó una ronda de corrección extra, autorizada: la puerta de diseño falló dos veces | La especificación y el diseño, escritos en paralelo, se contradecían (vértice de cierre) y el diseño clasificaba mal el lazo como `degenerate`. Detalle en `AI-NOTES.md`. |
 | 2026-09-30 | 2.6 | El responsable sustituyó el «plugin de dibujo» de la propuesta (P2) por un control de dibujo propio | `leaflet-draw` está sin mantenimiento desde 2018 y tiene un error conocido en `showArea`; Geoman es pesado. Decisión 114. |
-| 2026-09-30 | 2.6 | La medición de U3 y los veredictos G1/G2 (tareas 3.3-3.5) quedan aplazados; los tests de base de datos están escritos y no ejecutados; el paso queda `[~]` | Docker estaba parado durante la aplicación. Se ejecutaron el 2026-10-01 (G1 y G2 cumplen; suite de base de datos 11 de 11 tras corregir el propio test); queda solo la aceptación manual en el navegador. |
+| 2026-09-30 | 2.6 | La medición de U3 y los veredictos G1/G2 (tareas 3.3-3.5) quedan aplazados; los tests de base de datos están escritos y no ejecutados; el paso queda `[~]` | Docker estaba parado durante la aplicación. Se ejecutaron el 2026-10-01 (G1 y G2 cumplen; suite de base de datos 11 de 11 tras corregir el propio test), junto con la aceptación manual en el navegador; el paso pasa a `[x]`. |
 | 2026-09-30 | 2.6 | Los tests de guarda se escribieron en U4a pero se commitearon con U4b | Antes de existir los componentes fallaban por construcción; commitearlos con U4b mantiene verde cada commit. |
