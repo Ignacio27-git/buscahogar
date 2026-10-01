@@ -1928,8 +1928,9 @@ necesitan base de datos, 161 tests en verde; `pnpm --filter @buscahogar/web buil
 - La exclusividad entre criterios geográficos solo se detecta si los demás parámetros son válidos.
 - Un polígono que cruce el antimeridiano cerca del polo puede eludir el tope de área.
 - La evidencia TDD de `apply-progress` está en prosa, no en tabla.
-- `CLAUDE.md` no distingue las teselas que carga el navegador de las llamadas externas desde el
-  servidor (pendiente de que lo decida el responsable).
+- `CLAUDE.md` no distinguía las teselas que carga el navegador de las llamadas externas desde el
+  servidor. Corregido el 2026-10-01 a petición del responsable: la regla prohíbe que el servidor de
+  `apps/web` consulte fuentes externas y admite solo las teselas de OSM en el navegador (decisión 112).
 
 **Riesgos abiertos.** El UMD de `leaflet.markercluster` depende del `L` global que fija importar
 `leaflet` antes (orden de imports en `map-cluster-layer.tsx`). La aceptación en el navegador lo confirmó, pero cambiar ese orden lo rompería en silencio. El
