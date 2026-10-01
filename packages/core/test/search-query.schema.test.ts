@@ -93,6 +93,61 @@ describe('searchQuerySchema — page: malformado, rango y sin pageSize', () => {
   });
 });
 
+describe('searchQuerySchema — minPrice/maxPrice son euros y salen en céntimos (decisión 121)', () => {
+  it('convierte euros enteros a céntimos', () => {
+    const result = searchQuerySchema.safeParse({ minPrice: '900', maxPrice: '1200' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.minPriceCents).toBe(90000);
+      expect(result.data.maxPriceCents).toBe(120000);
+    }
+  });
+
+  it('19.99 euros son 1999 céntimos (sin error binario de 19.99*100)', () => {
+    const result = searchQuerySchema.safeParse({ minPrice: '19.99' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.minPriceCents).toBe(1999);
+    }
+  });
+
+  it('acepta un decimal de un dígito', () => {
+    const result = searchQuerySchema.safeParse({ maxPrice: '10.5' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.maxPriceCents).toBe(1050);
+    }
+  });
+
+  it('0 es válido', () => {
+    const result = searchQuerySchema.safeParse({ minPrice: '0' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.minPriceCents).toBe(0);
+    }
+  });
+
+  it('rechaza tres decimales (no se redondea la intención del usuario)', () => {
+    expect(searchQuerySchema.safeParse({ minPrice: '1200.505' }).success).toBe(false);
+  });
+
+  it('rechaza un precio negativo', () => {
+    expect(searchQuerySchema.safeParse({ maxPrice: '-5' }).success).toBe(false);
+  });
+
+  it('rechaza un importe que no cabe en un entero seguro de céntimos', () => {
+    expect(searchQuerySchema.safeParse({ maxPrice: '99999999999999999999' }).success).toBe(false);
+  });
+
+  it('rechaza un rango invertido expresado en euros', () => {
+    expect(searchQuerySchema.safeParse({ minPrice: '1200', maxPrice: '900' }).success).toBe(false);
+  });
+
+  it('sigue rechazando maxPrice vacío', () => {
+    expect(searchQuerySchema.safeParse({ maxPrice: '' }).success).toBe(false);
+  });
+});
+
 describe('searchQuerySchema — rango de precio invertido es un rechazo', () => {
   it('rechaza minPrice > maxPrice', () => {
     expect(

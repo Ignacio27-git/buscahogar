@@ -45,6 +45,23 @@ function nonNegativeDecimalParam(field: string) {
   return decimalParam(field).pipe(z.number().nonnegative(`${field}: no puede ser negativo`));
 }
 
+// ROADMAP 3.1 (decisión 121) — `minPrice`/`maxPrice` llegan en EUROS, con a
+// lo sumo dos decimales, y salen en céntimos (`minPriceCents`). Sin signo: el
+// negativo se rechaza por la propia expresión. Más de dos decimales es un
+// rechazo nombrado, nunca un redondeo: así `Math.round` solo corrige el error
+// binario (19.99 * 100 = 1998.9999…) y jamás cambia la intención del usuario.
+// La columna es bigint(number), de modo que el resultado debe ser un entero
+// seguro.
+// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+function priceEurosParam(field: string) {
+  return z
+    .string()
+    .trim()
+    .regex(/^\d+(\.\d{1,2})?$/, `${field}: se esperaba un importe en euros con hasta dos decimales`)
+    .transform((value) => Math.round(Number(value) * 100))
+    .pipe(z.number().refine((cents) => Number.isSafeInteger(cents), `${field}: importe demasiado grande`));
+}
+
 // `page` en un rango fijo (D2): 1..100 — el mismo tope que impone el máximo
 // offset (A-4) expresado aquí como límite de página, nunca clamped, siempre
 // un rechazo nombrado por encima.
@@ -54,8 +71,9 @@ const rawSearchQuerySchema = z
   .object({
     operation: z.enum(OPERATION_TYPES).optional(),
     propertyType: z.enum(PROPERTY_TYPES).optional(),
-    minPrice: nonNegativeDecimalParam('minPrice').optional(),
-    maxPrice: nonNegativeDecimalParam('maxPrice').optional(),
+    // Ya en céntimos tras el parseo (decisión 121).
+    minPrice: priceEurosParam('minPrice').optional(),
+    maxPrice: priceEurosParam('maxPrice').optional(),
     minSurface: nonNegativeDecimalParam('minSurface').optional(),
     maxSurface: nonNegativeDecimalParam('maxSurface').optional(),
     minRooms: intParam('minRooms').optional(),
