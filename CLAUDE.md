@@ -1,4 +1,4 @@
-# Agregador inmobiliario — contexto del proyecto
+# Buscahogar — contexto del proyecto
 
 TFM. Plataforma que agrega ofertas inmobiliarias de varias fuentes, las normaliza,
 detecta anuncios que corresponden a la misma vivienda y ofrece una búsqueda unificada.
