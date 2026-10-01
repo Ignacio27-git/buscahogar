@@ -7,6 +7,7 @@ import {
   buildDrawnAreaHref,
   buildViewHref,
   buildZoneSelectionHref,
+  canonicalizeFormSubmission,
 } from '../src/lib/search-href.js';
 
 const RING = [
@@ -92,5 +93,35 @@ describe('buildZoneSelectionHref — decisión 118', () => {
     const q = parse(buildZoneSelectionHref({ polygon: '1,2;3,4;5,6' }, '28079'));
     expect(q.has('polygon')).toBe(false);
     expect(q.get('zone')).toBe('28079');
+  });
+});
+
+describe('canonicalizeFormSubmission (ROADMAP 3.1, decisión 123)', () => {
+  it('con la marca form=criteria quita la marca y los valores en blanco', () => {
+    expect(
+      canonicalizeFormSubmission({ form: 'criteria', operation: 'rent', minPrice: '', maxPrice: ' ', zone: '' })
+    ).toEqual({ operation: 'rent' });
+  });
+
+  it('con la marca conserva valores no vacíos, incluidos los repetidos', () => {
+    expect(canonicalizeFormSubmission({ form: 'criteria', maxPrice: '900', sort: ['price', ''] })).toEqual({
+      maxPrice: '900',
+      sort: ['price'],
+    });
+  });
+
+  it('sin la marca no toca nada: `?minPrice=` sigue llegando vacío para recibir su rechazo nombrado', () => {
+    const raw = { minPrice: '', operation: 'rent' };
+    expect(canonicalizeFormSubmission(raw)).toBe(raw);
+  });
+
+  it('una marca con otro valor no cuenta', () => {
+    const raw = { form: 'otra', minPrice: '' };
+    expect(canonicalizeFormSubmission(raw)).toBe(raw);
+  });
+
+  it('la marca no se arrastra a los href que se construyen después', () => {
+    const cleaned = canonicalizeFormSubmission({ form: 'criteria', operation: 'sale', minRooms: '' });
+    expect(buildViewHref(cleaned, 'map')).toBe('/?operation=sale&view=map');
   });
 });

@@ -70,3 +70,34 @@ export function buildZoneSelectionHref(params: RawSearchParams, ineCode: string)
   query.set('zone', ineCode);
   return `/?${query.toString()}`;
 }
+
+// ROADMAP 3.1 (decisión 123) — el formulario de criterios de `?q=` envía un
+// campo oculto `form=criteria`. Un GET HTML manda TODOS los campos, también los
+// vacíos (`minPrice=`), y el esquema rechaza con nombre un importe vacío
+// (decisión 057): la página quita la marca y los valores en blanco ANTES de
+// validar. Sin la marca no se toca nada, así que `?minPrice=` escrito a mano
+// sigue recibiendo su rechazo nombrado. Funciona sin JavaScript y sin ninguna
+// redirección del servidor; todos los constructores de href reciben ya los parámetros
+// limpios, así que la marca nunca se arrastra.
+export const CRITERIA_FORM_MARKER = 'criteria';
+
+export function canonicalizeFormSubmission(params: RawSearchParams): RawSearchParams {
+  if (params.form !== CRITERIA_FORM_MARKER) {
+    return params;
+  }
+  const cleaned: Record<string, string | string[]> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (key === 'form' || value === undefined) {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      const kept = value.filter((entry) => entry.trim() !== '');
+      if (kept.length > 0) {
+        cleaned[key] = kept;
+      }
+    } else if (value.trim() !== '') {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+}

@@ -1,16 +1,31 @@
 import type { ReactElement } from 'react';
 
-import { normalizeSearchName, searchQuerySchema, searchViewSchema, zoneQuerySchema } from '@buscahogar/core';
+import {
+  interpretSearchText,
+  nlQuerySchema,
+  normalizeSearchName,
+  searchQuerySchema,
+  searchViewSchema,
+  zoneQuerySchema,
+} from '@buscahogar/core';
 import { resolveZoneGeometry, searchMapPoints, searchProperties, suggestZones } from '@buscahogar/db';
 import type { ZoneGeometry, ZoneSuggestion } from '@buscahogar/db';
 
 import { CoverageStatus } from '@/components/coverage-status';
+import { CriteriaForm } from '@/components/criteria-form';
 import { ResultCard } from '@/components/result-card';
 import { SearchMap } from '@/components/search-map';
 import type { MapPointView } from '@/components/search-map-types';
+import { SearchTextForm } from '@/components/search-text-form';
 import { formatPriceCents } from '@/lib/format-price';
+import { PLACE_SUGGESTION_LIMIT, classifyPlaceMatches } from '@/lib/place-match';
 import { buildPropertyDetailHref } from '@/lib/property-href';
-import { buildClearAreaHref, buildViewHref, buildZoneSelectionHref } from '@/lib/search-href';
+import {
+  buildClearAreaHref,
+  buildViewHref,
+  buildZoneSelectionHref,
+  canonicalizeFormSubmission,
+} from '@/lib/search-href';
 import { resolveCoverageClientLimit } from '@/server/coverage-client';
 import { getCoverageDb } from '@/server/coverage-db';
 import { getDb } from '@/server/db';
@@ -151,13 +166,96 @@ function formatJobStatus(status: string): string {
   return status;
 }
 
+// ROADMAP 3.1 (decisión 122) — rama `?q=`: interpretar y pedir confirmación,
+// NUNCA buscar. Aquí no se llama a `searchProperties`, `searchMapPoints`,
+// `resolveZoneGeometry`, la cobertura, la señal de demanda ni la cuota por
+// cliente: una zona mal interpretada registraría un barrido y gastaría cuota.
+// Solo se lee la base de datos con la credencial de solo lectura
+// (`suggestZones`); `apps/web` no llama a ninguna fuente externa.
+//
+// El texto se valida con `nlQuerySchema` y lo interpretado con el MISMO
+// `searchQuerySchema` de la búsqueda normal (no hay un segundo esquema): un
+// rango invertido sale como su rechazo nombrado y los campos siguen editables.
+async function renderInterpretation(rawQ: string | string[]): Promise<ReactElement> {
+  const shown = typeof rawQ === 'string' ? rawQ : '';
+  const queryParsed = typeof rawQ === 'string' ? nlQuerySchema.safeParse(rawQ) : undefined;
+
+  if (queryParsed?.success !== true) {
+    const message =
+      typeof rawQ !== 'string'
+        ? 'q debe aparecer una sola vez.'
+        : rawQ.trim().length === 0
+          ? 'q: escribe qué quieres buscar.'
+          : 'q: el texto no puede superar los 200 caracteres.';
+    return (
+      <main>
+        <h1>Agregador inmobiliario</h1>
+        <SearchTextForm value={shown} />
+        <p role="alert">No se pudo interpretar la búsqueda: {message}</p>
+      </main>
+    );
+  }
+
+  const interpretation = interpretSearchText(queryParsed.data);
+  const unrecognised = [...interpretation.unrecognised];
+  let zoneChoices: readonly ZoneSuggestion[] = [];
+  let selectedZone: string | null = null;
+
+  if (interpretation.placeText !== null) {
+    const suggestions = await suggestZones(
+      getDb(),
+      normalizeSearchName(interpretation.placeText),
+      PLACE_SUGGESTION_LIMIT
+    );
+    const match = classifyPlaceMatches(interpretation.placeText, suggestions);
+    if (match.kind === 'zone') {
+      zoneChoices = [match.zone];
+      selectedZone = match.zone.ineCode;
+    } else if (match.kind === 'choose') {
+      zoneChoices = match.zones;
+    } else {
+      unrecognised.push(`en ${match.text}`);
+    }
+  }
+
+  const validated = searchQuerySchema.safeParse({
+    ...interpretation.params,
+    ...(selectedZone !== null ? { zone: selectedZone } : {}),
+  });
+
+  return (
+    <main>
+      <h1>Agregador inmobiliario</h1>
+      <SearchTextForm value={queryParsed.data} />
+      <CriteriaForm
+        values={interpretation.params}
+        zoneChoices={zoneChoices}
+        selectedZone={selectedZone}
+        unrecognised={unrecognised}
+        conflicts={interpretation.conflicts}
+        issues={validated.success ? [] : validated.error.issues.map((issue) => issue.message)}
+      />
+    </main>
+  );
+}
+
 // Server Component puro (D9/D10): `await props.searchParams` es una Dynamic
 // API que por sí sola fuerza el renderizado por petición — sin
 // `export const dynamic`, sin `revalidate`, sin `cacheComponents` en
 // next.config.ts. El único `'use client'` de este cambio es
 // `<CoverageStatus/>` (DD-23), importado más abajo — nunca este fichero.
 export default async function HomePage(props: HomePageProps): Promise<ReactElement> {
-  const rawSearchParams = await props.searchParams;
+  const submittedParams = await props.searchParams;
+
+  // `q` presente (aunque vacío) es SIEMPRE la rama de interpretación, aunque
+  // lleve además parámetros de criterio: la búsqueda solo corre sin `q`.
+  if (submittedParams.q !== undefined) {
+    return renderInterpretation(submittedParams.q);
+  }
+
+  // Decisión 123: quita la marca del formulario de criterios y sus campos en
+  // blanco antes de validar; todos los href de abajo parten de esta copia.
+  const rawSearchParams = canonicalizeFormSubmission(submittedParams);
   const parsed = searchQuerySchema.safeParse(rawSearchParams);
 
   // ROADMAP 2.6 (decisión 118): `view` tiene esquema propio, fuera del
@@ -173,6 +271,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
     return (
       <main>
         <h1>Agregador inmobiliario</h1>
+        <SearchTextForm value="" />
         <p role="alert">No se pudo interpretar la búsqueda: {issues.map((issue) => issue.message).join('; ')}</p>
       </main>
     );
@@ -277,6 +376,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
     <>
       <h1>Agregador inmobiliario</h1>
       <p>Esqueleto del monorepo · v{WEB_VERSION}</p>
+      <SearchTextForm value="" />
       {suggestions !== null ? <ZoneSuggestions suggestions={suggestions} rawSearchParams={rawSearchParams} /> : null}
       {coverageNotice}
       {coverageStatusSection}
