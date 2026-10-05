@@ -121,6 +121,8 @@ describe('vista de mapa — recuento M y truncado (SMV-4, SMV-14)', () => {
     const html = await render({ view: 'map' });
     expect(html).toContain('120 viviendas con ubicación coinciden');
     expect(html).not.toContain('Mostrando');
+    // D.6a: el recuento vive en la fila de resumen, junto a los filtros aplicados.
+    expect(html.indexOf('120 viviendas')).toBeLessThan(html.indexOf('aria-label="Mapa de resultados"'));
   });
 
   it('exactamente en el tope (500 de 500) no hay aviso de truncado', async () => {
@@ -204,13 +206,14 @@ describe('vista de mapa — puntos, avisos y atribución (SMV-5..SMV-9)', () => 
     expect(html).toContain('7 viviendas con ubicación coinciden');
   });
 
-  it('el polígono activo viaja a SearchMap y hay un enlace "Quitar zona" que conserva filtros y quita page', async () => {
+  it('el polígono activo viaja a SearchMap y el chip «Zona dibujada» lo quita conservando filtros y sin page', async () => {
     mapResult(4);
     const html = await render({ view: 'map', polygon: POLYGON, operation: 'sale', page: '2' });
     const props = propsOf(html);
     expect(props.polygon).toHaveLength(4);
     expect(props.polygon?.[0]).toEqual({ lat: 40.4, lon: -3.7 });
-    expect(html).toMatch(/<a href="\/\?view=map&amp;operation=sale">Quitar zona/);
+    expect(html).toMatch(/<a [^>]*href="\/\?view=map&amp;operation=sale"[^>]*>[\s\S]*?Zona dibujada/);
+    expect(html).not.toContain('Quitar zona dibujada');
   });
 });
 

@@ -267,6 +267,48 @@
     margin-inline-end: 0.5rem;
   }
 
+  /* Barra de filtros de la home (D.6a). Solo estiliza la barra, no el panel de `?q=`, que
+     comparte los campos. Los controles usan --text-body (16px) para que iOS no haga zoom
+     al enfocar; los dos importes de un rango caben en 288px a 320px de ancho. */
+  .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem 1rem;
+  }
+
+  .filter-bar > p,
+  .filter-bar fieldset > p {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .filter-bar fieldset {
+    display: flex;
+    gap: 0.5rem;
+    min-inline-size: 0;
+    border: 0;
+    padding: 0;
+  }
+
+  .filter-bar label,
+  .filter-bar legend {
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  .filter-bar input:not([type='hidden']),
+  .filter-bar select,
+  .filter-bar button {
+    min-block-size: 2.5rem;
+    font-size: var(--text-body);
+  }
+
+  .filter-bar input[type='number'] {
+    inline-size: 7rem;
+  }
+
   .light .theme-selector [value='light'],
   .dark .theme-selector [value='dark'],
   :root:not(.light, .dark) .theme-selector [value='system'] {

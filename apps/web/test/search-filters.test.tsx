@@ -6,8 +6,10 @@ import type { PropertySearchCriteria } from '@buscahogar/core';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
+import { AppliedFilters } from '../src/components/applied-filters.js';
 import { CriteriaFields } from '../src/components/criteria-fields.js';
-
+import { FilterBar } from '../src/components/filter-bar.js';
+import { canonicalizeFormSubmission } from '../src/lib/search-href.js';
 import { describeAppliedFilters, formatListCount, formatMapCount } from '../src/lib/search-labels.js';
 
 function criteria(params: Record<string, string>): PropertySearchCriteria {
@@ -163,5 +165,143 @@ describe('CriteriaFields — campos compartidos (spec "Shared fields", "Markup c
     const positions = order.map((field) => panel.indexOf(`name="${field}"`));
     expect(positions.every((position) => position >= 0)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+  });
+});
+
+function bar(params: Record<string, string | string[]>, rejectedKeys?: ReadonlySet<string>): string {
+  return renderToStaticMarkup(<FilterBar params={params} rejectedKeys={rejectedKeys} />);
+}
+
+// React no garantiza el orden de los atributos: se busca la etiqueta que
+// contiene todos los fragmentos.
+function findTag(html: string, tagName: string, ...needles: string[]): string | undefined {
+  const tags = html.match(new RegExp(`<${tagName}[ >][^>]*>?`, 'g')) ?? [];
+  return tags.find((tag) => needles.every((needle) => tag.includes(needle)));
+}
+
+describe('FilterBar — spec "Filter bar"', () => {
+  it('es un formulario GET con nombre, no role=search, con la marca form=criteria y envío', () => {
+    const html = bar({ operation: 'sale' });
+    expect(findTag(html, 'form', 'method="get"', 'action="/"', 'aria-label="Filtros de búsqueda"')).toBeDefined();
+    expect(html).not.toContain('role="search"');
+    expect(findTag(html, 'input', 'type="hidden"', 'name="form"', 'value="criteria"')).toBeDefined();
+    expect(html).toContain('Aplicar filtros');
+  });
+
+  it('usa ids con prefijo filter- y los valores prefijados (crudos)', () => {
+    const html = bar({ operation: 'sale', maxPrice: '200000' });
+    expect(html).toContain('id="filter-maxPrice"');
+    expect(html).not.toContain('criteria-');
+    expect(findTag(html, 'input', 'name="maxPrice"', 'value="200000"')).toBeDefined();
+    expect(html).toMatch(/<option value="sale" selected/);
+  });
+
+  it('reenvía view y zone en ocultos y nunca page (spec "Hidden state kept, page dropped")', () => {
+    const html = bar({ view: 'map', zone: '28079', page: '3' });
+    expect(findTag(html, 'input', 'type="hidden"', 'name="view"', 'value="map"')).toBeDefined();
+    expect(findTag(html, 'input', 'type="hidden"', 'name="zone"', 'value="28079"')).toBeDefined();
+    expect(html).not.toContain('name="page"');
+  });
+
+  it('valores no representables (spec "Unrepresentable values"): valor crudo, select sin opción coincidente', () => {
+    const html = bar({ minPrice: 'abc', operation: 'foo' }, new Set(['minPrice', 'operation']));
+    expect(findTag(html, 'input', 'type="number"', 'name="minPrice"', 'value="abc"')).toBeDefined();
+    // Ninguna opción real coincide con `foo`: no hay `sale` ni `rent` marcadas.
+    expect(html).not.toMatch(/<option value="(sale|rent)" selected/);
+    expect(findTag(html, 'input', 'type="hidden"', 'name="minPrice"')).toBeUndefined();
+    expect(findTag(html, 'input', 'type="hidden"', 'name="operation"')).toBeUndefined();
+  });
+
+  it('las claves rechazadas no se reenvían como ocultas y el trío geográfico cae junto', () => {
+    const html = bar({ view: 'map', lat: '1', lng: '2', radius: '0', zone: '28079' }, new Set(['radius']));
+    expect(findTag(html, 'input', 'type="hidden"', 'name="view"')).toBeDefined();
+    expect(findTag(html, 'input', 'type="hidden"', 'name="zone"')).toBeDefined();
+    for (const name of ['lat', 'lng', 'radius']) {
+      expect(findTag(html, 'input', 'type="hidden"', `name="${name}"`)).toBeUndefined();
+    }
+  });
+
+  it('un valor repetido (array) no prefija nada', () => {
+    const html = bar({ minRooms: ['1', '2'] });
+    expect(findTag(html, 'input', 'name="minRooms"', 'value="1"')).toBeUndefined();
+    expect(findTag(html, 'input', 'name="minRooms"', 'value=""')).toBeDefined();
+  });
+});
+
+// Spec «Submit equivalence»: lo que envía la barra, canonicalizado, valida igual
+// que la URL escrita a mano.
+describe('FilterBar — equivalencia de envío (spec "Same validated params")', () => {
+  const typed = { operation: 'sale', maxPrice: '200000' };
+  // Un GET HTML envía TODOS los campos: la marca y los vacíos incluidos.
+  const submitted = {
+    form: 'criteria',
+    operation: 'sale',
+    propertyType: '',
+    minPrice: '',
+    maxPrice: '200000',
+    minSurface: '',
+    maxSurface: '',
+    minRooms: '',
+    minBathrooms: '',
+    sort: '',
+    dir: '',
+  };
+
+  it('tras canonicalizar da los mismos parámetros validados', () => {
+    expect(canonicalizeFormSubmission(submitted)).toEqual(typed);
+    expect(searchQuerySchema.parse(canonicalizeFormSubmission(submitted))).toEqual(searchQuerySchema.parse(typed));
+  });
+
+  it('el HTML de la barra ofrece exactamente los campos que esa equivalencia asume', () => {
+    const html = bar(typed);
+    for (const name of Object.keys(submitted)) {
+      expect(html).toContain(`name="${name}"`);
+    }
+  });
+});
+
+function chips(params: Record<string, string>, zoneName: string | null = null, count = '7 resultados'): string {
+  return renderToStaticMarkup(
+    <AppliedFilters criteria={criteria(params)} params={params} zoneName={zoneName} count={count} />
+  );
+}
+
+describe('AppliedFilters — spec "Applied-filter chips" y "Clear all"', () => {
+  it('sin filtros: el recuento sigue, pero no hay lista ni sección ni «Quitar todos»', () => {
+    const html = chips({ sort: 'price' }, null, '0 resultados');
+    expect(html).toContain('0 resultados');
+    expect(html).not.toContain('<ul');
+    expect(html).not.toContain('Filtros aplicados');
+    expect(html).not.toContain('Quitar');
+  });
+
+  it('un chip: quita solo su filtro y page, y no ofrece «Quitar todos»', () => {
+    const html = chips({ minRooms: '2', sort: 'price', dir: 'asc', page: '2' });
+    expect(html).toContain('aria-label="Filtros aplicados"');
+    expect(html).toContain('href="/?sort=price&amp;dir=asc"');
+    expect(html).toContain('Habitaciones: 2 o más');
+    expect(html).not.toContain('Quitar todos');
+    expect((html.match(/<li/g) ?? []).length).toBe(1);
+  });
+
+  it('dos chips o más: aparece «Quitar todos» que conserva view, sort y dir', () => {
+    const html = chips({ view: 'map', sort: 'price', dir: 'asc', minRooms: '2', zone: '28079', page: '4' }, 'Madrid');
+    expect(html).toContain('Zona: Madrid');
+    expect(html).toContain('href="/?view=map&amp;sort=price&amp;dir=asc"');
+    expect(html).toContain('Quitar todos');
+    expect((html.match(/<li/g) ?? []).length).toBe(2);
+  });
+
+  it('el chip geográfico es uno y su href quita las tres claves', () => {
+    const html = chips({ lat: '40.4', lng: '-3.7', radius: '5000', operation: 'rent' });
+    expect(html).toContain('A 5 km de un punto');
+    expect(html).toContain('href="/?operation=rent"');
+    expect((html.match(/<li/g) ?? []).length).toBe(2);
+  });
+
+  it('el nombre accesible empieza por «Quitar» y la × es decorativa', () => {
+    const html = chips({ minRooms: '2' });
+    expect(html).toMatch(/<span class="sr-only">Quitar filtro: <\/span>Habitaciones: 2 o más/);
+    expect(html).toMatch(/<span aria-hidden="true"[^>]*>×<\/span>/);
   });
 });

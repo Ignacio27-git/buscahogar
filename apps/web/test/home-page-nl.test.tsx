@@ -257,3 +257,133 @@ describe('encabezado único de la home (D.5)', () => {
     expect(html).not.toContain('<main');
   });
 });
+
+// D.6a (spec search-filters) — la barra de filtros, los filtros aplicados y el
+// recuento en la home, sin `?q=`. Mismo arnés que arriba.
+const BAR = 'aria-label="Filtros de búsqueda"';
+const POLYGON = '40.4,-3.7;40.4,-3.6;40.5,-3.6;40.5,-3.7';
+
+function barForm(html: string): string {
+  const start = html.indexOf(BAR);
+  expect(start).toBeGreaterThan(-1);
+  return html.slice(start, html.indexOf('</form>', start));
+}
+
+describe('barra de filtros en la home (D.6a, spec "Filter bar")', () => {
+  it('la rama ?q= no la lleva y conserva un único role=search', async () => {
+    const html = await render({ q: 'piso en venta' });
+    expect(html).not.toContain(BAR);
+    expect(html.match(/role="search"/g)).toHaveLength(1);
+  });
+
+  it('la rama válida la pinta bajo la caja de texto y SearchTextForm sigue siendo el único role=search', async () => {
+    const html = await render({ operation: 'sale' });
+    expect(html).toContain(BAR);
+    expect(html.match(/role="search"/g)).toHaveLength(1);
+    expect(html.indexOf('role="search"')).toBeLessThan(html.indexOf(BAR));
+    expect(html).toContain('id="filter-operation"');
+  });
+
+  it('la barra nunca envía page y reenvía view y zone', async () => {
+    searchMapPointsMock.mockResolvedValue({ points: [], total: 0, truncated: false });
+    resolveZoneGeometryMock.mockResolvedValue(null);
+    const form = barForm(await render({ view: 'map', zone: '28079', page: '3' }));
+    expect(findTag(form, 'input', 'type="hidden"', 'name="view"', 'value="map"')).toBeDefined();
+    expect(findTag(form, 'input', 'type="hidden"', 'name="zone"', 'value="28079"')).toBeDefined();
+    expect(form).not.toContain('name="page"');
+  });
+
+  it('parámetros inválidos con valores representables: alerta y entradas 900/100 editables (min > max)', async () => {
+    const html = await render({ minPrice: '900', maxPrice: '100' });
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('minPrice no puede ser mayor que maxPrice.');
+    const form = barForm(html);
+    expect(findTag(form, 'input', 'name="minPrice"', 'value="900"')).toBeDefined();
+    expect(findTag(form, 'input', 'name="maxPrice"', 'value="100"')).toBeDefined();
+    expectNoSideEffects();
+  });
+
+  it('valores no representables: la alerta nombra el parámetro y la barra se pinta con el valor crudo', async () => {
+    const html = await render({ minPrice: 'abc', operation: 'foo' });
+    // El mensaje por defecto de Zod para un enum no nombra el parámetro: la
+    // página lo antepone para que la alerta lo diga.
+    expect(html).toMatch(/<p role="alert">[^<]*operation: [^<]*minPrice: |<p role="alert">[^<]*minPrice: [^<]*operation: /);
+    const form = barForm(html);
+    expect(findTag(form, 'input', 'type="number"', 'name="minPrice"', 'value="abc"')).toBeDefined();
+    expect(form).not.toMatch(/<option value="(sale|rent)" selected/);
+    expectNoSideEffects();
+  });
+
+  it('un oculto rechazado no se reenvía (polígono junto a zona) pero los demás sí', async () => {
+    const html = await render({ polygon: POLYGON, zone: '28079', view: 'map' });
+    expect(html).toContain('polygon no puede combinarse con zone');
+    const form = barForm(html);
+    expect(findTag(form, 'input', 'type="hidden"', 'name="polygon"')).toBeUndefined();
+    expect(findTag(form, 'input', 'type="hidden"', 'name="zone"', 'value="28079"')).toBeDefined();
+    expect(findTag(form, 'input', 'type="hidden"', 'name="view"', 'value="map"')).toBeDefined();
+  });
+
+  it('una vista inválida tampoco se reenvía', async () => {
+    const html = await render({ view: 'foo', zone: '28079' });
+    expect(html).toContain('role="alert"');
+    const form = barForm(html);
+    expect(findTag(form, 'input', 'type="hidden"', 'name="view"')).toBeUndefined();
+    expect(findTag(form, 'input', 'type="hidden"', 'name="zone"')).toBeDefined();
+  });
+
+  it('la rama inválida no pinta chips ni recuento', async () => {
+    const html = await render({ minPrice: '900', maxPrice: '100' });
+    expect(html).not.toContain('Filtros aplicados');
+    expect(html).not.toMatch(/\d+ resultados?/);
+  });
+});
+
+describe('filtros aplicados y recuento en la home (D.6a)', () => {
+  it('sin filtros: el recuento 0 resultados sigue y no hay chips ni «Quitar todos»', async () => {
+    const html = await render({});
+    expect(html).toContain('0 resultados');
+    expect(html).not.toContain('Filtros aplicados');
+    expect(html).not.toContain('Quitar');
+  });
+
+  it('con filtros: un chip por filtro y «Quitar todos» con dos o más', async () => {
+    const html = await render({ operation: 'sale', minRooms: '2', sort: 'price' });
+    expect(html).toContain('Operación: Venta');
+    expect(html).toContain('Habitaciones: 2 o más');
+    expect(html).toContain('Quitar todos');
+  });
+
+  it('la zona muestra el nombre del municipio ya resuelto, sin consulta nueva', async () => {
+    resolveZoneGeometryMock.mockResolvedValue({
+      zoneId: 'z-1',
+      municipality: 'Getafe',
+      state: 'covered',
+      centroid: { latitude: 40.3, longitude: -3.7 },
+      sweepRadiusM: 4000,
+    });
+    const html = await render({ zone: '28065' });
+    expect(html).toContain('Zona: Getafe');
+    expect(html).not.toContain('A 4 km de un punto');
+    expect(resolveZoneGeometryMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('una zona desconocida cae a «Zona INE xxxxx»', async () => {
+    resolveZoneGeometryMock.mockResolvedValue(null);
+    const html = await render({ zone: '99999' });
+    expect(html).toContain('Zona INE 99999');
+  });
+
+  it('recuento completo en la página 1 y parcial con página siguiente o en la página 2', async () => {
+    searchPropertiesMock.mockResolvedValue({ results: [], hasNextPage: true });
+    expect(await render({})).toMatch(/0 resultados en esta página · página 1/);
+    searchPropertiesMock.mockResolvedValue({ results: [], hasNextPage: false });
+    expect(await render({ page: '2' })).toMatch(/0 resultados en esta página · página 2/);
+    expect(await render({})).not.toContain('en esta página');
+  });
+
+  it('los chips y el recuento no aparecen en la rama ?q=', async () => {
+    const html = await render({ q: 'piso en venta', operation: 'sale' });
+    expect(html).not.toContain('Filtros aplicados');
+    expect(html).not.toMatch(/\d+ resultados?/);
+  });
+});

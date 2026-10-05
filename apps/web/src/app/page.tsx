@@ -11,8 +11,10 @@ import {
 import { resolveZoneGeometry, searchMapPoints, searchProperties, suggestZones } from '@buscahogar/db';
 import type { ZoneGeometry, ZoneSuggestion } from '@buscahogar/db';
 
+import { AppliedFilters } from '@/components/applied-filters';
 import { CoverageStatus } from '@/components/coverage-status';
 import { CriteriaForm } from '@/components/criteria-form';
+import { FilterBar } from '@/components/filter-bar';
 import { ResultCard } from '@/components/result-card';
 import { SearchMap } from '@/components/search-map';
 import type { MapPointView } from '@/components/search-map-types';
@@ -21,11 +23,13 @@ import { formatPriceCents } from '@/lib/format-price';
 import { PLACE_SUGGESTION_LIMIT, classifyPlaceMatches } from '@/lib/place-match';
 import { buildPropertyDetailHref } from '@/lib/property-href';
 import {
-  buildClearAreaHref,
+  buildCurrentHref,
+  buildPageHref,
   buildViewHref,
   buildZoneSelectionHref,
   canonicalizeFormSubmission,
 } from '@/lib/search-href';
+import { formatListCount, formatMapCount } from '@/lib/search-labels';
 import { resolveCoverageClientLimit } from '@/server/coverage-client';
 import { getCoverageDb } from '@/server/coverage-db';
 import { getDb } from '@/server/db';
@@ -52,46 +56,11 @@ interface HomePageProps {
 // principio que `PAGE_SIZE` en `packages/db/src/search.ts`.
 const ZONE_SUGGESTION_LIMIT = 10;
 
-function buildPageHref(
-  params: Record<string, string | string[] | undefined>,
-  targetPage: number
-): string {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (key === 'page' || value === undefined) {
-      continue;
-    }
-    if (Array.isArray(value)) {
-      for (const entry of value) {
-        query.append(key, entry);
-      }
-    } else {
-      query.append(key, value);
-    }
-  }
-  query.set('page', String(targetPage));
-  return `/?${query.toString()}`;
-}
-
-// ROADMAP 1.13 Unit D (D8/A-7) — enlace de recarga PLANO: la misma URL
-// actual, un `href` real, sin JavaScript. `<CoverageStatus/>` (el único
-// componente 'use client') es una MEJORA sobre este enlace, nunca la única
-// vía de comprobar el estado.
-function buildCurrentHref(params: Record<string, string | string[] | undefined>): string {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value === undefined) {
-      continue;
-    }
-    if (Array.isArray(value)) {
-      for (const entry of value) {
-        query.append(key, entry);
-      }
-    } else {
-      query.append(key, value);
-    }
-  }
-  return `/?${query.toString()}`;
+// El mensaje por defecto de Zod para un enum («Invalid option: …») no nombra el
+// parámetro; la alerta debe nombrarlo (spec search-filters), así que se antepone.
+function describeIssue(issue: { readonly path: readonly PropertyKey[]; readonly message: string }): string {
+  const name = issue.path[0];
+  return typeof name === 'string' && !issue.message.includes(name) ? `${name}: ${issue.message}` : issue.message;
 }
 
 function firstStringValue(value: string | string[] | undefined): string | undefined {
@@ -267,11 +236,20 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       ...(parsed.success ? [] : parsed.error.issues),
       ...(viewParsed.success ? [] : viewParsed.error.issues),
     ];
+    // D.6a: la barra se pinta con lo recibido para poder corregirlo, pero no
+    // reenvía como oculto ningún parámetro que el esquema haya rechazado.
+    const rejectedKeys = new Set<string>(
+      issues.flatMap((issue) => (typeof issue.path[0] === 'string' ? [issue.path[0]] : []))
+    );
+    if (!viewParsed.success) {
+      rejectedKeys.add('view');
+    }
     return (
       <>
         <h1>Buscar vivienda</h1>
         <SearchTextForm value="" />
-        <p role="alert">No se pudo interpretar la búsqueda: {issues.map((issue) => issue.message).join('; ')}</p>
+        <p role="alert">No se pudo interpretar la búsqueda: {issues.map(describeIssue).join('; ')}</p>
+        <FilterBar params={rawSearchParams} rejectedKeys={rejectedKeys} />
       </>
     );
   }
@@ -303,9 +281,12 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
   let coverageNotice: ReactElement | null = null;
   let coverageStatusSection: ReactElement | null = null;
   let effectiveCriteria = criteria;
+  // Nombre del municipio ya resuelto para el chip de zona: sin consulta nueva.
+  let zoneName: string | null = null;
 
   if (criteria.zone !== undefined) {
     const zoneGeometry = await resolveZoneGeometry(db, criteria.zone);
+    zoneName = zoneGeometry?.municipality ?? null;
 
     if (zoneGeometry === null) {
       coverageNotice = (
@@ -375,6 +356,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
     <>
       <h1>Buscar vivienda</h1>
       <SearchTextForm value="" />
+      <FilterBar params={rawSearchParams} />
       {suggestions !== null ? <ZoneSuggestions suggestions={suggestions} rawSearchParams={rawSearchParams} /> : null}
       {coverageNotice}
       {coverageStatusSection}
@@ -382,12 +364,6 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
         <a href={buildViewHref(rawSearchParams, view === 'map' ? 'list' : 'map')}>
           {view === 'map' ? 'Ver lista' : 'Ver mapa'}
         </a>
-        {criteria.polygon !== undefined ? (
-          <>
-            {' · '}
-            <a href={buildClearAreaHref(rawSearchParams)}>Quitar zona dibujada</a>
-          </>
-        ) : null}
       </p>
     </>
   );
@@ -408,13 +384,13 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
     return (
       <>
         {header}
+        <AppliedFilters criteria={criteria} params={rawSearchParams} zoneName={zoneName} count={formatMapCount(total)} />
         <section aria-label="Mapa de resultados">
-          <p>
-            {total} {total === 1 ? 'vivienda con ubicación coincide' : 'viviendas con ubicación coinciden'}
-            {criteria.polygon === undefined
-              ? ' (puede diferir del total de la lista: las viviendas sin ubicación no aparecen en el mapa)'
-              : ''}
-          </p>
+          {criteria.polygon === undefined ? (
+            <p>
+              Este recuento puede diferir del total de la lista: las viviendas sin ubicación no aparecen en el mapa.
+            </p>
+          ) : null}
           {truncated ? (
             <p>
               Mostrando {points.length} de {total}
@@ -447,10 +423,12 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       {criteria.polygon !== undefined && criteria.page === 1 && results.length === 0 ? (
         <OutsideCoverageNotice />
       ) : null}
-      <p>
-        {results.length} {results.length === 1 ? 'resultado' : 'resultados'} en esta página
-        {criteria.page > 1 ? ` · página ${String(criteria.page)}` : ''}
-      </p>
+      <AppliedFilters
+        criteria={criteria}
+        params={rawSearchParams}
+        zoneName={zoneName}
+        count={formatListCount(results.length, criteria.page, hasNextPage)}
+      />
       {results.length === 0 ? (
         <p>No se encontraron viviendas con esos filtros.</p>
       ) : (

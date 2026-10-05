@@ -319,7 +319,7 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     try {
       const html = await renderHome({ zone: ineCode });
 
-      expect(html).toMatch(/resultados? en esta página/);
+      expect(html).toMatch(/\d+ resultados?/);
       expect(errorSpy).toHaveBeenCalledTimes(1);
       expect(String(errorSpy.mock.calls[0]?.[0])).toMatch(/señal de demanda.*WEB_COVERAGE_DATABASE_URL/);
     } finally {
@@ -345,7 +345,7 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     try {
       const html = await renderHome({ zone: ineCode });
 
-      expect(html).toMatch(/resultados? en esta página/);
+      expect(html).toMatch(/\d+ resultados?/);
       expect(fetchSpy).not.toHaveBeenCalled();
     } finally {
       fetchSpy.mockRestore();
