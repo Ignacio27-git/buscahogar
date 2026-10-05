@@ -30,6 +30,41 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-05 — Tokens, tipografía y tema oscuro del sistema (paso D.3, decisiones 141-143)
+
+**Tipo de tarea:** configuración (tokens de diseño en CSS) con un test de verificación de contraste
+**Forma de especificación:** SDD en modo automático (propuesta, especificación, diseño y tareas antes de aplicar,
+con una ronda correctiva del diseño tras la puerta de fase); el prompt del paso D.3 de `docs/DESIGN-ROADMAP.md`
+pegado en `/gentle-sdd-new`. Aplicación con TDD estricto: el test (helpers de color y contraste, y comprobaciones
+del CSS) se escribió y se vio fallar antes de tocar `globals.css`.
+**Resultado:** con retoques (el prompt pedía una fuente autoalojada con `next/font` y `@theme inline`, ya superado por
+la decisión 132; los nombres de los tokens y la ubicación de la fuente cambiaron respecto al texto, ver decisión 141)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.3 de docs/DESIGN-ROADMAP.md. Carga impeccable (con su craft floor antes de editar
+> UI) y usa `impeccable typeset` y `impeccable colorize` según el contrato de D.0.
+>
+> - Tokens en apps/web/src/app/globals.css con el patrón validado en D.2: color (superficie,
+>   texto, texto secundario, borde, acento, peligro, éxito, foco), escala tipográfica,
+>   espaciado (base 0.25rem de Tailwind), radios, sombras y capas (el mapa necesita
+>   z-index propios). Los tokens de movimiento se dejan para D.16.
+> - Tema oscuro solo según el sistema (el selector llega en D.4), con color-scheme en
+>   :root.
+> - Fuente según D.0, autoalojada con next/font y expuesta con @theme inline. Ningún host
+>   de fuentes remoto; la CSP no cambia.
+> - Anillo :focus-visible global que el contenido fijo no tape.
+> - Estilos base mínimos. No rediseñes componentes: eso llega en los pasos siguientes.
+>
+> Documenta en las notas la tabla de contraste de cada par texto/fondo en ambos temas.
+
+**Observación:** el prompt se quedó atrás de la decisión 132 (sin fuente propia), de modo que el texto se reescribió
+en `docs/DESIGN-ROADMAP.md` y la fuente es una pila del sistema en `@theme static`. La puerta de fase cazó tres
+salidas intermedias del diseño: una tolerancia de gamut de 1e-4 que rechazaba el propio vector de sanidad, razones de
+contraste calculadas a mano que no coincidían con el validador (acento sobre blanco 6,05 frente a 6,44) y nombres de
+token que divergían en silencio de la especificación (ver `docs/AI-NOTES.md`). Con el diseño corregido, ningún par de
+contraste falló al aplicar y la línea base de axe solo perdió entradas. El volumen superó el presupuesto de 800
+líneas (documentación obligatoria y snapshot incluidos) y se aceptó `size:exception`.
+
 ### 2026-10-05 — Experimentos de tema oscuro: tokens semánticos y teselas (paso D.2, decisiones 139-140)
 
 **Tipo de tarea:** experimento descartable (código revertido; solo quedan evidencia y decisiones)

@@ -4258,6 +4258,131 @@ y `docs/design/spikes/d2-tiles-perf.json`.
 
 ---
 
+## 141 — Arquitectura de tokens de D.3: una capa semántica, `ink`/`rule`, color en `@theme inline` y el resto en `@theme static`
+
+**Estado:** aceptada (paso D.3)
+
+**Decisión.** `apps/web/src/app/globals.css` lleva todo el sistema, con el patrón de la decisión 139:
+
+- **Una sola capa de variables semánticas** que cambian con el tema (`:root`, `.dark` y
+  `@media (prefers-color-scheme: dark)` sobre `:root:not(.light)`), sin capa de primitivas.
+- **`@theme inline` solo para colores:** `--color-*: initial` más una entrada `--color-<rol>: var(--<rol>)` por cada
+  rol que sirve de texto, fondo o borde. `--hatch`, `--selection` y `--shadow-color` son variables sin utilidad:
+  la siena de la trama nunca es texto ni fondo (decisión 132).
+- **`@theme static` para todo lo demás:** pila tipográfica, roles de texto, radios, escala z, margen de scroll y
+  sombras. `static` emite siempre las variables aunque ninguna utilidad las use (los estilos en línea de TSX de
+  D.8b las necesitarán) y no se mezcla con `inline`, que solo tiene sentido para referencias `var()`.
+- **Espacio sin declarar:** se conserva la base de 0,25 rem de Tailwind y el test prohíbe sobrescribir
+  `--spacing`.
+- **Espacios de nombres cerrados:** `--color-*: initial` y `--text-*: initial` retiran la paleta y la escala por
+  defecto de Tailwind (D.0 fija una paleta y una escala cerradas). Ningún componente usaba esas utilidades
+  (comprobado con una búsqueda de clases en `apps/web/src`).
+- **Anclas en hex, derivados en OKLCH:** los valores de D.0 (`#ffffff`, `#1c1f22`, `#e4e2dc`, `#1f5fa8`, `#b0662b`)
+  se conservan byte a byte; los demás se escriben como `oklch(L% C H)`, que permite ajustar solo la luminosidad.
+- **Capas:** `base` 0, `map-controls` 10, `sticky-header` 20, `overlay` 30, `toast` 40, estrictamente crecientes y
+  usadas con `z-(--z-overlay)`. `.leaflet-container` fija `isolation: isolate` para que las capas internas de
+  Leaflet no compitan con las nuestras.
+- **Fuente:** pila del sistema declarada en `@theme static` (`--font-sans`), sin `next/font` ni host remoto, de
+  modo que `layout.tsx` y la CSP no cambian (R1 enmendada a la decisión 132). El paso D.3 decía `@theme inline`;
+  se usa `static` por lo anterior (ver la fila del registro de desviaciones).
+
+Nombres de la especificación frente a los de CSS (lo que la especificación llamaba `text` y `border` no se
+usó literalmente):
+
+| Rol de la especificación | Variable | Utilidad |
+| --- | --- | --- |
+| surface | `--surface` | `--color-surface` |
+| text | `--ink` | `--color-ink` |
+| text-muted | `--ink-muted` | `--color-ink-muted` |
+| border | `--rule` | `--color-rule` |
+| border-control | `--rule-control` | `--color-rule-control` |
+| accent, danger, success, focus | mismo nombre | `--color-<nombre>` |
+| hatch | `--hatch` | ninguna |
+| añadidos: surface-raised, surface-sunken, ink-on-accent | mismo nombre | `--color-<nombre>` |
+| añadidos: selection, shadow-color | mismo nombre | ninguna |
+
+**Alternativas descartadas.** Los nombres `text`/`border` tal cual: darían `text-text`, `border-border` y
+`text-text-muted`, ambiguos junto a los prefijos `text-*`/`border-*` de Tailwind. `fg`/`line`: menos precisos.
+`ink`/`rule` son términos de imprenta y casan con la dirección editorial de D.0. Primitivas más semánticas en dos
+capas: unos 16 tokens por dos temas sin reutilización real; D.17 puede extraerlas si hacen falta.
+`--spacing: 0.25rem` explícito: redundante y la especificación lo prohíbe. Exponer `--hatch` como utilidad:
+contradice D.0. `light-dark()`: ya descartado en la 139.
+
+**Motivo.** Un solo fichero y una sola capa son lo más fácil de revisar y de verificar con un test que lee el CSS
+como texto; los nombres evitan colisiones con Tailwind y las utilidades semánticas sustituyen a las variantes `dark:`,
+que no siguen al sistema sin clase (decisión 139).
+
+---
+
+## 142 — Paleta oscura derivada en OKLCH y verificación de contraste con tolerancia de gamut de 1e-3
+
+**Estado:** aceptada (paso D.3)
+
+**Decisión.** El tema oscuro se deriva en OKLCH a partir de la paleta clara de D.0 (superficies y texto con un
+matiz frío de ~235° y un acento más claro que el claro), no se invierte la clara. `apps/web/test/design-tokens.test.ts`
+convierte cada token con las matrices estándar de OKLab, comprueba que cada canal lineal cae dentro de
+[-1e-3, 1 + 1e-3], lo recorta a [0, 1], codifica sRGB, **redondea a 8 bits** y solo entonces calcula la luminancia
+WCAG. Pares y umbrales, por tema: texto (`ink`, `ink-muted`, `accent`, `danger`, `success`) sobre las tres
+superficies >= 4,5:1; `ink` sobre `selection` y `ink-on-accent` sobre `accent` >= 4,5:1; `rule-control` y `focus`
+sobre las tres superficies y `hatch` sobre `surface` y `surface-sunken` >= 3:1. `rule` es decorativo y queda exento.
+El alfa solo se admite en `--shadow-color`. La tabla resultante se fija con un snapshot de vitest y se copia a
+`docs/DESIGN-ROADMAP.md`; ninguna cifra de la documentación sale de un cálculo a mano.
+
+Si un par falla se ajusta solo la luminosidad L del token, nunca el matiz ni la cromaticidad. En esta aplicación
+ningún par falló con los valores de partida del diseño. `#e4e2dc` (`--rule`) no llega a 3:1 como borde de control
+(lo anticipaba D.0), así que los controles usan `--rule-control`.
+
+**Por qué 1e-3 y no 1e-4.** Los literales OKLCH llevan 3-4 cifras significativas, de modo que un color que está
+dentro del gamut cae ligeramente fuera: el vector de sanidad `oklch(62.8% 0.2577 29.23)` (rojo puro) da un canal
+lineal R de ~1,000211. 1e-4 lo rechazaba; 1e-3 queda por debajo de medio escalón de 8 bits en el extremo alto
+(~0,0016 lineal) y aun así rechaza un color realmente fuera de gamut (`oklch(70% 0.3 145)`).
+
+**Alternativas descartadas.** Tolerancia de 1e-4: rechaza vectores válidos (ver `docs/AI-NOTES.md`). Recorte
+silencioso sin tolerancia: dejaría pasar colores fuera de gamut que el navegador mapearía de otra forma que el test.
+Mapeo de gamut en el test: duplica el comportamiento del navegador sin necesidad, porque todos los tokens caben en
+sRGB. Luminancia en coma flotante sin cuantizar: no coincide con lo que miden las capturas y axe, que trabajan con
+8 bits, y no da el hex que se documenta. `postcss` como analizador: solo es dependencia transitiva y pnpm es estricto;
+un analizador de llaves de ~50 líneas basta. Leer `docs/DESIGN-ROADMAP.md` desde el test para comprobar la tabla:
+frágil; el snapshot es determinista y regenerable.
+
+**Motivo.** La verificación cubre exactamente lo que ve el usuario (colores de 8 bits) y la tabla de la
+documentación es reproducible.
+
+---
+
+## 143 — Estilos base de D.3: anillo de foco, desplazamiento de ancla, controles acotados y todo en `@layer base`
+
+**Estado:** aceptada (paso D.3)
+
+**Decisión.** Las reglas globales viven en `@layer base`, para que cualquier utilidad las supere, y usan solo
+variables (el test rechaza colores literales en esa capa):
+
+- `:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px }`, con
+  `html { scroll-padding-top: var(--scroll-offset) }` para que el contenido fijo no tape el elemento enfocado ni los
+  saltos a anclas. El foco usa el mismo azul que el acento y supera 3:1 sobre las tres superficies en ambos temas.
+- `body` con superficie, tinta, `--font-sans` y el rol de cuerpo (1 rem / 1,5); `h1`-`h3` con los roles de título;
+  `*, ::before, ::after { border-color: var(--rule) }` como borde por defecto.
+- Enlaces con `--accent` y subrayado (desplazamiento 0,2 em): el acento solo contrasta 2,57:1 con la tinta, así que
+  el color no basta para distinguirlos.
+- `::selection` con `--selection` y `--ink`; `::placeholder` con `--ink-muted` y opacidad 1.
+- Controles: `input:not([type=radio], [type=checkbox], [type=range], [type=color]), select, textarea` y `button`
+  llevan fondo, color y borde `--rule-control` explícitos. Con `color-scheme: light dark` los controles nativos
+  heredan los colores del sistema y pueden quedar blanco sobre blanco (hallazgo de D.2); al fijar los dos colores el
+  par es siempre legible. Radios, casillas, rangos y selectores de color conservan su aspecto nativo (los radios de
+  `criteria-form.tsx` no se tocan).
+- `.leaflet-container { isolation: isolate }` (ver 141). Los controles de Leaflet siguen con los colores de su
+  propia hoja (no está en ninguna capa, así que gana a `@layer base`); `map-draw-control.tsx` y
+  `map-cluster-layer.tsx` no se tocan y sus colores fijos son de D.8b.
+
+**Alternativas descartadas.** Reglas sin capa: pisarían las utilidades de los componentes. Dar color solo a
+`input`: dejaría `select`, `textarea` y `button` heredando el sistema. Restilar radios y casillas con
+`appearance: none`: es rediseño de componentes, fuera de D.3. Un selector `:where(...)` universal para controles: más
+ancho de lo necesario. Cifras tabulares en `globals.css`: Tailwind ya trae `tabular-nums` y se aplicarán en D.6b/D.9.
+
+**Motivo.** Es el mínimo que hace legibles ambos temas y accesible el teclado sin rediseñar ningún componente.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

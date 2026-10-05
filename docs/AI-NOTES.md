@@ -3346,3 +3346,54 @@ mostró que la variante `dark:` sigue solo a la clase, que era justo el dato que
 
 **Observación:** al diseñar una comprobación de «A cambia cuando B cambia», verificar que los valores de ambos
 estados difieren; con tokens que comparten valor entre temas no se distingue el mecanismo.
+
+### 2026-10-05 — Tres salidas intermedias de D.3 que la puerta de fase y el test cazaron
+
+**Contexto:** cambio SDD `design-tokens-d3` (paso D.3), fase de diseño y de especificación, y su aplicación.
+
+**Categoría:** código correcto en apariencia pero incorrecto · deriva de la arquitectura entre sesiones.
+
+**Qué se generó mal:**
+
+1. **Tolerancia de gamut de 1e-4.** El primer diseño del helper de color exigía que cada canal lineal cayera en
+   [-1e-4, 1 + 1e-4]. El vector de sanidad `oklch(62.8% 0.2577 29.23)` (el rojo `#ff0000` con 3-4 cifras
+   significativas) da un canal lineal R de ~1,000211, así que el propio test de sanidad se habría rechazado a sí
+   mismo. Se subió a 1e-3, que sigue por debajo de medio escalón de 8 bits en el extremo alto y aun así rechaza
+   `oklch(70% 0.3 145)`.
+2. **Razones de contraste calculadas «a mano».** El diseño citaba acento sobre blanco como 6,05:1; el validador
+   (OKLCH → sRGB de 8 bits → luminancia WCAG) da 6,44:1. Ninguna cifra a mano del diseño se copió a la documentación:
+   la tabla de `docs/DESIGN-ROADMAP.md` sale del snapshot que genera el test.
+3. **Nombres de token que divergían en silencio de la especificación.** La especificación hablaba de roles
+   `text` y `border`; el diseño usaba `ink` y `rule` sin decirlo. Habría producido utilidades ambiguas
+   (`text-text`, `border-border`) y un test que buscaba nombres que no existían. Se fijó la tabla rol → variable →
+   utilidad (decisión 141) y la especificación se enmendó.
+
+**Cómo se detectó:** el punto 1 al comprobar el vector de sanidad contra el algoritmo antes de aplicar; el 2 por la
+puerta de contrato de fase al contrastar el diseño con el validador; el 3 por esa misma puerta al cruzar nombres
+de especificación y de diseño.
+
+**Coste:** una ronda correctiva del diseño (~15 min).
+
+**Observación:** una cifra calculada a mano (ratios, tolerancias numéricas) es una afirmación técnica verificable y
+conviene sustituirla por la salida de la herramienta antes de citarla.
+
+### 2026-10-05 — El test de tokens de D.3 fallaba al recopilar y ocultaba sus propias comprobaciones
+
+**Contexto:** aplicación de `design-tokens-d3`, fase RED del TDD estricto.
+
+**Categoría:** test que valida el comportamiento equivocado.
+
+**Qué se generó mal:** varios `describe` leían `globals.css` al recopilar (`themeBlocks()` en el cuerpo del
+`describe`). Con el CSS aún sin tokens, el fichero entero fallaba en la recopilación y las comprobaciones del helper,
+que no dependen del CSS, tampoco se ejecutaban: el RED era total pero no informaba de nada. Además, una comprobación
+de selectores buscaba `:not([type=radio],[type=checkbox]` sin espacio tras la coma, cuando el normalizador del
+propio test inserta `, `; y una edición en bloque dejó una variable sin usar que rompió `tsc`.
+
+**Cómo se detectó:** al ejecutar el RED, el recuento de tests (ninguno) y, después, el único test en rojo tras el
+verde; `pnpm typecheck` para la variable.
+
+**Cómo se resolvió:** lecturas perezosas dentro de cada `it` (así el RED muestra 43 fallos y 15 comprobaciones en verde, las que no dependen del CSS) y
+el patrón corregido.
+
+**Observación:** en un test que lee un fichero aún por escribir, las lecturas van dentro de cada `it`; un fallo de
+recopilación oculta qué comprobaciones eran independientes del cambio.

@@ -50,8 +50,8 @@ Todo paso las cumple. Un paso que necesite saltarse una la enmienda con una entr
 
 - **R1 · CSP.** La política es estática y está en `apps/web/next.config.ts`: `font-src 'self'`,
   `img-src 'self' blob: data: https://tile.openstreetmap.org`, `script-src 'self' 'unsafe-inline'` y
-  `style-src 'self' 'unsafe-inline'`. Ni fuentes, ni iconos, ni CDN remotos. Las fuentes se
-  autoalojan con `next/font`. La vigilan `apps/web/test/csp-image-policy.test.ts` y
+  `style-src 'self' 'unsafe-inline'`. Ni fuentes, ni iconos, ni CDN remotos. No hay fuente propia: se usa
+  la pila tipográfica del sistema, sin `next/font` ni ficheros de fuente (decisión 132). La vigilan `apps/web/test/csp-image-policy.test.ts` y
   `apps/web/test/security-headers.test.ts` (decisiones 080 y 112).
 - **R2 · Imágenes.** Solo con `next/image`: ni `<img>` nativo ni `unoptimized`. Los hosts remotos son
   los de `images.remotePatterns`, hoy solo `img4.idealista.com`. Añadir uno es una decisión de
@@ -349,7 +349,7 @@ secundarias (huecos b y c), antes de que D.3 y D.8b dependan de ellos.
 
 # Bloque 2 — Fundamentos
 
-## [ ] D.3 · Tokens, tipografía y tema oscuro del sistema
+## [x] D.3 · Tokens, tipografía y tema oscuro del sistema
 
 ```text
 Paso D.3 de docs/DESIGN-ROADMAP.md. Carga impeccable (con su craft floor antes de editar
@@ -361,8 +361,8 @@ UI) y usa `impeccable typeset` y `impeccable colorize` según el contrato de D.0
   z-index propios). Los tokens de movimiento se dejan para D.16.
 - Tema oscuro solo según el sistema (el selector llega en D.4), con color-scheme en
   :root.
-- Fuente según D.0, autoalojada con next/font y expuesta con @theme inline. Ningún host
-  de fuentes remoto; la CSP no cambia.
+- Fuente según D.0 (decisión 132): pila tipográfica del sistema, declarada en @theme static,
+  sin next/font. Ningún host de fuentes remoto; la CSP no cambia.
 - Anillo :focus-visible global que el contenido fijo no tape.
 - Estilos base mínimos. No rediseñes componentes: eso llega en los pasos siguientes.
 
@@ -381,17 +381,94 @@ oscuro según el sistema.
 
 **Notas:**
 
-- **Ficheros:** `apps/web/src/app/globals.css`, `apps/web/src/app/layout.tsx` (clase de la fuente),
-  ficheros de fuente si se autoalojan a mano.
-- **Tests:** `layout-attribution.test.ts` (si cambia el layout), `security-headers.test.ts`.
-- **Riesgos:** R1 (`font-src 'self'`). `next/font/google` descarga la fuente al compilar, así que el
-  build necesita red; `next/font/local` no. Decidirlo y registrarlo.
+- **Ficheros:** `apps/web/src/app/globals.css`. `layout.tsx` no cambia: no hay clase de fuente ni
+  `next/font`.
+- **Tests:** `security-headers.test.ts` y `csp-image-policy.test.ts` (CSP intacta); `layout-attribution.test.ts`
+  sin cambios.
+- **Riesgos:** R1 (`font-src 'self'`): sin fuente propia no hay descarga en el build ni fichero que servir.
 - **Tamaño:** M.
 - **Evidencia:** C10, C21, C22, C25, C26, C27, C32.
 - **Contrato de D.0 (132):** pila tipográfica del sistema, sin `next/font` (ver desviaciones);
   paleta `#ffffff`, `#1c1f22`, `#e4e2dc`, acento `#1f5fa8` y siena `#b0662b` solo para la trama;
   escala tipográfica cerrada y cifras tabulares. `#e4e2dc` no llega a 3:1 como borde de control. El
   oscuro se deriva aquí tras D.2.
+- **Estado (2026-10-05): D.3 hecha.** Cambio SDD `design-tokens-d3`, un solo PR (`size:exception`, ver
+  desviaciones); decisiones 141-143.
+  - **Resultado:** `globals.css` pasa de un `@import` a los tokens de color (15, en `:root`, `.dark` y
+    `prefers-color-scheme`), la escala tipográfica cerrada (6 roles), radios, sombras, escala z y las reglas
+    base (anillo de foco, `scroll-padding-top`, controles con color explícito, `isolation` del mapa). Sin
+    `layout.tsx`, CSP ni componentes tocados.
+  - **Nombres (141):** `ink`/`rule` en lugar de los roles `text`/`border` de la especificación; extra:
+    `surface-raised`, `surface-sunken`, `ink-on-accent`, `selection`, `shadow-color`. `--hatch`, `--selection` y
+    `--shadow-color` no tienen utilidad.
+  - **Verificación:** `apps/web/test/design-tokens.test.ts` (58 tests) lee el CSS como texto: paridad de los tres
+    bloques, mapeo, escalas, reglas base y contraste de ambos temas con OKLCH → sRGB de 8 bits (tolerancia de gamut
+    1e-3, decisión 142). La tabla de abajo se copia del snapshot `apps/web/test/__snapshots__/design-tokens.test.ts.snap`.
+    Ningún par falló con los valores de partida, así que no hizo falta ajustar ninguna luminosidad.
+  - **E2E (Docker):** `pnpm e2e:update` regenera las 36 capturas y la línea base de axe; `pnpm e2e` dos veces
+    seguidas, sin diferencias (74 pasan, 10 omitidos). La línea base de axe solo pierde entradas: desaparecen las 4
+    de `target-size` (`a[href="/?view=map"]` y `a[href="/?"]` a 320 px en claro y oscuro) y no aparece ninguna
+    huella nueva. La causa no se ha investigado; coincide con que los enlaces heredan ahora el interlineado del rol
+    de cuerpo.
+  - **Pendiente de D.8b:** el aviso `<p role="status">` de la barra de dibujo del mapa conserva colores claros fijos
+    en oscuro, y el botón «Dibujar zona» hereda la regla base de `button` (fondo oscuro sobre la caja blanca de la
+    barra). Los controles de Leaflet mantienen los colores de su hoja. Las cifras tabulares no se definen aquí:
+    Tailwind ya trae `tabular-nums`, que se aplicará en D.6b/D.9.
+  - **Contraste (copiado del snapshot, ratio WCAG con colores de 8 bits; mínimo 4,5 en texto y 3 en no texto; cada
+    fila indica el par y los hex resultantes):**
+
+  | Tema | Primer plano | Fondo | Colores | Ratio | Mínimo | Resultado |
+  | ---- | ------------ | ----- | ------- | ----- | ------ | --------- |
+  | claro | ink | surface | #1c1f22 sobre #ffffff | 16.56 | 4.5 | cumple |
+  | claro | ink | surface-raised | #1c1f22 sobre #ffffff | 16.56 | 4.5 | cumple |
+  | claro | ink | surface-sunken | #1c1f22 sobre #f6f5f2 | 15.18 | 4.5 | cumple |
+  | claro | ink-muted | surface | #5d6469 sobre #ffffff | 6.01 | 4.5 | cumple |
+  | claro | ink-muted | surface-raised | #5d6469 sobre #ffffff | 6.01 | 4.5 | cumple |
+  | claro | ink-muted | surface-sunken | #5d6469 sobre #f6f5f2 | 5.52 | 4.5 | cumple |
+  | claro | accent | surface | #1f5fa8 sobre #ffffff | 6.44 | 4.5 | cumple |
+  | claro | accent | surface-raised | #1f5fa8 sobre #ffffff | 6.44 | 4.5 | cumple |
+  | claro | accent | surface-sunken | #1f5fa8 sobre #f6f5f2 | 5.91 | 4.5 | cumple |
+  | claro | danger | surface | #b6322d sobre #ffffff | 6.03 | 4.5 | cumple |
+  | claro | danger | surface-raised | #b6322d sobre #ffffff | 6.03 | 4.5 | cumple |
+  | claro | danger | surface-sunken | #b6322d sobre #f6f5f2 | 5.53 | 4.5 | cumple |
+  | claro | success | surface | #2b7440 sobre #ffffff | 5.71 | 4.5 | cumple |
+  | claro | success | surface-raised | #2b7440 sobre #ffffff | 5.71 | 4.5 | cumple |
+  | claro | success | surface-sunken | #2b7440 sobre #f6f5f2 | 5.24 | 4.5 | cumple |
+  | claro | ink | selection | #1c1f22 sobre #cce0f9 | 12.30 | 4.5 | cumple |
+  | claro | ink-on-accent | accent | #ffffff sobre #1f5fa8 | 6.44 | 4.5 | cumple |
+  | claro | rule-control | surface | #81878b sobre #ffffff | 3.64 | 3 | cumple |
+  | claro | rule-control | surface-raised | #81878b sobre #ffffff | 3.64 | 3 | cumple |
+  | claro | rule-control | surface-sunken | #81878b sobre #f6f5f2 | 3.34 | 3 | cumple |
+  | claro | focus | surface | #1f5fa8 sobre #ffffff | 6.44 | 3 | cumple |
+  | claro | focus | surface-raised | #1f5fa8 sobre #ffffff | 6.44 | 3 | cumple |
+  | claro | focus | surface-sunken | #1f5fa8 sobre #f6f5f2 | 5.91 | 3 | cumple |
+  | claro | hatch | surface | #b0662b sobre #ffffff | 4.39 | 3 | cumple |
+  | claro | hatch | surface-sunken | #b0662b sobre #f6f5f2 | 4.03 | 3 | cumple |
+  | oscuro | ink | surface | #e6e4df sobre #131719 | 14.20 | 4.5 | cumple |
+  | oscuro | ink | surface-raised | #e6e4df sobre #1b2023 | 12.94 | 4.5 | cumple |
+  | oscuro | ink | surface-sunken | #e6e4df sobre #0a0e10 | 15.26 | 4.5 | cumple |
+  | oscuro | ink-muted | surface | #98a0a5 sobre #131719 | 6.79 | 4.5 | cumple |
+  | oscuro | ink-muted | surface-raised | #98a0a5 sobre #1b2023 | 6.19 | 4.5 | cumple |
+  | oscuro | ink-muted | surface-sunken | #98a0a5 sobre #0a0e10 | 7.30 | 4.5 | cumple |
+  | oscuro | accent | surface | #6aa9ed sobre #131719 | 7.31 | 4.5 | cumple |
+  | oscuro | accent | surface-raised | #6aa9ed sobre #1b2023 | 6.66 | 4.5 | cumple |
+  | oscuro | accent | surface-sunken | #6aa9ed sobre #0a0e10 | 7.86 | 4.5 | cumple |
+  | oscuro | danger | surface | #f07f77 sobre #131719 | 6.88 | 4.5 | cumple |
+  | oscuro | danger | surface-raised | #f07f77 sobre #1b2023 | 6.27 | 4.5 | cumple |
+  | oscuro | danger | surface-sunken | #f07f77 sobre #0a0e10 | 7.39 | 4.5 | cumple |
+  | oscuro | success | surface | #69c27e sobre #131719 | 8.26 | 4.5 | cumple |
+  | oscuro | success | surface-raised | #69c27e sobre #1b2023 | 7.53 | 4.5 | cumple |
+  | oscuro | success | surface-sunken | #69c27e sobre #0a0e10 | 8.88 | 4.5 | cumple |
+  | oscuro | ink | selection | #e6e4df sobre #1f446b | 7.88 | 4.5 | cumple |
+  | oscuro | ink-on-accent | accent | #131719 sobre #6aa9ed | 7.31 | 4.5 | cumple |
+  | oscuro | rule-control | surface | #6e767b sobre #131719 | 3.90 | 3 | cumple |
+  | oscuro | rule-control | surface-raised | #6e767b sobre #1b2023 | 3.55 | 3 | cumple |
+  | oscuro | rule-control | surface-sunken | #6e767b sobre #0a0e10 | 4.19 | 3 | cumple |
+  | oscuro | focus | surface | #6aa9ed sobre #131719 | 7.31 | 3 | cumple |
+  | oscuro | focus | surface-raised | #6aa9ed sobre #1b2023 | 6.66 | 3 | cumple |
+  | oscuro | focus | surface-sunken | #6aa9ed sobre #0a0e10 | 7.86 | 3 | cumple |
+  | oscuro | hatch | surface | #d28c58 sobre #131719 | 6.56 | 3 | cumple |
+  | oscuro | hatch | surface-sunken | #d28c58 sobre #0a0e10 | 7.05 | 3 | cumple |
 
 ---
 
@@ -1151,3 +1228,7 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-01 | D.6b | La rejilla de una a tres columnas del prompt cede ante filas densas con el precio en una columna derecha fija. | Decisión 132 (FIRST VIEWPORT y mejora de la carátula de casete). |
 | 2026-10-01 | D.11 | El mapa de ubicación pasa de un mapa de cliente (reutilizar `search-map.tsx`, carga diferida, `noscript`) a un mapa estático del servidor, sin JS, con teselas de OSM como `<img>` nativo y el área tramada. Exige una decisión propia de D.11 que enmiende R2 con la excepción solo para teselas de `tile.openstreetmap.org`, y el ajuste de `csp-image-policy.test.ts` a esa excepción y nada más. Queda abierto para D.11, sin decidir, el límite de `map-guards.test.ts` (SMV-9). | Decisión 133, del responsable. Descartados: teselas como fondos CSS (esquivan R2 sin decidirlo), mapa de cliente (amplía R4) y solo texto (no orienta). |
 | 2026-10-05 | D.2 | El filtro de teselas vive en `globals.css` (selector `html[data-spike-tiles] .leaflet-tile-pane`) y no en `search-map-canvas.tsx`; el experimento añade una sonda en `layout.tsx` y un spec temporal. Las teselas se descargaron con `curl` y no con PowerShell. | Alternar el filtro por atributo permite comparar con y sin él sin recompilar y sin mezclar el experimento con los tokens; el componente queda intacto. `Invoke-WebRequest` se quedó colgado en la primera petición. |
+| 2026-10-05 | D.3 | La fuente (`--font-sans`) se declara en `@theme static` y no en `@theme inline` como decía el prompt del paso. | Decisión 141: `static` emite siempre las variables y `inline` solo vale para referencias `var()`; sin fuente propia no hay `next/font`. |
+| 2026-10-05 | D.3 | Los roles `text` y `border` de la especificación se llaman `ink` y `rule` (utilidades `text-ink`, `border-rule`), y se añaden `surface-raised`, `surface-sunken`, `ink-on-accent`, `selection` y `shadow-color`. | Decisión 141: evita `text-text` y `border-border`, ambiguos con los prefijos de Tailwind. |
+| 2026-10-05 | D.3 | Las cifras tabulares no se definen en `globals.css`: se usa la utilidad `tabular-nums` de Tailwind, que se aplicará en D.6b/D.9. | No hay ningún componente de datos en el alcance del paso; especificación enmendada. |
+| 2026-10-05 | D.3 | Un solo PR que supera el presupuesto de 800 líneas revisables (~1410 entre añadidas y borradas, sin contar las 36 capturas PNG, que son binarios; ~1110 de código, test y snapshot y ~300 de documentación); el responsable aceptó `size:exception`. | Tokens, test, snapshot de contraste y documentación obligatoria forman una unidad: partirlos dejaría un test sin su CSS. |
