@@ -1,2 +1,223 @@
-/* Tailwind CSS v4: se importa como una sola regla @import, sin @tailwind base/components/utilities. */
+/*
+ * Tokens de diseño y estilos base. Tailwind CSS v4: un único @import, sin @tailwind.
+ *
+ * Los colores son variables semánticas que cambian con el tema; `@theme inline` las
+ * expone como utilidades (`bg-surface`, `text-ink`...) para que los componentes no
+ * necesiten variantes `dark:`. El resto de escalas va en `@theme static`, que emite
+ * siempre sus variables aunque ninguna utilidad las use.
+ *
+ * Los tres bloques de tema (`:root`, `.dark` y el de `prefers-color-scheme`) declaran
+ * los mismos nombres; `.dark` y el bloque de media repiten los valores y un test
+ * (`apps/web/test/design-tokens.test.ts`) comprueba que son idénticos, que cada par
+ * texto/fondo cumple WCAG en ambos temas y que no hay colores literales fuera de aquí.
+ */
 @import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light dark;
+
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: oklch(97% 0.004 92);
+  --ink: #1c1f22;
+  --ink-muted: oklch(50% 0.012 235);
+  --rule: #e4e2dc;
+  --rule-control: oklch(62% 0.01 235);
+  --accent: #1f5fa8;
+  --ink-on-accent: #ffffff;
+  --focus: #1f5fa8;
+  --danger: oklch(52% 0.17 27);
+  --success: oklch(50% 0.11 150);
+  --selection: oklch(90% 0.04 252);
+  --hatch: #b0662b;
+  --shadow-color: oklch(24.5% 0.01 232 / 0.14);
+}
+
+.light {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --surface: oklch(20% 0.008 235);
+  --surface-raised: oklch(24% 0.009 235);
+  --surface-sunken: oklch(16% 0.007 235);
+  --ink: oklch(92% 0.008 90);
+  --ink-muted: oklch(70% 0.012 235);
+  --rule: oklch(32% 0.008 235);
+  --rule-control: oklch(56% 0.012 235);
+  --accent: oklch(72% 0.12 252);
+  --ink-on-accent: oklch(20% 0.008 235);
+  --focus: oklch(72% 0.12 252);
+  --danger: oklch(72% 0.14 25);
+  --success: oklch(74% 0.13 150);
+  --selection: oklch(38% 0.08 252);
+  --hatch: oklch(70% 0.11 56);
+  --shadow-color: oklch(0% 0 0 / 0.55);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --surface: oklch(20% 0.008 235);
+    --surface-raised: oklch(24% 0.009 235);
+    --surface-sunken: oklch(16% 0.007 235);
+    --ink: oklch(92% 0.008 90);
+    --ink-muted: oklch(70% 0.012 235);
+    --rule: oklch(32% 0.008 235);
+    --rule-control: oklch(56% 0.012 235);
+    --accent: oklch(72% 0.12 252);
+    --ink-on-accent: oklch(20% 0.008 235);
+    --focus: oklch(72% 0.12 252);
+    --danger: oklch(72% 0.14 25);
+    --success: oklch(74% 0.13 150);
+    --selection: oklch(38% 0.08 252);
+    --hatch: oklch(70% 0.11 56);
+    --shadow-color: oklch(0% 0 0 / 0.55);
+  }
+}
+
+/* Utilidades de color: solo los roles que sirven de texto, fondo o borde. `--hatch`,
+   `--selection` y `--shadow-color` se usan como variable y no tienen utilidad. */
+@theme inline {
+  --color-*: initial;
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-rule: var(--rule);
+  --color-rule-control: var(--rule-control);
+  --color-accent: var(--accent);
+  --color-ink-on-accent: var(--ink-on-accent);
+  --color-focus: var(--focus);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+}
+
+@theme static {
+  --font-sans:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji';
+
+  /* Escala tipográfica cerrada: tamaño, interlineado y, en títulos, peso. */
+  --text-*: initial;
+  --text-small: 0.75rem;
+  --text-small--line-height: 1rem;
+  --text-dense: 0.875rem;
+  --text-dense--line-height: 1.25rem;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  --text-heading-3: 1.125rem;
+  --text-heading-3--line-height: 1.5rem;
+  --text-heading-3--font-weight: 600;
+  --text-heading-2: 1.375rem;
+  --text-heading-2--line-height: 1.75rem;
+  --text-heading-2--font-weight: 600;
+  --text-heading-1: 1.75rem;
+  --text-heading-1--line-height: 2.25rem;
+  --text-heading-1--font-weight: 700;
+  --text-heading-1--letter-spacing: -0.01em;
+
+  --radius-control: 0.25rem;
+  --radius-panel: 0.375rem;
+
+  /* Capas, de menor a mayor. Se usan con `z-(--z-overlay)`. */
+  --z-base: 0;
+  --z-map-controls: 10;
+  --z-sticky-header: 20;
+  --z-overlay: 30;
+  --z-toast: 40;
+
+  /* Margen que dejan los saltos a anclas para no quedar bajo contenido fijo. */
+  --scroll-offset: 1rem;
+
+  --shadow-raised: 0 1px 2px 0 var(--shadow-color), 0 2px 6px -1px var(--shadow-color);
+  --shadow-overlay: 0 4px 8px -2px var(--shadow-color), 0 12px 24px -4px var(--shadow-color);
+}
+
+@layer base {
+  html {
+    scroll-padding-top: var(--scroll-offset);
+  }
+
+  *,
+  ::before,
+  ::after {
+    border-color: var(--rule);
+  }
+
+  body {
+    background-color: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+  }
+
+  h1 {
+    font-size: var(--text-heading-1);
+    line-height: var(--text-heading-1--line-height);
+    font-weight: var(--text-heading-1--font-weight);
+    letter-spacing: var(--text-heading-1--letter-spacing);
+  }
+
+  h2 {
+    font-size: var(--text-heading-2);
+    line-height: var(--text-heading-2--line-height);
+    font-weight: var(--text-heading-2--font-weight);
+  }
+
+  h3 {
+    font-size: var(--text-heading-3);
+    line-height: var(--text-heading-3--line-height);
+    font-weight: var(--text-heading-3--font-weight);
+  }
+
+  /* El acento por sí solo contrasta poco con el texto: los enlaces van subrayados. */
+  a {
+    color: var(--accent);
+    text-decoration-line: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--selection);
+    color: var(--ink);
+  }
+
+  ::placeholder {
+    color: var(--ink-muted);
+    opacity: 1;
+  }
+
+  /* Colores explícitos: con `color-scheme: light dark` los controles nativos heredarían
+     los del sistema y podrían quedar claro sobre claro. Radios, casillas, rangos y
+     selectores de color conservan su aspecto nativo. */
+  input:not([type='radio'], [type='checkbox'], [type='range'], [type='color']),
+  select,
+  textarea {
+    background-color: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+  }
+
+  button {
+    background-color: var(--surface-raised);
+    color: var(--ink);
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+  }
+
+  .leaflet-container {
+    isolation: isolate;
+  }
+}

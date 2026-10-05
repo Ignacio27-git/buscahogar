@@ -1,0 +1,57 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`contraste WCAG por tema (spec «Contrast thresholds») > la tabla de contraste coincide con el snapshot confirmado 1`] = `
+"| Tema | Primer plano | Fondo | Colores | Ratio | Mínimo | Resultado |
+| ---- | ------------ | ----- | ------- | ----- | ------ | --------- |
+| claro | ink | surface | #1c1f22 sobre #ffffff | 16.56 | 4.5 | cumple |
+| claro | ink | surface-raised | #1c1f22 sobre #ffffff | 16.56 | 4.5 | cumple |
+| claro | ink | surface-sunken | #1c1f22 sobre #f6f5f2 | 15.18 | 4.5 | cumple |
+| claro | ink-muted | surface | #5d6469 sobre #ffffff | 6.01 | 4.5 | cumple |
+| claro | ink-muted | surface-raised | #5d6469 sobre #ffffff | 6.01 | 4.5 | cumple |
+| claro | ink-muted | surface-sunken | #5d6469 sobre #f6f5f2 | 5.52 | 4.5 | cumple |
+| claro | accent | surface | #1f5fa8 sobre #ffffff | 6.44 | 4.5 | cumple |
+| claro | accent | surface-raised | #1f5fa8 sobre #ffffff | 6.44 | 4.5 | cumple |
+| claro | accent | surface-sunken | #1f5fa8 sobre #f6f5f2 | 5.91 | 4.5 | cumple |
+| claro | danger | surface | #b6322d sobre #ffffff | 6.03 | 4.5 | cumple |
+| claro | danger | surface-raised | #b6322d sobre #ffffff | 6.03 | 4.5 | cumple |
+| claro | danger | surface-sunken | #b6322d sobre #f6f5f2 | 5.53 | 4.5 | cumple |
+| claro | success | surface | #2b7440 sobre #ffffff | 5.71 | 4.5 | cumple |
+| claro | success | surface-raised | #2b7440 sobre #ffffff | 5.71 | 4.5 | cumple |
+| claro | success | surface-sunken | #2b7440 sobre #f6f5f2 | 5.24 | 4.5 | cumple |
+| claro | ink | selection | #1c1f22 sobre #cce0f9 | 12.30 | 4.5 | cumple |
+| claro | ink-on-accent | accent | #ffffff sobre #1f5fa8 | 6.44 | 4.5 | cumple |
+| claro | rule-control | surface | #81878b sobre #ffffff | 3.64 | 3 | cumple |
+| claro | rule-control | surface-raised | #81878b sobre #ffffff | 3.64 | 3 | cumple |
+| claro | rule-control | surface-sunken | #81878b sobre #f6f5f2 | 3.34 | 3 | cumple |
+| claro | focus | surface | #1f5fa8 sobre #ffffff | 6.44 | 3 | cumple |
+| claro | focus | surface-raised | #1f5fa8 sobre #ffffff | 6.44 | 3 | cumple |
+| claro | focus | surface-sunken | #1f5fa8 sobre #f6f5f2 | 5.91 | 3 | cumple |
+| claro | hatch | surface | #b0662b sobre #ffffff | 4.39 | 3 | cumple |
+| claro | hatch | surface-sunken | #b0662b sobre #f6f5f2 | 4.03 | 3 | cumple |
+| oscuro | ink | surface | #e6e4df sobre #131719 | 14.20 | 4.5 | cumple |
+| oscuro | ink | surface-raised | #e6e4df sobre #1b2023 | 12.94 | 4.5 | cumple |
+| oscuro | ink | surface-sunken | #e6e4df sobre #0a0e10 | 15.26 | 4.5 | cumple |
+| oscuro | ink-muted | surface | #98a0a5 sobre #131719 | 6.79 | 4.5 | cumple |
+| oscuro | ink-muted | surface-raised | #98a0a5 sobre #1b2023 | 6.19 | 4.5 | cumple |
+| oscuro | ink-muted | surface-sunken | #98a0a5 sobre #0a0e10 | 7.30 | 4.5 | cumple |
+| oscuro | accent | surface | #6aa9ed sobre #131719 | 7.31 | 4.5 | cumple |
+| oscuro | accent | surface-raised | #6aa9ed sobre #1b2023 | 6.66 | 4.5 | cumple |
+| oscuro | accent | surface-sunken | #6aa9ed sobre #0a0e10 | 7.86 | 4.5 | cumple |
+| oscuro | danger | surface | #f07f77 sobre #131719 | 6.88 | 4.5 | cumple |
+| oscuro | danger | surface-raised | #f07f77 sobre #1b2023 | 6.27 | 4.5 | cumple |
+| oscuro | danger | surface-sunken | #f07f77 sobre #0a0e10 | 7.39 | 4.5 | cumple |
+| oscuro | success | surface | #69c27e sobre #131719 | 8.26 | 4.5 | cumple |
+| oscuro | success | surface-raised | #69c27e sobre #1b2023 | 7.53 | 4.5 | cumple |
+| oscuro | success | surface-sunken | #69c27e sobre #0a0e10 | 8.88 | 4.5 | cumple |
+| oscuro | ink | selection | #e6e4df sobre #1f446b | 7.88 | 4.5 | cumple |
+| oscuro | ink-on-accent | accent | #131719 sobre #6aa9ed | 7.31 | 4.5 | cumple |
+| oscuro | rule-control | surface | #6e767b sobre #131719 | 3.90 | 3 | cumple |
+| oscuro | rule-control | surface-raised | #6e767b sobre #1b2023 | 3.55 | 3 | cumple |
+| oscuro | rule-control | surface-sunken | #6e767b sobre #0a0e10 | 4.19 | 3 | cumple |
+| oscuro | focus | surface | #6aa9ed sobre #131719 | 7.31 | 3 | cumple |
+| oscuro | focus | surface-raised | #6aa9ed sobre #1b2023 | 6.66 | 3 | cumple |
+| oscuro | focus | surface-sunken | #6aa9ed sobre #0a0e10 | 7.86 | 3 | cumple |
+| oscuro | hatch | surface | #d28c58 sobre #131719 | 6.56 | 3 | cumple |
+| oscuro | hatch | surface-sunken | #d28c58 sobre #0a0e10 | 7.05 | 3 | cumple |
+"
+`;
