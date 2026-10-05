@@ -123,8 +123,9 @@ Todo paso las cumple. Un paso que necesite saltarse una la enmienda con una entr
 - **`no-redirect.test.ts`** rechaza cualquier `redirect(` en `apps/web/src`, incluido
   `NextResponse.redirect(`. Un Route Handler que responda 303 (D.4) construye la respuesta a mano
   (cumplido en D.4, decisión 145).
-- **El *matcher* de `apps/web/src/proxy.ts`** solo excluye `favicon.ico` del límite de peticiones. Los
-  iconos nuevos de D.5 pasarían por él.
+- ~~**El *matcher* de `apps/web/src/proxy.ts`** solo excluye `favicon.ico` del límite de peticiones. Los
+  iconos nuevos de D.5 pasarían por él.~~ Resuelto en D.5 (decisión 149): el matcher excluye por nombre exacto
+  `icon`/`icon.svg` y `apple-icon`/`apple-icon.png`.
 
 ---
 
@@ -525,7 +526,7 @@ carga de D.14.
 
 ---
 
-## [ ] D.5 · Estructura común: cabecera, pie y metadatos
+## [x] D.5 · Estructura común: cabecera, pie y metadatos
 
 ```text
 Paso D.5 de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable clarify`.
@@ -562,6 +563,16 @@ Paso D.5 de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable clarif
 - **Riesgos:** R6; una segunda consulta en `generateMetadata`.
 - **Tamaño:** M.
 - **Evidencia:** C10, C31.
+- **Hecho (2026-10-05):** decisiones 147-150. El layout es dueño de `<main id="contenido">`, del enlace de salto y del pie;
+  la cabecera estática (`site-header.tsx`) lleva la marca, `nav` «Principal» y el selector de tema. Un solo `<main>`,
+  `banner`, `contentinfo` y `h1` en las 6 rutas, 404 incluidas. `title.template` y `generateMetadata` con `cache()` de
+  React (una sola consulta). Iconos `icon.svg` y `apple-icon.png` (rasterizado dentro de la imagen Docker del e2e,
+  decisión 149); `proxy.ts` los excluye por nombre exacto. Forma de URL real con Turbopack: `/icon.svg?icon.<hash>.svg` y
+  `/apple-icon.png?apple-icon.<hash>.png`. Eliminados la línea de desarrollo de `page.tsx` y `version.ts`. La 404 por
+  defecto conserva su `height:100vh` en línea y su título en inglés hasta D.14. Commits 6c7d9e7, 68e21c1, d211ec1,
+  fc893e6 y el de documentación. Tests unitarios: `pnpm test` con 458 en `apps/web` (core 802, db 290, ingestion 842);
+  tests nuevos `layout-shell`, `property-detail-metadata`, `app-icons` y spec e2e `landmarks.spec.ts`. `pnpm e2e` final:
+  173 superados, 145 omitidos; las 36 capturas regeneradas en Docker; la línea base de axe no cambia.
 
 ---
 
@@ -1245,3 +1256,7 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-05 | D.4 | El spec e2e `theme.spec.ts` corre en un solo proyecto (`w1280-light`). | La lógica no depende del ancho ni del tema; repetirlo en seis proyectos solo multiplicaría el tiempo. |
 | 2026-10-05 | D.4 | El origen público para el `Referer` se toma de la cabecera `Host`, no de `request.url`. | El e2e mostró que Next construye `request.url` con `localhost` mientras el cliente usa `127.0.0.1`; ver decisión 145 y `AI-NOTES.md`. |
 | 2026-10-05 | D.4 | Las 36 capturas PNG se regeneraron en Docker y volverán a cambiar en D.5. | El selector del pie aparece en todas; D.5 lo reubica. |
+| 2026-10-05 | D.5 | Las reglas axe de regiones las cubre `landmarks.spec.ts` (landmarks únicos, `h1`, destino del salto), no etiquetas best-practice añadidas a `AXE_TAGS`. | Decisión 138: axe se mantiene solo con etiquetas wcag y su línea base no cambia. |
+| 2026-10-05 | D.5 | Ficheros fuera de la lista del prompt: `globals.css`, `shell-container.ts`, `apple-icon.png`, tests nuevos (`layout-shell`, `property-detail-metadata`, `app-icons`, `landmarks.spec.ts`) y ediciones de `home-page-nl`, `theme.spec`, `network-guard.spec` y los tests de layout. | Token de contenedor, estilo del enlace de salto, icono de Apple y la cobertura que exige el TDD estricto. |
+| 2026-10-05 | D.5 | `<main>` lo posee el layout y las páginas devuelven fragmentos, en lugar de un `<main>` por página. | Decisión 147: un único `<main>` y destino de salto operativo también en las 404 por defecto. |
+| 2026-10-05 | D.5 | Un solo PR que supera el presupuesto de 800 líneas revisables (~926 líneas añadidas y ~70 borradas, sin contar las 36 capturas PNG ni los 2 iconos binarios: ~763 de código y tests y ~163 de documentación); aceptado por el responsable. | Código, tests y documentación obligatoria son una unidad; no se recortaron tests, comentarios ni documentación. |

@@ -91,7 +91,7 @@ Restricciones:
   dividida lista + mapa y la lista primero en móvil, y C9 (secundaria) sobre el histórico de
   precios. Sin evidencia primaria sobre la presentación de la ficha (hueco a).
 
-Ausencias que ningún trabajo posterior debe inventar: no hay logotipo, investigación con usuarios,
+Ausencias que ningún trabajo posterior debe inventar: no hay logotipo (el icono de D.5, un tejado dentro de un marco, es un glifo funcional de pestaña y de pantalla de inicio, no un logotipo; decisión 149), investigación con usuarios,
 métricas de uso, testimonios, cifras de cobertura ni acuerdos con portales.
 
 ## Product Principles

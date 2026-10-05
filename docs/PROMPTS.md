@@ -30,6 +30,34 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-05 — Estructura común: cabecera, pie, metadatos e iconos (paso D.5, decisiones 147-150)
+
+**Tipo de tarea:** implementación (layout, cabecera, metadatos, iconos y matcher del proxy) con tests unitarios y e2e
+**Forma de especificación:** SDD en modo automático (propuesta, especificación, diseño y tareas, en cinco unidades de
+trabajo); el prompt del paso D.5 de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. TDD estricto. El responsable
+eligió el icono de tejado dentro de un marco y la especificación se enmendó una vez (título de la ficha recortado, con
+respaldo «Ficha de la vivienda»).
+**Resultado:** con retoques (el `<main>` pasó del prompt «por página» al layout, las reglas axe de regiones se cubren
+con `landmarks.spec.ts` y no con `AXE_TAGS`, y el PR superó el presupuesto de líneas)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.5 de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable clarify`.
+>
+> - Cabecera con la marca de D.0, acceso a la búsqueda y el selector de D.4.
+> - Enlace «Saltar al contenido» como primer elemento enfocable, hacia <main id="contenido">. Un solo <main> por
+>   página y regiones bien etiquetadas.
+> - El pie conserva literal la atribución CC-BY del IGN/CNIG (R7). La de OpenStreetMap sigue en el mapa.
+> - Metadatos: title.template en el layout y título propio en la ficha con generateMetadata, sin repetir la consulta
+>   (React cache). Iconos con las convenciones de app/ (icon.svg, apple-icon.png). El matcher de src/proxy.ts solo
+>   excluye favicon.ico: decide si los iconos nuevos quedan fuera del límite de peticiones.
+> - Quita de page.tsx la línea de desarrollo «Esqueleto del monorepo · v{WEB_VERSION}» y apps/web/src/version.ts si
+>   queda sin uso.
+> - Anchos de contenedor y márgenes con los tokens de D.3, a 320, 768 y 1280 px.
+
+**Observación:** el prompt dejaba abierta la decisión sobre el matcher y la forma de las URL de los iconos; la
+respuesta (exclusión anclada por nombre exacto) y la forma real observada con Turbopack están en la decisión 149. El
+único fallo del código generado fue una barra invertida simple en el matcher (ver `docs/AI-NOTES.md`).
+
 ### 2026-10-05 — Selector de tema con cookie y Route Handler (paso D.4, decisiones 144-146)
 
 **Tipo de tarea:** implementación (script en línea, Route Handler, selector y CSS) con tests unitarios y e2e

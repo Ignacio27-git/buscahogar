@@ -4460,6 +4460,102 @@ podría fijarlo y la clase no estaría antes del primer pintado.
 
 ---
 
+## 147 — Estructura común: el layout es dueño de `<main>`, del enlace de salto y de una cabecera estática
+
+**Estado:** aceptada (paso D.5)
+
+**Decisión.** `layout.tsx` renderiza, en este orden: el enlace «Saltar al contenido», `SiteHeader` (landmark `banner`),
+`<main id="contenido" tabIndex={-1}>{children}</main>` y el pie con la atribución IGN/CNIG (`contentinfo`). Las
+páginas devuelven fragmentos, de modo que cada ruta tiene exactamente un `<main>`, también la 404 por defecto de Next.
+La cabecera (`components/site-header.tsx`, Server Component) lleva la marca, `nav aria-label="Principal"` con «Buscar»
+y el selector de tema de D.4, movido tal cual desde el pie. El layout sigue siendo síncrono y estático (decisión 144).
+El pie se queda en `layout.tsx`, de modo que `docs/ARCHITECTURE.md` sigue siendo cierto.
+
+- El enlace de la marca es un `<a href="/">` plano con `eslint-disable @next/next/no-html-link-for-pages` a nivel de
+  fichero. La regla obliga a `next/link` para `href="/"`, pero la convención de la aplicación es `<a>` plano para la
+  navegación: `Link` añadiría JavaScript de cliente y precarga, y la cabecera debe seguir siendo estática. El
+  `eslint-disable` está justificado con un comentario en el propio fichero.
+- La cabecera no es *sticky*: el enlace de salto y el foco no compiten con ella (criterio 2.4.11) y `--scroll-offset`
+  no cambia.
+
+**Alternativas descartadas.** Un `<main>` por página: deja el destino del enlace de salto muerto en las 404 por defecto
+hasta D.14 y se repite en cinco ramas de `page.tsx`. Un `not-found.tsx` propio: pertenece a D.14. Cabecera *sticky*:
+exige trabajo de 2.4.11 y un `--scroll-offset` mayor. Un formulario de búsqueda en la cabecera: añadiría un segundo
+`role=search` sin etiqueta junto a `SearchTextForm`. `sr-only focus:not-sr-only` junto a `focus:fixed`: las dos
+utilidades fijan `position` y entran en conflicto; se usa la clase `.skip-link` con `transform`. `aria-current` en
+«Buscar»: exigiría `headers()` o JavaScript y volvería dinámico el layout.
+
+**Motivo.** Un solo `<main>` y un destino de salto operativo en todas las rutas, incluidas las futuras fronteras de D.14.
+
+---
+
+## 148 — Metadatos: plantilla de título y consulta única de la ficha con `cache()` de React
+
+**Estado:** aceptada (paso D.5)
+
+**Decisión.** `metadata.title = { default: 'Buscahogar', template: '%s · Buscahogar' }` y una descripción de 133
+caracteres. La ficha exporta `generateMetadata`, que comparte con la página un cargador privado del módulo
+`loadPropertyHeader = cache((listingId) => getPropertyDetailHeader(getDb(), listingId))`: una sola consulta por
+petición. `generateMetadata` llama a `notFound()` con un id mal formado o sin cabecera. El título es `header.title`
+recortado; si está vacío o es `null`, `'Ficha de la vivienda'`; nunca «No consolidado».
+
+**Alternativas descartadas.** Una segunda consulta sin caché: duplica el acceso a la base de datos. Confiar en la
+memoización de `fetch`: Drizzle no usa `fetch`. `unstable_cache` o `'use cache'`: cachean entre peticiones (datos
+obsoletos) y exigen `cacheComponents`. `title.absolute`: ignoraría la plantilla.
+
+**Motivo.** La plantilla solo se aplica a los segmentos hijos, así que la home usa `default`; `cache()` dura una
+petición y no introduce obsolescencia.
+
+---
+
+## 149 — Iconos estáticos y exclusión exacta de los iconos en el límite de peticiones
+
+**Estado:** aceptada (paso D.5)
+
+**Decisión.** Convenciones de `app/`: `icon.svg` (marco con tejado sobre una baldosa blanca; los colores son los de
+`--surface`, `--ink` y `--accent` del tema claro, fijados por `app-icons.test.ts`) y `apple-icon.png` (180×180, opaco).
+El PNG se rasterizó una sola vez, desde la raíz del repositorio, con:
+
+```text
+pnpm --filter @buscahogar/web exec node -e "const { chromium } = require('@playwright/test'); const fs = require('node:fs'); (async () => { const svg = encodeURIComponent(fs.readFileSync('src/app/icon.svg', 'utf8')); const browser = await chromium.launch(); const page = await browser.newPage({ viewport: { width: 180, height: 180 }, deviceScaleFactor: 1 }); await page.setContent('<body style=margin:0;background:#ffffff><img src=data:image/svg+xml,' + svg + ' width=180 height=180 style=display:block></body>'); await page.screenshot({ path: 'src/app/apple-icon.png' }); await browser.close(); })();"
+```
+
+Como en el equipo de desarrollo no hay Chromium instalado, el comando se ejecutó **dentro de la imagen Docker del e2e**
+(imagen temporal construida con `Dockerfile.e2e`, PNG extraído con `docker cp` y imagen eliminada). El resultado se
+revisó a simple vista. El matcher de `proxy.ts` excluye solo los nombres exactos, con o sin extensión:
+`icon(?:\.svg)?$` y `apple-icon(?:\.png)?$`, anclados con `$`.
+
+**Forma de URL observada** (Next 16.3.4, Turbopack, `next build && next start`): `/icon.svg?icon.2o5lt4oye1or3.svg` y
+`/apple-icon.png?apple-icon.21qd9xq5fdaj2.png`, es decir, con extensión y con un sufijo de hash en la consulta. El
+e2e (`landmarks.spec.ts`) comprueba que ambas responden 200 con su tipo y que el *apple icon* es opaco. La consulta
+nunca llega al matcher, que compara solo el *pathname*.
+
+**Alternativas descartadas.** `apple-icon.tsx` con `ImageResponse`: lleva `next/og` al bundle del servidor y sirve el
+icono sin extensión. Un script de rasterización versionado: queda fuera del `include` de tsconfig y falla el lint
+estricto. `icon` sin anclar: eximiría también `/iconography` y `/icons/…` (los controles negativos de
+`proxy-config.test.ts` lo fijan). Dejar los iconos bajo el límite de peticiones: cada carga de página gastaría cuota
+en peticiones que no son de búsqueda.
+
+**Motivo.** Los ficheros estáticos conservan `[name].[ext]`. `PRODUCT.md` («no hay logotipo») se enmienda: el icono es
+un glifo funcional, no un logotipo.
+
+---
+
+## 150 — Anchura del contenedor: `--container-page` de 80rem y márgenes `px-4 sm:px-6 lg:px-8`
+
+**Estado:** aceptada (paso D.5)
+
+**Decisión.** `--container-page: 80rem` en `@theme static` (utilidad `max-w-page`) y los márgenes laterales en
+`SHELL_CONTAINER` (`components/shell-container.ts`), aplicado al interior de la cabecera, a `<main>` y al interior del
+pie. El contenido mide 288, 720 y 1216 px a 320, 768 y 1280 px.
+
+**Alternativas descartadas.** `max-w-7xl`: no es un rol con nombre en los tokens de D.3. Redefinir `--spacing`: lo
+prohíbe D.3. Una rejilla con salida a sangre en `<main>`: cada hijo de página pasaría a ser un elemento de la rejilla.
+
+**Motivo.** Si D.8a necesita ancho completo, mueve el `max-width` de `<main>` a los contenedores de cada página.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

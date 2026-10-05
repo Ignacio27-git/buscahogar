@@ -40,6 +40,26 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-05 — Barra invertida simple en el matcher del proxy (paso D.5)
+
+**Contexto:** `apps/web/src/proxy.ts`, exclusión de los iconos en el `matcher` (decisión 149).
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** al editar el fichero con un script de Python, el patrón quedó con una sola barra invertida dentro de
+una cadena de TypeScript (`icon(?:\.svg)?$`). En una cadena de TypeScript, `\.` pierde el escape y llega a la expresión
+regular como un `.` que casa con cualquier carácter, así que el matcher habría excluido también `/iconXsvg`. Con la
+doble barra correcta (`\\.`) el patrón hace lo previsto.
+
+**Cómo se detectó:** al revisar el fichero escrito y por los controles negativos de `proxy-config.test.ts`, antes de
+confirmar.
+
+**Coste:** unos 5 minutos.
+
+**Observación:** el escape de una expresión regular dentro de una cadena de TypeScript lleva doble barra; al generar
+ficheros desde un script conviene releer el resultado en disco. Es el mismo tipo de fallo que el punto 6 de la entrada
+de D.4 (barras invertidas deformadas al escribir con heredocs).
+
 ### 2026-10-01 — Dos errores de Playwright en la autoprueba del guard de red (paso D.1a)
 
 **Contexto:** `apps/web/e2e/network-guard.spec.ts`, la prueba de humo y la autoprueba del guard de red
