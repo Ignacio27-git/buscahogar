@@ -32,6 +32,20 @@ describe('proxy.ts — matcher excluye estáticos/imagen/favicon (spec #261)', (
     ['/', true],
     ['/some-page', true],
     ['/theme', true],
+    // D.5 (spec app-shell R8): los iconos no consumen cuota del limitador.
+    ['/icon.svg', false],
+    ['/icon', false],
+    ['/apple-icon.png', false],
+    ['/apple-icon', false],
+    ['/icon.svg?abc123', false],
+    ['/icon?abc123', false],
+    ['/apple-icon.png?abc123', false],
+    ['/apple-icon?abc123', false],
+    ['/properties/1', true],
+    // Controles negativos: prueban que la exclusión está anclada con `$`.
+    ['/iconography', true],
+    ['/icons/x', true],
+    ['/apple-icon-x', true],
   ] as const)('%s -> matcher coincide = %s', (url, expected) => {
     expect(unstable_doesMiddlewareMatch({ config, nextConfig, url })).toBe(expected);
   });

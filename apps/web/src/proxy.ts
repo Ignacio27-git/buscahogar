@@ -54,6 +54,9 @@ export const config = {
   // spec #261 "Static asset and image-optimization requests are never
   // limited": excluye `_next/static`, `_next/image` y el favicon —
   // negative-lookahead, mismo patrón recomendado por la guía oficial de CSP
-  // de Next.js.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // de Next.js. D.5 (decisión 149) añade los iconos de la convención `app/`
+  // (`icon.svg`, `apple-icon.png`, con o sin extensión). Se compara solo el
+  // pathname (la query `?hash` nunca llega a la expresión) y cada alternativa
+  // se ancla con `$` para que `/iconography` o `/icons/x` sigan limitados.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon(?:\\.svg)?$|apple-icon(?:\\.png)?$).*)'],
 };
