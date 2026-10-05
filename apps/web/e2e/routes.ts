@@ -1,5 +1,5 @@
 // Paso D.1b (spec visual-regression-suite R9, S9.2/S9.3; diseño «Routes») — las
-// 6 rutas del e2e visual y de accesibilidad. Los identificadores de vivienda
+// rutas del e2e visual y de accesibilidad. Los identificadores de vivienda
 // vienen de la siembra (`@buscahogar/db/e2e`): una única fuente.
 import { E2E_DETAIL_LISTING_ID, E2E_MISSING_LISTING_ID } from '@buscahogar/db/e2e';
 import type { Page } from '@playwright/test';
@@ -14,6 +14,13 @@ export interface E2eRoute {
 export const ROUTES: readonly E2eRoute[] = [
   { name: 'home', path: '/', isMap: false },
   { name: 'map', path: '/?view=map', isMap: true },
+  // D.6a: nueve filtros aplicados a la vez (todos los escalares y el radio) para
+  // comprobar que la fila de chips no desborda a 320px.
+  {
+    name: 'home-filtered',
+    path: '/?operation=sale&propertyType=flat&minPrice=100000&maxPrice=300000&minSurface=50&maxSurface=120&minRooms=2&minBathrooms=1&lat=40.4&lng=-3.7&radius=5000',
+    isMap: false,
+  },
   {
     name: 'nl-query',
     path: `/?q=${encodeURIComponent('piso en alquiler en Getafe hasta 900 € con 2 habitaciones')}`,

@@ -2,6 +2,10 @@
 // un enlace «Quitar …» por filtro (más «Quitar todos» con dos o más). Server
 // Component puro: cada enlace es un `href` real, así que funciona sin JavaScript.
 // El recuento se pinta siempre, también con 0 resultados.
+//
+// La lista lleva `relative`: el texto `sr-only` de cada enlace es `position: absolute`
+// y, sin un bloque contenedor dentro del desplazamiento, escaparía del recorte y
+// ensancharía el documento (desbordamiento horizontal a 320px).
 import type { ReactElement } from 'react';
 
 import type { PropertySearchCriteria } from '@buscahogar/core';
@@ -28,7 +32,7 @@ export function AppliedFilters({ criteria, params, zoneName, count }: AppliedFil
       <p className="font-semibold tabular-nums">{count}</p>
       {filters.length > 0 ? (
         <section aria-label="Filtros aplicados" className="flex min-w-0 flex-1">
-          <ul className="flex min-w-0 flex-1 gap-2 overflow-x-auto overscroll-x-contain p-1 sm:flex-wrap sm:overflow-visible">
+          <ul className="relative flex min-w-0 flex-1 gap-2 overflow-x-auto overscroll-x-contain p-1 sm:flex-wrap sm:overflow-visible">
             {filters.map((filter) => (
               <li key={filter.key} className="shrink-0">
                 <a
