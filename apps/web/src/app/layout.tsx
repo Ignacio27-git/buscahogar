@@ -17,6 +17,19 @@ export const metadata: Metadata = {
 // `locations`) influyen en TODA página que compone resultados de búsqueda,
 // no solo en la de selección de zona — y `layout.tsx` es un Server
 // Component, así que no cuesta JavaScript.
+function AttributionFooter(): ReactElement {
+  return (
+    <footer>
+      <p>
+        Datos geográficos derivados del Nomenclátor Geográfico de Municipios y Entidades de
+        Población (NGMEP), Instituto Geográfico Nacional (IGN) / Centro Nacional de Información
+        Geográfica (CNIG), bajo licencia CC-BY 4.0.
+      </p>
+      <ThemeSelector />
+    </footer>
+  );
+}
+
 // Selector de tema (D.4, decisión 144). Server Component sin JavaScript: un formulario
 // POST a `/theme` que guarda la cookie y vuelve a la página. El estado actual lo pinta
 // solo el CSS según la clase de `<html>`. Provisionalmente en el pie; D.5 lo lleva a la
@@ -37,19 +50,6 @@ function ThemeSelector(): ReactElement {
         </button>
       </fieldset>
     </form>
-  );
-}
-
-function AttributionFooter(): ReactElement {
-  return (
-    <footer>
-      <p>
-        Datos geográficos derivados del Nomenclátor Geográfico de Municipios y Entidades de
-        Población (NGMEP), Instituto Geográfico Nacional (IGN) / Centro Nacional de Información
-        Geográfica (CNIG), bajo licencia CC-BY 4.0.
-      </p>
-      <ThemeSelector />
-    </footer>
   );
 }
 
