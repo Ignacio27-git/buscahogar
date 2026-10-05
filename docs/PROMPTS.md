@@ -30,6 +30,26 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-05 — Selector de tema con cookie y Route Handler (paso D.4, decisiones 144-146)
+
+**Tipo de tarea:** implementación (script en línea, Route Handler, selector y CSS) con tests unitarios y e2e
+**Forma de especificación:** SDD (exploración, propuesta, especificación, diseño y tareas, en cuatro unidades de
+trabajo); el paso D.4 de `docs/DESIGN-ROADMAP.md` más restricciones explícitas (sin componentes de cliente nuevos,
+`no-redirect.test.ts`, ruta de vuelta del mismo origen) y la exigencia de comparar tres formas de leer la cookie. TDD
+estricto. El responsable fijó la opción (a), la ruta de vuelta, el estado solo visual y descartó `sdd-research`.
+**Resultado:** con retoques (dos defectos solo detectados por el e2e y un refactor de ubicación de un comentario)
+**Prompt:**
+
+> Paso D.4 de docs/DESIGN-ROADMAP.md. Añade un selector de tema (claro, oscuro, sistema) sin componentes de cliente
+> nuevos. Un script en línea en el `<head>` lee la cookie; el selector es un `<form method="post">` a
+> `apps/web/src/app/theme/route.ts`, que valida con Zod y responde 303 con una Response construida a mano. Decide y
+> registra cómo se lee la cookie, comparando (a) solo en el script, (b) en el layout con límites de carga por
+> segmento y (c) en cada página, e indica qué pasa sin JavaScript en cada caso.
+
+**Observación:** la comparación a/b/c pedida en el prompt llevó a una decisión argumentada (144). Los fallos del
+código generado (importación con extensión `.js`, comparación del `Referer` con el origen equivocado, comentario
+separado de su función) están en `docs/AI-NOTES.md`; los dos primeros solo los expuso `next build` y el e2e.
+
 ### 2026-10-05 — Tokens, tipografía y tema oscuro del sistema (paso D.3, decisiones 141-143)
 
 **Tipo de tarea:** configuración (tokens de diseño en CSS) con un test de verificación de contraste

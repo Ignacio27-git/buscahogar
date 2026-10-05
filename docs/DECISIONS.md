@@ -3774,7 +3774,7 @@ Tailwind v4.
 **Estado:** aceptada
 
 **Decisión.** La web sigue `prefers-color-scheme` por defecto y ofrece un selector (claro, oscuro,
-sistema). La lectura de la preferencia y su efecto sin JavaScript se deciden en el paso D.4.
+sistema). La lectura de la preferencia y su efecto sin JavaScript se deciden en el paso D.4 (decisiones 144-146).
 
 **Alternativas descartadas.** Solo tema claro; solo el tema del sistema, sin selector.
 
@@ -4380,6 +4380,83 @@ variables (el test rechaza colores literales en esa capa):
 ancho de lo necesario. Cifras tabulares en `globals.css`: Tailwind ya trae `tabular-nums` y se aplicarán en D.6b/D.9.
 
 **Motivo.** Es el mínimo que hace legibles ambos temas y accesible el teclado sin rediseñar ningún componente.
+
+---
+
+## 144 — La cookie de tema se lee solo en el script en línea del `<head>`
+
+**Estado:** aceptada (paso D.4)
+
+**Decisión.** La cookie `theme` la lee únicamente un script en línea en el `<head>` del layout raíz, antes del primer
+pintado. El layout no llama a `cookies()` y sigue siendo síncrono. Comparativa:
+
+| Opción | Estático o dinámico | Efecto en el *fallback* de `loading.tsx` (D.14) | Parpadeo | Sin JavaScript |
+| ------ | ------------------- | ------------------------------------------------ | -------- | -------------- |
+| **a.** Solo en el script | Árbol estático | Intacto | Ninguno: el script pone la clase antes de pintar | El formulario envía, se guarda la cookie y hay 303, pero no hay clase: se sigue el tema del sistema |
+| b. `cookies()` en el layout raíz y límites de carga por segmento | Todo el árbol dinámico, también el 404 | El *fallback* raíz se pierde y hay que repartir `loading.tsx` por segmento | Ninguno | Funciona del todo (la clase la pone el servidor) |
+| c. `cookies()` en cada página | Páginas dinámicas | Cada página decide la suya | Ninguno | La clase no puede ir en `<html>` desde una página |
+
+**Elegida: (a).** Mantiene el árbol estático y el plan de D.14 (riesgo C20). La opción (b) además obligaría a reescribir
+`layout-attribution.test.ts`, que llama a `RootLayout` de forma síncrona. El coste de (a) queda documentado: sin
+JavaScript la preferencia se guarda pero no se aplica. La guía `preventing-flash-before-hydration.md` de la
+documentación de Next 16.3.4 describe este mismo patrón.
+
+- El estado actual del selector es solo visual, por CSS sobre la clase de `<html>` (`font-weight: 600`, borde `--ink`
+  y sombra interior; el estado «sistema» con `:root:not(.light, .dark)`). No hay `aria-pressed`: lo pondría el
+  servidor y este no lee la cookie.
+- Aviso solo de desarrollo: el remontaje de React Strict Mode en `next dev` puede quitar la clase de `<html>`.
+  Producción y e2e no se ven afectados.
+
+**Alternativas descartadas.** `next/script` con estrategia `beforeInteractive`: añade la maquinaria de scripts de Next
+y no mejora el patrón documentado, que es un `<script>` en línea. Las opciones (b) y (c), por lo anterior.
+
+**Motivo.** Es la única opción que no vuelve dinámica la aplicación; a cambio, el caso sin JavaScript degrada al tema
+del sistema.
+
+---
+
+## 145 — `POST /theme`: validación, cookie y ruta de vuelta
+
+**Estado:** aceptada (paso D.4)
+
+**Decisión.** `apps/web/src/app/theme/route.ts` exporta solo `POST` (un `GET` da 405). La lógica pura vive en
+`apps/web/src/server/theme-preference.ts`.
+
+- Zod valida el valor (`light`, `dark`, `system`). Valor ausente, desconocido o cuerpo ilegible: 400.
+- Respuesta 303 construida a mano, con `Location` relativa y `Cache-Control: no-store`. `no-redirect.test.ts` prohíbe
+  el texto de la llamada de redirección, incluso en comentarios.
+- Cookie `theme=light|dark; Path=/; Max-Age=31536000; SameSite=Lax[; Secure]`. «Sistema» la caduca con
+  `Path=/; Max-Age=0`. No es `HttpOnly` porque la lee el script. `Secure` solo si la URL es https o el primer valor de
+  `x-forwarded-proto` es https (el e2e corre en http sobre 127.0.0.1).
+- Ruta de vuelta: `returnTo` → `Referer` del mismo origen → `/`. Se valida sobre la cadena cruda y otra vez tras
+  normalizar con `new URL()`; un `pathname` que empiece por `//` se rechaza y `/theme` se convierte en `/`. La
+  `Location` es siempre una ruta relativa, así que no puede haber redirección externa.
+- El origen público para comparar el `Referer` se toma de la cabecera `Host`, porque Next construye `request.url` con
+  `localhost` mientras el cliente usó `127.0.0.1`. Un `Host` falsificado solo cambia qué `Referer` se acepta. Un `Host`
+  inválido recurre al origen de `request.url`. Detrás de un proxy que reescriba `Host`, degrada a `/`.
+- CSRF: no se comprueba `Origin`. El efecto es solo de presentación, sin datos personales, con retorno al mismo origen
+  y `form-action 'self'`.
+
+**Alternativas descartadas.** El auxiliar de redirección de `NextResponse` (lo prohíbe el test); `cookies().set`
+(arrastra la API dinámica y no controla la cabecera a mano); comprobación de `Origin` (coste sin riesgo que mitigar);
+guardar `system` en la cookie (caducarla es más simple y el script ya trata la ausencia como sistema).
+
+**Motivo.** Una validación en dos pasos cierra la redirección abierta que la normalización de `new URL()` abría.
+
+---
+
+## 146 — La cookie de preferencia enmienda D5: no es una sesión
+
+**Estado:** aceptada (paso D.4)
+
+**Decisión.** La decisión de producto D5 («sin sesión/cookie») se enmienda: una cookie de preferencia de presentación,
+leída solo en el cliente y sin datos personales, no es una sesión. `no-session-dependency.test.ts` fija ahora que solo
+`server/theme-preference.ts` contiene `Set-Cookie`, de modo que cualquier otra cookie sigue rompiendo el test.
+
+**Alternativas descartadas.** Mantener D5 literal y guardar el tema en `localStorage`: el formulario sin JavaScript no
+podría fijarlo y la clase no estaría antes del primer pintado.
+
+**Motivo.** Respeta la intención de D5 (la búsqueda no depende de ningún estado de usuario) con el menor alcance.
 
 ---
 

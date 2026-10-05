@@ -3397,3 +3397,37 @@ el patrón corregido.
 
 **Observación:** en un test que lee un fichero aún por escribir, las lecturas van dentro de cada `it`; un fallo de
 recopilación oculta qué comprobaciones eran independientes del cambio.
+
+### 2026-10-05 — Seis fallos intermedios de D.4: redirección abierta, importación, origen del `Referer` y otros
+
+**Contexto:** diseño y aplicación de `theme-selector-d4`.
+
+**Categoría:** código que compilaba pero no hacía lo correcto; afirmación técnica falsa; patrón incompatible con la
+herramienta.
+
+**Qué se generó mal:**
+
+1. La propuesta validaba `returnTo` solo sobre la cadena cruda. `/..//evil.example` y `/%2e%2e//evil.example` se
+   normalizan con `new URL()` a una ruta protocolo-relativa `//evil.example`: una redirección abierta. Se detectó en el
+   diseño y se corrigió con una segunda comprobación tras normalizar.
+2. El orquestador afirmó que `pnpm e2e:update` no existía: solo miró `apps/web/package.json`, y está en el
+   `package.json` raíz.
+3. La unidad 2 importó `'../server/theme-preference.js'`: pasa vitest y `tsc`, pero `next build` con Turbopack falla
+   con «Module not found». Se cambió a `@/server/theme-preference`.
+4. La unidad 1 comparaba el `Referer` con `new URL(request.url).origin`. Next construye `request.url` con `localhost`
+   y el cliente usa `127.0.0.1`, de modo que todo `Referer` del mismo origen se descartaba y el usuario acababa en `/`.
+   Los tests unitarios pasaban porque construían la `Request` con un origen coincidente; solo lo expuso el e2e. Se
+   corrigió tomando el origen de la cabecera `Host` (decisión 145).
+5. La unidad 2 insertó `ThemeSelector` entre un comentario explicativo y la función que describía; se movió después
+   de ese comentario en un commit de refactor.
+6. Al escribir ficheros TypeScript con heredocs de Bash en la fase de aplicación se deformaron las barras invertidas y
+   las secuencias `\uXXXX`; se corrigió antes de confirmar.
+
+**Cómo se detectó:** el punto 1 al revisar el diseño; el 2 al intentar ejecutar el comando; el 3 con `next build`; el 4
+con el e2e; el 5 al releer el diff; el 6 al revisar los ficheros escritos.
+
+**Cómo se resolvió:** correcciones puntuales, con el caso 1 cubierto por vectores en los tests.
+
+**Observación:** un test unitario que construye su propia `Request` no prueba el origen que Next entrega de verdad; las
+suposiciones sobre cabeceras y URL del entorno se comprueban en el e2e. Y `tsc`/vitest no sustituyen a `next build`
+para las rutas de importación.

@@ -109,7 +109,8 @@ Todo paso las cumple. Un paso que necesite saltarse una la enmienda con una entr
 **Riesgos conocidos:**
 
 - **`cookies()` en el layout anula `loading.tsx`.** Leer una cookie en el layout raíz vuelve dinámico
-  todo el árbol y bloquea el *fallback* de `loading.tsx` (C20). Lo resuelve D.4, antes de que D.14
+  todo el árbol y bloquea el *fallback* de `loading.tsx` (C20). Lo resuelve D.4 (decisión 144: la cookie se lee
+  solo en el script, resuelto), antes de que D.14
   añada los estados de carga. Además, `layout-attribution.test.ts` llama a `RootLayout` de forma
   síncrona, así que un layout asíncrono obliga a cambiar ese test.
 - **`error.tsx` es un componente de cliente** (C29), igual que `global-error.tsx`. D.14 tiene que
@@ -120,7 +121,8 @@ Todo paso las cumple. Un paso que necesite saltarse una la enmienda con una entr
   y 2.6. Además, el optimizador de `next/image` descarga en el servidor: una miniatura remota en la
   siembra sería una llamada externa (R8).
 - **`no-redirect.test.ts`** rechaza cualquier `redirect(` en `apps/web/src`, incluido
-  `NextResponse.redirect(`. Un Route Handler que responda 303 (D.4) construye la respuesta a mano.
+  `NextResponse.redirect(`. Un Route Handler que responda 303 (D.4) construye la respuesta a mano
+  (cumplido en D.4, decisión 145).
 - **El *matcher* de `apps/web/src/proxy.ts`** solo excluye `favicon.ico` del límite de peticiones. Los
   iconos nuevos de D.5 pasarían por él.
 
@@ -472,7 +474,7 @@ oscuro según el sistema.
 
 ---
 
-## [ ] D.4 · Selector de tema
+## [x] D.4 · Selector de tema
 
 ```text
 Paso D.4 de docs/DESIGN-ROADMAP.md. Añade un selector de tema (claro, oscuro, sistema)
@@ -514,6 +516,12 @@ carga de D.14.
   preferencia con `SameSite=Lax` y sin datos personales.
 - **Tamaño:** S-M.
 - **Evidencia:** C17, C18, C19, C20, C21.
+- **Hecho (2026-10-05):** decisiones 144-146. La cookie se lee solo en el script en línea (opción a de la 144):
+  el layout sigue síncrono y estático, y el *fallback* de `loading.tsx` de D.14 queda intacto. `POST /theme` (solo
+  `POST`, 303 a mano, ruta de vuelta validada dos veces) y selector provisional en el pie, con estado actual solo
+  visual por CSS. Sin JavaScript el formulario guarda la cookie y responde 303, pero no hay clase y se sigue el tema del
+  sistema. Commits 4b9e04f, 160d212, 6dc8b88 y ea5b6e7. Nuevo `layout-theme.test.ts` y spec e2e `theme.spec.ts`;
+  `pnpm e2e` final: 81 superados, 45 omitidos; la línea base de axe no cambia.
 
 ---
 
@@ -1232,3 +1240,8 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-05 | D.3 | Los roles `text` y `border` de la especificación se llaman `ink` y `rule` (utilidades `text-ink`, `border-rule`), y se añaden `surface-raised`, `surface-sunken`, `ink-on-accent`, `selection` y `shadow-color`. | Decisión 141: evita `text-text` y `border-border`, ambiguos con los prefijos de Tailwind. |
 | 2026-10-05 | D.3 | Las cifras tabulares no se definen en `globals.css`: se usa la utilidad `tabular-nums` de Tailwind, que se aplicará en D.6b/D.9. | No hay ningún componente de datos en el alcance del paso; especificación enmendada. |
 | 2026-10-05 | D.3 | Un solo PR que supera el presupuesto de 800 líneas revisables (~1410 entre añadidas y borradas, sin contar las 36 capturas PNG, que son binarios; ~1110 de código, test y snapshot y ~300 de documentación); el responsable aceptó `size:exception`. | Tokens, test, snapshot de contraste y documentación obligatoria forman una unidad: partirlos dejaría un test sin su CSS. |
+| 2026-10-05 | D.4 | El selector queda de forma provisional en el pie (`AttributionFooter`); D.5 lo mueve a la cabecera. | El prompt del paso ya lo preveía provisional. |
+| 2026-10-05 | D.4 | Test nuevo `layout-theme.test.ts` en lugar de ampliar `layout-attribution.test.ts`. | El layout sigue síncrono (decisión 144), así que el test de atribución no cambia; el comportamiento del tema merece su propio fichero. |
+| 2026-10-05 | D.4 | El spec e2e `theme.spec.ts` corre en un solo proyecto (`w1280-light`). | La lógica no depende del ancho ni del tema; repetirlo en seis proyectos solo multiplicaría el tiempo. |
+| 2026-10-05 | D.4 | El origen público para el `Referer` se toma de la cabecera `Host`, no de `request.url`. | El e2e mostró que Next construye `request.url` con `localhost` mientras el cliente usa `127.0.0.1`; ver decisión 145 y `AI-NOTES.md`. |
+| 2026-10-05 | D.4 | Las 36 capturas PNG se regeneraron en Docker y volverán a cambiar en D.5. | El selector del pie aparece en todas; D.5 lo reubica. |
