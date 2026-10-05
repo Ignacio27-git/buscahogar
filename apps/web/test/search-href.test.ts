@@ -4,10 +4,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildClearAreaHref,
+  buildClearFiltersHref,
+  buildCurrentHref,
   buildDrawnAreaHref,
+  buildPageHref,
+  buildRemoveFilterHref,
   buildViewHref,
   buildZoneSelectionHref,
   canonicalizeFormSubmission,
+  pickFilterBarContext,
 } from '../src/lib/search-href.js';
 
 const RING = [
@@ -123,5 +128,112 @@ describe('canonicalizeFormSubmission (ROADMAP 3.1, decisión 123)', () => {
   it('la marca no se arrastra a los href que se construyen después', () => {
     const cleaned = canonicalizeFormSubmission({ form: 'criteria', operation: 'sale', minRooms: '' });
     expect(buildViewHref(cleaned, 'map')).toBe('/?operation=sale&view=map');
+  });
+});
+
+// D.6a (decisión 151) — quitar un filtro descarta su grupo de claves y `page`,
+// y conserva el resto (view, sort, dir, zoneQuery, claves desconocidas).
+describe('buildRemoveFilterHref — D.6a "Chip removes only its filter"', () => {
+  const BASE = { operation: 'sale', minRooms: '2', sort: 'price', dir: 'asc', page: '2' } as const;
+
+  it('quita solo minRooms y page, y conserva operation, sort y dir', () => {
+    const q = parse(buildRemoveFilterHref(BASE, 'minRooms'));
+    expect([...q.keys()].sort()).toEqual(['dir', 'operation', 'sort']);
+    expect(q.get('operation')).toBe('sale');
+  });
+
+  it.each([
+    ['operation', { operation: 'rent', propertyType: 'flat' }, ['propertyType']],
+    ['propertyType', { operation: 'rent', propertyType: 'flat' }, ['operation']],
+    ['minPrice', { minPrice: '1', maxPrice: '2' }, ['maxPrice']],
+    ['maxPrice', { minPrice: '1', maxPrice: '2' }, ['minPrice']],
+    ['minSurface', { minSurface: '1', maxSurface: '2' }, ['maxSurface']],
+    ['maxSurface', { minSurface: '1', maxSurface: '2' }, ['minSurface']],
+    ['minBathrooms', { minBathrooms: '1', minRooms: '2' }, ['minRooms']],
+    ['zone', { zone: '28079', zoneQuery: 'mad' }, ['zoneQuery']],
+    ['polygon', { polygon: '1,2;3,4;5,6', view: 'map' }, ['view']],
+  ] as const)('%s: quita su clave y conserva las demás', (filter, params, kept) => {
+    const q = parse(buildRemoveFilterHref(params, filter));
+    expect([...q.keys()]).toEqual(kept);
+  });
+
+  it('el filtro geográfico quita lat, lng y radius a la vez (todo o nada)', () => {
+    const q = parse(buildRemoveFilterHref({ lat: '1', lng: '2', radius: '500', operation: 'rent' }, 'geo'));
+    expect([...q.keys()]).toEqual(['operation']);
+  });
+
+  it('devuelve `/` cuando no queda ningún parámetro', () => {
+    expect(buildRemoveFilterHref({ minRooms: '2', page: '3' }, 'minRooms')).toBe('/');
+  });
+
+  it('conserva las claves repetidas desconocidas', () => {
+    expect(parse(buildRemoveFilterHref({ minRooms: '2', tag: ['a', 'b'] }, 'minRooms')).getAll('tag')).toEqual([
+      'a',
+      'b',
+    ]);
+  });
+});
+
+describe('buildClearFiltersHref — D.6a "Clear all"', () => {
+  it('conserva solo view, sort y dir', () => {
+    expect(
+      buildClearFiltersHref({
+        view: 'map',
+        sort: 'price',
+        dir: 'asc',
+        minRooms: '2',
+        zone: '28079',
+        zoneQuery: 'mad',
+        page: '4',
+      })
+    ).toBe('/?view=map&sort=price&dir=asc');
+  });
+
+  it('devuelve `/` cuando no hay nada que conservar', () => {
+    expect(buildClearFiltersHref({ operation: 'sale', page: '2' })).toBe('/');
+  });
+});
+
+describe('buildPageHref y buildCurrentHref — movidos desde la página, misma salida', () => {
+  it('buildPageHref sustituye page y conserva claves repetidas', () => {
+    expect(buildPageHref({ operation: 'sale', page: '1', tag: ['a', 'b'] }, 3)).toBe(
+      '/?operation=sale&tag=a&tag=b&page=3'
+    );
+  });
+
+  it('buildCurrentHref conserva todo, incluido page, y omite los indefinidos', () => {
+    expect(buildCurrentHref({ operation: 'sale', page: '2', zone: undefined })).toBe('/?operation=sale&page=2');
+  });
+});
+
+describe('pickFilterBarContext — D.6a "Hidden state kept, page dropped"', () => {
+  it('reenvía view y zone, y nunca page', () => {
+    const pairs = pickFilterBarContext({ view: 'map', zone: '28079', page: '3', operation: 'sale' });
+    expect(pairs).toEqual([
+      ['view', 'map'],
+      ['zone', '28079'],
+    ]);
+  });
+
+  it('solo reenvía valores escalares: un valor repetido no se reenvía', () => {
+    expect(pickFilterBarContext({ view: ['map', 'map'], zoneQuery: 'mad' })).toEqual([['zoneQuery', 'mad']]);
+  });
+
+  it('omite las claves rechazadas', () => {
+    expect(pickFilterBarContext({ view: 'map', polygon: '1,2;3,4;5,6', zone: '28079' }, new Set(['polygon']))).toEqual([
+      ['view', 'map'],
+      ['zone', '28079'],
+    ]);
+  });
+
+  it('si se rechaza cualquiera de lat, lng o radius se omiten las tres', () => {
+    const params = { lat: '1', lng: '2', radius: '500', view: 'map' };
+    expect(pickFilterBarContext(params, new Set(['radius']))).toEqual([['view', 'map']]);
+    expect(pickFilterBarContext(params)).toEqual([
+      ['view', 'map'],
+      ['lat', '1'],
+      ['lng', '2'],
+      ['radius', '500'],
+    ]);
   });
 });
