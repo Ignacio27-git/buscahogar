@@ -27,6 +27,7 @@ export async function POST(request: Request): Promise<Response> {
     returnTo: form.get('returnTo'),
     referer: request.headers.get('referer'),
     requestUrl: request.url,
+    host: request.headers.get('host'),
   });
   const secure = isSecureRequest(request.url, request.headers.get('x-forwarded-proto'));
   return buildSeeOtherResponse(location, buildThemeCookie(choice.data, secure));

@@ -53,4 +53,12 @@ describe('RootLayout — tema (D.4)', () => {
     expect(src).not.toMatch(/next\/headers/);
     expect(src).not.toMatch(/\b(?:cookies|headers)\s*\(/);
   });
+
+  // Turbopack no resuelve el sufijo `.js` en rutas relativas hacia ficheros `.ts`
+  // (falló `next build` en el e2e): el resto de `src/app` importa con el alias `@/`.
+  it('layout.tsx importa el helper del tema con el alias @/ y sin sufijo .js', () => {
+    const src = readFileSync(new URL('../src/app/layout.tsx', import.meta.url), 'utf8');
+    expect(src).toContain("from '@/server/theme-preference'");
+    expect(src).not.toMatch(/from '\.{1,2}\/[^']*\.js'/);
+  });
 });

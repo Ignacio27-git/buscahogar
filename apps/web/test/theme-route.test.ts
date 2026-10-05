@@ -83,3 +83,15 @@ describe('POST /theme', () => {
     expect(response.headers.get('Set-Cookie')).toBeNull();
   });
 });
+
+describe('POST /theme — origen por Host', () => {
+  it('conserva el Referer cuando coincide con Host y request.url usa otro nombre', async () => {
+    const response = await themeRoute.POST(
+      post(form({ theme: 'dark' }), {
+        url: 'http://localhost:3100/theme',
+        headers: { host: '127.0.0.1:3100', referer: 'http://127.0.0.1:3100/no-existe' },
+      })
+    );
+    expect(response.headers.get('Location')).toBe('/no-existe');
+  });
+});

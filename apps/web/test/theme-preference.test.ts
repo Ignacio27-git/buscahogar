@@ -173,3 +173,27 @@ describe('THEME_INIT_SCRIPT', () => {
     expect(THEME_INIT_SCRIPT).not.toContain('</');
   });
 });
+
+// Next reconstruye `request.url` con `localhost` aunque el cliente use 127.0.0.1 (hallado en
+// el e2e): el origen público es el de la cabecera Host, no el de `request.url`.
+describe('resolveReturnPath — origen público por la cabecera Host', () => {
+  const base = { returnTo: null, requestUrl: 'http://localhost:3100/theme' };
+
+  it('conserva el Referer cuyo origen coincide con Host aunque request.url diga otro', () => {
+    expect(
+      resolveReturnPath({ ...base, referer: 'http://127.0.0.1:3100/no-existe', host: '127.0.0.1:3100' })
+    ).toBe('/no-existe');
+  });
+
+  it('un Referer de otro host sigue cayendo a «/»', () => {
+    expect(
+      resolveReturnPath({ ...base, referer: 'http://evil.example/x', host: '127.0.0.1:3100' })
+    ).toBe('/');
+  });
+
+  it('un Host inválido se ignora y se usa el origen de request.url', () => {
+    expect(
+      resolveReturnPath({ ...base, referer: 'http://localhost:3100/a', host: 'no es un host' })
+    ).toBe('/a');
+  });
+});

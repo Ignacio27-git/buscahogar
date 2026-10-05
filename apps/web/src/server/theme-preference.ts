@@ -47,12 +47,32 @@ export function toSameOriginPath(candidate: string, origin: string): string | nu
   return `${url.pathname}${url.search}`;
 }
 
+/**
+ * Origen con el que se compara el Referer. Next reconstruye `request.url` con
+ * `localhost` aunque el cliente entre por 127.0.0.1, así que manda la cabecera
+ * `Host`. El destino es siempre una ruta relativa: un Host falseado solo
+ * afecta a la propia petición. Un Host inválido se ignora.
+ */
+function resolvePublicOrigin(requestUrl: string, host: string | null): string {
+  const requestOrigin = new URL(requestUrl);
+  if (host === null) {
+    return requestOrigin.origin;
+  }
+  try {
+    const candidate = new URL(`${requestOrigin.protocol}//${host}`);
+    return candidate.host === host.toLowerCase() ? candidate.origin : requestOrigin.origin;
+  } catch {
+    return requestOrigin.origin;
+  }
+}
+
 export function resolveReturnPath(input: {
   readonly returnTo: unknown;
   readonly referer: string | null;
   readonly requestUrl: string;
+  readonly host?: string | null;
 }): string {
-  const origin = new URL(input.requestUrl).origin;
+  const origin = resolvePublicOrigin(input.requestUrl, input.host ?? null);
 
   const parsed = returnPathSchema.safeParse(input.returnTo);
   if (parsed.success) {

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactElement, ReactNode } from 'react';
 
-import { THEME_INIT_SCRIPT } from '../server/theme-preference.js';
+import { THEME_INIT_SCRIPT } from '@/server/theme-preference';
 
 import './globals.css';
 
