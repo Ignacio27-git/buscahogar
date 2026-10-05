@@ -4167,6 +4167,97 @@ violaciones, a mejor o a peor, exige una actualización explícita y revisable e
 
 ---
 
+## 139 — Tokens semánticos que cambian con el tema: variables en `:root`/`.dark` con `@theme inline`
+
+**Estado:** aceptada (experimento del paso D.2, hueco c; el código del experimento se revirtió)
+
+**Decisión.** El patrón de D.3 es el validado: variables CSS en `:root` y en `.dark`, expuestas con
+`@theme inline` (`--color-surface: var(--surface)`), más `@custom-variant dark (&:where(.dark, .dark *))`.
+Los valores se redefinen además bajo `@media (prefers-color-scheme: dark)` sobre `:root:not(.light)`, de modo
+que sin clase manda el sistema y con `.dark`/`.light` manda la clase. `:root` declara `color-scheme: light dark`
+y `.dark`/`.light` lo fijan.
+
+Prueba (Chromium del runner Docker de D.1, una sola página sin recargar, 6 estados = `prefers-color-scheme`
+{claro, oscuro} x clase de `<html>` {ninguna, `dark`, `light`}):
+
+| Estado | `bg-spike-surface` (variables) | `light-dark()` | `dark:bg-black` | `color-scheme` calculado |
+| --- | --- | --- | --- | --- |
+| claro, sin clase | claro | claro | claro | `light dark` |
+| claro, `.dark` | OSCURO | OSCURO | OSCURO | `dark` |
+| claro, `.light` | claro | claro | claro | `light` |
+| oscuro, sin clase | OSCURO | OSCURO | **claro** | `light dark` |
+| oscuro, `.dark` | OSCURO | OSCURO | OSCURO | `dark` |
+| oscuro, `.light` | claro | claro | claro | `light` |
+
+- El color calculado cambia en tiempo de ejecución, sin recompilar, tanto al alternar la clase (S1.1) como al
+  emular `prefers-color-scheme` (S1.2). Los 6 estados coinciden con lo esperado (`rgb(250, 250, 247)` claro,
+  `rgb(28, 28, 26)` oscuro) y la marca `window.__marker` sobrevivió: no hubo recarga.
+- Tensión que documenta la fila 4: la variante `dark:` de Tailwind sigue SOLO a la clase. Con el sistema en
+  oscuro y sin clase, una utilidad `dark:` no se activa, mientras que los tokens sí cambian. **Consecuencia para
+  D.4:** la clase `dark` debe fijarse desde el sistema con un script anti-parpadeo antes del primer pintado, y D.3
+  debe preferir tokens semánticos a utilidades `dark:` sueltas; si no, los proyectos oscuros de D.1 (que emulan el
+  sistema, sin clase) verían una página a medias.
+- `light-dark()` (S1.3) funciona en el Chromium probado y se comporta igual que las variables en los 6 estados.
+  Se descarta como patrón principal: duplica los dos valores en cada token, solo admite colores y dos temas, se
+  acopla a `color-scheme` (no a la clase, así que exige además fijar `color-scheme` en `.dark`/`.light`) y solo se
+  ha comprobado en Chromium. Con variables, cada tema es un bloque único y legible. Sigue siendo válido para un
+  valor suelto.
+- Sintaxis de Tailwind 4.3.3 contrastada con tailwindcss.com/docs/dark-mode (el `@custom-variant dark` con
+  `:where(.dark, .dark *)` aparece tal cual) porque la herramienta Context7 no estaba disponible en la sesión;
+  `@theme inline` con `light-dark()` y con `var()` compiló y generó las utilidades.
+- Observación para D.3/D.8b: con `color-scheme: light dark` el botón «Dibujar zona» del mapa se ve como una caja
+  blanca sin texto en oscuro (captura `d2-tiles-w1280-dark.png`); lo más probable es que el color de texto del
+  agente de usuario pase a claro sobre el fondo blanco fijo del control. Los controles de Leaflet necesitan color
+  explícito.
+
+**Alternativas descartadas.** Variables solo bajo `@media (prefers-color-scheme: dark)` (sin clase): impide el
+selector de tema de D.4. Variantes `dark:` por utilidad: no seguirían al sistema sin clase (fila 4) y repiten el
+color en cada uso. `@custom-variant` doble con `@slot`: complejidad sin necesidad, el patrón único basta. El plan
+de reserva previsto (variables bajo `@media`, o `dark:`) no hace falta: S1.1 y S1.2 pasan.
+
+**Motivo.** Es lo único probado que cumple a la vez «sin recompilar», «sigue al sistema sin JavaScript» y
+«la clase manda cuando existe». Evidencia: `docs/design/spikes/d2-tokens-{w320,w1280}-{light,dark}.png`.
+
+---
+
+## 140 — Teselas oscuras de OSM con filtro CSS: rechazadas por coste; se adoptan teselas claras en marco oscuro
+
+**Estado:** rechazada (experimento del paso D.2, hueco b; el código del experimento se revirtió)
+
+**Decisión.** NO se aplica el filtro CSS a las teselas en D.8b. Se adopta el plan de reserva: teselas claras
+dentro de un marco oscuro (contenedor, controles y fondo del mapa con los tokens del tema oscuro; las teselas
+sin filtrar).
+
+Experimento: `html[data-spike-tiles] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.95)
+contrast(.9) }`, solo sobre el panel de teselas, en `globals.css` (la UI de `search-map-canvas.tsx` no se
+tocó). 24 teselas reales de OSM (zoom 13 y 15, la vista de las capturas) descargadas una sola vez, en serie,
+con 1 s entre peticiones y un `User-Agent` identificativo, y servidas solo por la ruta del guard de red del
+e2e; 18 se sirvieron del disco en la vista de 1280 px. Se borraron al terminar.
+
+| Criterio | Resultado |
+| --- | --- |
+| S2.1 alcance del filtro | **Cumple.** `.leaflet-marker-icon` (4), `.leaflet-marker-pane`, `.leaflet-overlay-pane`, `.leaflet-control-zoom` y `.leaflet-control-attribution`, y TODOS sus ancestros hasta `<html>`, tienen `filter: none`; el panel de teselas, `invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9)`. |
+| S2.2 legibilidad | **Cumple, a ojo.** En `d2-tiles-w1280-dark.png` se leen los nombres de calles, barrios y números de vía; los rótulos de los marcadores y el control de zoom quedan intactos. El resultado es un mapa oscuro y de contraste bajo, con las vías principales rosadas y las zonas verdes casi negras; a 320 px (zoom 13) los rótulos pequeños se leen con esfuerzo. La atribución «© OpenStreetMap» es visible en las cuatro capturas. |
+| S2.3 coste, CPU 4x | **No cumple.** Mediana del tiempo medio de fotograma sin filtro 20,83 ms, con filtro 32,72 ms: razón 1,571 (umbral 1,20). p95: 33,4 ms frente a 50,1 ms. Tareas largas: 0 en ambos. 5 ejecuciones por condición tras 1 pareja de calentamiento descartada, arrastre de 200 px y zoom +1/−1 con `Emulation.setCPUThrottlingRate {rate: 4}`. Una primera tanda con la tesela de relleno (sin teselas reales) dio 21,64 ms frente a 36,88 ms, razón 1,704. |
+
+- Precaución sobre la medida: Chromium sin cabeza en Docker, compositor por software, rAF como métrica. Solo
+  valen las cifras relativas, y son pesimistas respecto a una GPU. Aun así el criterio del paso, tal como
+  está escrito, no se cumple, y la diferencia (≈ +57 %) no es marginal. No se probó otra receta de filtro
+  ni un dispositivo real; ambas cosas pueden reabrir la decisión si la estética lo pide.
+- Los pasos con un mapa oscuro de calidad (otro proveedor de teselas) exigen otro host: queda fuera por la
+  decisión 112 (un solo host de teselas, el de OSM).
+
+**Alternativas descartadas.** Filtro CSS sobre el panel: legible pero 57 % más lento en la medida pesimista.
+Proveedor de teselas oscuras (otro host): amplía la superficie de red que fija la decisión 112 y la CSP, sin
+justificación para un TFM. Filtro condicionado a que el dispositivo sea potente: complejidad sin medida que lo
+respalde.
+
+**Motivo.** El criterio de coste decidido de antemano falla con margen y el plan de reserva no cuesta nada:
+no cambia ni la CSP ni el origen de las teselas. Evidencia: `docs/design/spikes/d2-tiles-{w320,w1280}-{light,dark}.png`
+y `docs/design/spikes/d2-tiles-perf.json`.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

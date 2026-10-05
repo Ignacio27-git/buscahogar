@@ -284,7 +284,7 @@ red y sin tocar la base de desarrollo.
 
 ---
 
-## [ ] D.2 · Experimentos: tokens semánticos y teselas oscuras
+## [x] D.2 · Experimentos: tokens semánticos y teselas oscuras
 
 ```text
 Paso D.2 de docs/DESIGN-ROADMAP.md. Dos experimentos acotados cuyo código NO se queda:
@@ -321,6 +321,29 @@ secundarias (huecos b y c), antes de que D.3 y D.8b dependan de ellos.
 - **Riesgos:** que el código descartable se cuele en un commit.
 - **Tamaño:** S.
 - **Evidencia:** C17, C22, C23, C25, C26, C27; huecos b y c.
+- **Estado (2026-10-05): D.2 hecha.** Cambio SDD `dark-theme-spikes-d2`; un commit solo de `docs/`.
+  - **Tokens (decisión 139): VÁLIDO.** Variables en `:root`/`.dark` + `@theme inline` + `@custom-variant dark`
+    cambian en tiempo de ejecución, sin recompilar, con la clase y con `prefers-color-scheme` (6 estados, una
+    página, sin recarga). `light-dark()` también funciona y se descarta como patrón principal. Hallazgo para
+    D.4: la variante `dark:` ignora al sistema sin clase, así que hace falta el script anti-parpadeo que fije la
+    clase. Hallazgo para D.3/D.8b: con `color-scheme: light dark` el botón «Dibujar zona» queda blanco sobre
+    blanco en oscuro.
+  - **Teselas (decisión 140): RECHAZADO por coste; reserva adoptada.** Alcance del filtro correcto (marcadores,
+    controles, atribución y todos sus ancestros con `filter: none`) y legible a ojo, pero con CPU 4x la mediana
+    del fotograma pasa de 20,83 a 32,72 ms (razón 1,571 > 1,20; 5 ejecuciones por condición). D.8b usa teselas
+    claras dentro de un marco oscuro.
+  - **Ficheros realmente tocados (todos revertidos):** `globals.css` (variables, `@custom-variant` y el filtro de
+    teselas), `layout.tsx` (sonda estática `data-spike-probe` con 3 muestras de color) y
+    `e2e/spike-d2.spec.ts` (un spec descartable que importa `./fixtures`, así que el guard de red siguió
+    activo). `search-map-canvas.tsx` y el guard NO se tocaron: el filtro vive en `globals.css` y la ruta de
+    teselas en el propio spec, a nivel de página. Capturas y `d2-tiles-perf.json` en `docs/design/spikes/`.
+  - **Teselas reales:** 24 descargadas una vez con `curl` (la primera tentativa con `Invoke-WebRequest` se quedó
+    colgada y se cancelaron sus 0 descargas), en serie, 1 s entre peticiones, `User-Agent`
+    «buscahogar-tfm-spike/1.0 (academic, one-off)», a una carpeta fuera del repositorio, montada en solo lectura y
+    borrada al final.
+  - **Salvedad de la medida:** Docker sin cabeza con compositor por software; solo cifras relativas y pesimistas.
+  - **Cierre:** `git status --porcelain -- . ":!docs"` vacío, `baselines/` intacta y `pnpm e2e` completo igual
+    que D.1 (ver el informe del cambio).
 
 ---
 
@@ -1127,3 +1150,4 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-01 | D.3 | Sin fuente propia: pila del sistema. El paso ya no autoaloja una fuente con `next/font` ni elige entre `next/font/google` y `next/font/local`. | Decisión 132. |
 | 2026-10-01 | D.6b | La rejilla de una a tres columnas del prompt cede ante filas densas con el precio en una columna derecha fija. | Decisión 132 (FIRST VIEWPORT y mejora de la carátula de casete). |
 | 2026-10-01 | D.11 | El mapa de ubicación pasa de un mapa de cliente (reutilizar `search-map.tsx`, carga diferida, `noscript`) a un mapa estático del servidor, sin JS, con teselas de OSM como `<img>` nativo y el área tramada. Exige una decisión propia de D.11 que enmiende R2 con la excepción solo para teselas de `tile.openstreetmap.org`, y el ajuste de `csp-image-policy.test.ts` a esa excepción y nada más. Queda abierto para D.11, sin decidir, el límite de `map-guards.test.ts` (SMV-9). | Decisión 133, del responsable. Descartados: teselas como fondos CSS (esquivan R2 sin decidirlo), mapa de cliente (amplía R4) y solo texto (no orienta). |
+| 2026-10-05 | D.2 | El filtro de teselas vive en `globals.css` (selector `html[data-spike-tiles] .leaflet-tile-pane`) y no en `search-map-canvas.tsx`; el experimento añade una sonda en `layout.tsx` y un spec temporal. Las teselas se descargaron con `curl` y no con PowerShell. | Alternar el filtro por atributo permite comparar con y sin él sin recompilar y sin mezclar el experimento con los tokens; el componente queda intacto. `Invoke-WebRequest` se quedó colgado en la primera petición. |

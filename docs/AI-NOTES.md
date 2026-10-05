@@ -3328,3 +3328,21 @@ en la tabla de desviaciones por el tamaño.
 entre los documentos del paso, pero no las afirmaciones de la documentación sobre el esquema
 existente. Una frase de una decisión que describe el estado del repositorio es una afirmación
 técnica verificable, igual que el código, y conviene contrastarla con él antes de cerrar.
+
+### 2026-10-05 — La sonda de tokens del diseño de D.2 no distinguía la variante `dark:`
+
+**Contexto:** diseño del cambio SDD `dark-theme-spikes-d2` (paso D.2), detectado al aplicarlo.
+
+**Categoría:** código que habría compilado pero no habría comprobado lo que decía.
+
+**Qué se generó mal:** la tercera muestra de la sonda de color era `bg-spike-ink dark:bg-spike-surface`. En
+claro `--spike-ink` vale `rgb(28 28 26)`; con `.dark`, `--spike-surface` vale también `rgb(28 28 26)`. Las dos
+ramas daban el mismo color, así que la prueba no podía detectar si la variante `dark:` se había activado.
+
+**Cómo se detectó:** al escribir los valores esperados de la matriz de 6 estados en el spec, antes de ejecutarla.
+
+**Cómo se resolvió:** se sustituyó por `bg-white dark:bg-black` (colores distintos y fijos). La matriz posterior
+mostró que la variante `dark:` sigue solo a la clase, que era justo el dato que la muestra debía revelar.
+
+**Observación:** al diseñar una comprobación de «A cambia cuando B cambia», verificar que los valores de ambos
+estados difieren; con tokens que comparten valor entre temas no se distingue el mecanismo.

@@ -30,6 +30,34 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-05 — Experimentos de tema oscuro: tokens semánticos y teselas (paso D.2, decisiones 139-140)
+
+**Tipo de tarea:** experimento descartable (código revertido; solo quedan evidencia y decisiones)
+**Forma de especificación:** SDD en modo automático (propuesta, especificación, diseño y tareas antes de
+aplicar); el prompt del paso D.2 de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. Sin TDD: el código
+era desechable y el paso declara «Tests: ninguno».
+**Resultado:** utilizable sin cambios (tokens validados; teselas rechazadas por coste, un resultado negativo
+válido que activa la alternativa prevista)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.2 de docs/DESIGN-ROADMAP.md. Dos experimentos acotados cuyo código NO se queda:
+> se revierte antes de cerrar el paso. Sigue en la rama actual.
+>
+> 1. Tokens semánticos. En apps/web/src/app/globals.css, variables en :root y en .dark, expuestas con
+>    @theme inline y @custom-variant dark. Comprueba que una utilidad como bg-surface cambia en tiempo de
+>    ejecución al alternar la clase y al emular prefers-color-scheme, sin recompilar. Compáralo con light-dark().
+> 2. Teselas oscuras. Filtro CSS aplicado solo al panel de teselas de Leaflet, nunca a marcadores, controles
+>    ni atribución. Mide la legibilidad y el coste con la CPU ralentizada 4x.
+>
+> Evidencia: capturas a 320 y 1280 px en claro y oscuro. Registra en docs/DECISIONS.md el resultado de cada
+> experimento y su alternativa si falla.
+
+**Observación:** el diseño acertó casi todo y el spec funcionó a la primera en Docker. Dos puntos: la tercera
+muestra de la sonda del diseño (`bg-spike-ink dark:bg-spike-surface`) no distinguía la variante `dark:`
+(ambas ramas dan el mismo color) y se cambió a `bg-white dark:bg-black` antes de ejecutar (ver
+`docs/AI-NOTES.md`); la tesela de relleno no sirve para juzgar legibilidad, así que hizo falta descargar
+24 teselas reales y servirlas solo por el guard de red. El resultado de coste (razón 1,57) fue claramente negativo.
+
 ### 2026-10-01 — Verificación visual y de accesibilidad: herramienta, siembra, specs y capturas (pasos D.1a y D.1b, decisiones 135-138)
 
 **Tipo de tarea:** configuración (herramienta de test, siembra de base de datos, Docker)

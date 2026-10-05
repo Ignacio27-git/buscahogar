@@ -1,0 +1,82 @@
+{
+  "throttle": "Emulation.setCPUThrottlingRate rate 4",
+  "runsPerCondition": 5,
+  "warmupPairsDiscarded": 1,
+  "metric": "median of per-run mean rAF frame delta (ms)",
+  "off": {
+    "medianMeanFrameMs": 20.831944444444442,
+    "medianP95FrameMs": 33.40000000000009,
+    "medianLongTaskMs": 0,
+    "runs": [
+      {
+        "meanFrame": 22.043548387096774,
+        "p95Frame": 33.40000000000009,
+        "longTaskMs": 0,
+        "frames": 62
+      },
+      {
+        "meanFrame": 20.831944444444442,
+        "p95Frame": 33.40000000000009,
+        "longTaskMs": 0,
+        "frames": 72
+      },
+      {
+        "meanFrame": 18.748611111111114,
+        "p95Frame": 33.399999999999864,
+        "longTaskMs": 0,
+        "frames": 72
+      },
+      {
+        "meanFrame": 21.566176470588236,
+        "p95Frame": 49.90000000000009,
+        "longTaskMs": 0,
+        "frames": 68
+      },
+      {
+        "meanFrame": 19.9,
+        "p95Frame": 33.40000000000009,
+        "longTaskMs": 0,
+        "frames": 67
+      }
+    ]
+  },
+  "on": {
+    "medianMeanFrameMs": 32.723636363636366,
+    "medianP95FrameMs": 50.09999999999991,
+    "medianLongTaskMs": 0,
+    "runs": [
+      {
+        "meanFrame": 32.723636363636366,
+        "p95Frame": 50.09999999999991,
+        "longTaskMs": 0,
+        "frames": 55
+      },
+      {
+        "meanFrame": 30.30181818181818,
+        "p95Frame": 50,
+        "longTaskMs": 0,
+        "frames": 55
+      },
+      {
+        "meanFrame": 32.96222222222222,
+        "p95Frame": 50,
+        "longTaskMs": 0,
+        "frames": 45
+      },
+      {
+        "meanFrame": 30.303636363636365,
+        "p95Frame": 50.100000000000136,
+        "longTaskMs": 0,
+        "frames": 55
+      },
+      {
+        "meanFrame": 38,
+        "p95Frame": 66.79999999999995,
+        "longTaskMs": 51,
+        "frames": 50
+      }
+    ]
+  },
+  "ratioOnOff": 1.5708392680724172,
+  "caveat": "Docker headless con compositor por software: solo cifras relativas."
+}
