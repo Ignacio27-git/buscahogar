@@ -3,7 +3,10 @@
 // puras y `renderToStaticMarkup`: sin red ni base de datos.
 import { searchQuerySchema } from '@buscahogar/core';
 import type { PropertySearchCriteria } from '@buscahogar/core';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+
+import { CriteriaFields } from '../src/components/criteria-fields.js';
 
 import { describeAppliedFilters, formatListCount, formatMapCount } from '../src/lib/search-labels.js';
 
@@ -117,5 +120,48 @@ describe('formatMapCount', () => {
     expect(formatMapCount(1)).toBe('1 vivienda con ubicación coincide');
     expect(formatMapCount(120)).toBe('120 viviendas con ubicación coinciden');
     expect(formatMapCount(0)).toBe('0 viviendas con ubicación coinciden');
+  });
+});
+
+const FIELD_VALUES = { operation: 'rent', minPrice: '900', maxSurface: '120', sort: 'price', dir: 'asc' } as const;
+
+// Spec «Shared fields»: el panel de `?q=` y la barra comparten los campos; solo
+// cambia el prefijo de los ids (y el `for` de cada etiqueta).
+describe('CriteriaFields — campos compartidos (spec "Shared fields", "Markup contract")', () => {
+  const panel = renderToStaticMarkup(<CriteriaFields values={FIELD_VALUES} idPrefix="criteria" />);
+  const bar = renderToStaticMarkup(<CriteriaFields values={FIELD_VALUES} idPrefix="filter" />);
+
+  it('con prefijo distinto el marcado es idéntico salvo ids y `for`', () => {
+    expect(bar.replaceAll('filter-', 'criteria-')).toBe(panel);
+    expect(bar).not.toBe(panel);
+  });
+
+  it('conserva ids criteria-<campo>, leyendas, nombres y valores prefijados', () => {
+    for (const field of [
+      'operation',
+      'propertyType',
+      'minPrice',
+      'maxPrice',
+      'minSurface',
+      'maxSurface',
+      'minRooms',
+      'minBathrooms',
+      'sort',
+      'dir',
+    ]) {
+      expect(panel).toContain(`id="criteria-${field}"`);
+      expect(panel).toContain(`for="criteria-${field}"`);
+      expect(panel).toContain(`name="${field}"`);
+    }
+    expect(panel).toContain('<legend>Precio (€)</legend>');
+    expect(panel).toContain('<legend>Superficie (m²)</legend>');
+    expect(panel).toMatch(/<input[^>]*name="minPrice"[^>]*value="900"|<input[^>]*value="900"[^>]*name="minPrice"/);
+  });
+
+  it('el orden de los campos es el de la barra', () => {
+    const order = ['operation', 'propertyType', 'minPrice', 'maxPrice', 'minSurface', 'maxSurface', 'minRooms', 'minBathrooms', 'sort', 'dir'];
+    const positions = order.map((field) => panel.indexOf(`name="${field}"`));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
   });
 });

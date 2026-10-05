@@ -3,21 +3,16 @@
 // `'use client'`. Los `name` de los campos SON los search params (así que el
 // envío es ya la URL de la búsqueda normal), más el campo oculto
 // `form=criteria` que la página usa para quitar los campos en blanco antes de
-// validar (`canonicalizeFormSubmission`).
+// validar (`canonicalizeFormSubmission`). Los campos de criterio los comparte con
+// la barra de filtros vía `CriteriaFields`.
 import type { ReactElement } from 'react';
 
-import { OPERATION_TYPES, PROPERTY_TYPES } from '@buscahogar/core';
 import type { NlConflict, NlParamKey } from '@buscahogar/core';
 import type { ZoneSuggestion } from '@buscahogar/db';
 
+import { CriteriaFields } from '@/components/criteria-fields';
 import { CRITERIA_FORM_MARKER } from '@/lib/search-href';
-import {
-  DIR_LABELS,
-  FIELD_LABELS,
-  OPERATION_LABELS,
-  PROPERTY_TYPE_LABELS,
-  SORT_LABELS,
-} from '@/lib/search-labels';
+import { FIELD_LABELS } from '@/lib/search-labels';
 
 export interface CriteriaFormProps {
   // Valores interpretados (importes en euros), prefijados en los campos.
@@ -31,43 +26,6 @@ export interface CriteriaFormProps {
   readonly conflicts: readonly NlConflict[];
   // Rechazos nombrados del esquema; vacío si la interpretación es válida.
   readonly issues: readonly string[];
-}
-
-interface SelectFieldProps {
-  readonly field: NlParamKey;
-  readonly value: string | undefined;
-  readonly options: readonly { readonly value: string; readonly label: string }[];
-}
-
-function SelectField({ field, value, options }: SelectFieldProps): ReactElement {
-  return (
-    <p>
-      <label htmlFor={`criteria-${field}`}>{FIELD_LABELS[field]}</label>{' '}
-      <select id={`criteria-${field}`} name={field} defaultValue={value ?? ''}>
-        <option value="">Cualquiera</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </p>
-  );
-}
-
-interface NumberFieldProps {
-  readonly field: NlParamKey;
-  readonly value: string | undefined;
-  readonly step: string;
-}
-
-function NumberField({ field, value, step }: NumberFieldProps): ReactElement {
-  return (
-    <p>
-      <label htmlFor={`criteria-${field}`}>{FIELD_LABELS[field]}</label>{' '}
-      <input id={`criteria-${field}`} type="number" name={field} defaultValue={value ?? ''} min="0" step={step} />
-    </p>
-  );
 }
 
 export function CriteriaForm(props: CriteriaFormProps): ReactElement {
@@ -101,38 +59,7 @@ export function CriteriaForm(props: CriteriaFormProps): ReactElement {
       ) : null}
       <form method="get" action="/">
         <input type="hidden" name="form" value={CRITERIA_FORM_MARKER} />
-        <SelectField
-          field="operation"
-          value={values.operation}
-          options={OPERATION_TYPES.map((value) => ({ value, label: OPERATION_LABELS[value] }))}
-        />
-        <SelectField
-          field="propertyType"
-          value={values.propertyType}
-          options={PROPERTY_TYPES.map((value) => ({ value, label: PROPERTY_TYPE_LABELS[value] }))}
-        />
-        <fieldset>
-          <legend>Precio (€)</legend>
-          <NumberField field="minPrice" value={values.minPrice} step="0.01" />
-          <NumberField field="maxPrice" value={values.maxPrice} step="0.01" />
-        </fieldset>
-        <fieldset>
-          <legend>Superficie (m²)</legend>
-          <NumberField field="minSurface" value={values.minSurface} step="any" />
-          <NumberField field="maxSurface" value={values.maxSurface} step="any" />
-        </fieldset>
-        <NumberField field="minRooms" value={values.minRooms} step="1" />
-        <NumberField field="minBathrooms" value={values.minBathrooms} step="1" />
-        <SelectField
-          field="sort"
-          value={values.sort}
-          options={(['price', 'surface', 'updated'] as const).map((value) => ({ value, label: SORT_LABELS[value] }))}
-        />
-        <SelectField
-          field="dir"
-          value={values.dir}
-          options={(['asc', 'desc'] as const).map((value) => ({ value, label: DIR_LABELS[value] }))}
-        />
+        <CriteriaFields values={values} idPrefix="criteria" />
         <fieldset>
           <legend>Zona</legend>
           <p>
