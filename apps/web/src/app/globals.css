@@ -221,3 +221,30 @@
     isolation: isolate;
   }
 }
+
+/* Selector de tema (D.4). El estado actual se deduce de la clase de `<html>`: sin JS ni
+   `aria-pressed`. La señal no depende del color: peso 600 más borde grueso (caja interior
+   de 1px sobre el borde de 1px), sin desplazar el diseño. */
+@layer components {
+  .theme-selector fieldset {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    border: 0;
+    padding: 0;
+  }
+
+  .theme-selector legend {
+    float: left;
+    margin-inline-end: 0.5rem;
+  }
+
+  .light .theme-selector [value='light'],
+  .dark .theme-selector [value='dark'],
+  :root:not(.light, .dark) .theme-selector [value='system'] {
+    font-weight: 600;
+    border-color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--ink);
+  }
+}
