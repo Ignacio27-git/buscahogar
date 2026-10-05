@@ -13,7 +13,9 @@
 // SÍ crea una ruta nueva, así que no hereda el atajo D9 de 1.11 de reusar
 // `/` — lo que sí mantiene es la mitad que de verdad hace typecheckear en
 // limpio, la interfaz de props local).
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { cache } from 'react';
 import type { ReactElement } from 'react';
 
 import { propertyDetailParamsSchema } from '@buscahogar/core';
@@ -26,6 +28,33 @@ import { getDb } from '@/server/db';
 
 interface PropertyDetailPageProps {
   readonly params: Promise<{ listingId: string }>;
+}
+
+// D.5 (decisión 148): `generateMetadata` y la página necesitan la misma cabecera. Un
+// `cache()` de React, privado del módulo, la consulta una sola vez por petición y no
+// guarda nada entre peticiones (a diferencia de `unstable_cache` o `'use cache'`).
+const loadPropertyHeader = cache((listingId: string) => getPropertyDetailHeader(getDb(), listingId));
+
+const FALLBACK_TITLE = 'Ficha de la vivienda';
+
+// El título es el del anuncio, recortado; sin título (nulo, vacío o en blanco) se usa
+// un texto fijo, nunca «No consolidado». La plantilla del layout añade « · Buscahogar».
+export async function generateMetadata(props: PropertyDetailPageProps): Promise<Metadata> {
+  const rawParams = await props.params;
+  const parsed = propertyDetailParamsSchema.safeParse(rawParams);
+
+  if (!parsed.success) {
+    notFound();
+  }
+
+  const header = await loadPropertyHeader(parsed.data.listingId);
+
+  if (header === undefined) {
+    notFound();
+  }
+
+  const title = header.title?.trim() ?? '';
+  return { title: title === '' ? FALLBACK_TITLE : title };
 }
 
 // Server Component async (D1): `await props.params` es una Dynamic API que
@@ -44,8 +73,7 @@ export default async function PropertyDetailPage(props: PropertyDetailPageProps)
     notFound();
   }
 
-  const db = getDb();
-  const header = await getPropertyDetailHeader(db, parsed.data.listingId);
+  const header = await loadPropertyHeader(parsed.data.listingId);
 
   // `header === undefined` cubre, sin distinguirlos (AR-2, diseño Q1 walk),
   // los dos casos "bien formado pero sin `property_listings`": el listing
@@ -61,7 +89,7 @@ export default async function PropertyDetailPage(props: PropertyDetailPageProps)
   // resolver por ese motivo — `getPropertySources` no filtra por `status`,
   // solo lo proyecta para que `SourceList` marque esa fuente como no
   // disponible.
-  const sources = await getPropertySources(db, header.id);
+  const sources = await getPropertySources(getDb(), header.id);
 
   return (
     <>
