@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getPropertyDetailHeaderMock = vi.fn();
 const getPropertySourcesMock = vi.fn();
@@ -71,6 +71,16 @@ function headerWithTitle(title: string | null): Record<string, unknown> {
 const params = (listingId: string): { params: Promise<{ listingId: string }> } => ({
   params: Promise.resolve({ listingId }),
 });
+
+// La primera importación en frío transforma la página y todo su grafo; con la suite del
+// workspace en paralelo superaba los 5 s por defecto dentro de la primera prueba, que
+// seguía ejecutándose tras el timeout y contaminaba los contadores de la siguiente. Se
+// paga una vez aquí, con margen explícito: `vi.resetModules()` vacía el registro de
+// módulos, pero no la caché de transformación, así que las importaciones por prueba ya
+// son rápidas.
+beforeAll(async () => {
+  await import('../src/app/properties/[listingId]/page.js');
+}, 30_000);
 
 beforeEach(() => {
   getPropertyDetailHeaderMock.mockReset();
