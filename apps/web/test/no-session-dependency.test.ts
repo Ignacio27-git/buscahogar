@@ -54,6 +54,14 @@ describe('apps/web — sin dependencia de sesión/cookie (maintainer decision D5
     }
   });
 
+  it('solo server/theme-preference.ts contiene la cabecera de fijado de cookies (decisión 146)', () => {
+    const owners = collectSourceFiles(SRC_DIR)
+      .filter((file) => /set-cookie/i.test(readFileSync(file, 'utf8')))
+      .map((file) => file.slice(SRC_DIR.length));
+
+    expect(owners).toEqual(['server/theme-preference.ts']);
+  });
+
   it('no existe ningún fichero middleware.ts en apps/web', () => {
     const middlewarePath = fileURLToPath(new URL('../middleware.ts', import.meta.url));
     expect(() => readFileSync(middlewarePath, 'utf8')).toThrow();

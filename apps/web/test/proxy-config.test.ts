@@ -31,6 +31,7 @@ describe('proxy.ts — matcher excluye estáticos/imagen/favicon (spec #261)', (
     ['/favicon.ico', false],
     ['/', true],
     ['/some-page', true],
+    ['/theme', true],
   ] as const)('%s -> matcher coincide = %s', (url, expected) => {
     expect(unstable_doesMiddlewareMatch({ config, nextConfig, url })).toBe(expected);
   });
