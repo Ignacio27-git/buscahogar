@@ -408,6 +408,32 @@ describe('tokens estáticos (spec «System font stack», «Type roles», «Spaci
   });
 });
 
+describe('contenedor y enlace de salto (D.5, specs app-shell R6 y R1)', () => {
+  const components = (): CssNode => findBlock(ROOT, '@layer components');
+
+  it('--container-page mide 80rem y vive en @theme static', () => {
+    expect(declarations(findBlock(ROOT, '@theme static')).get('--container-page')).toBe('80rem');
+  });
+
+  it('.skip-link usa solo colores var() y la capa --z-toast', () => {
+    const rule = declarations(findBlock(components(), '.skip-link'));
+    expect(rule.get('z-index')).toBe('var(--z-toast)');
+    for (const property of ['background-color', 'color', 'border']) {
+      expect(rule.get(property), property).toContain('var(--');
+    }
+    expect(rule.get('background-color')).not.toMatch(/#|oklch|rgb/);
+    expect(rule.get('color')).not.toMatch(/#|oklch|rgb/);
+    expect(rule.get('border')).not.toMatch(/#|oklch|rgb/);
+  });
+
+  it('.skip-link queda fuera de pantalla y .skip-link:focus lo restablece', () => {
+    expect(declarations(findBlock(components(), '.skip-link')).get('transform')).toBe(
+      'translateY(-200%)'
+    );
+    expect(declarations(findBlock(components(), '.skip-link:focus')).get('transform')).toBe('none');
+  });
+});
+
 describe('estilos base (spec base-styles)', () => {
   const baseLayer = (): CssNode => findBlock(ROOT, '@layer base');
   const rule = (selector: string): Map<string, string> =>

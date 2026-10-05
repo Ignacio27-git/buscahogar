@@ -64,10 +64,10 @@ export default async function PropertyDetailPage(props: PropertyDetailPageProps)
   const sources = await getPropertySources(db, header.id);
 
   return (
-    <main>
+    <>
       <PropertyHeader property={header} />
       <SourceGallery sources={sources} />
       <SourceList sources={sources} />
-    </main>
+    </>
   );
 }

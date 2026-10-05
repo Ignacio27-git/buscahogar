@@ -134,6 +134,9 @@
   /* Margen que dejan los saltos a anclas para no quedar bajo contenido fijo. */
   --scroll-offset: 1rem;
 
+  /* Ancho máximo de cabecera, contenido y pie (D.5, decisión 150): `max-w-page`. */
+  --container-page: 80rem;
+
   --shadow-raised: 0 1px 2px 0 var(--shadow-color), 0 2px 6px -1px var(--shadow-color);
   --shadow-overlay: 0 4px 8px -2px var(--shadow-color), 0 12px 24px -4px var(--shadow-color);
 }
@@ -226,6 +229,30 @@
    `aria-pressed`. La señal no depende del color: peso 600 más borde grueso (caja interior
    de 1px sobre el borde de 1px), sin desplazar el diseño. */
 @layer components {
+  /* Enlace de salto (D.5, decisión 147). Fuera de pantalla hasta recibir el foco; sin
+     transición (el movimiento llega en D.16) y sin capa nueva: reutiliza --z-toast. */
+  .skip-link {
+    position: fixed;
+    top: calc(var(--spacing) * 2);
+    inset-inline-start: calc(var(--spacing) * 2);
+    z-index: var(--z-toast);
+    display: inline-flex;
+    align-items: center;
+    min-height: calc(var(--spacing) * 10);
+    padding-inline: calc(var(--spacing) * 4);
+    background-color: var(--surface-raised);
+    color: var(--ink);
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+    box-shadow: var(--shadow-overlay);
+    font-weight: 600;
+    transform: translateY(-200%);
+  }
+
+  .skip-link:focus {
+    transform: none;
+  }
+
   .theme-selector fieldset {
     display: flex;
     flex-wrap: wrap;

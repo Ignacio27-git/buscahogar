@@ -236,3 +236,24 @@ describe('confirmar el panel ejecuta la búsqueda normal (spec "Confirm")', () =
     expect(html).not.toContain('form=criteria');
   });
 });
+
+// D.5 (app-shell R5): un único h1 «Buscar vivienda» en las ramas de la home y ni
+// rastro del nombre antiguo ni de la línea de desarrollo. El `<main>` lo aporta el
+// layout, así que la página no debe pintarlo.
+describe('encabezado único de la home (D.5)', () => {
+  it.each([
+    ['rechazo de q vacío', { q: '' }],
+    ['interpretación', { q: 'piso en alquiler' }],
+    ['rechazo de parámetros', { minPrice: 'abc' }],
+    ['resultados en lista', {}],
+    ['resultados en mapa', { view: 'map' }],
+  ] as const)('%s: exactamente un <h1>Buscar vivienda</h1>', async (_name, params) => {
+    searchMapPointsMock.mockResolvedValue({ points: [], total: 0, truncated: false });
+    const html = await render({ ...params });
+    expect(html.match(/<h1[ >]/g)).toHaveLength(1);
+    expect(html).toContain('<h1>Buscar vivienda</h1>');
+    expect(html).not.toContain('Agregador inmobiliario');
+    expect(html).not.toContain('Esqueleto');
+    expect(html).not.toContain('<main');
+  });
+});

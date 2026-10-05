@@ -31,7 +31,6 @@ import { getCoverageDb } from '@/server/coverage-db';
 import { getDb } from '@/server/db';
 import { resolveCoverageForZone, resolveNewZonesDailyCap } from '@/server/coverage';
 import { recordZoneQuerySignalSafely } from '@/server/query-signal';
-import { WEB_VERSION } from '@/version';
 
 // ROADMAP 1.11 (diseño D9) — reutiliza la ruta `/` en vez de crear una
 // nueva: `.next/types/routes.d.ts` (generado) declara `AppRoutes = "/"`, y
@@ -188,11 +187,11 @@ async function renderInterpretation(rawQ: string | string[]): Promise<ReactEleme
           ? 'q: escribe qué quieres buscar.'
           : 'q: el texto no puede superar los 200 caracteres.';
     return (
-      <main>
-        <h1>Agregador inmobiliario</h1>
+      <>
+        <h1>Buscar vivienda</h1>
         <SearchTextForm value={shown} />
         <p role="alert">No se pudo interpretar la búsqueda: {message}</p>
-      </main>
+      </>
     );
   }
 
@@ -224,8 +223,8 @@ async function renderInterpretation(rawQ: string | string[]): Promise<ReactEleme
   });
 
   return (
-    <main>
-      <h1>Agregador inmobiliario</h1>
+    <>
+      <h1>Buscar vivienda</h1>
       <SearchTextForm value={queryParsed.data} />
       <CriteriaForm
         values={interpretation.params}
@@ -235,7 +234,7 @@ async function renderInterpretation(rawQ: string | string[]): Promise<ReactEleme
         conflicts={interpretation.conflicts}
         issues={validated.success ? [] : validated.error.issues.map((issue) => issue.message)}
       />
-    </main>
+    </>
   );
 }
 
@@ -269,11 +268,11 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       ...(viewParsed.success ? [] : viewParsed.error.issues),
     ];
     return (
-      <main>
-        <h1>Agregador inmobiliario</h1>
+      <>
+        <h1>Buscar vivienda</h1>
         <SearchTextForm value="" />
         <p role="alert">No se pudo interpretar la búsqueda: {issues.map((issue) => issue.message).join('; ')}</p>
-      </main>
+      </>
     );
   }
   const view = viewParsed.data;
@@ -374,8 +373,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
 
   const header = (
     <>
-      <h1>Agregador inmobiliario</h1>
-      <p>Esqueleto del monorepo · v{WEB_VERSION}</p>
+      <h1>Buscar vivienda</h1>
       <SearchTextForm value="" />
       {suggestions !== null ? <ZoneSuggestions suggestions={suggestions} rawSearchParams={rawSearchParams} /> : null}
       {coverageNotice}
@@ -408,7 +406,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
     }));
 
     return (
-      <main>
+      <>
         {header}
         <section aria-label="Mapa de resultados">
           <p>
@@ -435,14 +433,14 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
             © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>
           </p>
         </section>
-      </main>
+      </>
     );
   }
 
   const { results, hasNextPage } = await searchProperties(db, effectiveCriteria);
 
   return (
-    <main>
+    <>
       {header}
       {/* DAS-11: en lista solo en la página 1 con 0 resultados; en páginas
           posteriores cero filas no prueba cero coincidencias. */}
@@ -470,6 +468,6 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
         ) : null}
         {hasNextPage ? <a href={buildPageHref(rawSearchParams, criteria.page + 1)}>Página siguiente</a> : null}
       </nav>
-    </main>
+    </>
   );
 }

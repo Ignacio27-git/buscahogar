@@ -28,7 +28,7 @@ test.describe('guard de red y servidor de producción', () => {
     // resultado de esta prueba es la verificación de que, sobre http://127.0.0.1,
     // el navegador NO la aplica (de ser así habría un origen https en la lista).
     expect(response?.headers()['content-security-policy']).toContain('upgrade-insecure-requests');
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agregador inmobiliario');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Buscar vivienda');
     expect([...origins]).toEqual([new URL(baseURL ?? '').origin]);
     expect(externalRequests).toEqual([]);
   });

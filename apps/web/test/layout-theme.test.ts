@@ -1,4 +1,5 @@
-// Paso D.4 — script de tema en <head> y selector de tema en el pie del layout.
+// Paso D.4 — script de tema en <head>; D.5 (theme-preference R6) lleva el selector
+// de tema a la cabecera (banner), fuera del pie.
 // RootLayout debe seguir siendo síncrono y estático: sin cookies() ni headers()
 // (decisión 144, opción (a)). El estado actual se pinta solo con CSS.
 import { readFileSync } from 'node:fs';
@@ -46,6 +47,29 @@ describe('RootLayout — tema (D.4)', () => {
       expect(b).toContain('name="theme"');
     }
     expect(render()).not.toContain('aria-pressed');
+  });
+
+  it('el formulario y sus tres botones quedan dentro de la cabecera', () => {
+    const html = render();
+    const header = html.slice(html.indexOf('<header'), html.indexOf('</header>'));
+    expect(header).toContain('<form');
+    expect(header.match(/<button[^>]*>/g)).toHaveLength(3);
+    expect(header).toContain('<legend>Tema</legend>');
+  });
+
+  it('el pie conserva la atribución y no contiene formulario ni botones', () => {
+    const html = render();
+    const footer = html.slice(html.indexOf('<footer'), html.indexOf('</footer>'));
+    expect(footer).toContain('IGN');
+    expect(footer).not.toContain('<form');
+    expect(footer).not.toContain('<button');
+  });
+
+  it('el marcado del selector vive en site-header.tsx', () => {
+    const src = readFileSync(new URL('../src/components/site-header.tsx', import.meta.url), 'utf8');
+    expect(src).toContain('action="/theme"');
+    expect(src).toContain('<legend>Tema</legend>');
+    expect(src).not.toContain('aria-pressed');
   });
 
   it('layout.tsx no importa next/headers ni lee cookies()/headers()', () => {

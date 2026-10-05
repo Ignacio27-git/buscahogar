@@ -25,4 +25,14 @@ describe('RootLayout — atribución CC-BY/IGN (A-3, DD-24)', () => {
     const html = renderToStaticMarkup(RootLayout({ children: 'contenido de prueba' }));
     expect(html).toContain('contenido de prueba');
   });
+
+  // D.5 (app-shell R4): la frase completa, normalizando espacios, dentro del único pie.
+  it('la frase literal IGN/CNIG está dentro del único <footer>', () => {
+    const html = renderToStaticMarkup(RootLayout({ children: 'contenido de prueba' }));
+    expect(html.match(/<footer/g)).toHaveLength(1);
+    const footer = html.slice(html.indexOf('<footer'), html.indexOf('</footer>')).replace(/\s+/g, ' ');
+    expect(footer).toContain(
+      'Datos geográficos derivados del Nomenclátor Geográfico de Municipios y Entidades de Población (NGMEP), Instituto Geográfico Nacional (IGN) / Centro Nacional de Información Geográfica (CNIG), bajo licencia CC-BY 4.0.'
+    );
+  });
 });
