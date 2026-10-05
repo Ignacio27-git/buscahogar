@@ -40,6 +40,27 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-05 — Texto `sr-only` dentro de una lista con desplazamiento y mensaje de `enum` sin nombre (paso D.6a)
+
+**Contexto:** `apps/web/src/components/applied-filters.tsx` y la rama de parámetros inválidos de `page.tsx`.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** (1) Cada chip lleva un `<span class="sr-only">Quitar filtro: </span>`. `sr-only` es `position:
+absolute`; dentro de una lista con `overflow-x: auto` pero sin `position: relative`, el bloque contenedor no es la lista,
+el span escapa del recorte y se coloca donde caería en el contenido desplazado: el documento medía 1408 px a 320 px.
+(2) El diseño daba por hecho que la alerta de parámetros inválidos ya nombraba cada parámetro («texto sin cambios»), pero
+el mensaje por defecto de Zod para un `enum` («Invalid option: expected one of…») no lo nombra, así que `operation=foo`
+no se identificaba.
+
+**Cómo se detectó:** (1) el e2e `sin desbordamiento horizontal` de la ruta nueva `home-filtered` a 320 px; los tests
+unitarios no pueden verlo. (2) Al ejecutar el esquema con `operation=foo` para escribir el test de la página.
+
+**Coste:** unos 15 minutos entre ambos (una ejecución adicional del e2e en Docker).
+
+**Observación:** un test unitario de marcado no sustituye a la comprobación de desbordamiento en navegador; (1) se arregla
+con `relative` en la lista. En (2) la página antepone el nombre cuando el mensaje no lo contiene (decisión 151).
+
 ### 2026-10-05 — Barra invertida simple en el matcher del proxy (paso D.5)
 
 **Contexto:** `apps/web/src/proxy.ts`, exclusión de los iconos en el `matcher` (decisión 149).

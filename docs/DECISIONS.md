@@ -4556,6 +4556,28 @@ prohíbe D.3. Una rejilla con salida a sangre en `<main>`: cada hijo de página 
 
 ---
 
+## 151 — Barra de filtros y filtros aplicados: quitar un filtro descarta `page`; la zona por radio es un solo filtro
+
+**Estado:** aceptada (paso D.6a). Desvía el prompt de D.6a («conserva view, polygon, page…»).
+
+**Decisión.** Cada enlace de filtro aplicado quita su parámetro y `page`, y conserva el resto (`view`, `sort`, `dir`,
+`zoneQuery` y claves desconocidas). `lat`, `lng` y `radius` forman un único filtro («A N km de un punto»), porque el
+esquema los exige juntos. «Quitar todos» aparece solo con dos o más filtros y conserva únicamente `view`, `sort` y `dir`.
+La barra reenvía la vista, el polígono, la zona y el radio en campos ocultos, nunca `page`; ante parámetros inválidos se
+pinta con los valores recibidos y omite los ocultos que nombra un error del esquema. El recuento es completo («N
+resultados») solo en la página 1 sin página siguiente; en otro caso dice «en esta página» y lleva el indicador de
+página. La alerta antepone el nombre del parámetro al mensaje de Zod cuando este no lo nombra (los `enum` no lo hacen).
+Los chips describen `criteria`, nunca `effectiveCriteria`, que añade un radio derivado de una zona cubierta.
+
+**Alternativas descartadas.** Conservar `page`: con menos filtros la página N cambia de contenido o queda vacía. Tres
+filtros geográficos: quitar uno deja una URL inválida (todo o nada). Reenviar todos los ocultos en la rama inválida: un
+oculto rechazado dejaría la barra sin salida.
+
+**Motivo.** Cada enlace debe llevar a una búsqueda válida y coherente, sin cambiar el contrato de la URL ni
+`searchQuerySchema`.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

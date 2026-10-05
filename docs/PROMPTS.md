@@ -30,6 +30,37 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-05 — Búsqueda: barra de filtros, filtros aplicados y recuento (paso D.6a, decisión 151)
+
+**Tipo de tarea:** implementación (extracción de componente, barra de filtros GET, filtros aplicados, recuento y CSS) con
+tests unitarios y e2e
+**Forma de especificación:** SDD en modo automático (propuesta, especificación, diseño y tareas, en cinco unidades de
+trabajo); el prompt del paso D.6a de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. TDD estricto. El responsable
+confirmó seis decisiones antes del diseño: `page` se descarta al quitar un filtro, el radio es un solo chip, «Quitar
+todos» conserva `view`, `sort` y `dir`, el texto del recuento, la barra también en la rama de parámetros inválidos y el
+`size:exception`.
+**Resultado:** con retoques (el prompt pedía conservar `page`, se descartó; la alerta de un `enum` inválido no nombraba el
+parámetro y se corrigió; el chip hacía desbordar el documento a 320 px por el texto `sr-only`, detectado solo por el e2e)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.6a de docs/DESIGN-ROADMAP.md. Usa `impeccable layout`, `impeccable clarify` y `impeccable
+> extract` cuando un campo se use por segunda vez.
+>
+> - Filtros estructurados en la página principal, que hoy solo los ofrece tras interpretar una frase. Un formulario GET
+>   con form=criteria (decisión 123) que produce exactamente los parámetros que valida searchQuerySchema
+>   (packages/core/src/schemas/search-query.schema.ts).
+> - En escritorio, barra horizontal sobre los resultados, con los filtros esenciales primero y etiquetas sin jerga
+>   (search-labels.ts).
+> - Resumen de filtros aplicados con sus valores reales. Cada uno es un enlace que quita solo ese parámetro y conserva los
+>   demás (view, polygon, page…), más «Quitar todos». En móvil, una fila con desplazamiento horizontal.
+> - Recuento de resultados visible. Solo el que la consulta ya devuelve: no se añade una consulta de total en un paso de
+>   diseño.
+> - Comparte campos con CriteriaForm (rama ?q=) en vez de duplicarlos. Sin JavaScript.
+
+**Observación:** el prompt no decía qué hacer con `page` ni con el filtro geográfico de tres claves, ni cómo pintar la
+barra con parámetros inválidos; las tres respuestas están en la decisión 151. El marcado compartido se comprobó con una
+prueba de aprobación (el panel de `?q=` queda idéntico byte a byte) y la captura `nl-query` no cambia.
+
 ### 2026-10-05 — Estructura común: cabecera, pie, metadatos e iconos (paso D.5, decisiones 147-150)
 
 **Tipo de tarea:** implementación (layout, cabecera, metadatos, iconos y matcher del proxy) con tests unitarios y e2e

@@ -578,7 +578,7 @@ Paso D.5 de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable clarif
 
 # Bloque 3 — Búsqueda y mapa
 
-## [ ] D.6a · Búsqueda: barra de filtros y filtros aplicados
+## [x] D.6a · Búsqueda: barra de filtros y filtros aplicados
 
 ```text
 Paso D.6a de docs/DESIGN-ROADMAP.md. Usa `impeccable layout`, `impeccable clarify` y
@@ -615,6 +615,24 @@ Paso D.6a de docs/DESIGN-ROADMAP.md. Usa `impeccable layout`, `impeccable clarif
 - **Riesgos:** R3 y la decisión 123; crecimiento de `page.tsx`.
 - **Tamaño:** L, mitad a.
 - **Evidencia:** C2, C5, C6, C7.
+- **Hecho (2026-10-05):** decisión 151. `CriteriaFields` (nuevo, `criteria-fields.tsx`) comparte los diez campos entre
+  el panel de `?q=` y la barra; con el prefijo `criteria` el panel queda idéntico byte a byte (comprobado con una prueba
+  de aprobación) y la captura `nl-query` no cambia. `FilterBar` (GET, `form=criteria`, `aria-label` «Filtros de
+  búsqueda», sin `role="search"`) se pinta bajo la caja de texto en la rama válida y, con los valores recibidos, en la de
+  parámetros inválidos; reenvía vista, polígono, zona y radio en ocultos y nunca `page`. `AppliedFilters` pinta el
+  recuento (también con 0) y un enlace «Quitar …» por filtro, con «Quitar todos» desde dos. El recuento de la lista es
+  completo solo en la página 1 sin página siguiente (`formatListCount`); el del mapa pasó a la fila de resumen. Sin
+  consultas nuevas, sin `'use client'` nuevo y `searchQuerySchema` sin cambios. Construcción de href en `search-href.ts`
+  (`buildRemoveFilterHref`, `buildClearFiltersHref`, `pickFilterBarContext`, más `buildPageHref` y `buildCurrentHref`
+  movidos desde `page.tsx`, que baja de 476 a 451 líneas) y rótulos en `search-labels.ts`. Commits 373bfe2,
+  0c0fa49, d62a830, 3786d61 y el de documentación. Tests unitarios: `pnpm test`: 524 en `apps/web` (458 antes), core 802,
+  db 290, ingestion 842; tests nuevos `search-filters.test.tsx` y ampliaciones de `search-href`, `home-page-nl`,
+  `home-page-map` y `page-coverage-degradation`. E2E: ruta nueva `home-filtered` (nueve chips) y `filters.spec.ts`;
+  `pnpm e2e` final: 214 superados, 188 omitidos; regeneradas en Docker las 18 capturas de `home`, `map` y
+  `home-filtered` (las de `nl-query` no cambian) y la línea base de axe solo añade `home-filtered` sin violaciones.
+  El e2e halló un desbordamiento horizontal a 320 px por el texto `sr-only` dentro de la lista de chips con
+  desplazamiento (corregido con `position: relative`; ver `docs/AI-NOTES.md`). La bandeja móvil, el pulido de la fila
+  de chips (sombras de desbordamiento) y el estado vacío siguen en D.6b y D.14.
 
 ---
 
@@ -1260,3 +1278,9 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-05 | D.5 | Ficheros fuera de la lista del prompt: `globals.css`, `shell-container.ts`, `apple-icon.png`, tests nuevos (`layout-shell`, `property-detail-metadata`, `app-icons`, `landmarks.spec.ts`) y ediciones de `home-page-nl`, `theme.spec`, `network-guard.spec` y los tests de layout. | Token de contenedor, estilo del enlace de salto, icono de Apple y la cobertura que exige el TDD estricto. |
 | 2026-10-05 | D.5 | `<main>` lo posee el layout y las páginas devuelven fragmentos, en lugar de un `<main>` por página. | Decisión 147: un único `<main>` y destino de salto operativo también en las 404 por defecto. |
 | 2026-10-05 | D.5 | Un solo PR que supera el presupuesto de 800 líneas revisables (~926 líneas añadidas y ~70 borradas, sin contar las 36 capturas PNG ni los 2 iconos binarios: ~763 de código y tests y ~163 de documentación); aceptado por el responsable. | Código, tests y documentación obligatoria son una unidad; no se recortaron tests, comentarios ni documentación. |
+| 2026-10-05 | D.6a | `page` se descarta al quitar un filtro, en lugar de conservarse como pedía el prompt. | Decisión 151: con menos filtros la página N cambia de contenido o queda vacía. |
+| 2026-10-05 | D.6a | `lat`, `lng` y `radius` son un único chip («A N km de un punto») que quita las tres claves. | El esquema los exige juntos; quitar uno dejaría una URL inválida. |
+| 2026-10-05 | D.6a | «Quitar zona dibujada» desaparece de la fila de la vista y pasa a ser el chip «Zona dibujada». | Un solo patrón de quitar filtros; el enlace de la vista queda solo con «Ver mapa/lista». |
+| 2026-10-05 | D.6a | La alerta de parámetros inválidos antepone el nombre del parámetro cuando el mensaje de Zod no lo contiene (`enum`). | La especificación exige que la alerta nombre el parámetro y el mensaje por defecto no lo hace. |
+| 2026-10-05 | D.6a | Ficheros fuera de la lista del prompt: `criteria-fields.tsx`, `filter-bar.tsx`, `globals.css`, `e2e/routes.ts` y `filters.spec.ts`; no se extraen secciones de `page.tsx` más allá de los dos constructores de href. | Extracción de campos compartidos, estilo de la barra y cobertura e2e; el resto de la extracción no cabía en el presupuesto. |
+| 2026-10-05 | D.6a | Un solo PR que supera el presupuesto de 800 líneas revisables (`size:exception`, aceptado por el responsable); no se contaron las 18 capturas nuevas ni modificadas. | Código, tests y documentación obligatoria son una unidad; no se recortaron tests, comentarios ni documentación. |
