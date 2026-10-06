@@ -30,6 +30,21 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-06 — Pendientes de D.8a: guarda de la CSP y arranque de D.8b
+
+**Tipo de tarea:** test (corrección de una guarda) y planificación SDD de D.8b
+**Forma de especificación:** prosa breve que remite a los pendientes del informe de cierre de D.8a
+**Resultado:** con retoques (la guarda quedó corregida en un commit aparte; D.8b se dejó planificado hasta la especificación y
+el diseño, sin implementar, por falta de cuota)
+**Prompt:**
+
+> soluciona los dos puntos que me indicas que están pendientes
+
+**Observación:** «los dos puntos» mezclaba un arreglo de una línea con un paso entero de la hoja de ruta (D.8b, tamaño L).
+Se resolvió el primero de inmediato y se preguntó cómo abordar el segundo. El responsable eligió SDD, como en D.8a. Al
+reemplazar el byte de retroceso desde la shell, dos intentos (perl y Python con secuencias de escape) no cambiaron nada sin
+dar error. Solo funcionó escribir los bytes por su valor numérico, y se confirmó con `git diff`.
+
 ### 2026-10-06 — Mapa: disposición y marcadores (paso D.8a, decisiones 163-167)
 
 **Tipo de tarea:** implementación (vista dividida lista + mapa, marco adaptable, marcadores, popup y barra de dibujo con tokens)

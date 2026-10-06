@@ -854,6 +854,16 @@ Paso D.8b de docs/DESIGN-ROADMAP.md. Usa `impeccable harden`.
 - **Riesgos:** rendimiento del filtro en equipos modestos; cambios en el reductor.
 - **Tamaño:** L, mitad b.
 - **Evidencia:** C11, C12, C13, C14, C23; hueco b.
+- **Estado (2026-10-06): planificado, sin implementar.** Hechas la exploración, la propuesta, la especificación y el diseño
+  (SDD, Engram `sdd/search-map-d8b/*`). Decisiones de producto confirmadas:
+  - Teselas: se mantiene la decisión 140, teselas claras en un marco oscuro, sin filtro ni velo.
+  - Teclado: mira fija en el centro, desplazamiento nativo con las flechas y «Añadir vértice».
+  - Atajos: Enter, Retroceso y Escape, solo mientras se dibuja.
+  - Errores: textos en español sin el prefijo `polygon:`.
+  - Al salir del mapa a mitad de dibujo, los vértices se conservan.
+  - Entrega: un PR, con `size:exception` si la previsión supera 800 líneas (prevista: unas 870).
+
+  Se retoma en `sdd-tasks`.
 
 ---
 
