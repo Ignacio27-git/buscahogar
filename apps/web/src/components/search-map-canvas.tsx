@@ -92,7 +92,7 @@ export default function SearchMapCanvas(props: SearchMapProps): ReactElement {
           className="map-area"
         />
       ) : null}
-      <MapClusterLayer points={props.points} />
+      <MapClusterLayer points={props.points} baseParams={props.baseParams} />
       <MapDrawControl baseParams={props.baseParams} hasPolygon={props.polygon !== null} />
     </MapContainer>
   );

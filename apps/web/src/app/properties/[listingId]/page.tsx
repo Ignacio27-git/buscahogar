@@ -24,10 +24,14 @@ import { getPropertyDetailHeader, getPropertySources } from '@buscahogar/db';
 import { PropertyHeader } from '@/components/property-header';
 import { SourceGallery } from '@/components/source-gallery';
 import { SourceList } from '@/components/source-list';
+import type { RawSearchParams } from '@/lib/search-href';
+import { resolveSearchReturnLink } from '@/lib/search-return';
 import { getDb } from '@/server/db';
 
 interface PropertyDetailPageProps {
   readonly params: Promise<{ listingId: string }>;
+  // D.9: opcional porque `generateMetadata` comparte esta interfaz y los tests la invocan sin ella.
+  readonly searchParams?: Promise<RawSearchParams>;
 }
 
 // D.5 (decisión 148): `generateMetadata` y la página necesitan la misma cabecera. Un
@@ -91,8 +95,15 @@ export default async function PropertyDetailPage(props: PropertyDetailPageProps)
   // disponible.
   const sources = await getPropertySources(getDb(), header.id);
 
+  // D.9 (decisión 171): enlace de vuelta, revalidado con los esquemas de búsqueda.
+  const searchParamsRaw = (await props.searchParams) ?? {};
+  const returnLink = resolveSearchReturnLink(searchParamsRaw);
+
   return (
     <>
+      <p className="property-detail__back">
+        <a href={returnLink.href}>{returnLink.label}</a>
+      </p>
       <PropertyHeader property={header} />
       <SourceGallery sources={sources} />
       <SourceList sources={sources} />

@@ -25,11 +25,14 @@ import type { PropertySearchResult } from '@buscahogar/db';
 import { formatPriceCents } from '@/lib/format-price';
 import { buildPropertyDetailHref } from '@/lib/property-href';
 import { operationLabel, propertyTypeLabel } from '@/lib/search-labels';
+import type { SearchReturnParams } from '@/lib/search-return-params';
 
 import { resolveThumbnailAlt, resolveThumbnailSource } from './thumbnail-source';
 
 export interface ResultCardProps {
   readonly result: PropertySearchResult;
+  // D.9: parámetros de la búsqueda que el enlace lleva a la ficha (vuelta a los resultados).
+  readonly returnParams?: SearchReturnParams;
 }
 
 // Debe coincidir con el ancho de la columna de miniatura de `.result-row` en
@@ -40,7 +43,7 @@ function formatBathrooms(count: number): string {
   return `${String(count)} ${count === 1 ? 'baño' : 'baños'}`;
 }
 
-export function ResultCard({ result }: ResultCardProps): ReactElement {
+export function ResultCard({ result, returnParams = [] }: ResultCardProps): ReactElement {
   const thumbnail = resolveThumbnailSource(result.thumbnailUrl);
   const priceMissing = result.minPriceCents === null;
   const sourceCount = result.distinctSourceCount;
@@ -90,7 +93,7 @@ export function ResultCard({ result }: ResultCardProps): ReactElement {
 
   return (
     <article className="result-row">
-      <a href={buildPropertyDetailHref(result.anchorListingId)} className="result-row__body result-row__link">
+      <a href={buildPropertyDetailHref(result.anchorListingId, returnParams)} className="result-row__body result-row__link">
         {content}
       </a>
     </article>

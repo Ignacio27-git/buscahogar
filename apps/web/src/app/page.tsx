@@ -31,6 +31,7 @@ import {
   canonicalizeFormSubmission,
 } from '@/lib/search-href';
 import { countTrayFilters, formatListCount, formatMapCount } from '@/lib/search-labels';
+import { pickSearchReturnParams } from '@/lib/search-return-params';
 import { resolveCoverageClientLimit } from '@/server/coverage-client';
 import { getCoverageDb } from '@/server/coverage-db';
 import { getDb } from '@/server/db';
@@ -389,6 +390,9 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
     searchProperties(db, effectiveCriteria),
     searchMapPoints(db, effectiveCriteria),
   ]);
+  // D.9 (decisión 171): una sola vez; las filas llevan los parámetros de la búsqueda
+  // (con `page`) a la ficha. Los puntos del mapa siguen planos: el popup los añade en el cliente.
+  const returnParams = pickSearchReturnParams(rawSearchParams, { includePage: true });
   const pointViews: readonly MapPointView[] = points.map((point) => ({
     id: point.id,
     lat: point.lat,
@@ -418,7 +422,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
             <ul className="result-list">
               {results.map((result) => (
                 <li key={result.id}>
-                  <ResultCard result={result} />
+                  <ResultCard result={result} returnParams={returnParams} />
                 </li>
               ))}
             </ul>

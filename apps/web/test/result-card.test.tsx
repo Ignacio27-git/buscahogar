@@ -38,6 +38,21 @@ describe('ResultCard (D4/D9, AR-4) — enlace condicionado al ancla', () => {
     expect(html).toContain('href="/properties/bbbbbbbb-0000-0000-0000-000000000002"');
   });
 
+  it('D.9: con returnParams el enlace lleva los parámetros de búsqueda', () => {
+    const result = makeResult({ anchorListingId: 'bbbbbbbb-0000-0000-0000-000000000002' });
+    const html = renderToStaticMarkup(
+      <ResultCard
+        result={result}
+        returnParams={[
+          ['operation', 'sale'],
+          ['page', '3'],
+        ]}
+      />
+    );
+
+    expect(html).toContain('href="/properties/bbbbbbbb-0000-0000-0000-000000000002?operation=sale&amp;page=3"');
+  });
+
   it('con ancla null, degrada exactamente a la tarjeta de hoy — sin <a>', () => {
     const result = makeResult({ anchorListingId: null });
     const html = renderToStaticMarkup(<ResultCard result={result} />);

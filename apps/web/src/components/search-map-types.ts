@@ -7,7 +7,9 @@ import type { RawSearchParams } from '@/lib/search-href';
 
 // Un punto ya listo para pintar: la etiqueta de precio y el enlace de detalle
 // se calculan en el servidor (`formatPriceCents`, `buildPropertyDetailHref`).
-// `href` es null si la vivienda no tiene anuncio ancla: el popup no enlaza.
+// `href` es null si la vivienda no tiene anuncio ancla: el popup no enlaza. Es la ruta
+// plana `/properties/{id}`: el sufijo de vuelta a la búsqueda lo añade el cliente en el
+// popup (decisión 171), para no repetirlo en cada punto del payload.
 export interface MapPointView {
   readonly id: string;
   readonly lat: number;

@@ -28,7 +28,7 @@ function copyParams(params: RawSearchParams, omit: ReadonlySet<string>): URLSear
 
 // D.6a: las construcciones nuevas devuelven `/` cuando no queda ningún
 // parámetro (no `/?`). Los constructores anteriores conservan su salida.
-function toHref(query: URLSearchParams): string {
+export function toHref(query: URLSearchParams): string {
   const text = query.toString();
   return text === '' ? '/' : `/?${text}`;
 }

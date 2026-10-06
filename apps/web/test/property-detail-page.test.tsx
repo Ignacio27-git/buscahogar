@@ -11,6 +11,7 @@
 // (código fuente de `next`, `dist/client/components/not-found.js`), sin
 // depender de ningún contexto de petición real. No es un hallazgo de
 // infactibilidad — se documenta igual porque la spec pedía intentarlo.
+import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getPropertyDetailHeaderMock = vi.fn();
@@ -84,5 +85,57 @@ describe('PropertyDetailPage — notFound() en los cuatro casos (D2/D3, AR-2)', 
 
     expect(element).toBeTruthy();
     expect(getPropertySourcesMock).toHaveBeenCalledWith(expect.anything(), 'property-1');
+  });
+});
+
+// D.9 (decisión 171) — enlace de vuelta a los resultados, revalidado en la ficha.
+describe('PropertyDetailPage — enlace de vuelta (D.9)', () => {
+  const HEADER = {
+    id: 'property-1',
+    minPriceCents: 100000,
+    listingCount: 1,
+    thumbnailUrl: null,
+    propertyType: 'flat',
+    operation: 'sale',
+    surfaceM2: 90,
+    rooms: 3,
+    bathrooms: 2,
+    floor: '3',
+    title: 'Piso',
+    description: null,
+    address: null,
+  };
+
+  async function renderWith(searchParams?: Record<string, string | string[]>): Promise<string> {
+    getPropertyDetailHeaderMock.mockReset();
+    getPropertySourcesMock.mockReset();
+    getPropertyDetailHeaderMock.mockResolvedValueOnce(HEADER);
+    getPropertySourcesMock.mockResolvedValueOnce([]);
+    const element = await PropertyDetailPage({
+      params: Promise.resolve({ listingId: VALID_LISTING_ID }),
+      ...(searchParams !== undefined ? { searchParams: Promise.resolve(searchParams) } : {}),
+    });
+    return renderToStaticMarkup(element);
+  }
+
+  it('búsqueda válida: «Volver a los resultados» apunta a /? con esas claves', async () => {
+    const html = await renderWith({ operation: 'sale', minPrice: '100000', sort: 'price', dir: 'asc', view: 'map' });
+
+    expect(html).toContain(
+      '<p class="property-detail__back"><a href="/?operation=sale&amp;minPrice=100000&amp;sort=price&amp;dir=asc&amp;view=map">Volver a los resultados</a></p>'
+    );
+  });
+
+  it('sin parámetros: «Volver a la búsqueda» apunta a /', async () => {
+    const html = await renderWith();
+
+    expect(html).toContain('<p class="property-detail__back"><a href="/">Volver a la búsqueda</a></p>');
+  });
+
+  it('un valor inválido cae a / sin rescatar el válido', async () => {
+    const html = await renderWith({ sort: '<script>', minPrice: '100000' });
+
+    expect(html).toContain('<a href="/">Volver a la búsqueda</a>');
+    expect(html).not.toContain('minPrice=100000');
   });
 });

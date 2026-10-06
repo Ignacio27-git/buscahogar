@@ -15,7 +15,11 @@ import 'leaflet.markercluster';
 import { useEffect } from 'react';
 import { useMap } from 'react-leaflet';
 
+import { appendSearchReturn } from '@/lib/property-href';
+import type { RawSearchParams } from '@/lib/search-href';
 import { formatClusterUnit, formatMarkerTitle } from '@/lib/search-labels';
+import { pickSearchReturnParams } from '@/lib/search-return-params';
+import type { SearchReturnParams } from '@/lib/search-return-params';
 
 import type { MapPointView } from './search-map-types';
 
@@ -41,8 +45,9 @@ function buildClusterIcon(cluster: L.MarkerCluster): L.DivIcon {
   return L.divIcon({ html: content, className: 'map-cluster', iconSize: CLUSTER_SIZE });
 }
 
-// Popup: precio + enlace plano de misma pestaña. Sin href, sin enlace.
-function buildPopup(point: MapPointView): HTMLElement {
+// Popup: precio + enlace plano de misma pestaña. Sin href, sin enlace. D.9: el enlace
+// añade los parámetros de la búsqueda (sin `page`) para que la ficha pueda volver.
+function buildPopup(point: MapPointView, returnParams: SearchReturnParams): HTMLElement {
   const box = document.createElement('div');
   const price = document.createElement('p');
   price.className = 'map-popup__price';
@@ -51,7 +56,7 @@ function buildPopup(point: MapPointView): HTMLElement {
   if (point.href !== null) {
     const link = document.createElement('a');
     link.className = 'map-popup__link';
-    link.href = point.href;
+    link.href = appendSearchReturn(point.href, returnParams);
     link.textContent = 'Ver vivienda';
     box.appendChild(link);
   }
@@ -67,10 +72,18 @@ function labelPopupClose(event: L.PopupEvent): void {
     ?.setAttribute('aria-label', 'Cerrar');
 }
 
-export function MapClusterLayer({ points }: { readonly points: readonly MapPointView[] }): null {
+export function MapClusterLayer({
+  points,
+  baseParams,
+}: {
+  readonly points: readonly MapPointView[];
+  readonly baseParams: RawSearchParams;
+}): null {
   const map = useMap();
 
   useEffect(() => {
+    // Una sola vez por efecto: el mapa no pagina, así que sin `page` (decisión 171).
+    const returnParams = pickSearchReturnParams(baseParams, { includePage: false });
     const group = L.markerClusterGroup({ iconCreateFunction: buildClusterIcon });
     for (const point of points) {
       const icon = L.divIcon({
@@ -83,7 +96,7 @@ export function MapClusterLayer({ points }: { readonly points: readonly MapPoint
         icon,
         title: formatMarkerTitle(point.priceLabel),
       });
-      marker.bindPopup(buildPopup(point), { className: 'map-popup' });
+      marker.bindPopup(buildPopup(point, returnParams), { className: 'map-popup' });
       group.addLayer(marker);
     }
     map.addLayer(group);
@@ -92,7 +105,7 @@ export function MapClusterLayer({ points }: { readonly points: readonly MapPoint
       map.off('popupopen', labelPopupClose);
       map.removeLayer(group);
     };
-  }, [map, points]);
+  }, [map, points, baseParams]);
 
   return null;
 }
