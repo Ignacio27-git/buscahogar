@@ -43,6 +43,37 @@ export function operationLabel(value: string | null): string | null {
   return labelOrNull(OPERATION_LABELS, value);
 }
 
+// D.9 (decisión 174) — nombre de la fuente de un anuncio. Tipado con `Record`
+// (134); una clave sin rótulo da «Otra fuente», nunca la clave cruda.
+export const SOURCE_LABELS: Readonly<Record<string, string>> = {
+  idealista: 'Idealista',
+  kyero: 'Kyero',
+};
+
+export function sourceLabel(key: string): string {
+  return labelOrNull(SOURCE_LABELS, key) ?? 'Otra fuente';
+}
+
+// D.9 (decisión 174) — planta en español natural a partir de los códigos reales
+// de Idealista (`raw-element.schema.ts`): un dígito n > 0 es «n.ª», 0 y `bj`
+// «Bajo», `en` «Entresuelo», `ss` «Semisótano», `st` «Sótano». Un código
+// desconocido devuelve `null`: cuenta como dato que falta.
+const FLOOR_CODE_LABELS: Readonly<Record<string, string>> = {
+  bj: 'Bajo',
+  en: 'Entresuelo',
+  ss: 'Semisótano',
+  st: 'Sótano',
+};
+
+export function floorLabel(value: string | null): string | null {
+  if (value === null) return null;
+  if (/^\d+$/.test(value)) {
+    const level = Number(value);
+    return level === 0 ? 'Bajo' : `${String(level)}.ª`;
+  }
+  return labelOrNull(FLOOR_CODE_LABELS, value);
+}
+
 export const SORT_LABELS: Readonly<Record<'price' | 'surface' | 'updated', string>> = {
   price: 'Precio',
   surface: 'Superficie',

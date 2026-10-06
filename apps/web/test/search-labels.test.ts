@@ -7,12 +7,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
   TRAY_FILTER_KEYS,
+  SOURCE_LABELS,
   countTrayFilters,
   describeInterpretationStatus,
+  floorLabel,
   formatClusterUnit,
   formatMarkerTitle,
   operationLabel,
   propertyTypeLabel,
+  sourceLabel,
 } from '../src/lib/search-labels.js';
 
 function criteria(params: Record<string, string>): PropertySearchCriteria {
@@ -153,5 +156,43 @@ describe('formatClusterUnit — SMV-20', () => {
     expect(formatClusterUnit(1)).toBe('vivienda');
     expect(formatClusterUnit(2)).toBe('viviendas');
     expect(formatClusterUnit(37)).toBe('viviendas');
+  });
+});
+
+// D.9 (decisión 174) — nombre de la fuente y planta en español natural.
+describe('sourceLabel — D.9', () => {
+  it('rotula las fuentes conocidas', () => {
+    expect(SOURCE_LABELS.idealista).toBe('Idealista');
+    expect(sourceLabel('idealista')).toBe('Idealista');
+    expect(sourceLabel('kyero')).toBe('Kyero');
+  });
+
+  it('una clave desconocida da «Otra fuente», nunca la clave cruda', () => {
+    expect(sourceLabel('foo')).toBe('Otra fuente');
+    expect(sourceLabel('constructor')).toBe('Otra fuente');
+  });
+});
+
+describe('floorLabel — D.9', () => {
+  it('un dígito mayor que cero es «n.ª»', () => {
+    expect(floorLabel('3')).toBe('3.ª');
+    expect(floorLabel('12')).toBe('12.ª');
+  });
+
+  it('0 y bj son «Bajo»', () => {
+    expect(floorLabel('0')).toBe('Bajo');
+    expect(floorLabel('bj')).toBe('Bajo');
+  });
+
+  it('en, ss y st tienen su rótulo', () => {
+    expect(floorLabel('en')).toBe('Entresuelo');
+    expect(floorLabel('ss')).toBe('Semisótano');
+    expect(floorLabel('st')).toBe('Sótano');
+  });
+
+  it('un código desconocido o null cuenta como dato que falta', () => {
+    expect(floorLabel('zz')).toBeNull();
+    expect(floorLabel('')).toBeNull();
+    expect(floorLabel(null)).toBeNull();
   });
 });
