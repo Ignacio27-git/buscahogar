@@ -389,3 +389,53 @@ describe('filtros aplicados y recuento en la home (D.6a)', () => {
     expect(html).not.toMatch(/\d+ resultados?/);
   });
 });
+
+// D.6b — la página usa el componente `Pagination` y marca la lista como lista
+// de filas densas.
+describe('lista y paginador en la home (D.6b)', () => {
+  const row = {
+    id: 'aaaaaaaa-0000-0000-0000-000000000001',
+    operation: 'sale',
+    propertyType: 'flat',
+    minPriceCents: 100000,
+    surfaceM2: 90,
+    rooms: 3,
+    bathrooms: 2,
+    address: 'Calle Mayor 1',
+    floor: null,
+    title: 'Piso',
+    description: null,
+    thumbnailUrl: null,
+    updatedAt: new Date('2026-09-10T00:00:00Z'),
+    distinctSourceCount: 1,
+    anchorListingId: 'bbbbbbbb-0000-0000-0000-000000000002',
+  };
+
+  it('con resultados, la lista lleva la clase de filas densas', async () => {
+    searchPropertiesMock.mockResolvedValue({ results: [row], hasNextPage: false });
+    const html = await render({});
+    expect(html).toMatch(/<ul class="result-list">/);
+    expect(html).toContain('Piso · Venta');
+  });
+
+  it('página 1 sin siguiente: no hay paginador', async () => {
+    searchPropertiesMock.mockResolvedValue({ results: [row], hasNextPage: false });
+    expect(await render({})).not.toContain('Paginación de resultados');
+  });
+
+  it('con página siguiente: «Página 1» y enlace a la 2 con los filtros', async () => {
+    searchPropertiesMock.mockResolvedValue({ results: [row], hasNextPage: true });
+    const html = await render({ operation: 'sale' });
+    expect(html).toContain('Paginación de resultados');
+    expect(html).toContain('Página 1');
+    expect(html).toContain('href="/?operation=sale&amp;page=2"');
+  });
+
+  it('en la página 3 sin siguiente: enlace a la 2 y siguiente sin enlace', async () => {
+    searchPropertiesMock.mockResolvedValue({ results: [row], hasNextPage: false });
+    const html = await render({ page: '3' });
+    expect(html).toContain('Página 3');
+    expect(html).toContain('href="/?page=2"');
+    expect(html).not.toContain('href="/?page=4"');
+  });
+});

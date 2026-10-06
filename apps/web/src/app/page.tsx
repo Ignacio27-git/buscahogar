@@ -15,6 +15,7 @@ import { AppliedFilters } from '@/components/applied-filters';
 import { CoverageStatus } from '@/components/coverage-status';
 import { CriteriaForm } from '@/components/criteria-form';
 import { FilterBar } from '@/components/filter-bar';
+import { Pagination } from '@/components/pagination';
 import { ResultCard } from '@/components/result-card';
 import { SearchMap } from '@/components/search-map';
 import type { MapPointView } from '@/components/search-map-types';
@@ -24,7 +25,6 @@ import { PLACE_SUGGESTION_LIMIT, classifyPlaceMatches } from '@/lib/place-match'
 import { buildPropertyDetailHref } from '@/lib/property-href';
 import {
   buildCurrentHref,
-  buildPageHref,
   buildViewHref,
   buildZoneSelectionHref,
   canonicalizeFormSubmission,
@@ -432,7 +432,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       {results.length === 0 ? (
         <p>No se encontraron viviendas con esos filtros.</p>
       ) : (
-        <ul>
+        <ul className="result-list">
           {results.map((result) => (
             <li key={result.id}>
               <ResultCard result={result} />
@@ -440,12 +440,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
           ))}
         </ul>
       )}
-      <nav aria-label="Paginación de resultados">
-        {criteria.page > 1 ? (
-          <a href={buildPageHref(rawSearchParams, criteria.page - 1)}>Página anterior</a>
-        ) : null}
-        {hasNextPage ? <a href={buildPageHref(rawSearchParams, criteria.page + 1)}>Página siguiente</a> : null}
-      </nav>
+      <Pagination params={rawSearchParams} page={criteria.page} hasNextPage={hasNextPage} />
     </>
   );
 }

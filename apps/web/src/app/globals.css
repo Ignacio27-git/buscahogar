@@ -448,6 +448,55 @@
     }
   }
 
+  /* Paginador (D.6b, decisión 156). Por debajo de 48rem el indicador ocupa la primera fila y
+     «anterior»/«siguiente» la segunda, uno a cada lado; desde 48rem, los tres en una fila con
+     el indicador centrado. El extremo que no existe es texto, no un enlace, y conserva su sitio. */
+  .pagination {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      'indicator indicator'
+      'prev next';
+    gap: 0.5rem 1rem;
+    align-items: center;
+    max-inline-size: 48rem;
+    margin-block: 1rem;
+  }
+
+  .pagination__indicator {
+    grid-area: indicator;
+    text-align: center;
+  }
+
+  .pagination__prev {
+    grid-area: prev;
+    justify-self: start;
+  }
+
+  .pagination__next {
+    grid-area: next;
+    justify-self: end;
+  }
+
+  .pagination a,
+  .pagination__edge {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 2.5rem;
+    padding-inline: 0.75rem;
+  }
+
+  .pagination__edge {
+    color: var(--ink-muted);
+  }
+
+  @media (width >= 48rem) {
+    .pagination {
+      grid-template-columns: 1fr auto 1fr;
+      grid-template-areas: 'prev indicator next';
+    }
+  }
+
   .light .theme-selector [value='light'],
   .dark .theme-selector [value='dark'],
   :root:not(.light, .dark) .theme-selector [value='system'] {
