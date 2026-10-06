@@ -150,18 +150,20 @@ async function renderInterpretation(rawQ: string | string[]): Promise<ReactEleme
   const queryParsed = typeof rawQ === 'string' ? nlQuerySchema.safeParse(rawQ) : undefined;
 
   if (queryParsed?.success !== true) {
+    // D.7 (decisión 160): sin jerga («q:») y con la salida a seguir. El límite de 200
+    // se nombra porque es lo que la persona tiene que corregir.
     const message =
       typeof rawQ !== 'string'
-        ? 'q debe aparecer una sola vez.'
+        ? 'La dirección de la página repite el texto de búsqueda. Escríbelo de nuevo en el campo de arriba.'
         : rawQ.trim().length === 0
-          ? 'q: escribe qué quieres buscar.'
-          : 'q: el texto no puede superar los 200 caracteres.';
+          ? 'El campo está vacío. Escribe qué vivienda buscas.'
+          : 'Tu texto tiene más de 200 caracteres. Acórtalo y vuelve a pulsar «Convertir en filtros».';
     return (
       <>
         <h1>Buscar vivienda</h1>
         <StepIndicator current={1} />
         <SearchTextForm value={shown} />
-        <p role="alert">No se pudo interpretar la búsqueda: {message}</p>
+        <p role="alert">{message}</p>
       </>
     );
   }
@@ -205,6 +207,8 @@ async function renderInterpretation(rawQ: string | string[]): Promise<ReactEleme
         unrecognised={unrecognised}
         conflicts={interpretation.conflicts}
         issues={validated.success ? [] : validated.error.issues.map((issue) => issue.message)}
+        criteria={validated.success ? validated.data : null}
+        placeText={interpretation.placeText}
       />
     </>
   );

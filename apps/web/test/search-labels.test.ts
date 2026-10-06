@@ -5,7 +5,13 @@ import { searchQuerySchema } from '@buscahogar/core';
 import type { PropertySearchCriteria } from '@buscahogar/core';
 import { describe, expect, it } from 'vitest';
 
-import { TRAY_FILTER_KEYS, countTrayFilters, operationLabel, propertyTypeLabel } from '../src/lib/search-labels.js';
+import {
+  TRAY_FILTER_KEYS,
+  countTrayFilters,
+  describeInterpretationStatus,
+  operationLabel,
+  propertyTypeLabel,
+} from '../src/lib/search-labels.js';
 
 function criteria(params: Record<string, string>): PropertySearchCriteria {
   return searchQuerySchema.parse(params);
@@ -70,5 +76,58 @@ describe('countTrayFilters — S15 (decisión 154)', () => {
 
   it('mezcla: operación, precio máximo, orden y zona cuentan 2', () => {
     expect(countTrayFilters(criteria({ operation: 'sale', maxPrice: '300000', sort: 'price', zone: '28065' }))).toBe(2);
+  });
+});
+
+// D.7 (spec nl-search-confirmation R6, decisión 160) — la línea de estado única
+// de la interpretación. Función pura: el texto es de presentación.
+describe('describeInterpretationStatus — S6.1, S6.4, S6.5', () => {
+  const none = { unrecognised: 0, conflicts: 0, zonePending: false };
+
+  it('todo reconocido y sin partes sueltas', () => {
+    expect(describeInterpretationStatus({ ...none, hasRecognised: true })).toBe(
+      'Todo tu texto se ha convertido en filtros.'
+    );
+  });
+
+  it('reconocido con partes sueltas: singular y plural, unidas con «y»', () => {
+    expect(describeInterpretationStatus({ ...none, hasRecognised: true, unrecognised: 1 })).toBe(
+      'Tu texto se ha convertido en filtros, salvo 1 parte sin reconocer.'
+    );
+    expect(describeInterpretationStatus({ ...none, hasRecognised: true, unrecognised: 2 })).toBe(
+      'Tu texto se ha convertido en filtros, salvo 2 partes sin reconocer.'
+    );
+    expect(describeInterpretationStatus({ ...none, hasRecognised: true, conflicts: 1 })).toBe(
+      'Tu texto se ha convertido en filtros, salvo 1 indicación contradictoria.'
+    );
+    expect(describeInterpretationStatus({ ...none, hasRecognised: true, unrecognised: 1, conflicts: 2 })).toBe(
+      'Tu texto se ha convertido en filtros, salvo 1 parte sin reconocer y 2 indicaciones contradictorias.'
+    );
+  });
+
+  it('reconocido con la zona pendiente: la menciona al final', () => {
+    expect(describeInterpretationStatus({ ...none, hasRecognised: true, zonePending: true })).toBe(
+      'Tu texto se ha convertido en filtros, salvo la zona, que tienes que elegir.'
+    );
+    expect(
+      describeInterpretationStatus({ hasRecognised: true, unrecognised: 1, conflicts: 0, zonePending: true })
+    ).toBe('Tu texto se ha convertido en filtros, salvo 1 parte sin reconocer y la zona, que tienes que elegir.');
+  });
+
+  it('nada reconocido y la zona pendiente: pide elegirla, con o sin otras partes', () => {
+    expect(describeInterpretationStatus({ ...none, hasRecognised: false, zonePending: true })).toBe(
+      'Todavía no hay ningún filtro: elige la zona abajo.'
+    );
+    expect(
+      describeInterpretationStatus({ hasRecognised: false, unrecognised: 2, conflicts: 1, zonePending: true })
+    ).toBe(
+      'Todavía no hay ningún filtro: elige la zona abajo. Además, hay 2 partes sin reconocer y 1 indicación contradictoria.'
+    );
+  });
+
+  it('nada reconocido y sin zona pendiente', () => {
+    expect(describeInterpretationStatus({ ...none, hasRecognised: false })).toBe(
+      'Ninguna parte de tu texto se ha convertido en filtros.'
+    );
   });
 });

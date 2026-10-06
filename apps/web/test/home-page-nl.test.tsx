@@ -172,7 +172,7 @@ describe('?q= interpreta sin buscar (spec "Interpret Without Searching")', () =>
 
   it('un lugar inexistente no fija zona y se lista como no entendido', async () => {
     const html = await render({ q: 'piso en Atlantis' });
-    expect(html).toContain('No he entendido:');
+    expect(html).toContain('Partes sin reconocer');
     expect(html).toContain('Atlantis');
     expect(zoneRadio(html, '')).toContain('checked');
     expectNoSideEffects();
@@ -185,7 +185,7 @@ describe('?q= interpreta sin buscar (spec "Interpret Without Searching")', () =>
 
   it('lista los fragmentos no entendidos y las indicaciones contradictorias', async () => {
     const html = await render({ q: 'piso con terraza en venta o alquiler' });
-    expect(html).toContain('No he entendido:');
+    expect(html).toContain('Partes sin reconocer');
     expect(html).toContain('terraza');
     expect(html).toContain('Indicaciones contradictorias');
   });
@@ -544,5 +544,172 @@ describe('caja de texto: botón y ayuda (D.7, S10.1, S10.2)', () => {
 
   it('S10.2: el ejemplo no es un placeholder', async () => {
     expect(await render({})).not.toContain('placeholder');
+  });
+});
+
+// D.7 (spec nl-search-confirmation R2-R8) — el panel de revisión de la
+// interpretación: un único estado, bloque de problemas, resumen de solo lectura,
+// campos agrupados y estados de la zona.
+function statusOf(html: string): string {
+  return /<p role="status"[^>]*>(.*?)<\/p>/s.exec(html)?.[1] ?? '';
+}
+
+function countOf(html: string, needle: string): number {
+  return html.split(needle).length - 1;
+}
+
+const NO_ZONE = 'Sin zona (cualquier municipio)';
+
+describe('panel de revisión: estado y alertas (D.7, R6, R7)', () => {
+  it('S6.1: una interpretación sin bloqueos tiene un único estado y ninguna alerta', async () => {
+    const html = await render({ q: 'piso con terraza en venta o alquiler' });
+    expect(countOf(html, 'role="status"')).toBe(1);
+    expect(countOf(html, 'role="alert"')).toBe(0);
+    expect(statusOf(html)).toContain('Tu texto se ha convertido en filtros, salvo');
+  });
+
+  it('S6.2/S7.1: el rechazo del esquema es la única alerta, con frase previa y el literal de Zod sin repetir', async () => {
+    const html = await render({ q: 'entre 900 y 600 euros' });
+    expect(countOf(html, 'role="alert"')).toBe(1);
+    const lead = html.indexOf('Algún filtro no es válido; corrígelo abajo antes de buscar.');
+    const literal = html.indexOf('minPrice no puede ser mayor que maxPrice');
+    expect(lead).toBeGreaterThan(-1);
+    expect(literal).toBeGreaterThan(lead);
+    expect(countOf(html, 'minPrice no puede ser mayor que maxPrice')).toBe(1);
+    expect(html).not.toContain('No se pudo interpretar la búsqueda');
+  });
+
+  it('S6.3: un q inválido sigue avisando del límite de 200 caracteres', async () => {
+    const html = await render({ q: 'a'.repeat(201) });
+    expect(countOf(html, 'role="alert"')).toBe(1);
+    expect(html).toContain('Tu texto tiene más de 200 caracteres.');
+    expect(html).not.toContain('role="status"');
+  });
+
+  it('S6.4: con el lugar ambiguo el estado menciona la zona pendiente; con zona exacta no', async () => {
+    suggestZonesMock.mockResolvedValue([zone('Villanueva', '10001', 'Cáceres'), zone('Villanueva', '20002', 'Gipuzkoa')]);
+    expect(statusOf(await render({ q: 'piso en Villanueva' }))).toContain('salvo la zona, que tienes que elegir');
+    suggestZonesMock.mockResolvedValue([zone('Getafe', '28065')]);
+    expect(statusOf(await render({ q: 'piso en Getafe' }))).not.toContain('zona');
+  });
+
+  it('S6.5: solo un lugar ambiguo: el estado pide elegir la zona y ningún municipio queda marcado', async () => {
+    suggestZonesMock.mockResolvedValue([zone('Villanueva', '10001', 'Cáceres'), zone('Villanueva', '20002', 'Gipuzkoa')]);
+    const html = await render({ q: 'en Villanueva' });
+    expect(statusOf(html)).toContain('Todavía no hay ningún filtro: elige la zona abajo.');
+    expect(zoneRadio(html, '10001')).not.toContain('checked');
+    expect(zoneRadio(html, '20002')).not.toContain('checked');
+    expect(zoneRadio(html, '')).toContain('checked');
+    expect(html).not.toContain('Prueba a nombrar');
+  });
+});
+
+describe('panel de revisión: bloque de problemas (D.7, R4)', () => {
+  it('S4.1: no entendido y contradicciones van juntos en un único bloque antes del formulario', async () => {
+    const html = await render({ q: 'piso con terraza en venta o alquiler' });
+    expect(countOf(html, 'class="nl-issues"')).toBe(1);
+    const block = html.slice(html.indexOf('class="nl-issues"'), html.indexOf('name="form"'));
+    expect(block).toContain('Partes sin reconocer');
+    expect(block).toContain('Indicaciones contradictorias');
+    expect(block).toContain('terraza');
+    expect(html).not.toContain('No he entendido');
+  });
+
+  it('S4.2: sin problemas no hay bloque', async () => {
+    expect(await render({ q: 'piso en venta' })).not.toContain('nl-issues');
+  });
+});
+
+describe('panel de revisión: resumen y estado vacío (D.7, R2, R5)', () => {
+  it('S2.1: el resumen es de solo lectura, con nombre propio y sin enlaces', async () => {
+    const html = await render({ q: 'piso en alquiler hasta 900 €' });
+    const start = html.indexOf('aria-label="Filtros interpretados"');
+    expect(start).toBeGreaterThan(-1);
+    const section = html.slice(start, html.indexOf('</section>', start));
+    expect(section).toContain('Operación: Alquiler');
+    expect(section).not.toContain('<a');
+  });
+
+  it('S2.2: con el esquema rechazado no hay resumen', async () => {
+    expect(await render({ q: 'entre 900 y 600 euros' })).not.toContain('Filtros interpretados');
+  });
+
+  it('S2.3: nunca «Filtros aplicados» ni un recuento de resultados', async () => {
+    const html = await render({ q: 'piso en alquiler hasta 900 €' });
+    expect(html).not.toContain('Filtros aplicados');
+    expect(html).not.toMatch(/\d+ resultados?/);
+  });
+
+  it('S5.1: sin nada reconocido ni lugar hay un estado vacío, sin resumen y con un único estado', async () => {
+    const html = await render({ q: 'xyzzy' });
+    expect(html).toContain('Prueba a nombrar el tipo de vivienda');
+    expect(html).not.toContain('Filtros interpretados');
+    expect(countOf(html, 'role="status"')).toBe(1);
+    expect(statusOf(html)).toContain('Ninguna parte de tu texto se ha convertido en filtros.');
+  });
+
+  it('S5.2: una zona exacta cuenta como reconocida: sin estado vacío y con la zona en el resumen', async () => {
+    suggestZonesMock.mockResolvedValue([zone('Getafe', '28065')]);
+    const html = await render({ q: 'en Getafe' });
+    expect(html).not.toContain('Prueba a nombrar');
+    expect(statusOf(html)).toContain('Todo tu texto se ha convertido en filtros.');
+    expect(html).toContain('Zona: Getafe');
+  });
+});
+
+describe('panel de revisión: la zona (D.7, R8)', () => {
+  it('S8.1: una coincidencia exacta queda marcada y se explica', async () => {
+    suggestZonesMock.mockResolvedValue([zone('Getafe', '28065')]);
+    const html = await render({ q: 'piso en Getafe' });
+    expect(zoneRadio(html, '28065')).toContain('checked');
+    expect(zoneRadio(html, '')).not.toContain('checked');
+    expect(html).toContain('Getafe es el único municipio que se llama así');
+  });
+
+  it('S8.2: con varios municipios, la leyenda nombra el lugar y la nota dice que son varios', async () => {
+    suggestZonesMock.mockResolvedValue([zone('Villanueva', '10001', 'Cáceres'), zone('Villanueva', '20002', 'Gipuzkoa')]);
+    const html = await render({ q: 'piso en Villanueva' });
+    expect(html).toContain('Elige la zona para «Villanueva»');
+    expect(html).toContain('Varios municipios encajan con lo que has escrito.');
+    expect(html).toContain(NO_ZONE);
+  });
+
+  it('S8.3: un único candidato por prefijo no dice que varios municipios encajen', async () => {
+    suggestZonesMock.mockResolvedValue([zone('Madridejos', '45093', 'Toledo')]);
+    const html = await render({ q: 'piso en Madrid' });
+    expect(html).toContain('Ningún municipio se llama exactamente así; este es el más parecido.');
+    expect(html).not.toContain('Varios municipios');
+    expect(zoneRadio(html, '45093')).not.toContain('checked');
+  });
+
+  it('S8.4: lugar no encontrado y sin lugar tienen avisos distintos y «Sin zona» marcada en ambos', async () => {
+    const notFound = await render({ q: 'piso en Atlantis' });
+    expect(notFound).toContain('No hay ningún municipio que se llame «Atlantis».');
+    expect(notFound).not.toContain('nómbralo en tu texto');
+    expect(notFound).toContain(NO_ZONE);
+    expect(zoneRadio(notFound, '')).toContain('checked');
+    expect(notFound).toContain('en Atlantis');
+
+    const noPlace = await render({ q: 'piso en alquiler' });
+    expect(noPlace).toContain('Para buscar en un municipio, nómbralo en tu texto');
+    expect(noPlace).not.toContain('No hay ningún municipio');
+    expect(noPlace).toContain(NO_ZONE);
+    expect(zoneRadio(noPlace, '')).toContain('checked');
+  });
+});
+
+describe('panel de revisión: estructura (D.7, R3, R9)', () => {
+  it('título «Revisa los filtros», aviso de que no se busca todavía y campos agrupados', async () => {
+    const html = await render({ q: 'piso en venta' });
+    expect(html).toContain('<h2 id="nl-review-heading">Revisa los filtros</h2>');
+    expect(html).toContain('La búsqueda no empieza hasta que pulses «Buscar».');
+    for (const heading of ['¿Qué buscas?', '¿Cuánto quieres pagar?', '¿De qué tamaño?', '¿Dónde?', 'Orden de los resultados']) {
+      expect(html).toContain(`<h3>${heading}</h3>`);
+    }
+    expect(html).not.toContain('Esto es lo que he entendido');
+  });
+
+  it('S9.2: la copia de la rama de parámetros inválidos no cambia', async () => {
+    expect(await render({ minPrice: 'abc' })).toContain('<p role="alert">No se pudo interpretar la búsqueda: ');
   });
 });

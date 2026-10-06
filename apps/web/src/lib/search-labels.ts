@@ -145,3 +145,39 @@ export function formatListCount(shown: number, page: number, hasNextPage: boolea
 export function formatMapCount(total: number): string {
   return `${String(total)} ${total === 1 ? 'vivienda con ubicación coincide' : 'viviendas con ubicación coinciden'}`;
 }
+
+// D.7 (decisión 160) — la única línea de estado de la interpretación de `?q=`.
+// Recibe solo recuentos y banderas: el texto es de presentación y vive aquí para
+// poder probarlo sin renderizar. Orden de las partes: sin reconocer, contradictorias
+// y, al final, la zona pendiente de elegir.
+export interface InterpretationStatusInput {
+  // Algún criterio o una zona exacta se ha reconocido.
+  readonly hasRecognised: boolean;
+  readonly unrecognised: number;
+  readonly conflicts: number;
+  // Hay un lugar ambiguo cuya zona tiene que elegir la persona.
+  readonly zonePending: boolean;
+}
+
+function countPhrase(count: number, singular: string, plural: string): string {
+  return `${String(count)} ${count === 1 ? singular : plural}`;
+}
+
+export function describeInterpretationStatus(input: InterpretationStatusInput): string {
+  const { hasRecognised, unrecognised, conflicts, zonePending } = input;
+  const issues: string[] = [];
+  if (unrecognised > 0) issues.push(countPhrase(unrecognised, 'parte sin reconocer', 'partes sin reconocer'));
+  if (conflicts > 0) issues.push(countPhrase(conflicts, 'indicación contradictoria', 'indicaciones contradictorias'));
+
+  if (hasRecognised) {
+    const parts = zonePending ? [...issues, 'la zona, que tienes que elegir'] : issues;
+    return parts.length === 0
+      ? 'Todo tu texto se ha convertido en filtros.'
+      : `Tu texto se ha convertido en filtros, salvo ${parts.join(' y ')}.`;
+  }
+  if (zonePending) {
+    const base = 'Todavía no hay ningún filtro: elige la zona abajo.';
+    return issues.length === 0 ? base : `${base} Además, hay ${issues.join(' y ')}.`;
+  }
+  return 'Ninguna parte de tu texto se ha convertido en filtros.';
+}

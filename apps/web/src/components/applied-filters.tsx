@@ -25,6 +25,10 @@ export interface AppliedFiltersProps {
 
 const CLEAR_ALL_THRESHOLD = 2;
 
+// D.7 (decisión 159) — forma común del chip interactivo y del de solo lectura. El
+// interactivo debe seguir produciendo, byte a byte, la clase de D.6a (lo fija un test).
+const CHIP_SHAPE = 'inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-control';
+
 export function AppliedFilters({ criteria, params, zoneName, count }: AppliedFiltersProps): ReactElement {
   const filters = describeAppliedFilters(criteria, zoneName);
   return (
@@ -37,7 +41,7 @@ export function AppliedFilters({ criteria, params, zoneName, count }: AppliedFil
               <li key={filter.key} className="shrink-0">
                 <a
                   href={buildRemoveFilterHref(params, filter.key)}
-                  className="inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-control border border-rule-control bg-surface-raised px-3 text-dense text-ink no-underline hover:border-ink"
+                  className={`${CHIP_SHAPE} border border-rule-control bg-surface-raised px-3 text-dense text-ink no-underline hover:border-ink`}
                 >
                   <span className="sr-only">Quitar filtro: </span>
                   {filter.label}
@@ -56,5 +60,30 @@ export function AppliedFilters({ criteria, params, zoneName, count }: AppliedFil
         </a>
       ) : null}
     </div>
+  );
+}
+
+export interface AppliedFiltersSummaryProps {
+  readonly criteria: PropertySearchCriteria;
+  readonly zoneName: string | null;
+}
+
+// D.7 (decisión 159) — resumen de solo lectura de lo interpretado en `?q=`: los
+// mismos rótulos que los chips, pero sin enlaces, sin recuento y sin «Quitar
+// todos» (los filtros aún no se han aplicado). Sin borde: se lee como etiqueta,
+// no como control. No pinta nada si no hay filtros.
+export function AppliedFiltersSummary({ criteria, zoneName }: AppliedFiltersSummaryProps): ReactElement | null {
+  const filters = describeAppliedFilters(criteria, zoneName);
+  if (filters.length === 0) return null;
+  return (
+    <section aria-label="Filtros interpretados">
+      <ul className="flex flex-wrap gap-2">
+        {filters.map((filter) => (
+          <li key={filter.key}>
+            <span className={`${CHIP_SHAPE} bg-surface-sunken px-3 text-dense text-ink`}>{filter.label}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

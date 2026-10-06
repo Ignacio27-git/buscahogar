@@ -6,7 +6,7 @@ import type { PropertySearchCriteria } from '@buscahogar/core';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { AppliedFilters } from '../src/components/applied-filters.js';
+import { AppliedFilters, AppliedFiltersSummary } from '../src/components/applied-filters.js';
 import { CriteriaFields } from '../src/components/criteria-fields.js';
 import { FilterBar } from '../src/components/filter-bar.js';
 import { canonicalizeFormSubmission } from '../src/lib/search-href.js';
@@ -348,5 +348,77 @@ describe('AppliedFilters — spec "Applied-filter chips" y "Clear all"', () => {
     const html = chips({ minRooms: '2' });
     expect(html).toMatch(/<span class="sr-only">Quitar filtro: <\/span>Habitaciones: 2 o más/);
     expect(html).toMatch(/<span aria-hidden="true"[^>]*>×<\/span>/);
+  });
+});
+
+// D.7 (decisión 159, spec applied-filters-summary S11.1/S11.2) — el chip
+// interactivo no cambia y la variante de solo lectura reutiliza su forma.
+const INTERACTIVE_CHIP_CLASS =
+  'inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-control border border-rule-control bg-surface-raised px-3 text-dense text-ink no-underline hover:border-ink';
+
+describe('AppliedFilters — chip interactivo intacto tras extraer la forma común (S11.1)', () => {
+  it('la clase del enlace es, byte a byte, la de D.6a', () => {
+    expect(chips({ minRooms: '2' })).toContain(`class="${INTERACTIVE_CHIP_CLASS}"`);
+  });
+});
+
+function summary(params: Record<string, string>, zoneName: string | null = null): string {
+  return renderToStaticMarkup(<AppliedFiltersSummary criteria={criteria(params)} zoneName={zoneName} />);
+}
+
+describe('AppliedFiltersSummary — variante de solo lectura (S2.1, S11.2)', () => {
+  it('lista los mismos rótulos que los chips, sin enlaces, sin recuento y con nombre propio', () => {
+    const html = summary({ operation: 'rent', maxPrice: '900', zone: '28065' }, 'Getafe');
+    expect(html).toContain('aria-label="Filtros interpretados"');
+    expect(html).not.toContain('Filtros aplicados');
+    for (const label of ['Operación: Alquiler', 'Precio hasta 900 €', 'Zona: Getafe']) {
+      expect(html).toContain(label);
+    }
+    expect(html).not.toContain('<a');
+    expect(html).not.toContain('Quitar');
+    expect(html).not.toMatch(/\d+ resultados?/);
+    expect((html.match(/<li/g) ?? []).length).toBe(3);
+  });
+
+  it('el chip comparte la forma del interactivo pero no es un control (sin borde)', () => {
+    const html = summary({ minRooms: '2' });
+    expect(html).toContain('inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-control');
+    expect(html).toContain('bg-surface-sunken');
+    expect(html).not.toContain('border-rule-control');
+  });
+
+  it('sin filtros no pinta nada', () => {
+    expect(summary({ sort: 'price' })).toBe('');
+  });
+});
+
+// D.7 (decisión 161, spec R3) — agrupación opcional de los campos.
+describe('CriteriaFields — agrupación opcional (S3.1, S3.2)', () => {
+  const zoneSlot = <div data-slot="zone-slot" />;
+  const grouped = renderToStaticMarkup(
+    <CriteriaFields values={FIELD_VALUES} idPrefix="criteria" grouped={{ zone: zoneSlot }} />
+  );
+
+  it('S3.1: cinco títulos en orden y «Orden de los resultados» el último', () => {
+    const headings = ['¿Qué buscas?', '¿Cuánto quieres pagar?', '¿De qué tamaño?', '¿Dónde?', 'Orden de los resultados'];
+    const positions = headings.map((heading) => grouped.indexOf(`<h3>${heading}</h3>`));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+    expect(grouped.match(/<h3/g)).toHaveLength(5);
+  });
+
+  it('la zona va entre los baños y el orden, y las leyendas y nombres se conservan', () => {
+    expect(grouped.indexOf('name="minBathrooms"')).toBeLessThan(grouped.indexOf('data-slot="zone-slot"'));
+    expect(grouped.indexOf('data-slot="zone-slot"')).toBeLessThan(grouped.indexOf('name="sort"'));
+    expect(grouped).toContain('<legend>Precio (€)</legend>');
+    expect(grouped).toContain('<legend>Superficie (m²)</legend>');
+    expect(grouped).toContain('id="criteria-minPrice"');
+  });
+
+  it('S3.2: sin `grouped` no hay títulos y el marcado plano no cambia', () => {
+    const flat = renderToStaticMarkup(<CriteriaFields values={FIELD_VALUES} idPrefix="criteria" />);
+    expect(flat).not.toContain('<h3');
+    expect(flat).not.toContain('criteria-group');
+    expect(renderToStaticMarkup(<CriteriaFields values={FIELD_VALUES} idPrefix="filter" />).replaceAll('filter-', 'criteria-')).toBe(flat);
   });
 });
