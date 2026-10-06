@@ -754,7 +754,7 @@ confirmación, nunca busca (decisión 122).
 
 ---
 
-## [ ] D.8a · Mapa: disposición y marcadores
+## [x] D.8a · Mapa: disposición y marcadores
 
 ```text
 Paso D.8a de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable adapt`.
@@ -796,6 +796,30 @@ Paso D.8a de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable adapt
 - **Contrato de D.0 (132):** confirmada la disposición por defecto (dividida en escritorio, lista
   primero con «Ver mapa» en móvil). El mapa va enmarcado como una hoja, con un solo filete y sin más
   marginalia. Aquí se decide la disposición a 768 px.
+- **Resultado:** lista y mapa conviven en toda búsqueda válida (decisión 163, enmienda la 118): las dos consultas corren en
+  paralelo en cada petición y `view` solo elige el panel visible bajo 64rem (decisión 164; 768 px sigue el patrón estrecho,
+  lista primero con «Ver mapa»). Desde 64rem, rejilla lista + mapa con el mapa `sticky` y el conmutador oculto. Cada aviso se
+  renderiza una sola vez (matriz SMV-17): el recuento de la lista en el resumen, los del mapa en su sección y el aviso de zona
+  sin cobertura en una región compartida. Marco con hairline y altura adaptable, con el aviso de carga dentro del mismo marco.
+  Marcadores, clústeres, popup, zoom, atribución y barra de dibujo con clases y tokens en `search-map-canvas.css` (decisión
+  165); nombres accesibles en español (decisión 166); reencuadre del mapa montado oculto con `ResizeObserver` (decisión 167).
+- **Ficheros reales:** además de los de la lista: `search-map-canvas.css` (nuevo), `lib/search-labels.ts`,
+  `e2e/routes.ts`, `e2e/search-map.spec.ts` (nuevo), los tests `home-page-map`, `search-split-css` (nuevo), `home-page-nl`,
+  `db/page-coverage-degradation`, `search-labels` y `map-guards`, y `docs/SEARCH-PERFORMANCE.md` (estimación analítica: el peor
+  p95 medido de la lista es 205,0 ms y el del mapa 368,7 ms, así que la petición ronda 369 ms, por debajo de 500; sin
+  escenario de banco nuevo).
+- **Decisiones:** 163-167. La numeración se partió entre las dos unidades de trabajo: la unidad A dejó escritas 163, 164 y 167 y la
+  B rellenó 165 y 166.
+- **Tests y e2e:** web: 659 (637 tras la unidad A). `map-guards` conserva todas sus aserciones y añade las de tokens, orden de
+  imports, barra por portal y fuera de alcance de D.8b; `search-labels` cubre títulos y unidad del clúster. E2E:
+  `search-map.spec.ts` (nuevo: sin desbordamiento a los tres anchos, ruta de teclado de marcador a «Ver vivienda» a 1280, mapa
+  oculto a 320, cruce de 64rem de 768 a 1280); `pnpm e2e update` en Docker: 290 superados, 280 omitidos y el fallo previsto de
+  S8.3. Regeneradas 10 capturas: `map` en los seis proyectos y `home` y `home-filtered` a 1280 px; las de 320 y 768 de
+  `home` y `home-filtered` no cambian (la lista sigue primero); la línea base de axe no cambia.
+- **Tamaño:** un solo PR con `size:exception`, aceptado por el responsable, con commits por unidad (A: código y documentación;
+  B: código, e2e con capturas y documentación); ~1500 líneas autoradas frente a las ~885 previstas (la hoja del mapa y el e2e superaron la previsión), sin
+  contar las capturas. No se recortaron tests, comentarios ni documentación.
+- **Fuera de alcance (D.8b):** teselas oscuras, dibujo con teclado y botones de dibujo de 24 px.
 
 ---
 
@@ -1333,5 +1357,10 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-06 | D.7 | Ficheros fuera de los tres listados: `step-indicator.tsx` (nuevo), `applied-filters.tsx`, `criteria-fields.tsx`, `search-labels.ts`, `search-text-form.tsx`, `globals.css`, `e2e/nl-confirmation.spec.ts` y los tests `search-filters` y `search-labels`. | Componentes y ayudas que el prompt no nombraba; se reutilizan los de D.6a. |
 | 2026-10-06 | D.7 | El indicador de pasos solo aparece en el inicio sin parámetros y en `?q=`, no en resultados, mapa ni parámetros inválidos. | Decisión 157: la URL de resultados no dice si vienen del flujo de texto o de la barra. |
 | 2026-10-06 | D.7 | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): ~1052 líneas autoradas de código, tests y e2e, más la documentación; los tests triplican la previsión. Sin contar las 24 capturas. | No se recortaron tests, comentarios ni documentación. |
+| 2026-10-06 | D.8a | Ficheros fuera de la lista del prompt: `search-map-canvas.css` (nuevo), `lib/search-labels.ts`, `e2e/routes.ts`, `e2e/search-map.spec.ts` y los tests `home-page-map`, `search-split-css`, `search-labels` y `map-guards`. | La hoja con tokens, los títulos accesibles y la cobertura e2e no cabían en los seis ficheros nombrados. |
+| 2026-10-06 | D.8a | La barra de dibujo se monta con un portal fuera del contenedor de Leaflet, y se conservan las tres hojas de terceros (incluida `MarkerCluster.Default.css`). | Decisión 165: dentro del contenedor un `z-index` de 10 quedaría bajo los paneles de Leaflet y el token de capa no se podría usar. |
+| 2026-10-06 | D.8a | La numeración de decisiones se escribió en dos commits: 163, 164 y 167 con la unidad A y 165 y 166 con la B. | La decisión 167 describe código de la unidad B pero se redactó con la A; queda un hueco temporal en la numeración entre commits. |
+| 2026-10-06 | D.8a | El reencuadre del mapa oculto usa `ResizeObserver` en lugar del `resize` de Leaflet previsto en el diseño. | Decisión 167: Leaflet solo escucha el `resize` de la ventana y «Ver mapa» no lo emite. |
+| 2026-10-06 | D.8a | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): ~1500 líneas autoradas de código, tests, e2e y documentación, sin contar las capturas. | La hoja del mapa (~200 líneas) y el e2e (~170) triplicaron la previsión de la unidad B; no se recortaron tests, comentarios ni documentación. |
 | 2026-10-06 | D.7 | Segunda ronda de Docker para las capturas, contra la ronda única de R11. | Las capturas a 320 px mostraron poco espacio bajo los pasos y sobre el panel; no lo detecta ningún test. |
 | 2026-10-06 | D.7 | El e2e sin JavaScript conserva `form=criteria` y `zone=` vacío en la URL tras «Buscar». | El formulario envía la marca y todos los campos; se comprueba que no hay `q` y que la zona está vacía. |

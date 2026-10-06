@@ -3512,3 +3512,42 @@ con el e2e; el 5 al releer el diff; el 6 al revisar los ficheros escritos.
 **Observación:** un test unitario que construye su propia `Request` no prueba el origen que Next entrega de verdad; las
 suposiciones sobre cabeceras y URL del entorno se comprueban en el e2e. Y `tsc`/vitest no sustituyen a `next build`
 para las rutas de importación.
+
+### 2026-10-06 — Siete fallos intermedios de D.8a: `alt` en un `divIcon`, 25 por página, recuento por vista y otros
+
+**Contexto:** especificación, diseño, tareas y aplicación de `search-map-d8a` (lista y mapa, marcadores, popup y barra de
+dibujo con tokens).
+
+**Categoría:** API o método inexistente / código correcto en apariencia pero incorrecto / deriva entre artefactos.
+
+**Qué se generó mal:**
+
+1. La especificación exigía que cada marcador llevara `alt` además de `title`. Leaflet solo aplica `alt` a iconos de
+   imagen; los marcadores son `divIcon`, así que el requisito no se podía cumplir ni comprobar. El nombre accesible sale
+   del texto visible más el `title` (decisión 166).
+2. La especificación decía 25 resultados por página; `PAGE_SIZE` vale 24 (comprobado en los tests de `packages/db`).
+3. El primer diseño ponía un recuento dependiente de la vista en la fila de resumen, lo que contradecía la matriz de
+   avisos de la propia especificación (el recuento de la lista va siempre en el resumen y el del mapa solo en la sección
+   del mapa).
+4. El artefacto de tareas escribió una expresión regular entre acentos graves; el despachador nativo de SDD la leyó como
+   una ruta de edición fuera del repositorio y bloqueó la aplicación. Se reescribió como prosa.
+5. El diseño del reencuadre del mapa montado oculto (decisión 167) suponía que Leaflet emite `resize` al primer tamaño
+   distinto de cero. Leaflet solo escucha el `resize` de la ventana; pasar de `view=list` a `view=map` es una
+   navegación del cliente sin evento de ventana, así que el mapa habría quedado sin teselas. Se sustituyó por un
+   `ResizeObserver` sobre el contenedor.
+6. Al escribir el test de guardas con un script de Python y un heredoc, `\b` se convirtió en el carácter de retroceso
+   (0x08) dentro de dos expresiones regulares: el fichero compilaba y las guardas parecían razonables, pero no
+   comprobaban lo que decían.
+7. Un comentario de la hoja del mapa nombraba `!important` y la propia guarda «sin `!important`» falló contra él.
+
+**Cómo se detectó:** el 1, 2 y 3 en la validación de la especificación y el diseño (antes de las tareas); el 4 como
+bloqueo del despachador; el 5 al revisar qué eventos emite Leaflet al preparar el reencuadre; el 6 al inspeccionar la
+línea con `od -c` tras ver las expresiones sin `\b` en la salida; el 7 al ejecutar el verde.
+
+**Cómo se resolvió:** correcciones puntuales en el artefacto o el fichero afectado; el 6 con una sustitución de bytes
+y el 5 enmendando el texto de la decisión 167.
+
+**Observación:** un requisito sobre una API de terceros se comprueba contra el código de la librería antes de
+escribirlo en la especificación (1 y 5). Y al generar ficheros con secuencias de escape desde un script, se verifica el
+byte resultante: una expresión regular sin `\b` sigue siendo una expresión regular válida. El mismo defecto ya existía en
+`csp-image-policy.test.ts` (línea 117, un `\b` convertido en retroceso): se deja anotado, sin corregirlo en este paso.

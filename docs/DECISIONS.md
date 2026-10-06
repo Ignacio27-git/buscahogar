@@ -4818,14 +4818,70 @@ quedaría fuera de él).
 
 ---
 
+## 165 — Hoja propia del mapa sin capa, clúster propio y barra de dibujo fuera del contenedor de Leaflet
+
+**Estado:** aceptada (paso D.8a)
+
+**Decisión.** Marcadores, clústeres, popup, zoom, atribución, zona y barra de dibujo se estilan con clases en
+`components/search-map-canvas.css`, una hoja SIN `@layer` importada en el lienzo DESPUÉS de las tres de terceros
+(`leaflet.css`, `MarkerCluster.css` y `MarkerCluster.Default.css`, que se conservan). Cada selector cuelga de
+`.leaflet-container` más una clase propia, con especificidad mínima (0,2,0) frente a los (0,1,0) a (0,2,1) de los
+vendors, y el orden de importación es la segunda salvaguarda. Sin `!important` y sin literales de color: todo sale de
+`var(--*)`, así que claro y oscuro (los tres bloques) funcionan por los tokens. Los clústeres usan su propio
+`iconCreateFunction` con la clase `map-cluster` (no `marker-cluster`), de modo que `MarkerCluster.Default.css` ya no los
+pinta. La zona y el trazo se enganchan por `pathOptions.className` (`map-area`, `map-draw-path`, `map-draw-vertex`) y
+las reglas CSS ganan a los atributos SVG. El cursor de cruz pasa a la clase `map-canvas--drawing`. La barra de dibujo
+se monta con `createPortal` en el marco (`map.getContainer().parentElement`), como hermana de `.leaflet-container`
+(que ya tiene `isolation: isolate`), y usa `z-index: var(--z-map-controls)`. `map-guards.test.ts` lee las fuentes
+como texto: sin colores literales, sin `cssText`, sin `style={` ni `elemento.style.propiedad =`, sin `!important` en la
+hoja, `z-index` por token, orden de importación y `import L` antes de `leaflet.markercluster`.
+
+**Alternativas descartadas.** `@layer` para los overrides (pierden contra las hojas de terceros, que no tienen capa);
+`!important`; las reglas en `globals.css` (el mapa dejaría de viajar solo con su chunk dinámico); un `z-index: 1000`
+literal; montar la barra dentro de `.leaflet-top` (dentro del contenedor, un z-index de 10 quedaría bajo los paneles de
+Leaflet, de 400 a 700); eliminar `MarkerCluster.Default.css` (SMV-19 exige conservar las tres hojas de terceros; con el
+`iconCreateFunction` propio ninguna regla suya casa ya con nuestros iconos).
+
+**Motivo.** Correctitud sin una carrera de especificidad, tokens como única fuente de color y una barra que de verdad
+queda por encima del mapa.
+
+---
+
+## 166 — Nombre accesible de marcadores, clústeres, popup y zoom
+
+**Estado:** aceptada (paso D.8a)
+
+**Decisión.** Cada marcador lleva `title` = `formatMarkerTitle(priceLabel)` (`lib/search-labels.ts`): «Vivienda,
+250.000 €. Ver detalle» o «Vivienda, precio no disponible. Ver detalle» (la etiqueta sin precio pasa su inicial a
+minúscula; nunca «null», «NaN» ni «undefined»). Los marcadores son `divIcon`, y Leaflet aplica `alt` solo a iconos de
+imagen, así que el nombre accesible sale del texto visible más este `title`; ningún test exige `alt`. Los clústeres
+muestran el número y, solo para lectores de pantalla, la unidad (`sr-only`, `formatClusterUnit`: «vivienda» o
+«viviendas»); siguen siendo `role="button"` con `tabindex` 0 (Leaflet `keyboard: true`) y Intro los expande. El popup
+es un bloque con `p.map-popup__price` y `a.map-popup__link` («Ver vivienda», solo con href), con foco visible en
+`var(--focus)` y alto mínimo de 2,5rem. Al abrirse, el botón de cierre recibe `aria-label="Cerrar"`, y el zoom se
+reconstruye con `zoomControl={false}` más `<ZoomControl zoomInTitle="Acercar" zoomOutTitle="Alejar" />`.
+
+**Alternativas descartadas.** Exigir `alt` en el icono (no se aplica a un `divIcon`); un `title` calculado en el
+servidor para cada punto (engorda la carga y cambia las claves de `MapPointView`); dejar las etiquetas inglesas de
+Leaflet («Close», «Zoom in»), que incumplen WCAG 3.1.2 en una página en español.
+
+**Motivo.** El mapa es una vía alternativa al listado, no la única, pero quien navega con teclado o lector debe poder
+abrir una vivienda desde él con un nombre que diga qué es y cuánto cuesta.
+
+---
+
 ## 167 — Reajuste del mapa montado oculto
 
 **Estado:** aceptada (paso D.8a)
 
 **Decisión.** Un `MapContainer` dentro de un panel `display: none` mide 0 × 0, y `getBoundsZoom` cae entonces al zoom
-máximo (16) sobre el centro de los límites. El lienzo incluye un componente local `InitialFrame` que, si `map.getSize()`
-es cero al montar, registra `map.once('resize', refit)`; el seguimiento de tamaño de Leaflet lo dispara al primer
-tamaño distinto de cero (p. ej. al cruzar 64rem), y entonces vuelve a encuadrar a los límites del resultado.
+máximo (16) sobre el centro de los límites. El lienzo incluye un componente local `InitialFrame` que observa el tamaño
+del contenedor con un `ResizeObserver`: en cada cambio llama a `map.invalidateSize({ animate: false })` y, la primera
+vez que el tamaño deja de ser cero (al cruzar 64rem o al pasar a «Ver mapa»), vuelve a encuadrar a los límites del
+resultado. Enmienda del diseño original, que registraba `map.once('resize', refit)` esperando que el seguimiento de
+tamaño de Leaflet lo disparara: Leaflet solo escucha el `resize` de la ventana, y pasar de `view=list` a `view=map` es
+una navegación del cliente que muestra el panel sin ningún evento de ventana, así que el mapa habría quedado sin
+teselas.
 
 **Alternativas descartadas.** Condicionar el montaje a `matchMedia` (la decisión de producto es no condicionarlo);
 `invalidateSize` manual desde fuera del lienzo.

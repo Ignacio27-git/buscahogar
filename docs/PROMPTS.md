@@ -30,6 +30,42 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-06 — Mapa: disposición y marcadores (paso D.8a, decisiones 163-167)
+
+**Tipo de tarea:** implementación (vista dividida lista + mapa, marco adaptable, marcadores, popup y barra de dibujo con tokens)
+con tests unitarios, de guardas estáticas y e2e
+**Forma de especificación:** SDD en modo automático con las decisiones de producto confirmadas por el responsable antes de la
+propuesta; el prompt del paso D.8a de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. TDD estricto, dos unidades de trabajo
+(A: datos, disposición, marco y avisos; B: marcadores, popup, barra, guardas y e2e) en dos commits de un solo PR con
+`size:exception` aceptado por el responsable.
+**Resultado:** con retoques (la especificación y el diseño necesitaron correcciones del orquestador antes de las tareas: `alt`
+exigido a un `divIcon`, 25 resultados por página cuando son 24, un recuento por vista contrario a la matriz de avisos; y el
+artefacto de tareas bloqueó la aplicación por una expresión regular que el despachador leyó como ruta; ver `docs/AI-NOTES.md`)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.8a de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable adapt`.
+>
+> - Disposición según D.0. Por defecto: vista dividida lista + mapa en escritorio, sin
+>   superposiciones que tapen el mapa, y lista primero con conmutador hacia el mapa en
+>   móvil. El conmutador sigue siendo un enlace con el parámetro view. Si la vista
+>   dividida necesita las dos consultas en la misma petición, mide el coste frente a los
+>   objetivos del paso 2.4.
+> - Altura del mapa adaptable, en lugar del MAP_STYLE fijo de 520 px de
+>   search-map-canvas.tsx.
+> - Etiquetas de precio y grupos de map-cluster-layer.tsx con variables CSS en lugar de los
+>   colores hexadecimales en línea. Sigue creando nodos con textContent, nunca HTML en
+>   cadena (map-guards.test.ts).
+> - Marcadores con título descriptivo, popup diseñado y estado de carga de search-map.tsx.
+> - Barra de dibujo de map-draw-control.tsx (hoy TOOLBAR_STYLE en línea) con los tokens.
+> - Mantén literal el host de teselas y la atribución de OSM, y la alternativa noscript.
+
+**Observación:** el prompt no decía qué avisos van en cada panel cuando lista y mapa conviven, ni si el mapa se monta oculto bajo
+64rem; salió de las decisiones de producto y de la matriz de avisos de la especificación (SMV-17). Que la barra de dibujo
+tuviera que salir del contenedor de Leaflet para poder usar el token de capa, y que el reencuadre del mapa oculto necesitara un
+`ResizeObserver`, no estaban en el prompt ni en el diseño inicial. Tests y documentación superaron las 800 líneas (~885
+autoradas, sin contar las capturas).
+
+
 ### 2026-10-06 — Búsqueda en lenguaje natural: interpretación y confirmación (paso D.7, decisiones 157-162)
 
 **Tipo de tarea:** implementación (indicador de pasos, panel de revisión, estados de la zona y CSS) con tests unitarios y e2e
