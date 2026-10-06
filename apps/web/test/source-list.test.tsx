@@ -34,19 +34,19 @@ describe('SourceList (D3/D6, AR-5) — cada fuente con su propio precio y enlace
   it('dos fuentes con precios distintos aparecen en filas independientes, cada precio junto a su propia fuente', () => {
     const sources = [
       makeSource({ listingId: 'l1', sourceKey: 'idealista', priceCents: 10000000 }),
-      makeSource({ listingId: 'l2', sourceKey: 'fotocasa', priceCents: 12000000 }),
+      makeSource({ listingId: 'l2', sourceKey: 'kyero', priceCents: 12000000 }),
     ];
     const html = renderToStaticMarkup(<SourceList sources={sources} />);
 
     const items = [...html.matchAll(/<li[^>]*>(.*?)<\/li>/g)].map((match) => match[1]);
     expect(items).toHaveLength(2);
-    expect(items[0]).toContain('idealista');
+    expect(items[0]).toContain('Idealista');
     // `.toLocaleString('es-ES')` con la regla CLDR "min2" (Node 22, ICU
     // completo) solo antepone el separador de miles cuando quedan ≥2
     // dígitos por delante del último grupo de 3 — de ahí precios de 6 cifras
     // (`property-header.test.tsx` documenta el mismo hallazgo).
     expect(items[0]).toContain('100.000 €');
-    expect(items[1]).toContain('fotocasa');
+    expect(items[1]).toContain('Kyero');
     expect(items[1]).toContain('120.000 €');
   });
 
@@ -80,5 +80,34 @@ describe('SourceList (D3/D6, AR-5) — cada fuente con su propio precio y enlace
 
     const items = [...html.matchAll(/<li[^>]*>/g)];
     expect(items).toHaveLength(1);
+  });
+
+  it('una clave sin rótulo muestra «Otra fuente», nunca la clave cruda', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[makeSource({ sourceKey: 'foo' })]} />);
+
+    expect(html).toContain('Otra fuente');
+    expect(html).not.toContain('foo');
+  });
+
+  it('la insignia de un anuncio retirado lleva el texto literal «(no disponible)»', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[makeSource({ status: 'removed' })]} />);
+
+    expect(html).toContain('<span class="source-row__badge">(no disponible)</span>');
+  });
+
+  it('el enlace saliente dice «Ver en {Fuente}», es de la misma pestaña y lleva rel=external', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[makeSource({})]} />);
+
+    expect(html).toContain('rel="external"');
+    expect(html).not.toContain('target=');
+    expect(html).toContain('Ver en Idealista');
+    expect(html).toContain('(web externa)');
+  });
+
+  it('tiene un encabezado de sección que nombra la lista', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[makeSource({})]} />);
+
+    expect(html).toContain('<section class="source-list" aria-labelledby="anuncios-de-origen">');
+    expect(html).toContain('id="anuncios-de-origen"');
   });
 });

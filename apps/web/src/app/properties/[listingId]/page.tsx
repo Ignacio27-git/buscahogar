@@ -21,7 +21,8 @@ import type { ReactElement } from 'react';
 import { propertyDetailParamsSchema } from '@buscahogar/core';
 import { getPropertyDetailHeader, getPropertySources } from '@buscahogar/db';
 
-import { PropertyHeader } from '@/components/property-header';
+import { PropertyDescription } from '@/components/property-description';
+import { PropertyHeader, resolvePropertyTitle } from '@/components/property-header';
 import { SourceGallery } from '@/components/source-gallery';
 import { SourceList } from '@/components/source-list';
 import type { RawSearchParams } from '@/lib/search-href';
@@ -39,8 +40,6 @@ interface PropertyDetailPageProps {
 // guarda nada entre peticiones (a diferencia de `unstable_cache` o `'use cache'`).
 const loadPropertyHeader = cache((listingId: string) => getPropertyDetailHeader(getDb(), listingId));
 
-const FALLBACK_TITLE = 'Ficha de la vivienda';
-
 // El título es el del anuncio, recortado; sin título (nulo, vacío o en blanco) se usa
 // un texto fijo, nunca «No consolidado». La plantilla del layout añade « · Buscahogar».
 export async function generateMetadata(props: PropertyDetailPageProps): Promise<Metadata> {
@@ -57,8 +56,7 @@ export async function generateMetadata(props: PropertyDetailPageProps): Promise<
     notFound();
   }
 
-  const title = header.title?.trim() ?? '';
-  return { title: title === '' ? FALLBACK_TITLE : title };
+  return { title: resolvePropertyTitle(header.title) };
 }
 
 // Server Component async (D1): `await props.params` es una Dynamic API que
@@ -104,9 +102,11 @@ export default async function PropertyDetailPage(props: PropertyDetailPageProps)
       <p className="property-detail__back">
         <a href={returnLink.href}>{returnLink.label}</a>
       </p>
+      <h1 className="property-detail__title">{resolvePropertyTitle(header.title)}</h1>
       <PropertyHeader property={header} />
       <SourceGallery sources={sources} />
       <SourceList sources={sources} />
+      <PropertyDescription description={header.description} />
     </>
   );
 }

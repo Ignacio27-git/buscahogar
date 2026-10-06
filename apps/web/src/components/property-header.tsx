@@ -3,53 +3,118 @@
 // dentro del alcance del arnés `renderToStaticMarkup` (AR-9), a diferencia
 // de la página async que solo hace fetching, `notFound()` y composición.
 //
-// Los ocho atributos que pueden venir NULL desde `properties` (decisión
-// 053: siete campos opcionales de contenido, más `propertyType`/`operation`
-// — enums obligatorios en la práctica pero nulables a nivel de esquema, y
-// la spec los nombra explícitamente como ejemplo) pasan por
-// `resolveConsolidatedField` (D8/AR-8): DOS estados, nunca tres — un valor,
-// o el indicador "no consolidado", jamás un hueco en blanco.
-import type { ReactElement } from 'react';
+// D.9 (decisiones 173 y 174): los datos clave son un `<dl>` con rótulos en
+// español; un dato que falta muestra «—» (y «Sin dato» solo para lectores de
+// pantalla) y UNA nota bajo la lista dice «No consolidado — ver anuncios de
+// origen». El resumen (precio y número de fuentes) se pinta dos veces, una por
+// punto de corte; el CSS oculta la copia que no toca.
+//
+// Los atributos que pueden venir NULL desde `properties` (decisión 053) pasan
+// por `resolveConsolidatedField` (D8/AR-8): DOS estados, nunca tres.
+import type { ReactElement, ReactNode } from 'react';
 
 import type { PropertyDetailHeader } from '@buscahogar/db';
 
 import { formatPriceCents } from '@/lib/format-price';
+import { floorLabel, operationLabel, propertyTypeLabel } from '@/lib/search-labels';
 
 import { resolveConsolidatedField } from './consolidated-field';
+
+export type SummaryPlacement = 'lead' | 'panel';
 
 export interface PropertyHeaderProps {
   readonly property: PropertyDetailHeader;
 }
 
-const NOT_CONSOLIDATED_TEXT = 'No consolidado — ver anuncios de origen';
+export interface PropertySummaryProps {
+  readonly property: PropertyDetailHeader;
+  readonly placement: SummaryPlacement;
+}
 
-// Envuelve `resolveConsolidatedField` con el formato de presentación de cada
-// campo, para no repetir el `if (kind === 'value')` ocho veces.
-function renderField<T>(value: T | null, format: (value: T) => string): string {
-  const resolved = resolveConsolidatedField(value);
-  return resolved.kind === 'value' ? format(resolved.value) : NOT_CONSOLIDATED_TEXT;
+const NOT_CONSOLIDATED_NOTE = 'No consolidado — ver anuncios de origen';
+const FALLBACK_TITLE = 'Ficha de la vivienda';
+
+// El título es el del anuncio, recortado; sin título (nulo, vacío o en blanco) se usa un
+// texto fijo, nunca «No consolidado». Lo comparten `generateMetadata` y el `<h1>`.
+export function resolvePropertyTitle(title: string | null): string {
+  const trimmed = title?.trim() ?? '';
+  return trimmed === '' ? FALLBACK_TITLE : trimmed;
+}
+
+interface Fact {
+  readonly label: string;
+  readonly value: string | null;
+  readonly wide?: boolean;
+}
+
+function buildFacts(property: PropertyDetailHeader): readonly Fact[] {
+  const surface = resolveConsolidatedField(property.surfaceM2);
+  const rooms = resolveConsolidatedField(property.rooms);
+  const bathrooms = resolveConsolidatedField(property.bathrooms);
+  return [
+    { label: 'Tipo', value: propertyTypeLabel(property.propertyType) },
+    { label: 'Operación', value: operationLabel(property.operation) },
+    { label: 'Superficie', value: surface.kind === 'value' ? `${String(surface.value)} m²` : null },
+    { label: 'Habitaciones', value: rooms.kind === 'value' ? String(rooms.value) : null },
+    { label: 'Baños', value: bathrooms.kind === 'value' ? String(bathrooms.value) : null },
+    { label: 'Planta', value: floorLabel(property.floor) },
+    { label: 'Dirección', value: property.address, wide: true },
+  ];
+}
+
+function renderValue(value: string | null): ReactNode {
+  if (value === null) {
+    return (
+      <>
+        <span aria-hidden="true">—</span>
+        <span className="sr-only">Sin dato</span>
+      </>
+    );
+  }
+  return value;
+}
+
+export function PropertySummary({ property, placement }: PropertySummaryProps): ReactElement {
+  const price = formatPriceCents(property.minPriceCents);
+  const priceClass =
+    property.minPriceCents === null
+      ? 'property-summary__price property-summary__price--missing'
+      : 'property-summary__price tabular-nums';
+  return (
+    <div className={`property-summary property-summary--${placement}`}>
+      <p className={priceClass}>{price}</p>
+      <p className="property-summary__count">
+        {`Disponible en ${String(property.listingCount)} ${property.listingCount === 1 ? 'fuente' : 'fuentes'}`}
+      </p>
+    </div>
+  );
 }
 
 export function PropertyHeader({ property }: PropertyHeaderProps): ReactElement {
+  const facts = buildFacts(property);
+  const hasMissing = facts.some((fact) => fact.value === null);
   return (
-    <header>
-      <h1>{renderField(property.title, (value) => value)}</h1>
-      <p>{formatPriceCents(property.minPriceCents)}</p>
-      <p>
-        {renderField(property.propertyType, (value) => value)} ·{' '}
-        {renderField(property.operation, (value) => value)}
-      </p>
-      <p>
-        {renderField(property.surfaceM2, (value) => `${String(value)} m²`)} ·{' '}
-        {renderField(property.rooms, (value) => `${String(value)} hab.`)} ·{' '}
-        {renderField(property.bathrooms, (value) => `${String(value)} baños`)} ·{' '}
-        {renderField(property.floor, (value) => `Planta ${value}`)}
-      </p>
-      <p>{renderField(property.address, (value) => value)}</p>
-      <p>{renderField(property.description, (value) => value)}</p>
-      <p>
-        Disponible en {property.listingCount} {property.listingCount === 1 ? 'fuente' : 'fuentes'}
-      </p>
-    </header>
+    <div className="property-header">
+      <PropertySummary property={property} placement="panel" />
+      <div className="property-facts">
+        <dl className="property-facts__list">
+          {facts.map((fact) => (
+            <div
+              key={fact.label}
+              className={fact.wide === true ? 'property-facts__item property-facts__item--wide' : 'property-facts__item'}
+            >
+              <dt>{fact.label}</dt>
+              <dd>{renderValue(fact.value)}</dd>
+            </div>
+          ))}
+        </dl>
+        {hasMissing ? (
+          <p className="property-facts__note">
+            <span aria-hidden="true">— </span>
+            {NOT_CONSOLIDATED_NOTE}
+          </p>
+        ) : null}
+      </div>
+    </div>
   );
 }
