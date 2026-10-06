@@ -214,3 +214,19 @@ máxima (2.500 km²) en la zona más densa del corpus, y se queda en 351 ms de p
 frío). El recuento solo se ejecuta cuando hay más de 500 puntos (decisión 117). Si el corpus real
 fuera más denso que el sintético, este sería el primer escenario que habría que repetir. Resultados
 en `apps/ingestion/.bench/run-2026-10-01T11-43-14-647Z.json`.
+
+### Paso D.8a (estimación analítica)
+
+D.8a hace que la página de inicio y las búsquedas válidas corran la lista Y el mapa en cada petición (decisión 163). No
+se ha medido nada nuevo ni se ha añadido ningún escenario a `bench-search`: la estimación sale de las cifras
+anteriores.
+
+- **Tiempo de pared ≈ máximo de las dos consultas.** Se lanzan con `Promise.all`, cada una en su conexión del pool.
+- **Peor caso medido.** La lista tiene su p95 más alto en `all-filters` (205,0 ms) y el mapa en el escenario G1
+  `polygon-large` (368,7 ms, recuento incluido). Con las dos en paralelo, el tiempo de pared estimado es de unos
+  369 ms, por debajo de los 500 ms del objetivo.
+- **Caso por defecto (sin filtros).** Alrededor de `max(3,1; 81,2)` ms, con los p95 de la lista y del mapa sin
+  filtros de las mediciones anteriores.
+- **Sin medir.** `all-filters` aplicado al mapa no tiene cifra propia: el recuento solo se ejecuta cuando hay más de
+  500 puntos.
+- **Pool.** El máximo de 10 conexiones atiende ahora 5 búsquedas simultáneas (dos conexiones por petición), no 10.

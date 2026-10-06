@@ -4767,6 +4767,73 @@ opciones. Un solo aviso para «sin lugar» y «no encontrado»: el segundo neces
 
 ---
 
+## 163 — Lista y mapa conviven; `view` solo elige el panel visible bajo 64rem (enmienda la 118)
+
+**Estado:** aceptada (paso D.8a)
+
+**Decisión.** Toda petición válida de `/` corre las DOS consultas (`searchProperties` y `searchMapPoints`), en
+paralelo y una sola vez, y renderiza las dos secciones en el servidor: la lista primero en el orden del documento y
+después el mapa, hermanas dentro de `.search-results[data-view]`. `view` deja de ser un interruptor de consulta: es
+solo una pista de visibilidad (bajo 64rem se ve un panel; desde 64rem, ambos). Un `view` inválido, las ramas `?q=` y de
+parámetros inválidos siguen sin consultar nada. El mapa recibe siempre el conjunto entero (hasta 500 puntos),
+independiente de `page`. Cada aviso se renderiza una sola vez: el recuento de la lista queda en el resumen compartido
+de `AppliedFilters`; M, «puede diferir…», «Mostrando N de M», el vacío del mapa, la nota de ubicación aproximada, el
+marco con su `noscript` y la atribución de OSM viven solo en la sección del mapa. El aviso DAS-11 («puede que la zona
+no esté cubierta») pasa a una región compartida y su condición es polígono válido y M = 0 (con polígono ambos totales
+coinciden), de modo que también sale en páginas posteriores de la lista. Se mantiene lo que la 118 ya fijaba: el paquete
+de la lista nunca importa el mapa, y Leaflet (JS y CSS) vive solo en el chunk dinámico de `search-map-canvas`
+(`map-guards`).
+
+**Alternativas descartadas.** Cargar el mapa con Suspense (rompe los tests con `renderToStaticMarkup`); pedir los
+puntos desde el cliente (viola la prohibición de `fetch` de `map-guards`); decidir el panel visible según el ancho en
+JS o en el servidor (el servidor no conoce el ancho); no montar Leaflet mientras el panel está oculto (decisión de
+producto: el montaje no se condiciona).
+
+**Motivo.** Con lista y mapa a la vez en pantallas anchas, los dos conjuntos tienen que existir en cada respuesta. El
+coste se acota con el análisis de `docs/SEARCH-PERFORMANCE.md`: el tiempo de pared es el máximo de las dos consultas.
+
+---
+
+## 164 — CSS de la vista dividida: media query de 64rem, 768px como estrecho, marco con altura adaptable y `scripting: none`
+
+**Estado:** aceptada (paso D.8a)
+
+**Decisión.** En `globals.css`, capa `components`, las reglas que ocultan un panel
+(`.search-results[data-view='map'] > .search-results__list` y su simétrica) van FUERA de la media query y la regla que
+los vuelve a mostrar va dentro de `@media (width >= 64rem)`, con la misma especificidad (0,3,0), así que gana por orden.
+Desde 64rem: rejilla `minmax(0, 48rem) minmax(20rem, 1fr)`, mapa `sticky` bajo `--scroll-offset` con altura
+`100dvh - 2 * --scroll-offset` (tope de 60rem) y el enlace «Ver mapa/lista» oculto. A 768px se aplica el patrón
+estrecho. El marco (`.search-map__frame`) lleva el hairline `var(--rule)` y `var(--surface)`, sin sombra; bajo 64rem
+su altura es `clamp(20rem, 70dvh, 40rem)`, que nunca supera el viewport. El marco es del servidor (`page.tsx`) y aloja
+el aviso de carga, el lienzo y el `noscript`, así que montar el mapa no desplaza el contenido. Con
+`@media (scripting: none)` se oculta el aviso de carga y el marco pasa a cuadrícula centrada para mostrar el
+`noscript`, cuyo marcado no cambia.
+
+**Alternativas descartadas.** Dividir desde 48rem (a 768px la columna del mapa quedaría por debajo de 20rem); una
+altura fija de 520px en línea; `MAP_STYLE` en el lienzo; poner el marco dentro del wrapper de cliente (el `noscript`
+quedaría fuera de él).
+
+**Motivo.** Visibilidad decidida solo por CSS, sin detección de ancho, sin salto de maquetación y con la guarda
+`search-split-css.test.ts` leyendo la hoja como texto.
+
+---
+
+## 167 — Reajuste del mapa montado oculto
+
+**Estado:** aceptada (paso D.8a)
+
+**Decisión.** Un `MapContainer` dentro de un panel `display: none` mide 0 × 0, y `getBoundsZoom` cae entonces al zoom
+máximo (16) sobre el centro de los límites. El lienzo incluye un componente local `InitialFrame` que, si `map.getSize()`
+es cero al montar, registra `map.once('resize', refit)`; el seguimiento de tamaño de Leaflet lo dispara al primer
+tamaño distinto de cero (p. ej. al cruzar 64rem), y entonces vuelve a encuadrar a los límites del resultado.
+
+**Alternativas descartadas.** Condicionar el montaje a `matchMedia` (la decisión de producto es no condicionarlo);
+`invalidateSize` manual desde fuera del lienzo.
+
+**Motivo.** El mapa montado oculto debe verse bien al aparecer, sin recarga y sin código de ancho en JS.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
