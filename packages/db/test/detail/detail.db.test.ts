@@ -26,6 +26,7 @@ async function insertSourceKeyed(db: Database, key: string): Promise<string> {
 }
 
 interface ListingOverrides {
+  readonly id?: string;
   readonly url?: string;
   readonly status?: string;
   readonly thumbnailUrl?: string;
@@ -36,6 +37,7 @@ async function insertListingRow(db: Database, sourceId: string, overrides: Listi
   const [row] = await db
     .insert(listings)
     .values({
+      ...(overrides.id !== undefined ? { id: overrides.id } : {}),
       sourceId,
       externalId: `ext-${randomUUID()}`,
       url: overrides.url ?? 'https://example.test/anuncio',
@@ -278,6 +280,41 @@ describe('detail.ts — Q1/Q2 contra Postgres real (diseño D3)', () => {
     const sourceRows = await getPropertySources(db, property?.id ?? '');
     expect(sourceRows).toHaveLength(2);
     expect(sourceRows.every((row) => row.status === 'inactive')).toBe(true);
+  });
+
+  // Paso D.9 (spec property-detail-query): un único orden determinista para la
+  // lista y la galería de fuentes: activos primero, luego precio, luego id.
+  it('D.9: un anuncio activo va antes que uno retirado aunque este sea más barato', async () => {
+    const sourceId = await insertSourceKeyed(db, 'idealista');
+    const removed = await insertListingRow(db, sourceId, { status: 'removed' });
+    const active = await insertListingRow(db, sourceId, { status: 'active' });
+    await insertCurrentVersion(db, removed, { priceCents: 200_000_00 });
+    await insertCurrentVersion(db, active, { priceCents: 300_000_00 });
+    const propertyId = await insertPropertyRow(db, { minPriceCents: 200_000_00, listingCount: 2 });
+    await linkPropertyListing(db, propertyId, removed);
+    await linkPropertyListing(db, propertyId, active);
+
+    const rows = await getPropertySources(db, propertyId);
+    expect(rows.map((row) => row.listingId)).toEqual([active, removed]);
+  });
+
+  it('D.9: con precio igual desempata por id ascendente, en cada llamada', async () => {
+    const sourceId = await insertSourceKeyed(db, 'idealista');
+    const lowId = '00000000-0000-4000-8000-000000000005';
+    const highId = '00000000-0000-4000-8000-000000000007';
+    // Se insertan y enlazan en orden inverso para que el orden físico no ayude.
+    await insertListingRow(db, sourceId, { id: highId });
+    await insertListingRow(db, sourceId, { id: lowId });
+    await insertCurrentVersion(db, highId, { priceCents: 250_000_00 });
+    await insertCurrentVersion(db, lowId, { priceCents: 250_000_00 });
+    const propertyId = await insertPropertyRow(db, { minPriceCents: 250_000_00, listingCount: 2 });
+    await linkPropertyListing(db, propertyId, highId);
+    await linkPropertyListing(db, propertyId, lowId);
+
+    for (let call = 0; call < 3; call += 1) {
+      const rows = await getPropertySources(db, propertyId);
+      expect(rows.map((row) => row.listingId)).toEqual([lowId, highId]);
+    }
   });
 
   it('404: uuid bien formado pero sin fila property_listings coincidente (listing inexistente por completo)', async () => {

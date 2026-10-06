@@ -17,7 +17,7 @@
 // retorno a propósito (PD-3): la frontera la impone el compilador, no la
 // disciplina de la interfaz — ningún cambio en la UI puede filtrarlos sin
 // editar este fichero primero.
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 
 import type { Database } from './db.js';
 import { listingVersions, listings, properties, propertyListings, sources } from './tables.js';
@@ -116,5 +116,8 @@ export async function getPropertySources(db: Database, propertyId: string): Prom
       and(eq(listingVersions.listingId, listings.id), sql`${listingVersions.isCurrent}`)
     )
     .innerJoin(sources, eq(sources.id, listings.sourceId))
-    .where(eq(propertyListings.propertyId, propertyId));
+    .where(eq(propertyListings.propertyId, propertyId))
+    // Orden determinista (D.9): activos primero, luego precio y por último id,
+    // para que la lista y la galería de la ficha compartan un único orden.
+    .orderBy(sql`(${listings.status} = 'active') DESC`, asc(listingVersions.priceCents), asc(listings.id));
 }
