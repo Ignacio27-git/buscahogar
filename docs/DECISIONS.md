@@ -5025,6 +5025,18 @@ sí entra en las opciones del constructor; `map-guards.test.ts` lo vigila.
 
 ---
 
+## 175 — Ficha con galería en el e2e: vivienda solo con inactivos y fotos locales
+
+**Estado:** aceptada (paso D.9, seguimiento de la verificación; cambia el escenario S4.6 de la siembra de D.1a, decisión 135, que no tenía ninguna miniatura).
+
+**Decisión.** La siembra e2e añade P7, una vivienda cuyos dos anuncios (Idealista y Kyero) están `inactive` desde hace dos semanas, sin tombstone: conservan descripción, `raw` y miniatura (decisión 107). Le faltan baños y planta, así que su ficha enseña la galería de dos fotos, el «—» y la nota única. Por la 109 no sale en la búsqueda ni en el mapa, y su ficha muestra el mínimo de todos sus anuncios. Las miniaturas son rutas de nuestro origen (`/e2e-fixtures/gallery-{1,2}.png`). Los PNG se versionan en `apps/web/e2e/assets/` y `Dockerfile.e2e` los copia a `apps/web/public/e2e-fixtures/` solo en la imagen del e2e, así que pasan por el optimizador local de `next/image` sin publicarse en producción. La ruta `detail-gallery` la incorpora a las capturas, a axe y a la estructura de página.
+
+**Alternativas descartadas.** Una vivienda activa: cambiaría las capturas de `home`, `map` y `home-filtered` y los recuentos de la búsqueda. Dar miniaturas a P2: mismo efecto en la fila de resultados. Un `data:` URI: la CSP lo admite, pero `next/image` no optimiza esas imágenes y la prueba no cubriría `/_next/image` ni el `srcset`. Versionar las fotos en `apps/web/public/`: la build de producción las serviría. Un host externo, aunque fuese un dominio `.invalid`: lo prohíben R8 y `remotePatterns`.
+
+**Motivo.** Cubrir con capturas lo que hasta ahora solo cubrían los tests unitarios sin mover ninguna otra línea base.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

@@ -40,6 +40,24 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-06 — Ventana «baja» que no lo era en el e2e del foco de la ficha (paso D.9, seguimiento)
+
+**Contexto:** e2e de WCAG 2.4.11 en `apps/web/e2e/property-detail.spec.ts`, caso del panel `sticky` con desplazamiento interno.
+
+**Categoría:** test que valida el comportamiento equivocado (suposición no comprobada).
+
+**Qué ocurrió:** se escribió el caso a 1280×600 dando por hecho que el panel tendría que desplazarse por dentro. El panel de la
+ficha de prueba mide unos 555 px y su tope es la ventana menos 2rem (568 px): cabía entero, y el recorrido con Tab habría pasado
+sin ejercitar el desplazamiento interno.
+
+**Cómo se detectó:** el propio test exige `scrollHeight > clientHeight` antes de recorrer; falló en la primera ejecución en
+Docker. Se pasó a 1280×480 y se añadió la comprobación de que algún foco obliga al panel a desplazarse (`scrollTop > 0`).
+
+**Coste:** una ejecución de Docker (~5 min).
+
+**Observación:** un test de «no tapado» pasa en vacío si el escenario no se da; hay que afirmar la precondición. Además se
+comprobó que el recorrido detecta un panel que tapa (estilo inyectado a mano en una ejecución aparte, que falló como debía).
+
 ### 2026-10-06 — Tres errores de la especificación y el diseño de D.7 cazados por la validación (paso D.7)
 
 **Contexto:** fases de especificación y diseño de `nl-search-confirmation-d7`, antes de escribir código.

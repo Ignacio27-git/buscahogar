@@ -951,7 +951,19 @@ Paso D.9 de docs/DESIGN-ROADMAP.md. Aplica la presentación de la ficha decidida
   de axe no cambian. Revisadas a ojo: un solo precio por ancho, enlace de vuelta sobre el h1, dos columnas con panel a 1280 y una a
   320 y 768, sin desbordamiento horizontal y legibles en ambos temas.
 - **Fuera de las capturas:** la galería no sale en el e2e (la siembra no tiene miniaturas) y la semilla tiene todos los datos, así
-  que «—» y la nota «No consolidado» solo los cubren los tests unitarios.
+  que «—» y la nota «No consolidado» solo los cubren los tests unitarios. *Resuelto en el seguimiento de abajo.*
+- **Seguimiento de la verificación (2026-10-06, decisión 175):** la siembra añade P7, con dos anuncios `inactive` sin tombstone, dos
+  fotos locales (`apps/web/e2e/assets/gallery-{1,2}.png`, copiadas a `public/e2e-fixtures/` solo en `Dockerfile.e2e`) y sin baños ni
+  planta. No sale en la búsqueda (109), así que ninguna captura existente cambia. La ruta `detail-gallery` añade seis capturas y
+  su entrada axe (sin violaciones). Revisadas a 320 y 1280 en ambos temas: galería con «Foto 1 de 2 · Idealista» y «Foto
+  siguiente», «—» en Baños y Planta, una sola nota y un solo precio (219.000 €, el mínimo de todos). `property-detail.spec.ts`:
+  sin JavaScript, «Foto siguiente»/«Foto anterior» cambian el fragmento y colocan la foto en la tira (cajas, no tiempos), nada
+  avanza solo y el enlace de vuelta es un `href="/"` que funciona; con Tab, ningún enfocable queda tapado (`elementFromPoint`
+  en su centro, dentro de la ventana y de la parte visible del panel) a 1280, a 1280×480 con el panel desplazándose por dentro
+  y a 320. No se encontró ningún defecto. Commits `c37ea2a` y `255f416`. E2e: 400 superados y 320 omitidos (antes 368 y 280);
+  web 741 y la forma de la siembra 43 (antes 41).
+- **Observación (sin cambio):** «Disponible en N fuentes» cuenta todos los anuncios (`listing_count`), también los «(no disponible)»;
+  en P7 dice «2 fuentes» con las dos no disponibles, y en P2 «2 fuentes» con una retirada. No se ha tocado: es texto del diseño de D.0.
 - **Tamaño:** ~1000 líneas de código, tests y documentación sin contar las capturas; `size:exception`.
 
 ---
@@ -1413,4 +1425,6 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-06 | D.8b | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable). | Reductor con tests, control, hoja, guardas y e2e forman una unidad; no se recortaron tests, comentarios ni documentación. |
 | 2026-10-06 | D.9 | Se añade un `ORDER BY` a `getPropertySources` en `packages/db` (activos primero, precio, id), fuera de la lista de ficheros del paso. | La galería y la lista necesitan un orden determinista; ordenar en `apps/web` lo dejaba sin garantía (decisión 174). |
 | 2026-10-06 | D.9 | La ficha se reparte en más componentes que los listados (`PropertySummary`, `PropertyDescription`, `lib/search-return*.ts`, `split-paragraphs.ts`). | Mantener `page.tsx` con sus guardas de `notFound()` y las funciones puras con test propio. |
-| 2026-10-06 | D.9 | La galería no está cubierta por capturas e2e. | La siembra del e2e no tiene miniaturas; la cubren los tests de `source-gallery`. |
+| 2026-10-06 | D.9 | La galería no está cubierta por capturas e2e. | La siembra del e2e no tiene miniaturas; la cubren los tests de `source-gallery`. Resuelto en el seguimiento con P7 y la ruta `detail-gallery` (decisión 175). |
+| 2026-10-06 | D.9 | Seguimiento de la verificación fuera del paso: vivienda P7 en la siembra, ruta `detail-gallery`, `property-detail.spec.ts` y copia de dos PNG en `Dockerfile.e2e`. | Cubrir en e2e la galería, el «—», la nota única, la navegación sin JS y el foco no tapado (decisión 175). |
+| 2026-10-06 | D.9 | El caso de ventana baja del foco es 1280×480 y no 1280×600. | A 600 px el panel de P7 (~555 px) cabe bajo su tope (568 px) y no se desplaza por dentro; ver `AI-NOTES.md`. |

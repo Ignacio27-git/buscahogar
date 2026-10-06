@@ -30,6 +30,25 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-06 — Ficha: avisos de la verificación de D.9 (galería en capturas, sin JS y foco no tapado)
+
+**Tipo de tarea:** test (siembra e2e, capturas, e2e sin JavaScript y de accesibilidad)
+**Forma de especificación:** prosa breve con los dos avisos de la verificación; implementación directa delegada (sin SDD)
+**Resultado:** utilizable con retoques — la ventana baja propuesta (1280×600) no obligaba al panel a desplazarse y se bajó a
+1280×480; ver `docs/AI-NOTES.md`. Ningún defecto de producto.
+
+**Prompt:**
+
+> soluciona estos puntos
+>
+> 1. Las capturas e2e no enseñan la galería, el «—» de los datos que faltan ni la nota única «No consolidado — ver anuncios de
+>    origen», porque la siembra e2e no tiene miniaturas y tiene todos los datos. Solo los cubren los tests unitarios.
+> 2. No hay ningún test automático de que el panel lateral sticky no tape el foco del teclado, ni de la navegación de la
+>    galería sin JavaScript.
+
+**Observación:** la clave fue elegir una vivienda solo con anuncios inactivos sin redactar (decisión 175): sale en su ficha pero
+no en la búsqueda, así que las capturas nuevas no movieron ninguna línea base existente.
+
 ### 2026-10-06 — Ficha: presentación (paso D.9, decisiones 171-174)
 
 **Tipo de tarea:** implementación de un paso de diseño (interfaz de servidor, CSS, orden en una consulta SQL, e2e)
