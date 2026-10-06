@@ -968,7 +968,13 @@ Paso D.9 de docs/DESIGN-ROADMAP.md. Aplica la presentación de la ficha decidida
   ninguna, dice «No disponible en ninguna fuente». P2 dice «Disponible en 1 fuente» y P7 «No disponible en ninguna fuente», una
   vez por ancho. Solo cambian las seis capturas de `detail` y las seis de `detail-gallery`. Web 752 (antes 741); e2e 400
   superados y 320 omitidos, igual que antes. La búsqueda (`distinctSourceCount`) sigue contando fuentes de todos los anuncios: P2
-  sale allí con «2 fuentes». No se ha tocado (fuera del alcance); ver la decisión 176.
+  sale allí con «2 fuentes». No se ha tocado (fuera del alcance); ver la decisión 176. *Alineado después (decisión 177), con la
+  aprobación del responsable:* la subconsulta `distinctSourceCount` de `search.ts` filtra por `src_l."status" = 'active'` y P2
+  dice «Disponible en 1 fuente» también en los resultados. El mapa no usa ese recuento. Tests nuevos: uno de forma en
+  `search.test.ts` y dos contra Postgres en `search.db.test.ts` (fuente con solo un anuncio retirado o inactivo; dos activos de
+  la misma fuente), verificados en rojo. Cambian las seis capturas de `home` y las dos de `map` a 1280; `detail`,
+  `home-filtered` (P2 no entra en su filtro) y `map` bajo 64rem (solo el mapa) no cambian. db 295, web 752, e2e 400 superados y
+  320 omitidos.
 - **Tamaño:** ~1000 líneas de código, tests y documentación sin contar las capturas; `size:exception`.
 
 ---

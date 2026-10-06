@@ -5051,6 +5051,18 @@ sí entra en las opciones del constructor; `map-guards.test.ts` lo vigila.
 
 ---
 
+## 177 — Número de fuentes de los resultados: solo fuentes con algún anuncio activo
+
+**Estado:** aceptada (paso D.9, seguimiento; enmienda la consecuencia de la 176 y el recuento A-1 de la 058).
+
+**Decisión.** La subconsulta `distinctSourceCount` de `packages/db/src/search.ts` añade `AND src_l."status" = 'active'`: cuenta fuentes distintas con al menos un anuncio activo, igual que `countActiveSources` en la ficha. Es el mismo literal con el que `visibility.ts` calcula `active_listing_count`. El campo conserva su nombre y `result-card` su copia singular/plural. Como la búsqueda solo devuelve viviendas con `active_listing_count > 0` (decisión 109), el valor es siempre ≥ 1. El mapa no lo usa: `buildMapPointsQuery` no proyecta ningún recuento, y la lista que acompaña al mapa es la misma `searchProperties`.
+
+**Alternativas descartadas.** Dejar la diferencia documentada (la consecuencia de la 176): P2 seguiría diciendo «2 fuentes» en los resultados y «1 fuente» en su ficha. Calcular el número en `apps/web` como en la ficha: la búsqueda no carga los anuncios de cada vivienda y exigiría una consulta más por tarjeta.
+
+**Motivo.** El mantenedor aprobó alinear las dos vistas: un anuncio retirado no es una fuente donde la vivienda esté disponible.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

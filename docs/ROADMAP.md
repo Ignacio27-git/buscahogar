@@ -1180,6 +1180,11 @@ defecto, que excluye las suites fail-loud), `pnpm --filter @buscahogar/web test`
 > - La base de datos de desarrollo tiene 2 viviendas, restos de los tests. El corpus real se
 >   borró durante el ciclo 1.10 y repoblarlo gasta cuota de Idealista.
 
+**Cambio posterior (2026-10-06, paso D.9, decisión 177):** el recuento de fuentes de A-1 solo cuenta
+las fuentes con algún anuncio `active` (`AND src_l."status" = 'active'` en la subconsulta), para
+coincidir con la ficha (decisión 176). «En cuántas fuentes aparece» pasa a ser «en cuántas está
+disponible».
+
 ## [x] 1.12 · Detalle y redirección a las fuentes
 
 ```text

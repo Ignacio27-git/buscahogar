@@ -30,6 +30,24 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-06 — Resultados: número de fuentes activas (paso D.9, seguimiento, decisión 177)
+
+**Tipo de tarea:** consulta SQL (subconsulta de `search.ts`) + test + capturas e2e
+**Forma de especificación:** elección del responsable en una pregunta cerrada sobre la consecuencia que dejó abierta la decisión
+176; implementación directa delegada (sin SDD), test primero
+**Resultado:** utilizable sin cambios.
+
+**Prompt:**
+
+> Sí, alinearlo
+
+(respuesta a si el recuento de fuentes de la búsqueda debía coincidir con el de la ficha: P2 decía «2 fuentes» en los
+resultados y «1 fuente» en su ficha).
+
+**Observación:** bastó un `AND src_l."status" = 'active'` en la subconsulta, con el mismo literal que `visibility.ts`. El mapa
+no proyecta ningún recuento. Cambiaron solo las capturas de `home` (seis) y las de `map` a 1280 (dos), donde se ve la fila de P2;
+`home-filtered` no la incluye y bajo 64rem `map` solo enseña el mapa.
+
 ### 2026-10-06 — Ficha: número de fuentes activas (paso D.9, corrección, decisión 176)
 
 **Tipo de tarea:** interfaz (función pura en `apps/web/src/lib`, resumen de la ficha) + test + capturas e2e
