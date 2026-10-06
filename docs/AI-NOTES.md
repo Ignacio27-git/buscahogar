@@ -3553,3 +3553,35 @@ byte resultante: una expresión regular sin `\b` sigue siendo una expresión reg
 `csp-image-policy.test.ts` (línea 117, un `\b` convertido en retroceso, introducido en el paso 2.6): se corrigió en un
 commit aparte tras cerrar D.8a. Hasta entonces la alternativa `\bhttps:(?!\/\/)` no podía coincidir nunca, así que el
 test no detectaba un origen `https:` sin host en la CSP.
+
+### 2026-10-06 — Dos fallos intermedios de D.8b: `Map.isPopupOpen` y `pathOptions.className`
+
+**Contexto:** diseño, aplicación y e2e de `search-map-d8b` (dibujo de zona por teclado con mira central).
+
+**Categoría:** API o método inexistente / código correcto en apariencia pero incorrecto.
+
+**Qué se generó mal:**
+
+1. El diseño (fila B5) y las tareas suponían que Leaflet ofrece un estado de ventana emergente consultable en el mapa
+   para decidir si Escape debía cerrar la ventana o cancelar el dibujo. `isPopupOpen` existe solo en `Layer`, no en `Map`.
+   En la aplicación se sustituyó por los eventos `popupopen` y `popupclose` del mapa, guardados en una referencia.
+2. Las clases `map-area`, `map-draw-path` y `map-draw-vertex` se pasaban con `pathOptions={{ className }}` desde D.8a (y el
+   trazo desde el paso 2.6). La hoja CSS de D.8a daba por hecho que «se enganchan por `pathOptions.className`», pero
+   react-leaflet aplica `pathOptions` con `setStyle` tras crear la capa y el renderizador SVG de Leaflet 1.9.4 solo lee
+   `className` al crearla: el `<path>` salía solo con `leaflet-interactive` y el azul por defecto. Compilaba, pasaban
+   los tests estáticos y las capturas de D.8a no incluían ninguna zona dibujada, así que nadie lo vio.
+3. Menor: una prueba e2e escrita para hacer clic en el centro exacto de la mira falló en 4 de 6 proyectos porque la mira
+   estaba fuera de la ventana de 720 px (`elementFromPoint` devuelve `null` fuera del viewport) y, en parte, porque un marcador
+   podía quedar justo bajo el centro. Se pasó a desplazar la mira a la vista y a buscar un punto libre.
+
+**Cómo se detectó:** el 1 al escribir el control (WU-2, al buscar la API en las definiciones de tipos de Leaflet); el 2 en la
+primera ejecución del e2e en Docker: el estado decía «Vértice añadido» pero `path.map-draw-vertex` tenía 0 elementos, y un
+volcado del panel de superposición mostró el `<path>` sin la clase; el 3 en la segunda ejecución.
+
+**Cómo se resolvió:** el 1 con eventos del mapa; el 2 pasando `className` como prop del componente (entra en las
+opciones del constructor), con una guarda nueva en `map-guards.test.ts` (rojo antes del arreglo) y la enmienda a la
+decisión 165 dentro de la 170; el 3 reescribiendo la prueba.
+
+**Observación:** el comportamiento de una librería de terceros que se ve en el DOM real (el atributo `class` de un SVG) no
+se da por hecho por la documentación de un wrapper. Una regla CSS sin efecto visible tampoco la detecta un test de código
+fuente: hizo falta una captura con una zona dibujada.

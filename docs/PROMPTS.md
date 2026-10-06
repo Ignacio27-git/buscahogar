@@ -30,6 +30,32 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-06 — Mapa: dibujo de zona accesible (paso D.8b, decisiones 168-170)
+
+**Tipo de tarea:** diseño y accesibilidad (SDD): reductor, control de teclado, mira, hoja CSS, guardas y e2e
+**Forma de especificación:** SDD en modo automático (exploración, propuesta, especificación, diseño y tareas, en tres unidades
+de trabajo); el prompt del paso D.8b de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. TDD estricto, un solo PR con
+`size:exception` aceptado por el responsable. La planificación (de la exploración al diseño) se hizo en una sesión anterior y
+esta retomó desde la validación del diseño.
+**Resultado:** utilizable con retoques (el diseño suponía una API de estado de ventana emergente inexistente en el `Map` de
+Leaflet; el e2e destapó que las clases de las capas vectoriales no llegaban al SVG)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.8b de docs/DESIGN-ROADMAP.md. Usa `impeccable harden`.
+>
+> - Teselas en tema oscuro según el resultado de D.2: filtro solo en el panel de teselas, o su alternativa. Marcadores,
+>   controles y atribución sin filtrar.
+> - Dibujo de zona accesible: sin arrastrar (WCAG 2.5.7, un clic por vértice) y con una alternativa de teclado; por
+>   ejemplo, una mira en el centro que se mueve con las flechas y un botón «Añadir vértice». Botones de al menos 24 px y
+>   mensajes con role=status.
+> - La lógica nueva va al reductor draw-polygon-state.ts, con tests.
+
+**Observación:** el prompt pedía teselas oscuras, pero D.2 ya había resuelto lo contrario (decisión 140: teselas claras en un
+marco oscuro, sin filtro), así que el primer punto se cerró sin código. Lo difícil estaba en el segundo: la interacción con
+Leaflet (Escape con una ventana abierta, orden de foco, anfitrión antepuesto a un marco del servidor) no se podía decidir
+en papel, y el e2e en Docker lo comprobó con una puerta de consola. Las decisiones 168-170 reparten los diez puntos del
+diseño (B1 a B10).
+
 ### 2026-10-06 — Pendientes de D.8a: guarda de la CSP y arranque de D.8b
 
 **Tipo de tarea:** test (corrección de una guarda) y planificación SDD de D.8b

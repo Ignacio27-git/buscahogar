@@ -4890,6 +4890,93 @@ teselas.
 
 ---
 
+## 168 — Anfitrión de la barra antepuesto al marco y fila con salto de línea
+
+**Estado:** aceptada (paso D.8b; filas B7 y B10 del diseño)
+
+**Decisión.** La barra de dibujo se monta con `createPortal` en un `div.map-draw-host` que `MapDrawControl` crea y
+**antepone** (`parent.prepend`) al marco `div.search-map__frame` pintado por el servidor, y retira al desmontar. El
+anfitrión usa `display: contents`, no genera caja y la barra y la mira se posicionan respecto al marco; también aloja la
+mira (decisión 170). Así la barra precede al mapa en el orden de foco: con Mayús+Tab desde el contenedor del mapa se llega
+a «Cancelar» y «Cerrar» sin cruzar marcadores (WCAG 2.4.3), y sigue fuera de los paneles de Leaflet (decisión 165). La
+fila (B10) pasa de columna a `flex-flow: row wrap; justify-content: flex-end` con `max-inline-size: min(22rem, calc(100% - 4rem))`,
+el estado ocupa la fila entera (`flex-basis: 100%`, `overflow-wrap: anywhere`) y cada botón tiene `min-block-size` y
+`min-inline-size` de `1.5rem` (WCAG 2.5.8, 24 px). Preocupación abierta del diseño, resuelta en el e2e: la inserción en un
+marco gestionado por React no provoca avisos de hidratación ni de reconciliación (el e2e falla ante cualquier
+`console.warning` o `console.error` al cargar `/?view=map`, dibujar, cancelar y cerrar).
+
+**Alternativas descartadas.** Añadir el anfitrión DESPUÉS del contenedor, como en D.8a (la barra quedaba tras todos los
+marcadores en el orden de tabulación); una barra en columna (a 320 px llegaba al centro del marco y chocaba con la mira,
+SMV-26); montar la barra dentro de `.leaflet-container` (los paneles de 400 a 700 la taparían, decisión 165).
+
+**Motivo.** Un orden de foco lógico y una barra que no solapa la mira en ningún ancho, sin salir de la frontera de
+Leaflet ya decidida.
+
+---
+
+## 169 — Reductor de dibujo: textos, guarda de duplicados, tope e inercia de «cancelar»
+
+**Estado:** aceptada (paso D.8b; filas B1 a B4 del diseño)
+
+**Decisión.** Toda la lógica nueva vive en `draw-polygon-state.ts`, testeada en node, sin tocar `packages/core`. (B1) El
+centro del mapa entra por la misma acción `add` que un clic: el reductor no distingue el origen, de modo que el tope y la
+guarda de duplicados son comunes. (B2) Un único campo `message: string | null` guarda cada aviso y cada error; no hay
+campo de tono ni un segundo campo de anuncio. Tras `start`, `add`, `undo`, `cancel` y `close` el mensaje describe lo
+ocurrido, con singular y plural de `formatVertexCount` («1 vértice», «3 vértices»), también cuando quedan 0. (B3)
+`DRAW_ISSUE_COPY: Record<PolygonIssueCode, string>` traduce cada código del core al español y ninguno contiene el prefijo
+`polygon:`; al ser un `Record` exhaustivo, un código nuevo en el core rompe `typecheck`. `close` usa `problem.code`. (B4) Tras
+redondear a cinco decimales (`round5`), un `add` igual al último vértice se rechaza con un mensaje; un punto repetido pero no
+consecutivo sí se añade y lo detecta `close` como `duplicate-vertex`. El tope es el `POLYGON_MAX_VERTICES` del core (50) y
+rige para clic y centro. `cancel` es inerte cuando no se dibuja: devuelve el mismo estado, sin mensaje. Un mensaje de
+estado ya inactivo (por ejemplo «Dibujo cancelado.») persiste hasta el siguiente `start`.
+
+**Alternativas descartadas.** Una acción `addCenter` aparte (duplicaría el tope y el guarda); un campo `announcement`
+además de `message` (dos fuentes de verdad para una sola región `role="status"`); los textos en `packages/core` (el core
+no lleva interfaz); devolver el estado inicial al cancelar sin mensaje (un lector de pantalla no oiría nada).
+
+**Motivo.** Priorizar la accesibilidad sin duplicar lógica: el reductor es la única fuente de qué ocurre y qué se dice.
+
+---
+
+## 170 — Teclado acotado al contenedor, mira central, foco y región de estado única
+
+**Estado:** aceptada (paso D.8b; filas B5, B6, B8 y B9 del diseño)
+
+**Decisión.** (B5) Un único `keydown` en el contenedor del mapa, registrado en un efecto SOLO mientras se dibuja: Enter añade
+`map.getCenter()`, Retroceso deshace y Escape cancela. Actúa únicamente si `event.target` es el contenedor y no hay
+Ctrl, Alt ni Meta; `preventDefault` solo cuando se actúa, y una tecla mantenida (`event.repeat`) se consume sin enviar
+nada. Un marcador, un enlace de la ventana emergente o un botón de la barra no son el contenedor, así que Intro y Retroceso
+conservan su efecto nativo. Con una ventana emergente abierta, Escape se cede a Leaflet 1.9.4, que escucha `keydown` en
+`document` (`Map.Keyboard.js`, líneas 133 y 168) y corre después del listener del contenedor: la ventana se cierra y el
+dibujo sigue. Leaflet no expone `isPopupOpen` en `Map` (solo en `Layer`): el estado se sigue con los eventos `popupopen` y
+`popupclose` del mapa y se guarda en una referencia. (B6) La mira es un `div.map-draw-crosshair` con `aria-hidden="true"`,
+`pointer-events: none` y `z-index: var(--z-map-controls)`, solo mientras se dibuja, centrado en el marco (cuya caja coincide con
+la del contenedor, así que su centro es `getCenter()`): anillo `var(--accent)` con contorno `var(--ink-on-accent)`
+y punto central, de dos tonos para leerse sobre teselas claras en ambos temas (`design-tokens.test.ts` lo protege con
+un contraste mínimo de 3:1). (B8) Al empezar se cierra cualquier ventana y se enfoca el contenedor con `preventScroll`; al
+dejar de dibujar (cancelar o cerrar) el foco vuelve a «Dibujar zona»; el subárbol sobrevive a la navegación de cierre
+(decisión 167). (B9) Un único `<p role="status">` es siempre el último hijo de la barra y no se renderiza condicionalmente:
+vacío se recorta visualmente (`:empty` con `clip-path`) pero no usa `display: none`, que lo sacaría del árbol de
+accesibilidad y no anunciaría el siguiente cambio. Perder el foco no descarta los vértices. Teselas sin cambios: se
+mantiene la decisión 140 (teselas claras en un marco oscuro, sin filtro ni velo), y `globals.css` y el lienzo no se tocan
+salvo lo indicado en la desviación de D.8b.
+
+**Alternativas descartadas.** Un listener en `document` o `window` (marcadores y ventana emergente propagan `keydown`); un
+`onKeyDown` de JSX en el contenedor de React (Leaflet crea ese nodo); la mira dentro de `.leaflet-container` (su `z-index`
+literal de los paneles superaría el token); un anuncio por cada tecla sin región persistente (no se anunciaría el
+primer mensaje); un filtro sobre las teselas oscuras (decisión 140).
+
+**Motivo.** Que dibujar una zona no exija ratón ni arrastre (WCAG 2.1.1, 2.4.3, 2.5.7, 2.5.8, 4.1.3) sin interferir con los
+atajos del navegador ni con la navegación nativa de marcadores y ventanas.
+
+**Enmienda a la decisión 165.** Las clases `map-area`, `map-draw-path` y `map-draw-vertex` no se pueden pasar por
+`pathOptions.className`: react-leaflet aplica `pathOptions` con `setStyle` DESPUÉS de crear la capa y el renderizador SVG de
+Leaflet 1.9.4 solo lee `className` al crearla, así que la clase nunca llegaba al `<path>` y las reglas de la hoja no se
+aplicaban (el e2e de D.8b lo mostró: vértices con el azul por defecto). Se pasan como prop `className` del componente, que
+sí entra en las opciones del constructor; `map-guards.test.ts` lo vigila.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

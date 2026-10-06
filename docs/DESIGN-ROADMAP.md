@@ -823,7 +823,7 @@ Paso D.8a de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable adapt
 
 ---
 
-## [ ] D.8b · Mapa: tema oscuro y dibujo accesible
+## [x] D.8b · Mapa: tema oscuro y dibujo accesible
 
 ```text
 Paso D.8b de docs/DESIGN-ROADMAP.md. Usa `impeccable harden`.
@@ -854,16 +854,32 @@ Paso D.8b de docs/DESIGN-ROADMAP.md. Usa `impeccable harden`.
 - **Riesgos:** rendimiento del filtro en equipos modestos; cambios en el reductor.
 - **Tamaño:** L, mitad b.
 - **Evidencia:** C11, C12, C13, C14, C23; hueco b.
-- **Estado (2026-10-06): planificado, sin implementar.** Hechas la exploración, la propuesta, la especificación y el diseño
-  (SDD, Engram `sdd/search-map-d8b/*`). Decisiones de producto confirmadas:
-  - Teselas: se mantiene la decisión 140, teselas claras en un marco oscuro, sin filtro ni velo.
+- **Estado (2026-10-06): D.8b hecha.** Aplicada en tres unidades de trabajo (SDD, Engram `sdd/search-map-d8b/*`) con un PR
+  `size:exception` y commits `cc8ad32` (reductor), `903a802` (control, mira y hoja), `31b5359` (arreglo de las clases de
+  las capas), `74fa18a` (e2e y capturas) y el de documentación. El paso se pausó tras el diseño y se retomó en otra sesión.
+  Decisiones de producto confirmadas antes de aplicar:
+  - Teselas: se mantiene la decisión 140, teselas claras en un marco oscuro, sin filtro ni velo (cero código, y una guarda
+    en `map-guards` que impide añadir uno).
   - Teclado: mira fija en el centro, desplazamiento nativo con las flechas y «Añadir vértice».
-  - Atajos: Enter, Retroceso y Escape, solo mientras se dibuja.
+  - Atajos: Enter, Retroceso y Escape, solo mientras se dibuja y con el contenedor del mapa enfocado.
   - Errores: textos en español sin el prefijo `polygon:`.
   - Al salir del mapa a mitad de dibujo, los vértices se conservan.
-  - Entrega: un PR, con `size:exception` si la previsión supera 800 líneas (prevista: unas 870).
-
-  Se retoma en `sdd-tasks`.
+- **Qué hay:** reductor con textos por acción, guarda de duplicados consecutivos y tope de 50 (decisión 169); control con
+  `keydown` en el contenedor, «Añadir vértice», mira `aria-hidden` y foco devuelto a «Dibujar zona» (170); anfitrión de la barra
+  antepuesto al marco y fila con salto de línea con botones de 1,5 rem (168). Decisiones 168-170.
+- **Tests y e2e:** web: 685 (`draw-polygon-state`: 27; `map-guards`, `design-tokens`). `search-map.spec.ts` añade 13 pruebas de
+  dibujo por teclado en los seis proyectos (dibujar y cerrar solo con teclado con puerta de consola, Retroceso y Escape,
+  vértice dentro de 2 px de la mira, «Añadir vértice» y duplicado, clic sin arrastrar, foco, Escape con ventana abierta,
+  Intro y Retroceso en el enlace de la ventana, Tab que sale del mapa, botones de 24 px, mira sin solapes, axe `wcag22aa` y
+  captura del marco). `pnpm e2e update` en Docker: 368 superados y 280 omitidos; dos ejecuciones consecutivas de `pnpm e2e`,
+  ambas 368 y 280 sin tocar capturas. Seis capturas nuevas (`draw-frame.png`, una por proyecto); `map` no cambia (la barra en
+  reposo es igual); la línea base de axe no cambia.
+- **Hallazgo del e2e:** las clases `map-area`, `map-draw-path` y `map-draw-vertex` nunca llegaban al SVG (decisión 170, enmienda a
+  la 165; `AI-NOTES.md`). Arreglado en `31b5359` con una guarda de regresión.
+- **Ficheros reales:** `draw-polygon-state.ts`, `map-draw-control.tsx`, `search-map-canvas.css`, `search-map-canvas.tsx` (solo
+  `className="map-area"`), `e2e/search-map.spec.ts` y los tests `draw-polygon-state`, `map-guards` y `design-tokens`.
+- **Tamaño:** un solo PR con `size:exception`, aceptado por el responsable, con commits por unidad; ~830 líneas de código, tests y
+  e2e más la documentación obligatoria, sin contar las capturas. No se recortaron tests, comentarios ni documentación.
 
 ---
 
@@ -1374,3 +1390,10 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-06 | D.8a | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): ~1500 líneas autoradas de código, tests, e2e y documentación, sin contar las capturas. | La hoja del mapa (~200 líneas) y el e2e (~170) triplicaron la previsión de la unidad B; no se recortaron tests, comentarios ni documentación. |
 | 2026-10-06 | D.7 | Segunda ronda de Docker para las capturas, contra la ronda única de R11. | Las capturas a 320 px mostraron poco espacio bajo los pasos y sobre el panel; no lo detecta ningún test. |
 | 2026-10-06 | D.7 | El e2e sin JavaScript conserva `form=criteria` y `zone=` vacío en la URL tras «Buscar». | El formulario envía la marca y todos los campos; se comprueba que no hay `q` y que la zona está vacía. |
+| 2026-10-06 | D.8b | Las teselas oscuras no se implementan: se mantiene la decisión 140 (teselas claras en un marco oscuro, sin filtro) y no se toca `globals.css`. `search-map-canvas.tsx` solo cambia `pathOptions` por `className` en la zona. | Decisión 140 (resultado de D.2, el filtro no compensa su coste); el cambio del lienzo es el arreglo de las clases de las capas (decisión 170). |
+| 2026-10-06 | D.8b | El estado de la ventana emergente se sigue con los eventos `popupopen` y `popupclose` del mapa y no con una API de `Map`. | `isPopupOpen` existe solo en `Layer`; el diseño suponía una API inexistente (`AI-NOTES.md`). |
+| 2026-10-06 | D.8b | El anfitrión de la barra (`.map-draw-host`, `display: contents`) aloja también la mira; una tecla mantenida se consume sin enviar acción. | Ampliación menor de las filas B6 y B7 del diseño: una sola caja para todo lo que va en el marco. |
+| 2026-10-06 | D.8b | El test de contraste de tokens (`design-tokens.test.ts`) pasó en verde de inmediato. | Los tokens ya cumplían 3:1 sobre las teselas claras; queda como guarda de regresión, no como motor del cambio. |
+| 2026-10-06 | D.8b | Commit extra `31b5359` con el arreglo de `className` de las capas vectoriales, además de los tres de las unidades de trabajo. | El e2e de teclado mostró que las clases de D.8a y del paso 2.6 no llegaban al SVG (decisión 170, `AI-NOTES.md`). |
+| 2026-10-06 | D.8b | El paso se pausó tras el diseño y se retomó en otra sesión; la aplicación fue en tres unidades. | Falta de cuota; ningún artefacto se perdió gracias a Engram. |
+| 2026-10-06 | D.8b | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable). | Reductor con tests, control, hoja, guardas y e2e forman una unidad; no se recortaron tests, comentarios ni documentación. |
