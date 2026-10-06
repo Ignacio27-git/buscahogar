@@ -26,7 +26,6 @@ const ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright">OpenSt
 
 const SPAIN_CENTER: LatLngTuple = [40.2, -3.7];
 const SPAIN_ZOOM = 6;
-const MAP_STYLE = { height: '520px', width: '100%' } as const;
 
 // Encuadre inicial (solo al montar: `MapContainer` no reacciona a cambios de
 // `bounds`): el polígono, si no los puntos, si no España entera.
@@ -48,7 +47,7 @@ export default function SearchMapCanvas(props: SearchMapProps): ReactElement {
       : { center: SPAIN_CENTER, zoom: SPAIN_ZOOM };
 
   return (
-    <MapContainer {...view} style={MAP_STYLE} scrollWheelZoom>
+    <MapContainer {...view} className="search-map__canvas" scrollWheelZoom>
       <TileLayer url={TILE_URL} attribution={ATTRIBUTION} maxZoom={19} />
       {props.polygon !== null ? (
         <Polygon positions={props.polygon.map((vertex): LatLngTuple => [vertex.lat, vertex.lon])} />

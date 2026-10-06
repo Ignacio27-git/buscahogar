@@ -731,6 +731,100 @@
     font-weight: 600;
   }
 
+  /* Lista y mapa (D.8a, decisión 164). Las dos secciones son hermanas dentro de
+     `.search-results[data-view]`. Bajo 64rem (768px incluido, porque la columna del mapa
+     quedaría por debajo de 20rem) `data-view` elige cuál se ve; las reglas que ocultan van
+     FUERA de la media query y la que las vuelve a mostrar, dentro y con la misma
+     especificidad (0,3,0), así que gana por orden. Desde 64rem se ven las dos y el
+     conmutador sobra. Visibilidad solo por CSS: el servidor no sabe el ancho. */
+  .search-results {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .search-results[data-view='map'] > .search-results__list {
+    display: none;
+  }
+
+  .search-results[data-view='list'] > .search-results__map {
+    display: none;
+  }
+
+  .search-results__list,
+  .search-results__map {
+    min-inline-size: 0;
+  }
+
+  .search-results__map {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  /* Marco del mapa (D.8a): un hairline de la hoja, sin sombra. El aviso de carga ocupa el
+     mismo marco que luego aloja el lienzo, así que montar el mapa no desplaza nada. Bajo
+     64rem la altura sigue al viewport sin pasarse de él. */
+  .search-map__frame {
+    position: relative;
+    block-size: clamp(20rem, 70dvh, 40rem);
+    border: 1px solid var(--rule);
+    background-color: var(--surface);
+  }
+
+  .search-map__canvas {
+    block-size: 100%;
+    inline-size: 100%;
+  }
+
+  .search-map__loading {
+    padding: 1rem;
+    color: var(--ink-muted);
+  }
+
+  /* Sin JavaScript no hay lienzo: el aviso de carga sobra y el `<noscript>` del marco
+     queda centrado en él. */
+  @media (scripting: none) {
+    .search-map__loading {
+      display: none;
+    }
+
+    .search-map__frame {
+      display: grid;
+      place-content: center;
+      padding: 1rem;
+    }
+  }
+
+  @media (width >= 64rem) {
+    .search-results {
+      grid-template-columns: minmax(0, 48rem) minmax(20rem, 1fr);
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    .search-results[data-view] > .search-results__list {
+      display: block;
+    }
+
+    .search-results[data-view] > .search-results__map {
+      display: flex;
+      position: sticky;
+      top: var(--scroll-offset);
+      block-size: calc(100dvh - 2 * var(--scroll-offset));
+      max-block-size: 60rem;
+    }
+
+    .search-map__frame {
+      flex: 1;
+      min-block-size: 24rem;
+      block-size: auto;
+    }
+
+    .view-toggle {
+      display: none;
+    }
+  }
+
   .light .theme-selector [value='light'],
   .dark .theme-selector [value='dark'],
   :root:not(.light, .dark) .theme-selector [value='system'] {

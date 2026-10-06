@@ -87,6 +87,8 @@ beforeEach(() => {
   }
   suggestZonesMock.mockResolvedValue([]);
   searchPropertiesMock.mockResolvedValue({ results: [], hasNextPage: false });
+  // D.8a: toda búsqueda válida consulta también el mapa; por defecto, vacío.
+  searchMapPointsMock.mockResolvedValue({ points: [], total: 0, truncated: false });
 });
 
 describe('?q= interpreta sin buscar (spec "Interpret Without Searching")', () => {

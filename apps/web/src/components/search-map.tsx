@@ -13,7 +13,11 @@ import type { SearchMapProps } from './search-map-types';
 
 const SearchMapCanvas = dynamic(() => import('./search-map-canvas'), {
   ssr: false,
-  loading: () => <p role="status">Cargando el mapa…</p>,
+  loading: () => (
+    <p role="status" className="search-map__loading">
+      Cargando el mapa…
+    </p>
+  ),
 });
 
 export function SearchMap(props: SearchMapProps): ReactElement {

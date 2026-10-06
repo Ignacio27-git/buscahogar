@@ -372,7 +372,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       {suggestions !== null ? <ZoneSuggestions suggestions={suggestions} rawSearchParams={rawSearchParams} /> : null}
       {coverageNotice}
       {coverageStatusSection}
-      <p>
+      <p className="view-toggle">
         <a href={buildViewHref(rawSearchParams, view === 'map' ? 'list' : 'map')}>
           {view === 'map' ? 'Ver lista' : 'Ver mapa'}
         </a>
@@ -380,24 +380,53 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
     </>
   );
 
-  // ROADMAP 2.6 (decisión 118) — la vista de mapa REEMPLAZA a la lista: una
-  // sola consulta por vista, sin paginación. Todo el texto de esta sección se
-  // renderiza en el servidor, así que el recuento y los avisos existen sin JS.
-  if (view === 'map') {
-    const { points, total, truncated } = await searchMapPoints(db, effectiveCriteria);
-    const pointViews: readonly MapPointView[] = points.map((point) => ({
-      id: point.id,
-      lat: point.lat,
-      lon: point.lon,
-      priceLabel: formatPriceCents(point.minPriceCents),
-      href: point.anchorListingId === null ? null : buildPropertyDetailHref(point.anchorListingId),
-    }));
+  // D.8a (decisión 163, enmienda la 118) — lista y mapa conviven: toda petición
+  // válida corre las DOS consultas, en paralelo y una sola vez, y renderiza las
+  // dos secciones. `view` solo decide, por CSS bajo 64rem, cuál se ve; desde 64rem
+  // se ven ambas. Todo el texto de la sección del mapa se renderiza en el
+  // servidor, así que el recuento y los avisos existen sin JS.
+  const [{ results, hasNextPage }, { points, total, truncated }] = await Promise.all([
+    searchProperties(db, effectiveCriteria),
+    searchMapPoints(db, effectiveCriteria),
+  ]);
+  const pointViews: readonly MapPointView[] = points.map((point) => ({
+    id: point.id,
+    lat: point.lat,
+    lon: point.lon,
+    priceLabel: formatPriceCents(point.minPriceCents),
+    href: point.anchorListingId === null ? null : buildPropertyDetailHref(point.anchorListingId),
+  }));
 
-    return (
-      <>
-        {header}
-        <AppliedFilters criteria={criteria} params={rawSearchParams} zoneName={zoneName} count={formatMapCount(total)} />
-        <section aria-label="Mapa de resultados">
+  return (
+    <>
+      {header}
+      {/* El recuento de la lista vive aquí, compartido por las dos secciones. */}
+      <AppliedFilters
+        criteria={criteria}
+        params={rawSearchParams}
+        zoneName={zoneName}
+        count={formatListCount(results.length, criteria.page, hasNextPage)}
+      />
+      {/* DAS-11: región compartida; con polígono las dos consultas dan el mismo
+          total, así que M === 0 vale también en páginas posteriores de la lista. */}
+      {criteria.polygon !== undefined && total === 0 ? <OutsideCoverageNotice /> : null}
+      <div className="search-results" data-view={view}>
+        <section aria-label="Resultados" className="search-results__list">
+          {results.length === 0 ? (
+            <p>No se encontraron viviendas con esos filtros.</p>
+          ) : (
+            <ul className="result-list">
+              {results.map((result) => (
+                <li key={result.id}>
+                  <ResultCard result={result} />
+                </li>
+              ))}
+            </ul>
+          )}
+          <Pagination params={rawSearchParams} page={criteria.page} hasNextPage={hasNextPage} />
+        </section>
+        <section aria-label="Mapa de resultados" className="search-results__map">
+          <p className="font-semibold tabular-nums">{formatMapCount(total)}</p>
           {criteria.polygon === undefined ? (
             <p>
               Este recuento puede diferir del total de la lista: las viviendas sin ubicación no aparecen en el mapa.
@@ -409,50 +438,22 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
             </p>
           ) : null}
           {total === 0 ? <p>Ninguna vivienda con ubicación coincide con estos filtros</p> : null}
-          {criteria.polygon !== undefined && total === 0 ? <OutsideCoverageNotice /> : null}
           <p>Las posiciones del mapa pueden ser aproximadas.</p>
-          <SearchMap points={pointViews} polygon={criteria.polygon ?? null} baseParams={rawSearchParams} />
-          <noscript>
-            <p>El mapa interactivo necesita JavaScript.</p>
-            <a href={buildViewHref(rawSearchParams, 'list')}>Ver la lista de resultados</a>
-          </noscript>
+          {/* El marco es del servidor: el aviso de carga, el lienzo y el noscript
+              comparten dimensiones, y sin JS el noscript queda dentro del marco. */}
+          <div className="search-map__frame">
+            <SearchMap points={pointViews} polygon={criteria.polygon ?? null} baseParams={rawSearchParams} />
+            <noscript>
+              <p>El mapa interactivo necesita JavaScript.</p>
+              <a href={buildViewHref(rawSearchParams, 'list')}>Ver la lista de resultados</a>
+            </noscript>
+          </div>
           {/* SMV-9 (ODbL): atribución también en el HTML del servidor. */}
           <p>
             © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>
           </p>
         </section>
-      </>
-    );
-  }
-
-  const { results, hasNextPage } = await searchProperties(db, effectiveCriteria);
-
-  return (
-    <>
-      {header}
-      {/* DAS-11: en lista solo en la página 1 con 0 resultados; en páginas
-          posteriores cero filas no prueba cero coincidencias. */}
-      {criteria.polygon !== undefined && criteria.page === 1 && results.length === 0 ? (
-        <OutsideCoverageNotice />
-      ) : null}
-      <AppliedFilters
-        criteria={criteria}
-        params={rawSearchParams}
-        zoneName={zoneName}
-        count={formatListCount(results.length, criteria.page, hasNextPage)}
-      />
-      {results.length === 0 ? (
-        <p>No se encontraron viviendas con esos filtros.</p>
-      ) : (
-        <ul className="result-list">
-          {results.map((result) => (
-            <li key={result.id}>
-              <ResultCard result={result} />
-            </li>
-          ))}
-        </ul>
-      )}
-      <Pagination params={rawSearchParams} page={criteria.page} hasNextPage={hasNextPage} />
+      </div>
     </>
   );
 }

@@ -33,6 +33,13 @@ vi.mock('@/components/coverage-status', () => ({
   CoverageStatus: (): null => null,
 }));
 
+// D.8a: toda búsqueda válida renderiza también la sección del mapa. El wrapper de cliente
+// (`next/dynamic`, ssr:false) no se puede renderizar sin navegador, así que se sustituye por
+// un doble inerte; la consulta de puntos sí corre contra la base de datos real.
+vi.mock('@/components/search-map', () => ({
+  SearchMap: (): null => null,
+}));
+
 // ROADMAP 1.15 (security-hardening, validador notes obs #263) — "page test
 // asserts the next/headers mock is NOT called when CLIENT_IP_HEADER is
 // unset". `CLIENT_IP_HEADER` se borra en el `beforeEach` de abajo, así que

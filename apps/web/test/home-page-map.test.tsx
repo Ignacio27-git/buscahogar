@@ -1,5 +1,6 @@
-// ROADMAP 2.6 (decisión 118, spec SMV-1..SMV-14, DAS-11) — la página `/` en
-// vista de mapa y el aviso de "fuera de cobertura" en la lista. Invocación
+// ROADMAP 2.6 (decisión 118, spec SMV-1..SMV-14, DAS-11) y D.8a (decisión 163,
+// SMV-15..SMV-17) — la página `/` con lista y mapa a la vez (ambas consultas en
+// cada petición válida) y el aviso de "fuera de cobertura". Invocación
 // directa de la función de la página con `@buscahogar/db`, los módulos de
 // cobertura y `<SearchMap/>` sustituidos por dobles: ninguna prueba toca una
 // base de datos, la red ni Leaflet.
@@ -98,6 +99,41 @@ function count(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1;
 }
 
+// D.8a (SMV-15): la lista precede al mapa en el HTML; estas dos funciones parten
+// el documento en sus secciones para comprobar dónde vive cada aviso.
+function mapSection(html: string): string {
+  const start = html.indexOf('search-results__map"');
+  if (start === -1) {
+    throw new Error('Falta la sección del mapa');
+  }
+  return html.slice(start);
+}
+
+function listSection(html: string): string {
+  const start = html.indexOf('search-results__list"');
+  const end = html.indexOf('search-results__map"');
+  if (start === -1 || end === -1) {
+    throw new Error('Faltan las secciones de lista y mapa');
+  }
+  return html.slice(start, end);
+}
+
+function makeListResult(index: number): Record<string, unknown> {
+  return {
+    id: `r-${String(index)}`,
+    anchorListingId: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+    title: null,
+    propertyType: 'flat',
+    operation: 'sale',
+    minPriceCents: 100000 + index,
+    rooms: 2,
+    bathrooms: 1,
+    areaM2: 70,
+    municipality: 'Madrid',
+    thumbnailUrl: null,
+  };
+}
+
 beforeEach(() => {
   for (const mock of [
     searchPropertiesMock,
@@ -113,6 +149,75 @@ beforeEach(() => {
     mock.mockReset();
   }
   searchPropertiesMock.mockResolvedValue({ results: [], hasNextPage: false });
+  // D.8a: toda petición válida consulta también el mapa; por defecto, vacío.
+  searchMapPointsMock.mockResolvedValue({ points: [], total: 0, truncated: false });
+});
+
+describe('lista y mapa en cada petición válida (SMV-15, WSL-D8a-1)', () => {
+  it.each([{ view: 'list' }, { view: 'map' }, {}])(
+    'con %j ambas consultas corren exactamente una vez y las dos secciones se renderizan',
+    async (params) => {
+      mapResult(3);
+      const html = await render(params);
+      expect(searchPropertiesMock).toHaveBeenCalledTimes(1);
+      expect(searchMapPointsMock).toHaveBeenCalledTimes(1);
+      expect(html).toContain('search-results__list"');
+      expect(html).toContain('search-results__map"');
+      expect(html).toContain('data-testid="search-map"');
+      expect(html.indexOf('search-results__list"')).toBeLessThan(html.indexOf('search-results__map"'));
+    }
+  );
+
+  it('el envoltorio lleva el valor de `view` (ausente = list) para que el CSS decida la visibilidad', async () => {
+    mapResult(1);
+    expect(await render({})).toContain('class="search-results" data-view="list"');
+    mapResult(1);
+    expect(await render({ view: 'map' })).toContain('class="search-results" data-view="map"');
+  });
+
+  it('las consultas arrancan a la vez: la del mapa se lanza sin esperar a que termine la de la lista', async () => {
+    let releaseList: (value: { results: never[]; hasNextPage: boolean }) => void = () => undefined;
+    searchPropertiesMock.mockReturnValue(
+      new Promise((resolve) => {
+        releaseList = resolve;
+      })
+    );
+    mapResult(1);
+    const pending = HomePage({ searchParams: Promise.resolve({}) });
+    await vi.waitFor(() => {
+      expect(searchMapPointsMock).toHaveBeenCalledTimes(1);
+    });
+    releaseList({ results: [], hasNextPage: false });
+    await pending;
+    expect(searchPropertiesMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('el mapa recibe el conjunto entero (500 puntos) aunque la lista esté en la página 3', async () => {
+    searchPropertiesMock.mockResolvedValue({ results: [makeListResult(1)], hasNextPage: true });
+    mapResult(500, 2000);
+    const html = await render({ page: '3' });
+    expect(propsOf(html).points).toHaveLength(500);
+    expect(searchMapPointsMock).toHaveBeenCalledTimes(1);
+    expect(listSection(html)).toContain('/properties/00000000-0000-4000-8000-000000000001');
+  });
+
+  it('el recuento de la lista vive en el resumen compartido y la paginación solo en su sección', async () => {
+    searchPropertiesMock.mockResolvedValue({ results: [makeListResult(1)], hasNextPage: true });
+    mapResult(5);
+    const html = await render({ page: '2' });
+    expect(html.indexOf('1 resultado en esta página')).toBeLessThan(html.indexOf('search-results__list"'));
+    expect(count(html, 'Página siguiente')).toBe(1);
+    expect(listSection(html)).toContain('Página siguiente');
+    expect(mapSection(html)).not.toContain('Página siguiente');
+  });
+
+  it('sin resultados la lista dice su vacío y el mapa el suyo, una vez cada uno', async () => {
+    const html = await render({});
+    expect(count(html, 'No se encontraron viviendas con esos filtros.')).toBe(1);
+    expect(listSection(html)).toContain('No se encontraron viviendas con esos filtros.');
+    expect(count(html, 'Ninguna vivienda con ubicación coincide con estos filtros')).toBe(1);
+    expect(mapSection(html)).toContain('Ninguna vivienda con ubicación coincide con estos filtros');
+  });
 });
 
 describe('vista de mapa — recuento M y truncado (SMV-4, SMV-14)', () => {
@@ -121,8 +226,9 @@ describe('vista de mapa — recuento M y truncado (SMV-4, SMV-14)', () => {
     const html = await render({ view: 'map' });
     expect(html).toContain('120 viviendas con ubicación coinciden');
     expect(html).not.toContain('Mostrando');
-    // D.6a: el recuento vive en la fila de resumen, junto a los filtros aplicados.
-    expect(html.indexOf('120 viviendas')).toBeLessThan(html.indexOf('aria-label="Mapa de resultados"'));
+    // D.8a (SMV-17): M vive en la sección del mapa; el resumen compartido lleva el de la lista.
+    expect(mapSection(html)).toContain('120 viviendas con ubicación coinciden');
+    expect(count(html, '120 viviendas con ubicación coinciden')).toBe(1);
   });
 
   it('exactamente en el tope (500 de 500) no hay aviso de truncado', async () => {
@@ -136,7 +242,9 @@ describe('vista de mapa — recuento M y truncado (SMV-4, SMV-14)', () => {
     mapResult(500, 2000);
     const html = await render({ view: 'map' });
     expect(html).toContain('2000 viviendas con ubicación coinciden');
-    expect(html).toContain('Mostrando 500 de 2000');
+    expect(count(html, 'Mostrando 500 de 2000')).toBe(1);
+    expect(mapSection(html)).toContain('Mostrando 500 de 2000');
+    expect(listSection(html)).not.toContain('Mostrando');
   });
 
   it('sin polígono explica que M puede diferir del total de la lista; con polígono no', async () => {
@@ -144,19 +252,21 @@ describe('vista de mapa — recuento M y truncado (SMV-4, SMV-14)', () => {
     const without = await render({ view: 'map' });
     expect(without).toContain('puede diferir del total de la lista');
     expect(without).toContain('las viviendas sin ubicación no aparecen en el mapa');
+    expect(count(without, 'puede diferir del total de la lista')).toBe(1);
+    expect(mapSection(without)).toContain('puede diferir del total de la lista');
 
     mapResult(10);
     const withPolygon = await render({ view: 'map', polygon: POLYGON });
     expect(withPolygon).not.toContain('puede diferir del total de la lista');
   });
 
-  it('la vista de mapa REEMPLAZA a la lista: no llama a searchProperties y `page` no cambia el resultado', async () => {
+  it('D.8a: la vista de mapa ya no reemplaza a la lista; `page` solo afecta a la lista', async () => {
     mapResult(3);
     const html = await render({ view: 'map', page: '3' });
-    expect(searchPropertiesMock).not.toHaveBeenCalled();
+    expect(searchPropertiesMock).toHaveBeenCalledTimes(1);
     expect(searchMapPointsMock).toHaveBeenCalledTimes(1);
     expect(html).toContain('3 viviendas con ubicación coinciden');
-    expect(html).not.toContain('Página siguiente');
+    expect(propsOf(html).points).toHaveLength(3);
   });
 });
 
@@ -182,27 +292,28 @@ describe('vista de mapa — puntos, avisos y atribución (SMV-5..SMV-9)', () => 
     ]);
   });
 
-  it('un único aviso general de ubicación aproximada, solo en vista de mapa', async () => {
-    mapResult(5);
-    const html = await render({ view: 'map' });
-    expect(count(html, 'pueden ser aproximadas')).toBe(1);
+  it.each([{ view: 'map' }, { view: 'list' }, {}])(
+    'con %j: un único aviso de ubicación aproximada y una atribución de OSM, ambos en la sección del mapa',
+    async (params) => {
+      mapResult(5);
+      const html = await render(params);
+      const attribution = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+      expect(count(html, 'pueden ser aproximadas')).toBe(1);
+      expect(mapSection(html)).toContain('pueden ser aproximadas');
+      expect(count(html, attribution)).toBe(1);
+      expect(mapSection(html)).toContain(attribution);
+    }
+  );
 
-    const list = await render({});
-    expect(list).not.toContain('pueden ser aproximadas');
-  });
-
-  it('atribución de servidor con literal y enlace de copyright', async () => {
-    mapResult(1);
-    const html = await render({ view: 'map' });
-    expect(html).toContain('© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>');
-  });
-
-  it('fallback sin JS: noscript con enlace a la lista y recuento presente en el HTML', async () => {
+  it('fallback sin JS: noscript idéntico, una vez, DENTRO del marco del mapa, y recuento en el HTML', async () => {
     mapResult(7);
     const html = await render({ view: 'map', operation: 'sale' });
-    expect(html).toMatch(
-      /<noscript>[\s\S]*<a href="\/\?operation=sale">[^<]*lista[^<]*<\/a>[\s\S]*<\/noscript>/
-    );
+    const noscript =
+      '<noscript><p>El mapa interactivo necesita JavaScript.</p><a href="/?operation=sale">Ver la lista de resultados</a></noscript>';
+    expect(count(html, '<noscript>')).toBe(1);
+    expect(html).toContain(noscript);
+    expect(html).toMatch(/<div class="search-map__frame">[\s\S]*<noscript>[\s\S]*<\/noscript><\/div>/);
+    expect(html.indexOf('<noscript>')).toBeGreaterThan(html.indexOf('search-map__frame'));
     expect(html).toContain('7 viviendas con ubicación coinciden');
   });
 
@@ -233,6 +344,27 @@ describe('vista de mapa — estados vacío y de error (SMV-13, DAS-11)', () => {
     expect(html).toContain('Ninguna vivienda con ubicación coincide con estos filtros');
     expect(html).toContain(NOT_COVERED);
     expect(html).toContain(NO_SWEEPS);
+    // D.8a (SMV-17): una sola vez, en la región compartida, antes de las secciones.
+    expect(count(html, NOT_COVERED)).toBe(1);
+    expect(html.indexOf(NOT_COVERED)).toBeLessThan(html.indexOf('search-results__list"'));
+  });
+
+  it.each([{ view: 'list' }, { view: 'map' }, {}])(
+    'polígono y M=0 con %j: el aviso aparece exactamente una vez y la lista y el mapa dicen su vacío',
+    async (params) => {
+      mapResult(0);
+      const html = await render({ ...params, polygon: POLYGON });
+      expect(count(html, NOT_COVERED)).toBe(1);
+      expect(count(html, 'role="status"')).toBe(1);
+      expect(count(html, 'No se encontraron viviendas con esos filtros.')).toBe(1);
+      expect(count(html, 'Ninguna vivienda con ubicación coincide con estos filtros')).toBe(1);
+    }
+  );
+
+  it('con polígono y M>0 el aviso no aparece aunque la página de la lista esté vacía', async () => {
+    mapResult(4);
+    const html = await render({ polygon: POLYGON, page: '2' });
+    expect(html).not.toContain(NOT_COVERED);
   });
 
   it('parámetro inválido: el mismo rechazo nombrado, sin consultar ni pintar mapa', async () => {
@@ -275,34 +407,16 @@ describe('polígono y vista de mapa nunca tocan cobertura (PS-5, DAS-11)', () =>
   });
 });
 
-describe('vista de lista — aviso de fuera de cobertura y conmutador (DAS-11, SMV-1, SMV-2)', () => {
-  it('polígono, página 1 y 0 resultados: aviso con "puede que la zona no esté cubierta" y la frase de no-barrido', async () => {
-    const html = await render({ polygon: POLYGON });
-    expect(html).toContain(NOT_COVERED);
-    expect(html).toContain(NO_SWEEPS);
-    expect(html).not.toContain('data-testid="search-map"');
-  });
-
-  it('página 2 con 0 resultados: el aviso no aparece', async () => {
-    const html = await render({ polygon: POLYGON, page: '2' });
-    expect(html).not.toContain(NOT_COVERED);
-  });
-
+describe('vista de lista — aviso de fuera de cobertura y conmutador (DAS-11, SMV-1, SMV-16)', () => {
   it('sin polígono no hay aviso de fuera de cobertura', async () => {
     const html = await render({});
     expect(html).not.toContain(NOT_COVERED);
   });
 
-  it('la lista no renderiza SearchMap ni la atribución de OSM', async () => {
-    const html = await render({ operation: 'sale' });
-    expect(html).not.toContain('search-map');
-    expect(html).not.toContain('openstreetmap.org');
-    expect(searchMapPointsMock).not.toHaveBeenCalled();
-  });
-
-  it('el enlace a la vista de mapa conserva los parámetros y descarta page', async () => {
+  it('el enlace a la vista de mapa conserva los parámetros y descarta page; está siempre en el DOM', async () => {
     const html = await render({ operation: 'sale', page: '3' });
-    expect(html).toContain('<a href="/?operation=sale&amp;view=map">');
+    expect(html).toContain('<a href="/?operation=sale&amp;view=map">Ver mapa</a>');
+    expect(html).toContain('class="view-toggle"');
   });
 
   it('en la vista de mapa, el enlace a la lista conserva los parámetros y descarta view y page', async () => {
