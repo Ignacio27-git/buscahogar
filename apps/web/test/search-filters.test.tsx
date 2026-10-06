@@ -225,6 +225,54 @@ describe('FilterBar — spec "Filter bar"', () => {
   });
 });
 
+// D.6b (spec mobile-filter-tray, decisión 153) — la barra va dentro de un
+// <details>. Cerrada por defecto; abierta cuando hay parámetros inválidos.
+function tray(activeCount?: number, open?: boolean): string {
+  return renderToStaticMarkup(<FilterBar params={{}} activeCount={activeCount} open={open} />);
+}
+
+function summaryOf(html: string): string {
+  return /<summary[^>]*>(.*?)<\/summary>/s.exec(html)?.[1] ?? '';
+}
+
+describe('FilterBar — bandeja (S16, S17)', () => {
+  it('envuelve el formulario en un <details class="filter-tray"> cerrado por defecto', () => {
+    const html = tray();
+    expect(html).toMatch(/^<details class="filter-tray"><summary[^>]*>/);
+    expect(html).not.toMatch(/<details[^>]*\sopen/);
+    expect(html.indexOf('<summary')).toBeLessThan(html.indexOf('<form'));
+    expect(html).toContain('aria-label="Filtros de búsqueda"');
+    expect(html).toContain('Aplicar filtros');
+  });
+
+  it('S16: con 3 filtros, la píldora «3» lleva el sufijo oculto « activos»', () => {
+    const summary = summaryOf(tray(3));
+    expect(summary).toContain('Filtros');
+    expect(summary).toMatch(/>3<span class="sr-only"> activos<\/span>/);
+  });
+
+  it('S16: con 1 filtro, el sufijo es « activo» en singular', () => {
+    const summary = summaryOf(tray(1));
+    expect(summary).toMatch(/>1<span class="sr-only"> activo<\/span>/);
+    expect(summary).not.toContain('activos');
+  });
+
+  it('S16: con 0 o sin recuento no hay píldora ni número', () => {
+    for (const html of [tray(0), tray(undefined)]) {
+      const summary = summaryOf(html);
+      expect(summary).toContain('Filtros');
+      expect(summary).not.toMatch(/\d/);
+      expect(summary).not.toContain('sr-only');
+    }
+  });
+
+  it('S17: `open` abre la bandeja y sin recuento no hay número', () => {
+    const html = renderToStaticMarkup(<FilterBar params={{ minPrice: 'abc' }} rejectedKeys={new Set(['minPrice'])} open />);
+    expect(html).toMatch(/^<details class="filter-tray" open="">/);
+    expect(summaryOf(html)).not.toMatch(/\d/);
+  });
+});
+
 // Spec «Submit equivalence»: lo que envía la barra, canonicalizado, valida igual
 // que la URL escrita a mano.
 describe('FilterBar — equivalencia de envío (spec "Same validated params")', () => {

@@ -29,7 +29,7 @@ import {
   buildZoneSelectionHref,
   canonicalizeFormSubmission,
 } from '@/lib/search-href';
-import { formatListCount, formatMapCount } from '@/lib/search-labels';
+import { countTrayFilters, formatListCount, formatMapCount } from '@/lib/search-labels';
 import { resolveCoverageClientLimit } from '@/server/coverage-client';
 import { getCoverageDb } from '@/server/coverage-db';
 import { getDb } from '@/server/db';
@@ -249,7 +249,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
         <h1>Buscar vivienda</h1>
         <SearchTextForm value="" />
         <p role="alert">No se pudo interpretar la búsqueda: {issues.map(describeIssue).join('; ')}</p>
-        <FilterBar params={rawSearchParams} rejectedKeys={rejectedKeys} />
+        <FilterBar params={rawSearchParams} rejectedKeys={rejectedKeys} open />
       </>
     );
   }
@@ -356,7 +356,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
     <>
       <h1>Buscar vivienda</h1>
       <SearchTextForm value="" />
-      <FilterBar params={rawSearchParams} />
+      <FilterBar params={rawSearchParams} activeCount={countTrayFilters(criteria)} />
       {suggestions !== null ? <ZoneSuggestions suggestions={suggestions} rawSearchParams={rawSearchParams} /> : null}
       {coverageNotice}
       {coverageStatusSection}

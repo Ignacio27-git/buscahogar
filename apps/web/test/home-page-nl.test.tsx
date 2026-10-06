@@ -439,3 +439,48 @@ describe('lista y paginador en la home (D.6b)', () => {
     expect(html).not.toContain('href="/?page=4"');
   });
 });
+
+// D.6b — la bandeja en la home: el recuento solo en la rama válida y la bandeja
+// abierta (sin número) en la rama de parámetros inválidos.
+describe('bandeja de filtros en la home (D.6b, S15-S17, S21, S22)', () => {
+  function summaryOf(html: string): string {
+    return /<summary[^>]*>(.*?)<\/summary>/s.exec(html)?.[1] ?? '';
+  }
+
+  it('rama válida: cerrada y con el recuento de filtros de la bandeja (sort y zona no cuentan)', async () => {
+    resolveZoneGeometryMock.mockResolvedValue(null);
+    const html = await render({ operation: 'sale', maxPrice: '300000', sort: 'price', zone: '28079' });
+    expect(html).toMatch(/<details class="filter-tray"><summary/);
+    expect(summaryOf(html)).toMatch(/>2<span class="sr-only"> activos<\/span>/);
+  });
+
+  it('rama válida sin filtros: sin número', async () => {
+    expect(summaryOf(await render({}))).not.toMatch(/\d/);
+  });
+
+  it('vista de mapa: la misma bandeja con su recuento', async () => {
+    searchMapPointsMock.mockResolvedValue({ points: [], total: 0, truncated: false });
+    const html = await render({ view: 'map', minRooms: '2' });
+    expect(summaryOf(html)).toMatch(/>1<span class="sr-only"> activo<\/span>/);
+  });
+
+  it('S17: parámetros inválidos: bandeja abierta y «Filtros» sin número', async () => {
+    const html = await render({ minPrice: '900', maxPrice: '100' });
+    expect(html).toMatch(/<details class="filter-tray" open="">/);
+    expect(summaryOf(html)).toContain('Filtros');
+    expect(summaryOf(html)).not.toMatch(/\d/);
+  });
+
+  it('S21: la rama ?q= no lleva bandeja ni barra', async () => {
+    const html = await render({ q: 'piso en venta', operation: 'sale' });
+    expect(html).not.toContain('filter-tray');
+    expect(html).not.toContain(BAR);
+  });
+
+  it('S22: los chips y el recuento de resultados no cambian con la bandeja', async () => {
+    const html = await render({ operation: 'sale', minRooms: '2' });
+    expect(html).toContain('Operación: Venta');
+    expect(html).toContain('Habitaciones: 2 o más');
+    expect(html).toContain('0 resultados');
+  });
+});

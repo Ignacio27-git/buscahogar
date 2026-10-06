@@ -6,6 +6,10 @@
 //
 // Nunca envía `page`: con otros filtros la página N pierde su sentido. La vista y
 // la zona viajan en campos ocultos para no perderse al aplicar filtros.
+//
+// D.6b (decisión 153) — la barra va dentro de un `<details>` nativo: una bandeja
+// cerrada por defecto en móvil que funciona sin JavaScript y con teclado. Desde
+// 64rem el CSS la deja siempre desplegada. Sigue siendo un Server Component.
 import type { ReactElement } from 'react';
 
 import type { NlParamKey } from '@buscahogar/core';
@@ -33,9 +37,15 @@ export interface FilterBarProps {
   // visibles se prefijan con lo recibido para poder corregirlos, pero no se
   // reenvían como ocultos.
   readonly rejectedKeys?: ReadonlySet<string> | undefined;
+  // Filtros de la bandeja que están aplicados (`countTrayFilters`). `undefined`
+  // o 0: el resumen dice solo «Filtros», sin número.
+  readonly activeCount?: number | undefined;
+  // Bandeja abierta de inicio: la rama de parámetros inválidos, para que se
+  // vean los campos que la alerta nombra.
+  readonly open?: boolean | undefined;
 }
 
-export function FilterBar({ params, rejectedKeys }: FilterBarProps): ReactElement {
+export function FilterBar({ params, rejectedKeys, activeCount, open }: FilterBarProps): ReactElement {
   // El valor crudo que escribió el usuario, no el normalizado. Un valor repetido
   // (array) no prefija nada.
   const values: Partial<Record<NlParamKey, string>> = {};
@@ -47,13 +57,27 @@ export function FilterBar({ params, rejectedKeys }: FilterBarProps): ReactElemen
   }
 
   return (
-    <form method="get" action="/" aria-label="Filtros de búsqueda" className="filter-bar">
-      <input type="hidden" name="form" value={CRITERIA_FORM_MARKER} />
-      {pickFilterBarContext(params, rejectedKeys).map(([name, value]) => (
-        <input key={name} type="hidden" name={name} value={value} />
-      ))}
-      <CriteriaFields values={values} idPrefix="filter" />
-      <button type="submit">Aplicar filtros</button>
-    </form>
+    <details className="filter-tray" open={open === true}>
+      <summary>
+        Filtros
+        {activeCount !== undefined && activeCount > 0 ? (
+          <>
+            {/* El espacio mantiene el nombre accesible legible: «Filtros 3 activos». */}{' '}
+            <span className="filter-tray__count tabular-nums">
+              {activeCount}
+              <span className="sr-only">{activeCount === 1 ? ' activo' : ' activos'}</span>
+            </span>
+          </>
+        ) : null}
+      </summary>
+      <form method="get" action="/" aria-label="Filtros de búsqueda" className="filter-bar">
+        <input type="hidden" name="form" value={CRITERIA_FORM_MARKER} />
+        {pickFilterBarContext(params, rejectedKeys).map(([name, value]) => (
+          <input key={name} type="hidden" name={name} value={value} />
+        ))}
+        <CriteriaFields values={values} idPrefix="filter" />
+        <button type="submit">Aplicar filtros</button>
+      </form>
+    </details>
   );
 }
