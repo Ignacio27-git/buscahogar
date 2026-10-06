@@ -309,6 +309,145 @@
     inline-size: 7rem;
   }
 
+  /* Lista de resultados de la home (D.6b, decisión 155). Filas densas separadas por un filete
+     de 1px, sin tarjetas ni sombras. La lista tiene una medida de 48rem alineada a la
+     izquierda: a 1280px el precio queda cerca de los datos y el lado derecho queda libre
+     para el mapa (D.8a). Una columna a todos los anchos. */
+  .result-list {
+    max-inline-size: 48rem;
+    margin-block: 1rem;
+    padding: 0;
+    border-block-start: 1px solid var(--rule);
+  }
+
+  .result-list > li {
+    border-block-end: 1px solid var(--rule);
+  }
+
+  /* 320px: miniatura de 6rem y texto a su derecha, con el precio en la primera línea.
+     Desde 48rem: miniatura de 10rem, datos y precio en una columna fija a la derecha.
+     `.result-row__body` es el contenedor en rejilla tanto del enlace como del <div> sin enlace. */
+  .result-row__body {
+    display: grid;
+    grid-template-columns: 6rem minmax(0, 1fr);
+    grid-template-areas:
+      'media price'
+      'media facts';
+    column-gap: 0.75rem;
+    align-items: start;
+    padding: 0.75rem 0.5rem;
+    color: var(--ink);
+  }
+
+  .result-row__media {
+    grid-area: media;
+    position: relative;
+    display: grid;
+    place-items: center;
+    align-self: start;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    background-color: var(--surface-sunken);
+    border-radius: var(--radius-control);
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    line-height: var(--text-small--line-height);
+    text-align: center;
+  }
+
+  .result-row__img {
+    object-fit: cover;
+  }
+
+  .result-row__price {
+    grid-area: price;
+    font-size: var(--text-heading-3);
+    line-height: var(--text-heading-3--line-height);
+    font-weight: var(--text-heading-3--font-weight);
+  }
+
+  .result-row__price--missing {
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    font-weight: 400;
+    color: var(--ink-muted);
+  }
+
+  .result-row__facts {
+    grid-area: facts;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-inline-size: 0;
+  }
+
+  .result-row__figures,
+  .result-row__address {
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  .result-row__address {
+    color: var(--ink-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .result-row__badge {
+    inline-size: fit-content;
+    max-inline-size: 100%;
+    margin-block-start: 0.25rem;
+    padding-inline: 0.375rem;
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    line-height: var(--text-small--line-height);
+  }
+
+  /* Un único enlace por fila. El foco visible es el global; el resalte solo se aplica con
+     puntero fino (en táctil el :hover se queda pegado) y :active da respuesta al toque. Sin
+     transiciones: el movimiento llega en D.16. */
+  .result-row__link {
+    color: var(--ink);
+    text-decoration-line: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .result-row__link:active {
+    background-color: var(--surface-sunken);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .result-row__link:hover .result-row__kind {
+      text-decoration-line: underline;
+      text-underline-offset: 0.2em;
+    }
+  }
+
+  @media (width >= 48rem) {
+    .result-row__body {
+      grid-template-columns: 10rem minmax(0, 1fr) 10rem;
+      grid-template-areas: 'media facts price';
+      column-gap: 1rem;
+    }
+
+    .result-row__price {
+      font-size: var(--text-heading-2);
+      line-height: var(--text-heading-2--line-height);
+      font-weight: var(--text-heading-2--font-weight);
+      text-align: end;
+    }
+
+    .result-row__price--missing {
+      font-size: var(--text-dense);
+      line-height: var(--text-dense--line-height);
+      font-weight: 400;
+    }
+  }
+
   .light .theme-selector [value='light'],
   .dark .theme-selector [value='dark'],
   :root:not(.light, .dark) .theme-selector [value='system'] {

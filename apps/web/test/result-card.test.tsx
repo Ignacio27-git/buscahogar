@@ -55,3 +55,114 @@ describe('ResultCard (D4/D9, AR-4) — enlace condicionado al ancla', () => {
     expect(plain).toContain('Disponible en 2 fuentes');
   });
 });
+
+// D.6b (spec search-result-card) — fila densa: rótulos en español, imagen con
+// `next/image` en una caja de proporción fija, política de alt y un único enlace.
+const ANCHOR = 'bbbbbbbb-0000-0000-0000-000000000002';
+const THUMB = 'https://img4.idealista.com/blur/foto.webp';
+
+function render(overrides: Partial<PropertySearchResult> = {}): string {
+  return renderToStaticMarkup(<ResultCard result={makeResult({ anchorListingId: ANCHOR, ...overrides })} />);
+}
+
+describe('ResultCard D.6b — contenido y rótulos (S1-S5)', () => {
+  it('S1: tipo y operación como «Piso · Venta», sin los valores crudos', () => {
+    const html = render({ propertyType: 'flat', operation: 'sale' });
+    expect(html).toContain('Piso · Venta');
+    expect(html).not.toContain('flat');
+    expect(html).not.toContain('sale');
+  });
+
+  it('S1 (triangulación): «Casa · Alquiler», sin `house` ni `rent`', () => {
+    const html = render({ propertyType: 'house', operation: 'rent' });
+    expect(html).toContain('Casa · Alquiler');
+    expect(html).not.toContain('house');
+    expect(html).not.toContain('rent');
+  });
+
+  it('S2: tipo y operación null muestran las dos reservas', () => {
+    const html = render({ propertyType: null, operation: null });
+    expect(html).toContain('Tipo no disponible');
+    expect(html).toContain('Operación no disponible');
+  });
+
+  it('S2: un valor desconocido tampoco se muestra crudo', () => {
+    const html = render({ propertyType: 'castle', operation: 'barter' });
+    expect(html).toContain('Tipo no disponible · Operación no disponible');
+    expect(html).not.toContain('castle');
+    expect(html).not.toContain('barter');
+  });
+
+  it('S3: «Disponible en 1 fuente» y «Disponible en 3 fuentes»', () => {
+    expect(render({ distinctSourceCount: 1 })).toContain('Disponible en 1 fuente<');
+    expect(render({ distinctSourceCount: 3 })).toContain('Disponible en 3 fuentes<');
+  });
+
+  it('S4: precio null muestra «Precio no disponible»; con precio, el importe', () => {
+    expect(render({ minPriceCents: null })).toContain('Precio no disponible');
+    expect(render({ minPriceCents: 25000000 })).toContain('250.000 €');
+  });
+
+  it('S5: «1 baño» en singular y «2 baños» en plural', () => {
+    expect(render({ bathrooms: 1 })).toContain('1 baño<');
+    expect(render({ bathrooms: 2 })).toContain('2 baños');
+  });
+
+  it('las cifras de comparación llevan tabular-nums', () => {
+    expect(render()).toMatch(/class="[^"]*tabular-nums[^"]*"[^>]*>90 m²/);
+  });
+});
+
+describe('ResultCard D.6b — imagen y alt (S6-S8)', () => {
+  it('con miniatura usa next/image con `sizes`, sin width/height fijos ni unoptimized', () => {
+    const html = render({ thumbnailUrl: THUMB });
+    expect(html).toContain('<img');
+    expect(html).toContain('sizes="(min-width: 48rem) 10rem, 6rem"');
+    expect(html).not.toContain('width="480"');
+    expect(html).not.toContain('fetchPriority');
+    expect(html).not.toContain('Sin foto');
+  });
+
+  it('S6: tipo, operación y dirección presentes dan alt vacío', () => {
+    expect(render({ thumbnailUrl: THUMB })).toContain('alt=""');
+  });
+
+  it('S7: sin dirección el alt es «Foto de la vivienda»', () => {
+    const html = render({ thumbnailUrl: THUMB, address: null });
+    expect(html).toContain('alt="Foto de la vivienda"');
+  });
+
+  it('S7: sin tipo el alt es «Foto de la vivienda»', () => {
+    expect(render({ thumbnailUrl: THUMB, propertyType: null })).toContain('alt="Foto de la vivienda"');
+  });
+
+  it('S8: sin miniatura no hay imagen y «Sin foto» va oculto a lectores', () => {
+    const html = render({ thumbnailUrl: null });
+    expect(html).not.toContain('<img');
+    expect(html).toMatch(/<[a-z]+ [^>]*aria-hidden="true"[^>]*>Sin foto</);
+  });
+});
+
+describe('ResultCard D.6b — enlace único (S10)', () => {
+  it('S10: ancla null, ningún <a>; con ancla, exactamente uno', () => {
+    expect(renderToStaticMarkup(<ResultCard result={makeResult({ anchorListingId: null })} />)).not.toContain('<a ');
+    expect(render().match(/<a /g)).toHaveLength(1);
+  });
+
+  it('el nombre del enlace nunca queda vacío aunque falten todos los datos', () => {
+    const html = render({
+      thumbnailUrl: THUMB,
+      propertyType: null,
+      operation: null,
+      address: null,
+      minPriceCents: null,
+      surfaceM2: null,
+      rooms: null,
+      bathrooms: null,
+    });
+    const link = /<a [^>]*>(.*)<\/a>/s.exec(html)?.[1] ?? '';
+    const visibleText = link.replace(/<[^>]+>/g, '').trim();
+    expect(visibleText).toContain('Precio no disponible');
+    expect(visibleText).toContain('Tipo no disponible');
+  });
+});
