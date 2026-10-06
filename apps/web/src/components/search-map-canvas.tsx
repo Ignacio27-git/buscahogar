@@ -89,7 +89,7 @@ export default function SearchMapCanvas(props: SearchMapProps): ReactElement {
       {props.polygon !== null ? (
         <Polygon
           positions={props.polygon.map((vertex): LatLngTuple => [vertex.lat, vertex.lon])}
-          pathOptions={{ className: 'map-area' }}
+          className="map-area"
         />
       ) : null}
       <MapClusterLayer points={props.points} />

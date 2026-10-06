@@ -145,7 +145,7 @@
 }
 
 /* Zona y dibujo. Los atributos SVG de Leaflet (`stroke`, `fill`) pierden contra estas
-   reglas, que se enganchan por `pathOptions.className`. */
+   reglas, que se enganchan por la prop `className` de la capa (no por `pathOptions`, ver map-guards). */
 .leaflet-container path.map-area {
   stroke: var(--accent);
   stroke-width: 2px;

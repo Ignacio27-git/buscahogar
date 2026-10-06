@@ -217,14 +217,14 @@ export function MapDrawControl({
   return (
     <>
       {path.length >= 2 ? (
-        <Polyline positions={path} pathOptions={{ className: 'map-draw-path' }} />
+        <Polyline positions={path} className="map-draw-path" />
       ) : null}
       {path.map((position, index) => (
         <CircleMarker
           key={`${String(index)}:${String(position[0])}:${String(position[1])}`}
           center={position}
           radius={4}
-          pathOptions={{ className: 'map-draw-vertex' }}
+          className="map-draw-vertex"
         />
       ))}
       {host !== null

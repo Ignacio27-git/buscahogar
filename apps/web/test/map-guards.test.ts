@@ -166,6 +166,15 @@ describe('estilos del mapa — tokens, sin literales ni estilos en línea (SMV-1
     expect(source).toMatch(/getContainer\(\)\.parentElement/);
   });
 
+  it('las clases de las capas vectoriales van como prop del constructor, no en pathOptions', () => {
+    // react-leaflet aplica `pathOptions` con `setStyle` DESPUÉS de crear la capa y el
+    // renderizador SVG de Leaflet 1.9.4 solo lee `className` al crearla (`_initPath`): la clase
+    // nunca llegaba al `<path>` y las reglas de la hoja no se aplicaban (D.8b).
+    for (const file of ['components/map-draw-control.tsx', CANVAS]) {
+      expect(read(file), file).not.toMatch(/pathOptions=\{\{\s*className/);
+    }
+  });
+
   it('la hoja propia se importa DESPUÉS de las tres hojas de terceros, que se conservan', () => {
     const source = read(CANVAS);
     const order = [
