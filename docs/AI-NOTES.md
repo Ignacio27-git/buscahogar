@@ -3585,3 +3585,26 @@ decisión 165 dentro de la 170; el 3 reescribiendo la prueba.
 **Observación:** el comportamiento de una librería de terceros que se ve en el DOM real (el atributo `class` de un SVG) no
 se da por hecho por la documentación de un wrapper. Una regla CSS sin efecto visible tampoco la detecta un test de código
 fuente: hizo falta una captura con una zona dibujada.
+
+### 2026-10-06 — Dos fallos de registro del flujo SDD en D.8b
+
+**Contexto:** cierre (verificación y archivo) de `search-map-d8b`.
+
+**Categoría:** artefacto generado que no cumplía su propio contrato.
+
+**Qué se generó mal:**
+
+1. La spec (rev 2, escrita en la sesión anterior) titulaba los requisitos `### Requirement SMV-23: …` en lugar del formato
+   canónico `### Requirement: …` de la skill `sdd-spec`. El dispatcher nativo contó 0 requisitos y bloqueó el archivo con
+   un informe de verificación «obsoleto» (6 frente a 0).
+2. El agente de aplicación de la tercera unidad de trabajo sobrescribió el progreso de aplicación en lugar de fusionarlo, y
+   se perdieron las tablas TDD (rojo, verde) de las dos primeras. La verificación lo marcó como crítico.
+
+**Cómo se detectó:** el 1 por el bloqueo del dispatcher antes del archivo; el 2 por la verificación con TDD estricto.
+
+**Cómo se resolvió:** el 1 normalizando solo los encabezados (rev 3, sin cambiar el texto de requisitos ni escenarios);
+el 2 restaurando la tabla a partir de los informes literales de cada unidad, que el registro de intentos confirma por
+separado (223, 273 y 521 líneas). La verificación repetida dio PASS WITH WARNINGS.
+
+**Observación:** un artefacto que solo lee un modelo admite variaciones de formato; uno que también lee una herramienta,
+no. Y «fusiona, no sobrescribas» hay que repetirlo en cada lote, no solo en el primero.
