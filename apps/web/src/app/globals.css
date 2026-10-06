@@ -825,6 +825,233 @@
     }
   }
 
+  /* D.9 — ficha de la vivienda (decisión 173). El orden del DOM es el visual: enlace de vuelta,
+     título, precio (copia `lead`), galería, panel (copia `panel` del precio, datos clave y
+     anuncios de origen) y descripción. Desde 64rem hay dos columnas y el panel es sticky. */
+  .property-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    max-inline-size: 48rem;
+  }
+
+  .property-detail__back {
+    margin: 0;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  .property-detail__title {
+    margin: 0;
+    font-size: var(--text-heading-2);
+    line-height: var(--text-heading-2--line-height);
+    font-weight: var(--text-heading-2--font-weight);
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+  }
+
+  .property-summary {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .property-summary--lead {
+    display: flex;
+  }
+
+  .property-summary--panel {
+    display: none;
+  }
+
+  .property-summary__price {
+    margin: 0;
+    font-size: var(--text-heading-1);
+    line-height: var(--text-heading-1--line-height);
+    font-weight: var(--text-heading-1--font-weight);
+    letter-spacing: var(--text-heading-1--letter-spacing);
+  }
+
+  .property-summary__price--missing {
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    font-weight: 400;
+    letter-spacing: normal;
+    color: var(--ink-muted);
+  }
+
+  .property-summary__count {
+    margin: 0;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
+  .property-detail__panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    min-inline-size: 0;
+  }
+
+  .property-header {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .property-facts__list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem 1rem;
+    margin: 0;
+  }
+
+  .property-facts__item--wide {
+    grid-column: 1 / -1;
+  }
+
+  .property-facts__item dt {
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
+  .property-facts__item dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .property-facts__note {
+    margin: 0.75rem 0 0;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
+  .source-list h2,
+  .property-description h2 {
+    margin: 0 0 0.5rem;
+    font-size: var(--text-heading-3);
+    line-height: var(--text-heading-3--line-height);
+    font-weight: var(--text-heading-3--font-weight);
+  }
+
+  .source-list ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .source-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'link price'
+      'meta meta';
+    column-gap: 0.75rem;
+    align-items: baseline;
+    padding-block: 0.75rem;
+    border-block-start: 1px solid var(--rule);
+  }
+
+  .source-row__link {
+    grid-area: link;
+    overflow-wrap: anywhere;
+  }
+
+  .source-row__price {
+    grid-area: price;
+    text-align: end;
+  }
+
+  .source-row__meta {
+    grid-area: meta;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
+  .source-row__badge {
+    display: inline-block;
+    padding-inline: 0.375rem;
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    line-height: var(--text-small--line-height);
+  }
+
+  .property-description {
+    max-inline-size: 65ch;
+  }
+
+  .property-description p {
+    margin: 0 0 0.75rem;
+  }
+
+  .property-description p:last-child {
+    margin-block-end: 0;
+  }
+
+  @media (width >= 64rem) {
+    .property-detail {
+      display: grid;
+      grid-template-columns: minmax(0, 48rem) minmax(20rem, 1fr);
+      grid-template-areas:
+        'back back'
+        'title panel'
+        'gallery panel'
+        'description panel';
+      grid-template-rows: auto auto auto 1fr;
+      column-gap: 2rem;
+      row-gap: 0;
+      align-items: start;
+      max-inline-size: none;
+    }
+
+    .property-detail__back {
+      grid-area: back;
+      margin-block-end: 1.25rem;
+    }
+
+    .property-detail__title {
+      grid-area: title;
+    }
+
+    .property-detail > .property-gallery {
+      grid-area: gallery;
+      margin-block-start: 1.5rem;
+    }
+
+    .property-detail > .property-description {
+      grid-area: description;
+      margin-block-start: 1.5rem;
+    }
+
+    .property-summary--lead {
+      display: none;
+    }
+
+    .property-summary--panel {
+      display: flex;
+    }
+
+    /* El panel va en su propia columna, así que no tapa el foco del resto de la página; el
+       tope de altura y su propio desbordamiento evitan que quede cortado en pantallas bajas. */
+    .property-detail__panel {
+      grid-area: panel;
+      position: sticky;
+      top: var(--scroll-offset);
+      max-block-size: calc(100dvh - 2 * var(--scroll-offset));
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 1.25rem;
+      border: 1px solid var(--rule);
+      border-radius: var(--radius-panel);
+    }
+  }
+
   .light .theme-selector [value='light'],
   .dark .theme-selector [value='dark'],
   :root:not(.light, .dark) .theme-selector [value='system'] {

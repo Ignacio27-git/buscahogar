@@ -139,3 +139,89 @@ describe('PropertyDetailPage — enlace de vuelta (D.9)', () => {
     expect(html).not.toContain('minPrice=100000');
   });
 });
+
+// D.9 (decisión 173) — el orden del DOM es el visual en cualquier ancho.
+describe('PropertyDetailPage — composición y orden del DOM (D.9)', () => {
+  const HEADER = {
+    id: 'property-1',
+    minPriceCents: 15000000,
+    listingCount: 1,
+    thumbnailUrl: null,
+    propertyType: 'flat',
+    operation: 'sale',
+    surfaceM2: 90,
+    rooms: 3,
+    bathrooms: 2,
+    floor: '3',
+    title: 'Piso luminoso',
+    description: 'Un párrafo.',
+    address: 'Calle Mayor 1',
+  };
+  const SOURCE = {
+    listingId: 'l1',
+    sourceKey: 'idealista',
+    url: 'https://www.idealista.com/inmueble/1',
+    priceCents: 15000000,
+    thumbnailUrl: 'https://img4.idealista.com/1.jpg',
+    numPhotos: 10,
+    status: 'active',
+    lastSeenAt: new Date('2026-09-10T00:00:00Z'),
+    propertyType: 'flat',
+    surfaceM2: 90,
+    rooms: 3,
+    bathrooms: 2,
+    floor: '3',
+    address: 'Calle Mayor 1',
+  };
+
+  async function renderFicha(header: Record<string, unknown>): Promise<string> {
+    getPropertyDetailHeaderMock.mockReset();
+    getPropertySourcesMock.mockReset();
+    getPropertyDetailHeaderMock.mockResolvedValueOnce(header);
+    getPropertySourcesMock.mockResolvedValueOnce([SOURCE]);
+    const element = await PropertyDetailPage({ params: Promise.resolve({ listingId: VALID_LISTING_ID }) });
+    return renderToStaticMarkup(element);
+  }
+
+  it('orden: enlace de vuelta, título, precio de cabecera, galería, panel y descripción', async () => {
+    const html = await renderFicha(HEADER);
+    const positions = [
+      html.indexOf('property-detail__back'),
+      html.indexOf('<h1'),
+      html.indexOf('property-summary--lead'),
+      html.indexOf('aria-roledescription="carrusel"'),
+      html.indexOf('property-detail__panel'),
+      html.indexOf('property-summary--panel'),
+      html.indexOf('class="source-list"'),
+      html.indexOf('class="property-description"'),
+    ];
+
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+  });
+
+  it('hay un único <h1> con el título y las dos copias del resumen por su gancho', async () => {
+    const html = await renderFicha(HEADER);
+
+    expect(html.match(/<h1/g)).toHaveLength(1);
+    expect(html).toContain('>Piso luminoso</h1>');
+    expect(html).toContain('property-summary property-summary--lead');
+    expect(html).toContain('property-summary property-summary--panel');
+  });
+
+  it('título nulo: el <h1> dice «Ficha de la vivienda»', async () => {
+    const html = await renderFicha({ ...HEADER, title: null });
+
+    expect(html).toContain('>Ficha de la vivienda</h1>');
+  });
+
+  it('el panel envuelve la cabecera y las fuentes, y la descripción queda fuera', async () => {
+    const html = await renderFicha(HEADER);
+    const panelStart = html.indexOf('property-detail__panel');
+    const description = html.indexOf('class="property-description"');
+
+    expect(html.indexOf('class="source-list"')).toBeGreaterThan(panelStart);
+    expect(html.indexOf('class="source-list"')).toBeLessThan(description);
+    expect(html).toContain('class="property-detail"');
+  });
+});

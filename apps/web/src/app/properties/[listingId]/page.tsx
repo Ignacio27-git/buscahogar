@@ -22,7 +22,7 @@ import { propertyDetailParamsSchema } from '@buscahogar/core';
 import { getPropertyDetailHeader, getPropertySources } from '@buscahogar/db';
 
 import { PropertyDescription } from '@/components/property-description';
-import { PropertyHeader, resolvePropertyTitle } from '@/components/property-header';
+import { PropertyHeader, PropertySummary, resolvePropertyTitle } from '@/components/property-header';
 import { SourceGallery } from '@/components/source-gallery';
 import { SourceList } from '@/components/source-list';
 import type { RawSearchParams } from '@/lib/search-href';
@@ -97,16 +97,21 @@ export default async function PropertyDetailPage(props: PropertyDetailPageProps)
   const searchParamsRaw = (await props.searchParams) ?? {};
   const returnLink = resolveSearchReturnLink(searchParamsRaw);
 
+  // D.9 (decisión 173): el orden del DOM es el visual. El resumen se pinta dos veces (la `lead`
+  // bajo 64rem, la del panel desde 64rem); el CSS oculta la copia que no toca.
   return (
-    <>
+    <div className="property-detail">
       <p className="property-detail__back">
         <a href={returnLink.href}>{returnLink.label}</a>
       </p>
       <h1 className="property-detail__title">{resolvePropertyTitle(header.title)}</h1>
-      <PropertyHeader property={header} />
+      <PropertySummary property={header} placement="lead" />
       <SourceGallery sources={sources} />
-      <SourceList sources={sources} />
+      <div className="property-detail__panel">
+        <PropertyHeader property={header} />
+        <SourceList sources={sources} />
+      </div>
       <PropertyDescription description={header.description} />
-    </>
+    </div>
   );
 }
