@@ -20,6 +20,7 @@ import { ResultCard } from '@/components/result-card';
 import { SearchMap } from '@/components/search-map';
 import type { MapPointView } from '@/components/search-map-types';
 import { SearchTextForm } from '@/components/search-text-form';
+import { StepIndicator } from '@/components/step-indicator';
 import { formatPriceCents } from '@/lib/format-price';
 import { PLACE_SUGGESTION_LIMIT, classifyPlaceMatches } from '@/lib/place-match';
 import { buildPropertyDetailHref } from '@/lib/property-href';
@@ -158,6 +159,7 @@ async function renderInterpretation(rawQ: string | string[]): Promise<ReactEleme
     return (
       <>
         <h1>Buscar vivienda</h1>
+        <StepIndicator current={1} />
         <SearchTextForm value={shown} />
         <p role="alert">No se pudo interpretar la búsqueda: {message}</p>
       </>
@@ -194,6 +196,7 @@ async function renderInterpretation(rawQ: string | string[]): Promise<ReactEleme
   return (
     <>
       <h1>Buscar vivienda</h1>
+      <StepIndicator current={2} />
       <SearchTextForm value={queryParsed.data} />
       <CriteriaForm
         values={interpretation.params}
@@ -224,6 +227,10 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
   // Decisión 123: quita la marca del formulario de criterios y sus campos en
   // blanco antes de validar; todos los href de abajo parten de esta copia.
   const rawSearchParams = canonicalizeFormSubmission(submittedParams);
+  // D.7 (decisión 157): «inicio» se decide con lo ENVIADO, no con lo canonicalizado:
+  // un envío del formulario de criterios con todo en blanco canonicaliza a vacío
+  // pero no es el inicio.
+  const isPlainHome = Object.keys(submittedParams).length === 0;
   const parsed = searchQuerySchema.safeParse(rawSearchParams);
 
   // ROADMAP 2.6 (decisión 118): `view` tiene esquema propio, fuera del
@@ -355,6 +362,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
   const header = (
     <>
       <h1>Buscar vivienda</h1>
+      {isPlainHome ? <StepIndicator current={1} /> : null}
       <SearchTextForm value="" />
       <FilterBar params={rawSearchParams} activeCount={countTrayFilters(criteria)} />
       {suggestions !== null ? <ZoneSuggestions suggestions={suggestions} rawSearchParams={rawSearchParams} /> : null}

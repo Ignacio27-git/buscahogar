@@ -484,3 +484,65 @@ describe('bandeja de filtros en la home (D.6b, S15-S17, S21, S22)', () => {
     expect(html).toContain('0 resultados');
   });
 });
+
+// D.7 (spec nl-search-confirmation R1, home-search-text-entry) — indicador de
+// pasos, botón y texto de ayuda de la caja de texto.
+const STEPS = 'aria-label="Pasos de la búsqueda"';
+
+function stepsOf(html: string): string {
+  const start = html.indexOf(STEPS);
+  return start === -1 ? '' : html.slice(start, html.indexOf('</ol>', start));
+}
+
+describe('indicador de pasos (D.7, R1)', () => {
+  it('S1.1: en la home sin parámetros hay tres pasos y solo el primero es el actual', async () => {
+    const steps = stepsOf(await render({}));
+    expect(steps.match(/<li/g)).toHaveLength(3);
+    expect(steps.match(/aria-current="step"/g)).toHaveLength(1);
+    expect(steps).toMatch(/<li[^>]*aria-current="step"[^>]*>[\s\S]*Describe/);
+    expect(steps.indexOf('aria-current')).toBeLessThan(steps.indexOf('Revisa'));
+  });
+
+  it('S1.2: en una interpretación válida solo el segundo paso es el actual', async () => {
+    const steps = stepsOf(await render({ q: 'piso en venta' }));
+    expect(steps.match(/aria-current="step"/g)).toHaveLength(1);
+    expect(steps.indexOf('aria-current')).toBeGreaterThan(steps.indexOf('Describe'));
+    expect(steps.indexOf('aria-current')).toBeLessThan(steps.indexOf('Busca'));
+  });
+
+  it('S1.3: con q inválido solo el primer paso es el actual', async () => {
+    const steps = stepsOf(await render({ q: 'a'.repeat(201) }));
+    expect(steps.match(/aria-current="step"/g)).toHaveLength(1);
+    expect(steps.indexOf('aria-current')).toBeLessThan(steps.indexOf('Revisa'));
+  });
+
+  it.each([
+    ['resultados', { operation: 'sale' }],
+    ['mapa', { view: 'map' }],
+    ['parámetros inválidos', { minPrice: 'abc' }],
+    ['envío del formulario de criterios en blanco', { form: 'criteria', minPrice: '', zone: '' }],
+  ] as const)('S1.4/S1.5: %s no lleva indicador de pasos', async (_name, params) => {
+    searchMapPointsMock.mockResolvedValue({ points: [], total: 0, truncated: false });
+    expect(await render({ ...params })).not.toContain(STEPS);
+  });
+});
+
+describe('caja de texto: botón y ayuda (D.7, S10.1, S10.2)', () => {
+  it.each([
+    ['inicio', {}],
+    ['resultados', { operation: 'sale' }],
+    ['rechazo de parámetros', { minPrice: 'abc' }],
+    ['interpretación', { q: 'piso en venta' }],
+  ] as const)('%s: botón «Convertir en filtros» y ayuda enlazada por aria-describedby', async (_name, params) => {
+    const html = await render({ ...params });
+    expect(html).toContain('Convertir en filtros');
+    expect(html).not.toContain('Interpretar');
+    const input = findTag(html, 'input', 'name="q"');
+    expect(input).toContain('aria-describedby="search-text-help"');
+    expect(html).toMatch(/<p id="search-text-help"[^>]*>[^<]*Piso en alquiler en Getafe hasta 900 € con 2 habitaciones/);
+  });
+
+  it('S10.2: el ejemplo no es un placeholder', async () => {
+    expect(await render({})).not.toContain('placeholder');
+  });
+});
