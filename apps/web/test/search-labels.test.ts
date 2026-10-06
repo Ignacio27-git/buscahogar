@@ -9,6 +9,8 @@ import {
   TRAY_FILTER_KEYS,
   countTrayFilters,
   describeInterpretationStatus,
+  formatClusterUnit,
+  formatMarkerTitle,
   operationLabel,
   propertyTypeLabel,
 } from '../src/lib/search-labels.js';
@@ -129,5 +131,27 @@ describe('describeInterpretationStatus — S6.1, S6.4, S6.5', () => {
     expect(describeInterpretationStatus({ ...none, hasRecognised: false })).toBe(
       'Ninguna parte de tu texto se ha convertido en filtros.'
     );
+  });
+});
+
+// D.8a (SMV-20, decisión 166) — nombre accesible de marcadores y clústeres.
+describe('formatMarkerTitle — SMV-20', () => {
+  it('con precio: «Vivienda, {precio}. Ver detalle»', () => {
+    expect(formatMarkerTitle('250.000 €')).toBe('Vivienda, 250.000 €. Ver detalle');
+    expect(formatMarkerTitle('1.200 €')).toBe('Vivienda, 1.200 €. Ver detalle');
+  });
+
+  it('sin precio: usa «precio no disponible» en minúscula, nunca null, NaN ni undefined', () => {
+    const title = formatMarkerTitle('Precio no disponible');
+    expect(title).toBe('Vivienda, precio no disponible. Ver detalle');
+    expect(title).not.toMatch(/null|NaN|undefined/);
+  });
+});
+
+describe('formatClusterUnit — SMV-20', () => {
+  it('singular con uno y plural en el resto', () => {
+    expect(formatClusterUnit(1)).toBe('vivienda');
+    expect(formatClusterUnit(2)).toBe('viviendas');
+    expect(formatClusterUnit(37)).toBe('viviendas');
   });
 });

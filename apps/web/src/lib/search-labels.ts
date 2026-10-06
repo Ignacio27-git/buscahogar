@@ -146,6 +146,20 @@ export function formatMapCount(total: number): string {
   return `${String(total)} ${total === 1 ? 'vivienda con ubicación coincide' : 'viviendas con ubicación coinciden'}`;
 }
 
+// D.8a (SMV-20, decisión 166) — nombre accesible de un marcador: «Vivienda, 250.000 €.
+// Ver detalle». El marcador es un `divIcon` (Leaflet solo aplica `alt` a iconos de
+// imagen), así que el nombre sale del texto visible más este `title`. La etiqueta sin
+// precio («Precio no disponible») se baja a minúscula para que la frase siga fluida.
+export function formatMarkerTitle(priceLabel: string): string {
+  const label = priceLabel.charAt(0).toLowerCase() + priceLabel.slice(1);
+  return `Vivienda, ${label}. Ver detalle`;
+}
+
+// Unidad que el clúster anuncia a un lector de pantalla junto al número.
+export function formatClusterUnit(count: number): string {
+  return count === 1 ? 'vivienda' : 'viviendas';
+}
+
 // D.7 (decisión 160) — la única línea de estado de la interpretación de `?q=`.
 // Recibe solo recuentos y banderas: el texto es de presentación y vive aquí para
 // poder probarlo sin renderizar. Orden de las partes: sin reconocer, contradictorias

@@ -16,6 +16,9 @@ const COPYRIGHT_LINK = 'https://www.openstreetmap.org/copyright';
 // Rutas exactas relativas a `src/`.
 const CANVAS = 'components/search-map-canvas.tsx';
 const WRAPPER = 'components/search-map.tsx';
+// D.8a (decisión 165): hoja de reglas propia del mapa, sin literales de color.
+const MAP_STYLESHEET = 'components/search-map-canvas.css';
+const DRAW_STATE = 'components/draw-polygon-state.ts';
 const MAP_FILES = [WRAPPER, CANVAS, 'components/map-cluster-layer.tsx', 'components/map-draw-control.tsx'] as const;
 // Marcado de servidor de la sección de mapa (atribución en el HTML del servidor).
 const SERVER_MARKUP = 'app/page.tsx';
@@ -111,5 +114,95 @@ describe('frontera de cliente del mapa (SMV-11, decisión 113)', () => {
       }
       expect(readFileSync(file, 'utf8'), file).not.toMatch(/from\s+['"](react-)?leaflet/);
     }
+  });
+});
+
+// D.8a (SMV-19, SMV-22; decisión 165) — el aspecto del mapa va en una hoja con tokens.
+describe('estilos del mapa — tokens, sin literales ni estilos en línea (SMV-19)', () => {
+  const styled = [...MAP_FILES, DRAW_STATE] as const;
+  // Hex, rgb()/rgba(), hsl()/hsla() y oklch() escritos a mano.
+  const COLOUR_LITERAL = /['"`:\s]#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|oklch|oklab|lab|lch)\(/i;
+
+  it('la hoja del mapa existe', () => {
+    expect(existsSync(`${SRC_DIR}${MAP_STYLESHEET}`)).toBe(true);
+  });
+
+  it.each(styled)('%s no lleva literales de color', (relative) => {
+    expect(read(relative)).not.toMatch(COLOUR_LITERAL);
+  });
+
+  it.each(styled)('%s no usa cssText, `style={` ni asigna propiedades de estilo', (relative) => {
+    const source = read(relative);
+    expect(source).not.toMatch(/cssText/);
+    expect(source).not.toMatch(/\bstyle\s*=\s*\{/);
+    // `elemento.style.propiedad = …`: el cursor del lienzo pasa a una clase.
+    expect(source).not.toMatch(/\.style\.\w+\s*=/);
+  });
+
+  it('la hoja no usa !important ni literales de color y los colores salen de var()', () => {
+    const sheet = read(MAP_STYLESHEET);
+    expect(sheet).not.toMatch(/!important/);
+    expect(sheet).not.toMatch(COLOUR_LITERAL);
+    const colourDeclarations =
+      sheet.match(
+        /(?:^|[;{\s])(?:color|background(?:-color)?|border(?:-color)?|outline(?:-color)?|fill|stroke)\s*:[^;]+;/gm
+      ) ?? [];
+    expect(colourDeclarations.length).toBeGreaterThan(0);
+    for (const declaration of colourDeclarations) {
+      expect(declaration, declaration).toMatch(/var\(--|none|transparent|inherit|currentColor/);
+    }
+  });
+
+  it('la barra de dibujo usa la capa de controles del mapa por token', () => {
+    const sheet = read(MAP_STYLESHEET);
+    const toolbar = /\.map-draw-toolbar\s*\{[^}]*\}/.exec(sheet)?.[0] ?? '';
+    expect(toolbar).toMatch(/z-index:\s*var\(--z-map-controls\)/);
+    expect(sheet).not.toMatch(/z-index:\s*\d/);
+  });
+
+  it('la barra se monta fuera del contenedor de Leaflet, en el marco', () => {
+    const source = read('components/map-draw-control.tsx');
+    expect(source).toMatch(/createPortal\(/);
+    expect(source).toMatch(/getContainer\(\)\.parentElement/);
+  });
+
+  it('la hoja propia se importa DESPUÉS de las tres hojas de terceros, que se conservan', () => {
+    const source = read(CANVAS);
+    const order = [
+      "import 'leaflet/dist/leaflet.css'",
+      "import 'leaflet.markercluster/dist/MarkerCluster.css'",
+      "import 'leaflet.markercluster/dist/MarkerCluster.Default.css'",
+      "import './search-map-canvas.css'",
+    ].map((statement) => source.indexOf(statement));
+    expect(order.every((position) => position >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('`import L from leaflet` va antes de `leaflet.markercluster` (efecto lateral sobre L)', () => {
+    const source = read('components/map-cluster-layer.tsx');
+    const leaflet = source.indexOf("import L from 'leaflet'");
+    const cluster = source.indexOf("import 'leaflet.markercluster'");
+    expect(leaflet).toBeGreaterThanOrEqual(0);
+    expect(cluster).toBeGreaterThan(leaflet);
+  });
+
+  it('las etiquetas y el popup se rellenan con textContent', () => {
+    const source = read('components/map-cluster-layer.tsx');
+    expect(source).toMatch(/\.textContent\s*=/);
+    expect(source).toMatch(/createElement\(/);
+  });
+});
+
+describe('fuera de alcance D.8a (SMV-22)', () => {
+  it('ninguna clase ni trama distingue las posiciones aproximadas en el mapa', () => {
+    for (const relative of [...MAP_FILES, MAP_STYLESHEET]) {
+      expect(read(relative), relative).not.toMatch(/approx|aproxim|hatch|trama/i);
+    }
+  });
+
+  it('no hay capa de teselas oscura ni dibujo por teclado', () => {
+    const canvas = read(CANVAS);
+    expect(canvas.match(/<TileLayer/g)).toHaveLength(1);
+    expect(read('components/map-draw-control.tsx')).not.toMatch(/keydown|keyup|onKeyDown/);
   });
 });
