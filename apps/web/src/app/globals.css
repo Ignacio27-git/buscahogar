@@ -319,8 +319,8 @@
     }
   }
 
-  /* Barra de filtros de la home (D.6a). Solo estiliza la barra, no el panel de `?q=`, que
-     comparte los campos. Los controles usan --text-body (16px) para que iOS no haga zoom
+  /* Barra de filtros de la home (D.6a). Los campos de criterio los comparte el panel de `?q=`
+     (D.7), cuyos grupos `.criteria-group` reutilizan estas reglas. Los controles usan --text-body (16px) para que iOS no haga zoom
      al enfocar; los dos importes de un rango caben en 288px a 320px de ancho. */
   .filter-bar {
     display: flex;
@@ -330,13 +330,16 @@
   }
 
   .filter-bar > p,
-  .filter-bar fieldset > p {
+  .filter-bar fieldset > p,
+  .criteria-group > p,
+  .criteria-group fieldset > p {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
   }
 
-  .filter-bar fieldset {
+  .filter-bar fieldset,
+  .criteria-group fieldset {
     display: flex;
     gap: 0.5rem;
     min-inline-size: 0;
@@ -345,19 +348,24 @@
   }
 
   .filter-bar label,
-  .filter-bar legend {
+  .filter-bar legend,
+  .criteria-group label,
+  .criteria-group legend {
     font-size: var(--text-dense);
     line-height: var(--text-dense--line-height);
   }
 
   .filter-bar input:not([type='hidden']),
   .filter-bar select,
-  .filter-bar button {
+  .filter-bar button,
+  .criteria-group input:not([type='radio']),
+  .criteria-group select {
     min-block-size: 2.5rem;
     font-size: var(--text-body);
   }
 
-  .filter-bar input[type='number'] {
+  .filter-bar input[type='number'],
+  .criteria-group input[type='number'] {
     inline-size: 7rem;
   }
 
@@ -547,6 +555,180 @@
       grid-template-columns: 1fr auto 1fr;
       grid-template-areas: 'prev indicator next';
     }
+  }
+
+  /* Pasos de la búsqueda (D.7, decisión 157). La señal del paso actual no depende del color:
+     peso 600 y el número relleno. */
+  .steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.25rem;
+    margin-block: 0.5rem 1rem;
+    padding: 0;
+    list-style: none;
+    color: var(--ink-muted);
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  .steps > li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .steps__number {
+    display: inline-grid;
+    place-items: center;
+    inline-size: 1.25rem;
+    block-size: 1.25rem;
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+  }
+
+  .steps > [aria-current='step'] {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .steps > [aria-current='step'] .steps__number {
+    background-color: var(--ink);
+    border-color: var(--ink);
+    color: var(--surface);
+  }
+
+  /* Caja de texto (D.7, decisión 158): etiqueta, ayuda y campo apilados a 320px; desde 48rem el
+     campo y el botón comparten fila bajo la etiqueta y la ayuda. Controles a --text-body (iOS). */
+  .search-text {
+    display: grid;
+    gap: 0.5rem;
+    max-inline-size: 48rem;
+    margin-block: 0.5rem 1rem;
+  }
+
+  .search-text__help {
+    color: var(--ink-muted);
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  .search-text input,
+  .search-text button {
+    min-block-size: 2.5rem;
+    font-size: var(--text-body);
+  }
+
+  .search-text button {
+    justify-self: start;
+    padding-inline: 1rem;
+  }
+
+  @media (width >= 48rem) {
+    .search-text {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .search-text > label,
+    .search-text__help {
+      grid-column: 1 / -1;
+    }
+  }
+
+  /* Panel de revisión de `?q=` (D.7, decisiones 159-162): una columna de 48rem. La alerta lleva
+     borde completo, nunca una franja lateral. */
+  .nl-review {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-block-start: 1.5rem;
+    max-inline-size: 48rem;
+  }
+
+  .nl-review__status,
+  .nl-review__lead {
+    font-weight: 600;
+  }
+
+  .nl-review__alert,
+  .nl-issues {
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-panel);
+  }
+
+  .nl-review__alert {
+    border-color: var(--danger);
+  }
+
+  .nl-issues {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background-color: var(--surface-sunken);
+  }
+
+  .nl-issues ul {
+    margin-block-start: 0.25rem;
+    padding-inline-start: 1.25rem;
+    list-style: disc;
+  }
+
+  .nl-issues p,
+  .nl-review__hint,
+  .zone-field__note,
+  .criteria-group--secondary > h3 {
+    color: var(--ink-muted);
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  /* Campos agrupados por pregunta. Los importes de un rango caben en 288px (7rem cada uno). */
+  .criteria-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .criteria-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem 1rem;
+    padding-block-start: 1rem;
+    border-block-start: 1px solid var(--rule);
+  }
+
+  .criteria-group > h3 {
+    flex-basis: 100%;
+  }
+
+  .criteria-group > .zone-field {
+    flex-direction: column;
+    flex-basis: 100%;
+  }
+
+  .zone-field__choices {
+    columns: 16rem;
+    column-gap: 1rem;
+  }
+
+  .zone-field__choices > p {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-block-size: 2.5rem;
+    break-inside: avoid;
+  }
+
+  .criteria-form__submit {
+    min-block-size: 2.5rem;
+    font-size: var(--text-body);
+    align-self: flex-start;
+    padding-inline: 1.25rem;
+    background-color: var(--accent);
+    color: var(--ink-on-accent);
+    border-color: var(--accent);
+    font-weight: 600;
   }
 
   .light .theme-selector [value='light'],
