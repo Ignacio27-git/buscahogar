@@ -8,43 +8,52 @@ export interface E2eRoute {
   // Nombre estable: clave de la línea base axe y nombre del fichero de captura.
   readonly name: string;
   readonly path: string;
-  readonly isMap: boolean;
+  // D.8a: la sección del mapa se renderiza en toda búsqueda válida. `markers` espera
+  // marcadores; `empty` (0 coincidencias con ubicación) solo el lienzo y las teselas;
+  // `none` no tiene mapa (interpretación de `?q=`, detalle y errores).
+  readonly map: 'none' | 'markers' | 'empty';
 }
 
 export const ROUTES: readonly E2eRoute[] = [
-  { name: 'home', path: '/', isMap: false },
-  { name: 'map', path: '/?view=map', isMap: true },
+  { name: 'home', path: '/', map: 'markers' },
+  { name: 'map', path: '/?view=map', map: 'markers' },
   // D.6a: nueve filtros aplicados a la vez (todos los escalares y el radio) para
   // comprobar que la fila de chips no desborda a 320px.
   {
     name: 'home-filtered',
     path: '/?operation=sale&propertyType=flat&minPrice=100000&maxPrice=300000&minSurface=50&maxSurface=120&minRooms=2&minBathrooms=1&lat=40.4&lng=-3.7&radius=5000',
-    isMap: false,
+    // Ningún punto de la siembra queda a menos de 5 km de 40.4,-3.7: mapa vacío.
+    map: 'empty',
   },
   {
     name: 'nl-query',
     path: `/?q=${encodeURIComponent('piso en alquiler en Getafe hasta 900 € con 2 habitaciones')}`,
-    isMap: false,
+    map: 'none',
   },
-  { name: 'detail', path: `/properties/${E2E_DETAIL_LISTING_ID}`, isMap: false },
-  { name: 'not-found-route', path: '/no-existe', isMap: false },
-  { name: 'not-found-property', path: `/properties/${E2E_MISSING_LISTING_ID}`, isMap: false },
+  { name: 'detail', path: `/properties/${E2E_DETAIL_LISTING_ID}`, map: 'none' },
+  { name: 'not-found-route', path: '/no-existe', map: 'none' },
+  { name: 'not-found-property', path: `/properties/${E2E_MISSING_LISTING_ID}`, map: 'none' },
 ];
 
-// Navega y espera a que la página esté estable: fuentes cargadas y, en el mapa,
-// marcadores presentes y todas las teselas (locales) cargadas (S9.2).
+// Navega y espera a que la página esté estable: fuentes cargadas y, si el mapa se ve,
+// lienzo, marcadores (si se esperan) y todas las teselas (locales) cargadas (S9.2).
+// El marco existe siempre (D.8a) pero bajo 64rem la vista de lista lo oculta: ahí no
+// hay nada más que esperar.
 export async function openRoute(page: Page, route: E2eRoute): Promise<void> {
   await page.goto(route.path);
   await page.evaluate(() => document.fonts.ready);
-  if (route.isMap) {
-    await page.locator('.leaflet-marker-icon').first().waitFor();
-    await page.waitForFunction(() => {
-      const tiles = document.querySelectorAll('.leaflet-tile');
-      return (
-        tiles.length > 0 &&
-        document.querySelectorAll('.leaflet-tile:not(.leaflet-tile-loaded)').length === 0 &&
-        document.querySelector('.leaflet-zoom-anim') === null
-      );
-    });
-  }
+  if (route.map === 'none') return;
+  const frame = page.locator('.search-map__frame');
+  await frame.waitFor({ state: 'attached' });
+  if (!(await frame.isVisible())) return;
+  await frame.locator('.leaflet-container').waitFor();
+  if (route.map === 'markers') await frame.locator('.leaflet-marker-icon').first().waitFor();
+  await page.waitForFunction(() => {
+    const tiles = document.querySelectorAll('.leaflet-tile');
+    return (
+      tiles.length > 0 &&
+      document.querySelectorAll('.leaflet-tile:not(.leaflet-tile-loaded)').length === 0 &&
+      document.querySelector('.leaflet-zoom-anim') === null
+    );
+  });
 }
