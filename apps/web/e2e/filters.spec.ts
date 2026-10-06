@@ -5,6 +5,7 @@
 // JavaScript del envío (un GET de formulario).
 import { expect, test } from './fixtures';
 import { openRoute, ROUTES } from './routes';
+import { openFilterTray } from './tray';
 
 const BAR = 'Filtros de búsqueda';
 
@@ -37,6 +38,8 @@ test.describe('barra de filtros y filtros aplicados', () => {
 
   test('los campos de la barra van en el orden de la especificación', async ({ page }) => {
     await openRoute(page, route('home'));
+    // D.6b: a 320px el formulario está en la bandeja, cerrada por defecto.
+    await openFilterTray(page);
     const names = await page
       .getByRole('form', { name: BAR })
       .locator('input:not([type="hidden"]), select')
@@ -76,6 +79,7 @@ test.describe('barra de filtros y filtros aplicados', () => {
     page,
   }) => {
     await openRoute(page, route('home'));
+    await openFilterTray(page);
     const bar = page.getByRole('form', { name: BAR });
     await bar.getByLabel('Operación').selectOption('sale');
     await bar.getByLabel('Precio máximo (€)').fill('200000');
