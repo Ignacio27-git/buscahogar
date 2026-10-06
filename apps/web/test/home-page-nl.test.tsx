@@ -375,9 +375,11 @@ describe('filtros aplicados y recuento en la home (D.6a)', () => {
 
   it('recuento completo en la página 1 y parcial con página siguiente o en la página 2', async () => {
     searchPropertiesMock.mockResolvedValue({ results: [], hasNextPage: true });
-    expect(await render({})).toMatch(/0 resultados en esta página · página 1/);
+    expect(await render({})).toMatch(/0 resultados en esta página/);
     searchPropertiesMock.mockResolvedValue({ results: [], hasNextPage: false });
-    expect(await render({ page: '2' })).toMatch(/0 resultados en esta página · página 2/);
+    expect(await render({ page: '2' })).toMatch(/0 resultados en esta página/);
+    // D.6b: el número de página es del paginador, no del recuento.
+    expect(await render({ page: '2' })).not.toContain('· página');
     expect(await render({})).not.toContain('en esta página');
   });
 

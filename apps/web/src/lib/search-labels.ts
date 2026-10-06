@@ -27,6 +27,22 @@ export const PROPERTY_TYPE_LABELS: Readonly<Record<PropertyType, string>> = {
   other: 'Otro',
 };
 
+// D.6b (decisión 134) — rótulo de un valor que llega como `string | null` (la
+// fila de resultado lo recibe así de la base). `null` si falta o no es un valor
+// conocido: nunca se muestra el valor crudo ni se inventa un texto de reserva,
+// que es decisión del componente. `Object.hasOwn` evita claves del prototipo.
+function labelOrNull(labels: Readonly<Record<string, string>>, value: string | null): string | null {
+  return value !== null && Object.hasOwn(labels, value) ? (labels[value] ?? null) : null;
+}
+
+export function propertyTypeLabel(value: string | null): string | null {
+  return labelOrNull(PROPERTY_TYPE_LABELS, value);
+}
+
+export function operationLabel(value: string | null): string | null {
+  return labelOrNull(OPERATION_LABELS, value);
+}
+
 export const SORT_LABELS: Readonly<Record<'price' | 'surface' | 'updated', string>> = {
   price: 'Precio',
   surface: 'Superficie',
@@ -98,13 +114,32 @@ export function describeAppliedFilters(
   return filters;
 }
 
+// D.6b (decisión 154) — filtros que viven dentro de la bandeja. Ni el orden
+// (`sort`/`dir`) ni la zona, el polígono o el punto con radio son campos de la
+// bandeja: la zona y el radio se ven en sus chips y el orden no es un filtro.
+export const TRAY_FILTER_KEYS: readonly AppliedFilterKey[] = [
+  'operation',
+  'propertyType',
+  'minPrice',
+  'maxPrice',
+  'minSurface',
+  'maxSurface',
+  'minRooms',
+  'minBathrooms',
+];
+
+// Se deriva de `describeAppliedFilters`, la misma fuente que los chips, así que
+// el número de la bandeja coincide por construcción con los chips de criterio.
+export function countTrayFilters(criteria: PropertySearchCriteria): number {
+  return describeAppliedFilters(criteria, null).filter((filter) => TRAY_FILTER_KEYS.includes(filter.key)).length;
+}
+
 // Recuento de la lista: completo solo en la página 1 sin página siguiente; en
-// cualquier otro caso `shown` es solo lo de esta página y el texto lo dice.
+// cualquier otro caso `shown` es solo lo de esta página y el texto lo dice. El
+// número de página lo da el paginador (D.6b), no este texto.
 export function formatListCount(shown: number, page: number, hasNextPage: boolean): string {
   const noun = shown === 1 ? 'resultado' : 'resultados';
-  return page === 1 && !hasNextPage
-    ? `${String(shown)} ${noun}`
-    : `${String(shown)} ${noun} en esta página · página ${String(page)}`;
+  return page === 1 && !hasNextPage ? `${String(shown)} ${noun}` : `${String(shown)} ${noun} en esta página`;
 }
 
 export function formatMapCount(total: number): string {

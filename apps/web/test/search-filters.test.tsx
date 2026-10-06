@@ -104,16 +104,13 @@ describe('formatListCount — spec "Result count"', () => {
     expect(formatListCount(0, 1, false)).toBe('0 resultados');
   });
 
-  it('con página siguiente es parcial y lleva el indicador de página', () => {
-    const text = formatListCount(20, 1, true);
-    expect(text).toContain('20 resultados en esta página');
-    expect(text).toContain('página 1');
+  // D.6b: el indicador de página es del paginador; el recuento ya no lo repite.
+  it('con página siguiente es parcial y no repite el número de página', () => {
+    expect(formatListCount(20, 1, true)).toBe('20 resultados en esta página');
   });
 
   it('en la página 2 es parcial aunque no haya siguiente', () => {
-    const text = formatListCount(3, 2, false);
-    expect(text).toContain('3 resultados en esta página');
-    expect(text).toContain('página 2');
+    expect(formatListCount(3, 2, false)).toBe('3 resultados en esta página');
   });
 });
 
