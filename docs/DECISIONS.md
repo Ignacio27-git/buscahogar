@@ -5037,6 +5037,20 @@ sí entra en las opciones del constructor; `map-guards.test.ts` lo vigila.
 
 ---
 
+## 176 — Número de fuentes de la ficha: fuentes distintas con algún anuncio activo
+
+**Estado:** aceptada (paso D.9, corrección; cambia el texto del resumen de la 173).
+
+**Decisión.** El resumen de la ficha (sus dos copias) muestra el número de fuentes distintas (`sourceKey`) con al menos un anuncio `active`, no `properties.listing_count`. Lo calcula `countActiveSources` (`apps/web/src/lib/count-active-sources.ts`), una función pura, sobre las filas de `getPropertySources` que la página ya carga. Con N ≥ 1 dice «Disponible en N fuente/fuentes» con la regla singular/plural de `result-card`. Con 0, «No disponible en ninguna fuente»: es la vivienda sin anuncios activos que la 109 solo deja ver desde su ficha, con el mínimo de todos los precios. `listingCount` sigue en `PropertyDetailHeader`.
+
+**Alternativas descartadas.** Seguir con `listingCount`: cuenta anuncios y no fuentes, e incluye los retirados e inactivos, así que P7 decía «2 fuentes» con las dos marcadas «(no disponible)». Leer `properties.active_listing_count` en la consulta de cabecera: tocaría `packages/db` y seguiría contando anuncios, no fuentes; dos anuncios activos de la misma fuente darían 2.
+
+**Motivo.** El número tiene que coincidir con lo que la lista de anuncios de origen enseña justo debajo, y los datos para calcularlo ya están en la página.
+
+**Consecuencia.** La búsqueda no cambia: `distinctSourceCount` (decisión 058) cuenta fuentes distintas de todos los anuncios, sin mirar `status`. Una vivienda con un anuncio activo y otro retirado de otra fuente (P2) sale en los resultados con «2 fuentes» y en su ficha con «1 fuente». Igualarlas exigiría filtrar por `status` en la subconsulta de `search.ts`, un cambio de la búsqueda que queda fuera de esta corrección.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

@@ -962,8 +962,13 @@ Paso D.9 de docs/DESIGN-ROADMAP.md. Aplica la presentación de la ficha decidida
   en su centro, dentro de la ventana y de la parte visible del panel) a 1280, a 1280×480 con el panel desplazándose por dentro
   y a 320. No se encontró ningún defecto. Commits `c37ea2a` y `255f416`. E2e: 400 superados y 320 omitidos (antes 368 y 280);
   web 741 y la forma de la siembra 43 (antes 41).
-- **Observación (sin cambio):** «Disponible en N fuentes» cuenta todos los anuncios (`listing_count`), también los «(no disponible)»;
-  en P7 dice «2 fuentes» con las dos no disponibles, y en P2 «2 fuentes» con una retirada. No se ha tocado: es texto del diseño de D.0.
+- **Observación:** «Disponible en N fuentes» cuenta todos los anuncios (`listing_count`), también los «(no disponible)»;
+  en P7 dice «2 fuentes» con las dos no disponibles, y en P2 «2 fuentes» con una retirada. *Corregido (decisión 176):* la ficha
+  cuenta las fuentes distintas con algún anuncio activo (`countActiveSources` sobre las fuentes que ya carga la página) y, sin
+  ninguna, dice «No disponible en ninguna fuente». P2 dice «Disponible en 1 fuente» y P7 «No disponible en ninguna fuente», una
+  vez por ancho. Solo cambian las seis capturas de `detail` y las seis de `detail-gallery`. Web 752 (antes 741); e2e 400
+  superados y 320 omitidos, igual que antes. La búsqueda (`distinctSourceCount`) sigue contando fuentes de todos los anuncios: P2
+  sale allí con «2 fuentes». No se ha tocado (fuera del alcance); ver la decisión 176.
 - **Tamaño:** ~1000 líneas de código, tests y documentación sin contar las capturas; `size:exception`.
 
 ---

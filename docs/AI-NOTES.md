@@ -40,6 +40,24 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-06 — «Disponible en N fuentes» contaba anuncios, también los no activos (paso D.9)
+
+**Contexto:** resumen de la ficha (`PropertySummary`), diseñado en D.0 y aplicado en D.9.
+
+**Categoría:** código que compilaba pero no hacía lo correcto.
+
+**Qué ocurrió:** el texto usaba `property.listingCount`, que cuenta todos los anuncios del grupo. Contaba los retirados e
+inactivos y contaba anuncios, no fuentes. P7, con sus dos anuncios inactivos, decía «Disponible en 2 fuentes» junto a dos filas
+«(no disponible)». Se arrastró de D.0 a D.9 sin que lo cuestionara ninguna revisión ni ningún test, porque las fixtures unitarias
+solo tenían anuncios activos.
+
+**Cómo se detectó:** al revisar las capturas de `detail-gallery` del seguimiento de D.9; se anotó como observación y el
+responsable pidió corregirlo (decisión 176).
+
+**Coste:** una corrección pequeña y una regeneración de capturas (~10 min de Docker).
+
+**Observación:** un recuento que se pinta junto a una lista con estados tiene que probarse con elementos en cada estado.
+
 ### 2026-10-06 — Ventana «baja» que no lo era en el e2e del foco de la ficha (paso D.9, seguimiento)
 
 **Contexto:** e2e de WCAG 2.4.11 en `apps/web/e2e/property-detail.spec.ts`, caso del panel `sticky` con desplazamiento interno.

@@ -30,6 +30,24 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-06 — Ficha: número de fuentes activas (paso D.9, corrección, decisión 176)
+
+**Tipo de tarea:** interfaz (función pura en `apps/web/src/lib`, resumen de la ficha) + test + capturas e2e
+**Forma de especificación:** prosa breve sobre una observación ya registrada en las notas de D.9; el texto de la interfaz lo
+fijó el responsable; implementación directa delegada (sin SDD), test primero
+**Resultado:** utilizable sin cambios.
+
+**Prompt:**
+
+> corrígelo
+
+(referido a la observación de D.9: «Disponible en N fuentes» contaba todos los anuncios, también los no activos, y P7 decía
+«2 fuentes» con las dos «(no disponible)»).
+
+**Observación:** el número sale de las fuentes que la página ya carga (`countActiveSources`), sin tocar `packages/db`. Solo
+cambiaron las doce capturas de `detail` y `detail-gallery`. La búsqueda sigue contando fuentes distintas de todos los anuncios;
+queda anotado en la decisión 176.
+
 ### 2026-10-06 — Ficha: avisos de la verificación de D.9 (galería en capturas, sin JS y foco no tapado)
 
 **Tipo de tarea:** test (siembra e2e, capturas, e2e sin JavaScript y de accesibilidad)
