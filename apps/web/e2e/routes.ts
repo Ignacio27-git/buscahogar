@@ -1,7 +1,11 @@
 // Paso D.1b (spec visual-regression-suite R9, S9.2/S9.3; diseño «Routes») — las
 // rutas del e2e visual y de accesibilidad. Los identificadores de vivienda
 // vienen de la siembra (`@buscahogar/db/e2e`): una única fuente.
-import { E2E_DETAIL_LISTING_ID, E2E_MISSING_LISTING_ID } from '@buscahogar/db/e2e';
+import {
+  E2E_DETAIL_LISTING_ID,
+  E2E_GALLERY_LISTING_ID,
+  E2E_MISSING_LISTING_ID,
+} from '@buscahogar/db/e2e';
 import type { Page } from '@playwright/test';
 
 export interface E2eRoute {
@@ -31,17 +35,26 @@ export const ROUTES: readonly E2eRoute[] = [
     map: 'none',
   },
   { name: 'detail', path: `/properties/${E2E_DETAIL_LISTING_ID}`, map: 'none' },
+  // D.9 (decisión 175): P7, solo inactivos, no sale en la búsqueda. Su ficha enseña la
+  // galería de dos fotos locales, el «—» de los datos sin consolidar y la nota única.
+  { name: 'detail-gallery', path: `/properties/${E2E_GALLERY_LISTING_ID}`, map: 'none' },
   { name: 'not-found-route', path: '/no-existe', map: 'none' },
   { name: 'not-found-property', path: `/properties/${E2E_MISSING_LISTING_ID}`, map: 'none' },
 ];
 
-// Navega y espera a que la página esté estable: fuentes cargadas y, si el mapa se ve,
-// lienzo, marcadores (si se esperan) y todas las teselas (locales) cargadas (S9.2).
+// Navega y espera a que la página esté estable: fuentes cargadas, la primera foto de
+// la galería decodificada (si hay galería) y, si el mapa se ve, lienzo, marcadores
+// (si se esperan) y todas las teselas (locales) cargadas (S9.2).
 // El marco existe siempre (D.8a) pero bajo 64rem la vista de lista lo oculta: ahí no
 // hay nada más que esperar.
 export async function openRoute(page: Page, route: E2eRoute): Promise<void> {
   await page.goto(route.path);
   await page.evaluate(() => document.fonts.ready);
+  // Solo la primera: las demás quedan fuera de la tira y su carga diferida no se ve.
+  await page.waitForFunction(() => {
+    const image = document.querySelector<HTMLImageElement>('.property-gallery img');
+    return image === null || (image.complete && image.naturalWidth > 0);
+  });
   if (route.map === 'none') return;
   const frame = page.locator('.search-map__frame');
   await frame.waitFor({ state: 'attached' });

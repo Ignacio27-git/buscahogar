@@ -25,6 +25,12 @@ COPY . .
 # El `prepare` raíz compila los packages (core, db, config): por eso va después del COPY.
 RUN pnpm install --frozen-lockfile --offline
 
+# D.9 (decisión 175): las fotos de la ficha del dataset e2e (P7) se sirven desde
+# nuestro propio origen y pasan por el optimizador local de `next/image`. Se copian
+# a `public/` SOLO en esta imagen: la build de producción no las publica.
+RUN mkdir -p apps/web/public/e2e-fixtures \
+    && cp apps/web/e2e/assets/gallery-1.png apps/web/e2e/assets/gallery-2.png apps/web/public/e2e-fixtures/
+
 # Se invoca con `sh` para no depender del bit de ejecución del fichero (Windows).
 ENTRYPOINT ["sh", "/app/apps/web/e2e/docker-entrypoint.sh"]
 CMD ["run"]

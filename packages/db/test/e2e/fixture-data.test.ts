@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { buildE2eFixture } from '../../src/e2e/fixture-data.js';
 import {
   E2E_DETAIL_LISTING_ID,
+  E2E_GALLERY_LISTING_ID,
   E2E_GETAFE,
   E2E_LISTING_IDS,
   E2E_MISSING_LISTING_ID,
@@ -42,7 +43,7 @@ describe('buildE2eFixture — determinismo (R3)', () => {
       ...fixture.versions.map((row) => row.id),
       ...fixture.propertyListings.map((row) => row.id),
     ];
-    expect(ids).toHaveLength(2 + 1 + 1 + 6 + 9 + 9 + 9);
+    expect(ids).toHaveLength(2 + 1 + 1 + 7 + 11 + 11 + 11);
     expect(new Set(ids).size).toBe(ids.length);
     for (const id of ids) {
       expect(id).toMatch(UUID_V4);
@@ -113,9 +114,54 @@ describe('buildE2eFixture — forma del dataset (R4)', () => {
     expect(activeWithoutLocation.map((row) => row.id)).toEqual([E2E_PROPERTY_IDS.p6]);
   });
 
-  it('S4.6 ninguna miniatura: thumbnail_url es NULL en viviendas y anuncios', () => {
-    expect(fixture.properties.every((row) => row.thumbnailUrl === null)).toBe(true);
-    expect(fixture.listings.every((row) => row.thumbnailUrl === null)).toBe(true);
+  it('S4.6 solo P7 tiene miniaturas, y son rutas de nuestro origen (decisión 175)', () => {
+    const withThumbnail = fixture.listings.filter((row) => row.thumbnailUrl != null);
+    expect(withThumbnail.map((row) => row.id).sort()).toEqual(
+      [E2E_LISTING_IDS.p7Idealista, E2E_LISTING_IDS.p7Kyero].sort()
+    );
+    const properties = fixture.properties.filter((row) => row.thumbnailUrl != null);
+    expect(properties.map((row) => row.id)).toEqual([E2E_PROPERTY_IDS.p7]);
+    for (const url of [...withThumbnail, ...properties].map((row) => row.thumbnailUrl ?? '')) {
+      // Ruta absoluta del mismo origen: ni esquema, ni host, ni `//host`.
+      expect(url).toMatch(/^\/e2e-fixtures\/[a-z0-9-]+\.png$/);
+    }
+  });
+
+  it('P7 solo tiene anuncios inactivos SIN redactar, con fotos y datos sin consolidar', () => {
+    const p7 = listingsOf(E2E_PROPERTY_IDS.p7);
+    expect(p7).toHaveLength(2);
+    for (const listing of p7) {
+      expect(listing.status).toBe('inactive');
+      expect(listing.inactiveReason).toBe('delisted');
+      // Decisión 107: sin tombstone, la descripción, `raw` y la miniatura siguen ahí.
+      expect(listing.tombstonedAt).toBeNull();
+      expect(listing.thumbnailUrl).not.toBeNull();
+      const version = fixture.versions.find((row) => row.listingId === listing.id);
+      expect(version?.description).not.toBeNull();
+      expect(version?.raw).not.toBeNull();
+    }
+    const property = fixture.properties.find((row) => row.id === E2E_PROPERTY_IDS.p7);
+    // Decisión 109: sin activos no aparece en la búsqueda (ni en el mapa).
+    expect(property?.activeListingCount).toBe(0);
+    expect(property?.description).not.toBeNull();
+    expect(property?.bathrooms).toBeNull();
+    expect(property?.floor).toBeNull();
+    // Triangulación: el resto de datos clave sí está consolidado.
+    expect(property?.surfaceM2).not.toBeNull();
+    expect(property?.rooms).not.toBeNull();
+  });
+
+  it('P7 es la única vivienda con anuncios inactivos y sus inactivos son recientes', () => {
+    const inactive = fixture.listings.filter((listing) => listing.status === 'inactive');
+    expect(new Set(listingsOf(E2E_PROPERTY_IDS.p7).map((row) => row.id))).toEqual(
+      new Set(inactive.map((row) => row.id))
+    );
+    const dayMs = 24 * 60 * 60 * 1000;
+    for (const listing of inactive) {
+      const since = listing.inactiveSince?.getTime() ?? Number.NaN;
+      // Por debajo de los 180 días del tombstone (decisión 107).
+      expect(Date.parse('2026-09-15T10:00:00Z') - since).toBeLessThan(180 * dayMs);
+    }
   });
 
   it('las URL de los anuncios apuntan al dominio reservado .invalid, nunca a un portal real', () => {
@@ -162,6 +208,7 @@ describe('IDs publicados para las specs', () => {
     const ids = fixture.listings.map((listing) => listing.id);
     expect(ids).toContain(E2E_DETAIL_LISTING_ID);
     expect(ids).toContain(E2E_REMOVED_ONLY_LISTING_ID);
+    expect(ids).toContain(E2E_GALLERY_LISTING_ID);
     expect(ids).not.toContain(E2E_MISSING_LISTING_ID);
     expect(E2E_MISSING_LISTING_ID).toMatch(UUID_V4);
     expect(Object.values(E2E_LISTING_IDS)).toHaveLength(fixture.listings.length);

@@ -41,6 +41,19 @@ const SEEN_AT = new Date('2026-09-15T10:00:00Z');
 const REMOVED_LAST_SEEN_AT = new Date('2026-02-28T10:00:00Z');
 const INACTIVE_SINCE = new Date('2026-03-01T10:00:00Z');
 const TOMBSTONED_AT = new Date('2026-08-28T10:00:00Z');
+// D.9 (decisión 175): inactivos recientes, lejos de los 180 días del tombstone
+// (decisión 107), así que conservan descripción, `raw` y miniatura.
+const INACTIVE_LAST_SEEN_AT = new Date('2026-08-31T10:00:00Z');
+const RECENTLY_INACTIVE_SINCE = new Date('2026-09-01T10:00:00Z');
+
+// Miniaturas del dataset: rutas de NUESTRO origen, nunca un host externo (R8). Los
+// PNG viven en `apps/web/e2e/assets/` y `Dockerfile.e2e` los copia a
+// `apps/web/public/e2e-fixtures/`: solo existen en la imagen del e2e, y pasan por el
+// optimizador local de `next/image` (`/_next/image`) como una miniatura real.
+const E2E_THUMBNAILS = {
+  first: '/e2e-fixtures/gallery-1.png',
+  second: '/e2e-fixtures/gallery-2.png',
+} as const;
 
 // Centroide aproximado de Getafe (28065) y radio de barrido en metros.
 const GETAFE_CENTROID = { latitude: 40.3057, longitude: -3.7326 };
@@ -49,19 +62,22 @@ const GETAFE_SWEEP_RADIUS_M = 3500;
 interface ListingSeed {
   readonly id: string;
   readonly source: keyof typeof E2E_SOURCE_IDS;
-  readonly status: 'active' | 'removed';
+  readonly status: 'active' | 'inactive' | 'removed';
   readonly priceCents: number;
+  // Solo P7 lleva miniatura (decisión 175); el resto, `null` (S4.6).
+  readonly thumbnailUrl?: string;
 }
 
 interface PropertySeed {
   readonly id: string;
   readonly operation: 'sale' | 'rent';
   readonly propertyType: string;
+  // `null`: dato sin consolidar (el ganador no lo tiene, decisión 053). Solo P7.
   readonly rooms: number;
-  readonly bathrooms: number;
+  readonly bathrooms: number | null;
   readonly surfaceM2: number;
   readonly address: string;
-  readonly floor: string;
+  readonly floor: string | null;
   readonly title: string;
   // `null`: vivienda sin ubicación (P6, spec S4.5).
   readonly location: { readonly x: number; readonly y: number } | null;
@@ -70,7 +86,8 @@ interface PropertySeed {
 
 // P1: dos anuncios activos de dos fuentes. P2: uno activo y uno retirado.
 // P3: solo retirados (no aparece en la búsqueda; su detalle sí resuelve).
-// P4 y P5: activos con ubicación. P6: activo sin ubicación.
+// P4 y P5: activos con ubicación. P6: activo sin ubicación. P7: solo inactivos sin
+// redactar, con dos fotos y baños y planta sin consolidar (ficha de D.9).
 const PROPERTY_SEEDS: readonly PropertySeed[] = [
   {
     id: E2E_PROPERTY_IDS.p1,
@@ -168,6 +185,34 @@ const PROPERTY_SEEDS: readonly PropertySeed[] = [
       { id: E2E_LISTING_IDS.p6, source: 'idealista', status: 'active', priceCents: 39000000 },
     ],
   },
+  {
+    id: E2E_PROPERTY_IDS.p7,
+    operation: 'sale',
+    propertyType: 'flat',
+    rooms: 3,
+    bathrooms: null,
+    surfaceM2: 88,
+    address: 'Calle Madrid 27',
+    floor: null,
+    title: 'Piso exterior con dos fuentes y fotos',
+    location: { x: -3.7305, y: 40.3072 },
+    listings: [
+      {
+        id: E2E_LISTING_IDS.p7Idealista,
+        source: 'idealista',
+        status: 'inactive',
+        priceCents: 21900000,
+        thumbnailUrl: E2E_THUMBNAILS.first,
+      },
+      {
+        id: E2E_LISTING_IDS.p7Kyero,
+        source: 'kyero',
+        status: 'inactive',
+        priceCents: 22500000,
+        thumbnailUrl: E2E_THUMBNAILS.second,
+      },
+    ],
+  },
 ];
 
 export function buildE2eFixture(): E2eFixture {
@@ -183,6 +228,8 @@ export function buildE2eFixture(): E2eFixture {
     // Decisión 109: el precio mostrado es el mínimo de los activos; sin
     // activos, el mínimo de todos (solo alcanzable desde el detalle).
     const pricePool = active.length > 0 ? active : seed.listings;
+    // Un tombstone redacta la descripción (decisión 107); un inactivo reciente no.
+    const hasContent = seed.listings.some((listing) => listing.status !== 'removed');
 
     fixture.properties.push({
       id: seed.id,
@@ -197,8 +244,9 @@ export function buildE2eFixture(): E2eFixture {
       bathrooms: seed.bathrooms,
       floor: seed.floor,
       title: seed.title,
-      description: active.length > 0 ? `${seed.title}. Datos ficticios del dataset e2e.` : null,
-      thumbnailUrl: null,
+      description: hasContent ? `${seed.title}. Datos ficticios del dataset e2e.` : null,
+      // La consolidación copia la miniatura del ganador, el primer anuncio.
+      thumbnailUrl: seed.listings[0]?.thumbnailUrl ?? null,
       listingCount: seed.listings.length,
       activeListingCount: active.length,
       consolidatedAt: SEEN_AT,
@@ -210,6 +258,7 @@ export function buildE2eFixture(): E2eFixture {
     for (const listing of seed.listings) {
       const ordinal = fixture.listings.length + 1;
       const removed = listing.status === 'removed';
+      const inactive = listing.status === 'inactive';
       const versionId = e2eUuid(0x50 + ordinal);
 
       fixture.listings.push({
@@ -220,14 +269,14 @@ export function buildE2eFixture(): E2eFixture {
         url: `https://e2e.invalid/${listing.source}/${String(ordinal)}`,
         location: seed.location,
         coordinatesObfuscated: false,
-        thumbnailUrl: null,
+        thumbnailUrl: listing.thumbnailUrl ?? null,
         numPhotos: removed ? null : 8,
         status: listing.status,
-        inactiveSince: removed ? INACTIVE_SINCE : null,
-        inactiveReason: removed ? 'delisted' : null,
+        inactiveSince: removed ? INACTIVE_SINCE : inactive ? RECENTLY_INACTIVE_SINCE : null,
+        inactiveReason: removed || inactive ? 'delisted' : null,
         tombstonedAt: removed ? TOMBSTONED_AT : null,
         firstSeenAt: SEEN_AT,
-        lastSeenAt: removed ? REMOVED_LAST_SEEN_AT : SEEN_AT,
+        lastSeenAt: removed ? REMOVED_LAST_SEEN_AT : inactive ? INACTIVE_LAST_SEEN_AT : SEEN_AT,
         createdAt: SEEN_AT,
         updatedAt: SEEN_AT,
       });

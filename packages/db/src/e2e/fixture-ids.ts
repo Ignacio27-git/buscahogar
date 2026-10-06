@@ -28,6 +28,8 @@ export const E2E_GETAFE = {
 } as const;
 
 // P1..P6 (spec R4). P3 solo tiene anuncios retirados; P6 no tiene ubicación.
+// P7 (D.9, decisión 175): solo anuncios inactivos SIN redactar, con fotos locales y
+// datos clave sin consolidar; no aparece en la búsqueda, solo en su ficha.
 export const E2E_PROPERTY_IDS = {
   p1: e2eUuid(0x31),
   p2: e2eUuid(0x32),
@@ -35,6 +37,7 @@ export const E2E_PROPERTY_IDS = {
   p4: e2eUuid(0x34),
   p5: e2eUuid(0x35),
   p6: e2eUuid(0x36),
+  p7: e2eUuid(0x37),
 } as const;
 
 export const E2E_LISTING_IDS = {
@@ -47,10 +50,14 @@ export const E2E_LISTING_IDS = {
   p4: e2eUuid(0x47),
   p5: e2eUuid(0x48),
   p6: e2eUuid(0x49),
+  p7Idealista: e2eUuid(0x4a),
+  p7Kyero: e2eUuid(0x4b),
 } as const;
 
 // Rutas de las specs: el detalle con dos anuncios (uno activo, uno retirado) y
 // un UUID válido que no existe (segundo 404, S9.3).
 export const E2E_DETAIL_LISTING_ID = E2E_LISTING_IDS.p2Active;
 export const E2E_REMOVED_ONLY_LISTING_ID = E2E_LISTING_IDS.p3RemovedA;
+// D.9 (decisión 175): ficha con galería de dos fotos, «—» y la nota de no consolidado.
+export const E2E_GALLERY_LISTING_ID = E2E_LISTING_IDS.p7Idealista;
 export const E2E_MISSING_LISTING_ID = e2eUuid(0xffff);
