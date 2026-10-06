@@ -40,6 +40,26 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-06 — Fichero de e2e truncado por un heredoc y `tsc --noEmit` que no ve `e2e/` (paso D.6b)
+
+**Contexto:** `apps/web/e2e/filter-tray.spec.ts`, escrito en la fase de aplicación con un heredoc de Bash.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** el heredoc que creaba el spec terminó antes de tiempo (Bash avisó de que el documento aquí terminaba por
+fin de entrada) y el fichero quedó cortado a media expresión (`getByRole('link'`). Ni `tsc --noEmit` ni `eslint e2e` dieron
+error en ese momento: el `tsconfig` de `apps/web` no incluye `e2e/`, y el aviso de Bash se confundió con una salida limpia.
+El primer `pnpm e2e` en Docker falló al arrancar el servidor («Failed to type check»); la causa solo se vio ejecutando
+`next build` en local, que sí comprueba los tipos de `e2e/` (`TS1005: ')' expected`).
+
+**Cómo se detectó:** `next build`, dentro del `webServer` de Playwright y después a mano.
+
+**Coste:** una ejecución en Docker (~1,5 min) y unos minutos de diagnóstico.
+
+**Observación:** los ficheros largos con comillas y plantillas conviene escribirlos con la herramienta de ficheros y no con
+heredocs de la shell; y `tsc --noEmit` de `apps/web` no sustituye a `next build` para los ficheros de `e2e/` (misma
+conclusión que en D.4 para las rutas de importación).
+
 ### 2026-10-05 — Texto `sr-only` dentro de una lista con desplazamiento y mensaje de `enum` sin nombre (paso D.6a)
 
 **Contexto:** `apps/web/src/components/applied-filters.tsx` y la rama de parámetros inválidos de `page.tsx`.

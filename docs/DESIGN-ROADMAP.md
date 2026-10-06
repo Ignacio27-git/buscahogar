@@ -636,7 +636,7 @@ Paso D.6a de docs/DESIGN-ROADMAP.md. Usa `impeccable layout`, `impeccable clarif
 
 ---
 
-## [ ] D.6b · Resultados: tarjetas, bandeja de filtros en móvil y paginación
+## [x] D.6b · Resultados: tarjetas, bandeja de filtros en móvil y paginación
 
 ```text
 Paso D.6b de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable clarify`.
@@ -674,6 +674,32 @@ Paso D.6b de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable clari
 - **Contrato de D.0 (132, 134):** filas densas con el precio en una columna derecha fija y cifras
   tabulares, en lugar de la rejilla de una a tres columnas (ver desviaciones); tipo y operación con
   los rótulos de `search-labels.ts`.
+- **Hecho (2026-10-06):** decisiones 152-156. Siete fases, un commit por fase. `ResultCard` es una fila densa (miniatura
+  4:3 con `next/image` `fill` y `sizes`, precio, «Piso · Venta», cifras con `tabular-nums`, dirección y la insignia
+  «Disponible en N fuentes»), con rótulos de `propertyTypeLabel`/`operationLabel` (nunca el valor crudo) y la política de
+  `alt` de `resolveThumbnailAlt`; sin miniatura, «Sin foto» oculto a lectores. `Pagination` (nuevo) se oculta con una sola
+  página y pinta el extremo que no existe como texto. `FilterBar` va dentro de `<details class="filter-tray">`: cerrado en
+  móvil, abierto con parámetros inválidos y siempre visible desde 64rem solo dentro de `@supports selector(::details-content)`;
+  el número de filtros activos sale de `countTrayFilters`. Sin `'use client'` nuevo, sin cambios en `remotePatterns` ni en la
+  CSP, sin consulta nueva. `formatListCount` deja de añadir « · página N»: el paginador es el único indicador de página.
+- **Verificaciones al aplicar (F1, F2):** (F1) `next build` conserva en el CSS final `@supports selector(::details-content)` y
+  `::details-content` (Lightning CSS solo reescribe `width >= 64rem` como `min-width:64rem`), así que no hizo falta el plan de
+  reserva. (F2) Chromium, en Docker: a 320 px la bandeja llega cerrada, Tab y Enter sobre el resumen la abren, el siguiente
+  Tab entra en «Operación» y el envío funciona con `javaScriptEnabled: false`; a 1280 px el resumen está oculto, el
+  formulario visible y Tab llega al primer campo. Firefox (Playwright, mismos dos anchos): los 28 tests de
+  `filter-tray.spec.ts` y `filters.spec.ts` pasan. WebKit: no verificable en este arnés, porque la CSP de producción con
+  `upgrade-insecure-requests` hace que cargue `https://127.0.0.1:3100` y el guard de red aborta todos los tests (también los
+  de D.6a); queda pendiente la comprobación manual en Safari.
+- **Tests y e2e:** `pnpm --filter @buscahogar/web test`: 579 (524 antes). Tests nuevos: `search-labels`, `pagination`,
+  `filter-tray-css` (la regla que oculta el resumen solo existe dentro de `@supports`) y ampliaciones de `result-card`,
+  `thumbnail-source`, `search-filters` y `home-page-nl`; `csp-image-policy` sigue en verde sin tocarse. E2E:
+  `filter-tray.spec.ts` (nuevo: S19, S20, desbordamiento a los tres anchos y ambos temas con la bandeja cerrada y abierta,
+  la caja 4:3 y un único enlace por fila, objetivos del paginador) y `filters.spec.ts` abre la bandeja a 320 px; `pnpm e2e`
+  final: 244 superados, 218 omitidos. Regeneradas en Docker 14 de las 18 capturas de `home`, `map` y `home-filtered` (a
+  1280 px solo cambia `home`); la línea base de axe no cambia (sin violaciones).
+- **Fuera del seed:** el seed tiene seis viviendas, menos de una página, así que no hay captura del paginador ni miniaturas
+  reales; la caja es la misma en ambos estados y los tests de marcado cubren las propiedades de `Image`. El paginador se
+  comprueba en e2e con `/?page=2`.
 
 ---
 
@@ -1284,3 +1310,10 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-05 | D.6a | La alerta de parámetros inválidos antepone el nombre del parámetro cuando el mensaje de Zod no lo contiene (`enum`). | La especificación exige que la alerta nombre el parámetro y el mensaje por defecto no lo hace. |
 | 2026-10-05 | D.6a | Ficheros fuera de la lista del prompt: `criteria-fields.tsx`, `filter-bar.tsx`, `globals.css`, `e2e/routes.ts` y `filters.spec.ts`; no se extraen secciones de `page.tsx` más allá de los dos constructores de href. | Extracción de campos compartidos, estilo de la barra y cobertura e2e; el resto de la extracción no cabía en el presupuesto. |
 | 2026-10-05 | D.6a | Un solo PR que supera el presupuesto de 800 líneas revisables (`size:exception`, aceptado por el responsable); no se contaron las 18 capturas nuevas ni modificadas. | Código, tests y documentación obligatoria son una unidad; no se recortaron tests, comentarios ni documentación. |
+| 2026-10-06 | D.6b | El recuento de la lista pierde « · página N» («N resultados en esta página»); el número de página lo da solo el paginador. | Decisión 156: un único indicador de página. Sustituye lo dicho en la decisión 151. |
+| 2026-10-06 | D.6b | El estado sin imagen dice «Sin foto» en lugar de «Sin imagen disponible». | El texto antiguo no cabe en la miniatura de 96 px a 320 px. |
+| 2026-10-06 | D.6b | La bandeja no se hace siempre visible a 48rem sino a 64rem, y solo con `::details-content`. | Decisión 153: la maquetación de 768 px pertenece a D.8a y una regla sin `@supports` dejaría la bandeja inalcanzable donde no hay soporte. |
+| 2026-10-06 | D.6b | Ficheros fuera de la lista del prompt: `pagination.tsx` (nuevo), `filter-bar.tsx`, `globals.css`, `e2e/tray.ts`, `e2e/filter-tray.spec.ts` y los tests `search-labels`, `pagination` y `filter-tray-css`. | Componente y ayudas nuevos que el prompt no nombraba. |
+| 2026-10-06 | D.6b | El paginador se comprueba en e2e con `/?page=2` y no hay captura suya: el seed no llega a una página. | Sin cambiar el seed (fuera del alcance) no hay segunda página. |
+| 2026-10-06 | D.6b | WebKit queda sin comprobar en el arnés; Firefox sí. | La CSP de producción promueve `http://127.0.0.1` a https en WebKit y el guard de red aborta todo; la comprobación en Safari es manual. |
+| 2026-10-06 | D.6b | Un solo PR que supera el presupuesto de 800 líneas revisables (`size:exception`, aceptado por el responsable): ~1140 líneas de código, tests y e2e y ~180 de documentación; no se contaron las 14 capturas regeneradas. | Código, tests y documentación obligatoria son una unidad; no se recortaron tests, comentarios ni documentación. |

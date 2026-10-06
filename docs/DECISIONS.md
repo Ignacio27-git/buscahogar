@@ -4578,6 +4578,104 @@ oculto rechazado dejaría la barra sin salida.
 
 ---
 
+## 152 — Política de `alt` de la miniatura: vacío solo si el texto de la fila ya identifica la vivienda
+
+**Estado:** aceptada (paso D.6b)
+
+**Decisión.** `resolveThumbnailAlt` (en `thumbnail-source.ts`) devuelve `""` cuando el rótulo de tipo, el de operación y
+una dirección no en blanco están presentes en la fila; en cualquier otro caso devuelve «Foto de la vivienda». Un tipo o una
+operación desconocidos cuentan como ausentes (`propertyTypeLabel` y `operationLabel` devuelven `null`, nunca el valor
+crudo ni un texto de reserva: ese es asunto del componente). El único enlace de la fila nunca queda sin nombre accesible:
+el precio y el texto lo dan aunque la foto sea decorativa.
+
+**Alternativas descartadas.** `alt=""` siempre: si faltan datos, la foto sería lo único que identifica la fila. Un `alt`
+derivado del título del anuncio: es texto del anunciante, a menudo largo y repetido en la fila, y no describe la foto, cuyo
+contenido no se conoce.
+
+**Motivo.** El prompt de D.6b pedía decidir la política: la imagen es decorativa solo cuando el texto de la tarjeta ya lo
+dice todo, y en ese caso un `alt` descriptivo haría que el lector de pantalla repitiera lo que acaba de leer.
+
+---
+
+## 153 — Bandeja de filtros: `<details>` cerrado en móvil, abierto con parámetros inválidos y siempre visible desde 64rem solo con `::details-content`
+
+**Estado:** aceptada (paso D.6b)
+
+**Decisión.** `FilterBar` envuelve su formulario en `<details class="filter-tray">` con `<summary>` «Filtros». Va cerrado por
+defecto y abierto (`open`) en la rama de parámetros inválidos, para que se vean los campos que la alerta nombra. Por debajo
+de 64rem, o donde `::details-content` no existe, es un desplegable que funciona con teclado y sin JavaScript. Desde 64rem,
+y solo dentro de `@supports selector(::details-content)`, el formulario queda siempre visible y el resumen se oculta; un
+test de CSS (`filter-tray-css.test.ts`) exige que la regla `display: none` del resumen no aparezca fuera de ese bloque.
+Sigue siendo un Server Component (R4: ningún `'use client'` nuevo) y el contrato GET de la decisión 123 no cambia.
+
+**Alternativas descartadas.** Un componente de cliente que abra y cierre la bandeja: rompe R4 y el uso sin JavaScript. Dos
+formularios, uno para móvil y otro para escritorio: duplica los campos y los ids. El umbral de 48rem: a 768 px la
+maquetación pertenece a D.8a. La regla que oculta el resumen sin `@supports`: en un navegador sin `::details-content` se
+perdería el control y la bandeja cerrada quedaría inalcanzable.
+
+**Motivo.** Una sola fuente de campos, accesible sin JS y con degradación segura: lo peor que ocurre en un navegador
+antiguo es que en escritorio también haya que desplegar la bandeja.
+
+---
+
+## 154 — El número de la bandeja cuenta solo los filtros de criterio, derivado de `describeAppliedFilters`
+
+**Estado:** aceptada (paso D.6b)
+
+**Decisión.** `countTrayFilters(criteria)` filtra el resultado de `describeAppliedFilters(criteria, null)` por
+`TRAY_FILTER_KEYS` (operación, tipo, precio mínimo y máximo, superficie mínima y máxima, habitaciones, baños). Quedan fuera
+`sort`/`dir`, la zona, el polígono y el punto con radio, y la vista. El resumen muestra la cifra en una píldora con el sufijo
+oculto « activo» o « activos»; con 0, o sin recuento, solo dice «Filtros». La rama de parámetros inválidos no muestra
+número: lo recibido puede no ser representable.
+
+**Alternativas descartadas.** Contar todos los parámetros de la URL: el orden no es un filtro. Un contador propio por
+campo: dos fuentes que pueden divergir de los chips.
+
+**Motivo.** La zona y el radio ya se ven en sus chips, y derivar el número de la misma función que pinta los chips hace que
+coincida por construcción con los filtros de criterio visibles.
+
+---
+
+## 155 — Fila de resultado densa: miniatura 4:3 con `fill` y `sizes`, medida de 48rem y un solo enlace
+
+**Estado:** aceptada (paso D.6b). Concreta la desviación de D.0 (decisiones 132 y 134).
+
+**Decisión.** Cada resultado es una fila separada por un filete de 1px, sin tarjeta, sombra ni radio. A 320 px: miniatura
+de 6rem y texto a su derecha, con el precio en la primera línea; desde 48rem: miniatura de 10rem, datos y precio en una
+columna fija a la derecha con cifras tabulares. La lista y el paginador miden como máximo 48rem y van alineados a la
+izquierda, de modo que a 1280 px el precio queda cerca de los datos y el lado derecho queda libre para el mapa de D.8a. La
+imagen es `next/image` con `fill` y `sizes="(min-width: 48rem) 10rem, 6rem"` dentro de una caja de proporción 4:3 que fija
+el CSS, así que no hay salto de maquetación; sin miniatura la misma caja muestra «Sin foto» oculto a lectores. Ni `<img>`
+nativo, ni `unoptimized`, ni `priority`, ni cambios en `remotePatterns` o en la CSP. Tipo y operación salen de los rótulos
+de la decisión 134 («Piso · Venta»); «1 baño» en singular. El hover solo con `(hover: hover) and (pointer: fine)`, el
+`:active` da respuesta al toque y no hay transiciones (el movimiento llega en D.16).
+
+**Alternativas descartadas.** Rejilla de una a tres columnas, como pedía el prompt: lo sustituyó la decisión 132. `width` y
+`height` fijos en la imagen: no encajan con una caja fluida y deforman el `srcset`. Filas a todo el ancho: a 1280 px el
+ojo recorre unos 1100 px entre la miniatura y el precio.
+
+**Motivo.** Comparar viviendas de un vistazo con el precio como ancla, sin que el diseño se mueva al cargar las imágenes.
+
+---
+
+## 156 — Paginador: oculto con una sola página, «Página N» sin total y extremo no disponible como texto
+
+**Estado:** aceptada (paso D.6b)
+
+**Decisión.** `Pagination` no pinta nada en la página 1 sin página siguiente. En el resto de casos es un `<nav>` con el
+nombre accesible de siempre, «anterior», «Página N» y «siguiente»; los enlaces conservan los filtros con `buildPageHref`. El
+extremo que no existe es un `<span aria-hidden="true">` con el mismo texto, en gris y sin enlace, para que la maquetación no
+se mueva entre páginas. Los destinos miden al menos 2.5rem de alto. No hay consulta de total ni «de M». Como el paginador es
+ahora el único indicador de página, `formatListCount` deja de añadir « · página N» («N resultados en esta página»).
+
+**Alternativas descartadas.** Un `<nav>` siempre presente y vacío: ruido para un lector de pantalla. Un enlace
+deshabilitado (`aria-disabled`) en el extremo ausente: un falso destino que se anuncia como enlace. Mantener «página N» en
+el recuento: dos indicadores que decir y mantener coherentes.
+
+**Motivo.** No se añade una consulta de total en un paso de diseño y un extremo inexistente no debe parecer un enlace.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

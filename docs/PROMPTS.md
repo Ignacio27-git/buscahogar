@@ -30,6 +30,34 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-06 — Resultados: filas densas, paginación y bandeja de filtros (paso D.6b, decisiones 152-156)
+
+**Tipo de tarea:** implementación (fila de resultado, paginador, bandeja `<details>` y CSS) con tests unitarios y e2e
+**Forma de especificación:** SDD en modo automático (propuesta, especificación, diseño y tareas, en siete fases); el prompt
+del paso D.6b de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. TDD estricto, un commit por fase, un solo PR con
+`size:exception` aceptado por el responsable.
+**Resultado:** con retoques (la rejilla de una a tres columnas del prompt se sustituyó por filas densas, decisión 132; el
+recuento de la lista perdió su « · página N» porque ahora lo dice el paginador; un fichero de e2e salió truncado al
+escribirlo con un heredoc y lo detectó `next build`)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.6b de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable clarify`.
+>
+> - Tarjeta de resultado: precio destacado (format-price.ts), etiquetas en español para el tipo y la operación (hoy salen
+>   «flat» y «rent»), insignia «Disponible en N fuentes», imagen con next/image y sizes, y un estado sin imagen diseñado. Un
+>   único enlace por tarjeta, con foco y hover visibles. Decide la política de alt: decorativa solo si el texto de la
+>   tarjeta ya lo dice todo.
+> - Rejilla de una, dos o tres columnas según el ancho.
+> - Orden y paginación con anterior y siguiente claros e indicador de página.
+> - Bandeja de filtros en móvil sin JavaScript: <details>/<summary> con la etiqueta «Filtros» y el número de filtros
+>   activos, que contiene el formulario de D.6a. La actualización en vivo exigiría un componente de cliente (R4) y queda
+>   fuera salvo decisión expresa.
+
+**Observación:** el prompt no fijaba qué cuenta como «filtro activo» (decisión 154), cuándo se oculta el paginador (156), ni
+qué hacer en un navegador sin `::details-content` (153); las tres respuestas salieron del diseño. Dos riesgos se comprobaron
+al aplicar y no solo en papel: que Lightning CSS conservara `@supports selector(::details-content)` (`next build`) y que la
+bandeja se comportara igual en Chromium y Firefox (e2e en Docker).
+
 ### 2026-10-05 — Búsqueda: barra de filtros, filtros aplicados y recuento (paso D.6a, decisión 151)
 
 **Tipo de tarea:** implementación (extracción de componente, barra de filtros GET, filtros aplicados, recuento y CSS) con
