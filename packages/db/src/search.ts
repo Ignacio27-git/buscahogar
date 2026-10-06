@@ -36,11 +36,20 @@ export const PAGE_SIZE = 24;
 // El fallo no lo detectó ninguno de los 21 tests de `.toSQL()`: comparan la
 // FORMA del SQL emitido, no su validez. Lo cubre ahora un test que EJECUTA
 // la consulta contra Postgres (`test/search/search.db.test.ts`).
+//
+// D.9 (decisión 177, alinea la búsqueda con la ficha de la decisión 176): solo
+// cuentan las fuentes con al menos un anuncio ACTIVO (`src_l."status" =
+// 'active'`, el mismo literal con el que `visibility.ts` calcula
+// `active_listing_count`). Un anuncio retirado o inactivo no suma su fuente, y
+// dos activos de la misma fuente cuentan como una. Como la búsqueda solo
+// devuelve viviendas con `active_listing_count > 0` (decisión 109), el valor
+// es siempre ≥ 1 en los resultados.
 const distinctSourceCount = sql<number>`(
   SELECT count(DISTINCT src_l."source_id")
     FROM "property_listings" AS src_pl
     JOIN "listings" AS src_l ON src_l."id" = src_pl."listing_id"
-   WHERE src_pl."property_id" = "properties"."id")`.mapWith(Number);
+   WHERE src_pl."property_id" = "properties"."id"
+     AND src_l."status" = 'active')`.mapWith(Number);
 
 // ROADMAP 1.12 (diseño D4; arbitraje AR-4, docs/DECISIONS.md decisión 061) —
 // anchor listing id para que un result card pueda construir un href
@@ -142,6 +151,8 @@ export interface PropertySearchResult {
   readonly description: string | null;
   readonly thumbnailUrl: string | null;
   readonly updatedAt: Date;
+  // Fuentes distintas con al menos un anuncio activo (decisión 177); el mismo
+  // número que muestra la ficha (decisión 176).
   readonly distinctSourceCount: number;
   readonly anchorListingId: string | null;
 }
