@@ -200,9 +200,76 @@ describe('fuera de alcance D.8a (SMV-22)', () => {
     }
   });
 
-  it('no hay capa de teselas oscura ni dibujo por teclado', () => {
-    const canvas = read(CANVAS);
-    expect(canvas.match(/<TileLayer/g)).toHaveLength(1);
-    expect(read('components/map-draw-control.tsx')).not.toMatch(/keydown|keyup|onKeyDown/);
+  it('no hay capa de teselas oscura: una sola <TileLayer>', () => {
+    expect(read(CANVAS).match(/<TileLayer/g)).toHaveLength(1);
+  });
+
+  it('ningún filtro, desenfoque ni mezcla sobre las teselas (decisión 140)', () => {
+    const sheet = read(MAP_STYLESHEET);
+    expect(sheet).not.toMatch(/(?<![\w-])filter\s*:|backdrop-filter|mix-blend-mode/);
+  });
+});
+
+// D.8b (SMV-22', SMV-23) — el teclado se admite SOLO en el manejador acotado del control
+// de dibujo; la regla anterior («sin keydown») se reescribe, no se borra.
+describe("teclado acotado al control de dibujo (SMV-22', SMV-23)", () => {
+  const DRAW_CONTROL = 'components/map-draw-control.tsx';
+  const KEY_API = /keydown|keyup|keypress|onKeyDown|onKeyUp|onKeyPress/;
+
+  it('el manejador existe en el control y compara event.target con el contenedor', () => {
+    const source = read(DRAW_CONTROL);
+    expect(source).toMatch(/addEventListener\(\s*'keydown'/);
+    expect(source).toMatch(/event\.target\s*!==\s*container/);
+    expect(source).toMatch(/removeEventListener\(\s*'keydown'/);
+  });
+
+  it('ningún otro módulo del mapa ni la hoja contiene teclado', () => {
+    for (const relative of MAP_FILES.filter((entry) => entry !== DRAW_CONTROL)) {
+      expect(read(relative), relative).not.toMatch(KEY_API);
+    }
+  });
+
+  it('sin escucha en document ni window', () => {
+    const source = read(DRAW_CONTROL);
+    expect(source).not.toMatch(/\b(?:document|window)\.addEventListener/);
+  });
+
+  it('el manejador ignora Ctrl/Alt/Meta y solo llama a preventDefault al actuar', () => {
+    const source = read(DRAW_CONTROL);
+    expect(source).toMatch(/ctrlKey/);
+    expect(source).toMatch(/altKey/);
+    expect(source).toMatch(/metaKey/);
+  });
+
+  it('la ventana emergente abierta se consulta por la API de Leaflet, no por el DOM', () => {
+    const source = read(DRAW_CONTROL);
+    expect(source).toMatch(/popupopen/);
+    expect(source).toMatch(/popupclose/);
+    expect(source).not.toMatch(/querySelector\([^)]*leaflet-popup/);
+  });
+});
+
+describe('mira de dibujo y botones (SMV-26)', () => {
+  it('la mira es aria-hidden y la hoja le quita los eventos de puntero', () => {
+    expect(read('components/map-draw-control.tsx')).toMatch(
+      /className="map-draw-crosshair"[^>]*aria-hidden="true"|aria-hidden="true"[^>]*className="map-draw-crosshair"/s
+    );
+    const crosshair = /\.map-draw-crosshair\s*\{[^}]*\}/.exec(read(MAP_STYLESHEET))?.[0] ?? '';
+    expect(crosshair).toMatch(/pointer-events:\s*none/);
+    expect(crosshair).toMatch(/z-index:\s*var\(--z-map-controls\)/);
+  });
+
+  it('los botones de la barra declaran 1.5rem como mínimo en ambos ejes', () => {
+    const button = /\.map-draw-toolbar button\s*\{[^}]*\}/.exec(read(MAP_STYLESHEET))?.[0] ?? '';
+    expect(button).toMatch(/min-block-size:\s*1\.5rem/);
+    expect(button).toMatch(/min-inline-size:\s*1\.5rem/);
+  });
+
+  it('el aviso role="status" nunca se monta de forma condicional y es el último hijo de la barra (SMV-24)', () => {
+    const source = read('components/map-draw-control.tsx');
+    expect(source).toMatch(/<p role="status" className="map-draw-status">/);
+    // Sin `&&` ni ternario inmediatamente antes de la etiqueta.
+    expect(source).not.toMatch(/(?:&&|\?|:)\s*\(?\s*<p role="status"/);
+    expect(source).toMatch(/<\/p>\s*<\/div>\s*\);/);
   });
 });

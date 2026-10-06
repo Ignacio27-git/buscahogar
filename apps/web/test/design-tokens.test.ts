@@ -291,6 +291,25 @@ describe('contraste WCAG por tema (spec «Contrast thresholds»)', () => {
   });
 });
 
+// D.8b (SMV-26) — la mira de dibujo lleva dos tonos (anillo `accent`, contorno
+// `ink-on-accent`) sobre teselas CLARAS en ambos temas; basta con que uno de los dos
+// alcance 3:1 contra el color de tesela más claro y el más oscuro habituales.
+describe('contraste de la mira sobre teselas claras (SMV-26)', () => {
+  const TILE_BACKGROUNDS = ['#f2efe9', '#ffffff'] as const;
+
+  it.each(['claro', 'oscuro'] as const)('tema %s: algún tono de la mira llega a 3:1', (theme) => {
+    const { root, dark } = themeBlocks();
+    const values = themeValues(theme === 'claro' ? root : dark);
+    for (const tile of TILE_BACKGROUNDS) {
+      const best = Math.max(
+        contrast(parseColor(values['accent'] ?? ''), parseColor(tile)),
+        contrast(parseColor(values['ink-on-accent'] ?? ''), parseColor(tile))
+      );
+      expect(best, `${theme} sobre ${tile}`).toBeGreaterThanOrEqual(NON_TEXT_MIN);
+    }
+  });
+});
+
 describe('mapeo a Tailwind (spec «Tailwind mapping» y «Hatch is not a utility»)', () => {
   const mappedTokens = (): Map<string, string> => declarations(findBlock(ROOT, '@theme inline'));
 

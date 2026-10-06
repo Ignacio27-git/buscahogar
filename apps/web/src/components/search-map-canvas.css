@@ -167,18 +167,27 @@
   fill-opacity: 1;
 }
 
+/* Anfitrión de la barra y la mira (D.8b): se antepone al marco; no genera caja propia, así
+   que la barra y la mira se posicionan respecto al marco. */
+.map-draw-host {
+  display: contents;
+}
+
 /* Barra de dibujo: HERMANA del contenedor de Leaflet dentro del marco (se monta con un
    portal). `.leaflet-container` aísla su contexto de apilamiento, así que la barra, fuera de
-   él, usa la capa de controles del mapa por token y queda por encima de todos sus paneles. */
+   él, usa la capa de controles del mapa por token y queda por encima de todos sus paneles.
+   En fila con salto de línea: una columna llegaba al centro del marco a 320 px y chocaba
+   con la mira (SMV-26). */
 .map-draw-toolbar {
   position: absolute;
   inset-block-start: 0.5rem;
   inset-inline-end: 0.5rem;
   z-index: var(--z-map-controls);
   display: flex;
-  flex-direction: column;
+  flex-flow: row wrap;
+  justify-content: flex-end;
   gap: 0.25rem;
-  max-inline-size: 15rem;
+  max-inline-size: min(22rem, calc(100% - 4rem));
   padding: 0.375rem;
   background-color: var(--surface-raised);
   color: var(--ink);
@@ -189,11 +198,58 @@
   line-height: var(--text-dense--line-height);
 }
 
+/* Objetivo táctil mínimo explícito (WCAG 2.5.8). */
 .map-draw-toolbar button {
+  min-block-size: 1.5rem;
+  min-inline-size: 1.5rem;
   padding: 0.25rem 0.5rem;
   font-size: inherit;
 }
 
+/* Región de estado: siempre montada. Vacía se recorta de forma visual sin `display: none`
+   (que la sacaría del árbol de accesibilidad y no anunciaría el siguiente mensaje). */
 .map-draw-toolbar p {
   margin: 0;
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+
+.map-draw-toolbar p:empty {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Mira central (D.8b, SMV-26): anillo `accent` con contorno `ink-on-accent` y punto, de dos
+   tonos para leerse sobre teselas claras en ambos temas. No recibe eventos: un clic en su
+   centro llega al mapa y añade un vértice. */
+.map-draw-crosshair {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  translate: -50% -50%;
+  z-index: var(--z-map-controls);
+  box-sizing: border-box;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  outline: 2px solid var(--ink-on-accent);
+  pointer-events: none;
+}
+
+.map-draw-crosshair::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  translate: -50% -50%;
+  inline-size: 0.25rem;
+  block-size: 0.25rem;
+  border-radius: 50%;
+  background-color: var(--accent);
+  outline: 1px solid var(--ink-on-accent);
 }
