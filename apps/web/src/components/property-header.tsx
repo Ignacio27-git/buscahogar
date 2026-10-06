@@ -7,7 +7,8 @@
 // español; un dato que falta muestra «—» (y «Sin dato» solo para lectores de
 // pantalla) y UNA nota bajo la lista dice «No consolidado — ver anuncios de
 // origen». El resumen (precio y número de fuentes) se pinta dos veces, una por
-// punto de corte; el CSS oculta la copia que no toca.
+// punto de corte; el CSS oculta la copia que no toca. El número de fuentes es el
+// de fuentes distintas con algún anuncio activo (decisión 176), no `listingCount`.
 //
 // Los atributos que pueden venir NULL desde `properties` (decisión 053) pasan
 // por `resolveConsolidatedField` (D8/AR-8): DOS estados, nunca tres.
@@ -24,10 +25,12 @@ export type SummaryPlacement = 'lead' | 'panel';
 
 export interface PropertyHeaderProps {
   readonly property: PropertyDetailHeader;
+  readonly activeSourceCount: number;
 }
 
 export interface PropertySummaryProps {
   readonly property: PropertyDetailHeader;
+  readonly activeSourceCount: number;
   readonly placement: SummaryPlacement;
 }
 
@@ -74,7 +77,16 @@ function renderValue(value: string | null): ReactNode {
   return value;
 }
 
-export function PropertySummary({ property, placement }: PropertySummaryProps): ReactElement {
+// Misma regla singular/plural que `result-card`; sin ninguna fuente activa (decisión
+// 109: la vivienda solo se ve desde su ficha) el texto lo dice, nunca «0 fuentes».
+function sourceCountLabel(count: number): string {
+  if (count === 0) {
+    return 'No disponible en ninguna fuente';
+  }
+  return `Disponible en ${String(count)} ${count === 1 ? 'fuente' : 'fuentes'}`;
+}
+
+export function PropertySummary({ property, activeSourceCount, placement }: PropertySummaryProps): ReactElement {
   const price = formatPriceCents(property.minPriceCents);
   const priceClass =
     property.minPriceCents === null
@@ -83,19 +95,17 @@ export function PropertySummary({ property, placement }: PropertySummaryProps): 
   return (
     <div className={`property-summary property-summary--${placement}`}>
       <p className={priceClass}>{price}</p>
-      <p className="property-summary__count">
-        {`Disponible en ${String(property.listingCount)} ${property.listingCount === 1 ? 'fuente' : 'fuentes'}`}
-      </p>
+      <p className="property-summary__count">{sourceCountLabel(activeSourceCount)}</p>
     </div>
   );
 }
 
-export function PropertyHeader({ property }: PropertyHeaderProps): ReactElement {
+export function PropertyHeader({ property, activeSourceCount }: PropertyHeaderProps): ReactElement {
   const facts = buildFacts(property);
   const hasMissing = facts.some((fact) => fact.value === null);
   return (
     <div className="property-header">
-      <PropertySummary property={property} placement="panel" />
+      <PropertySummary property={property} activeSourceCount={activeSourceCount} placement="panel" />
       <div className="property-facts">
         <dl className="property-facts__list">
           {facts.map((fact) => (

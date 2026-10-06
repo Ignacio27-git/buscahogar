@@ -29,13 +29,13 @@ const FULL_HEADER: PropertyDetailHeader = {
 describe('PropertyHeader (D8/AR-8) — atributo consolidado NULL, dos estados', () => {
   it('cuando bathrooms es NULL, muestra el indicador explícito, no un hueco en blanco', () => {
     const header: PropertyDetailHeader = { ...FULL_HEADER, bathrooms: null };
-    const html = renderToStaticMarkup(<PropertyHeader property={header} />);
+    const html = renderToStaticMarkup(<PropertyHeader property={header} activeSourceCount={2} />);
 
     expect(html).toContain('No consolidado — ver anuncios de origen');
   });
 
   it('cuando bathrooms tiene valor, muestra el valor y no el indicador', () => {
-    const html = renderToStaticMarkup(<PropertyHeader property={FULL_HEADER} />);
+    const html = renderToStaticMarkup(<PropertyHeader property={FULL_HEADER} activeSourceCount={2} />);
 
     expect(html).toMatch(/Baños<\/dt><dd[^>]*>2</);
     expect(html).not.toContain('No consolidado');
@@ -43,13 +43,13 @@ describe('PropertyHeader (D8/AR-8) — atributo consolidado NULL, dos estados', 
 
   it('propertyType NULL también muestra el indicador explícito (spec lo nombra por su nombre)', () => {
     const header: PropertyDetailHeader = { ...FULL_HEADER, propertyType: null };
-    const html = renderToStaticMarkup(<PropertyHeader property={header} />);
+    const html = renderToStaticMarkup(<PropertyHeader property={header} activeSourceCount={2} />);
 
     expect(html).toContain('No consolidado — ver anuncios de origen');
   });
 
   it('el precio consolidado se formatea como el más económico del grupo', () => {
-    const html = renderToStaticMarkup(<PropertyHeader property={FULL_HEADER} />);
+    const html = renderToStaticMarkup(<PropertyHeader property={FULL_HEADER} activeSourceCount={2} />);
 
     // `.toLocaleString('es-ES')` en este runtime (Node 22, ICU completo)
     // aplica la regla CLDR "min2": el separador de miles solo aparece
@@ -61,24 +61,43 @@ describe('PropertyHeader (D8/AR-8) — atributo consolidado NULL, dos estados', 
 
   it('minPriceCents NULL no revienta el render y muestra el texto de fallback', () => {
     const header: PropertyDetailHeader = { ...FULL_HEADER, minPriceCents: null };
-    const html = renderToStaticMarkup(<PropertyHeader property={header} />);
+    const html = renderToStaticMarkup(<PropertyHeader property={header} activeSourceCount={2} />);
 
     expect(html).toContain('Precio no disponible');
   });
 
-  it('listingCount se muestra con la regla singular/plural existente en result-card', () => {
-    const singleSource: PropertyDetailHeader = { ...FULL_HEADER, listingCount: 1 };
-    const html = renderToStaticMarkup(<PropertyHeader property={singleSource} />);
+  it('el número de fuentes activas se muestra con la regla singular/plural existente en result-card', () => {
+    const html = renderToStaticMarkup(<PropertyHeader property={FULL_HEADER} activeSourceCount={1} />);
+    const plural = renderToStaticMarkup(<PropertyHeader property={FULL_HEADER} activeSourceCount={2} />);
 
-    expect(html).toContain('Disponible en 1 fuente');
+    expect(html).toContain('Disponible en 1 fuente<');
     expect(html).not.toContain('1 fuentes');
+    expect(plural).toContain('Disponible en 2 fuentes<');
+  });
+
+  // D.9 (decisión 176): el número sale de las fuentes activas, no de `listingCount`.
+  it('el número de fuentes no sale de listingCount', () => {
+    const html = renderToStaticMarkup(
+      <PropertyHeader property={{ ...FULL_HEADER, listingCount: 2 }} activeSourceCount={1} />
+    );
+
+    expect(html).toContain('Disponible en 1 fuente<');
+    expect(html).not.toContain('2 fuentes');
+  });
+
+  it('sin fuentes activas dice «No disponible en ninguna fuente», nunca «0 fuentes»', () => {
+    const html = renderToStaticMarkup(<PropertyHeader property={FULL_HEADER} activeSourceCount={0} />);
+
+    expect(html).toContain('<p class="property-summary__count">No disponible en ninguna fuente</p>');
+    expect(html).not.toContain('Disponible en 0');
+    expect(html).not.toContain('0 fuentes');
   });
 });
 
 // D.9 (decisiones 173 y 174) — datos clave como <dl>, un único aviso y precio por punto de corte.
 describe('PropertyHeader (D.9) — datos clave y aviso único', () => {
   it('muestra los rótulos en español, nunca las claves crudas', () => {
-    const html = renderToStaticMarkup(<PropertyHeader property={FULL_HEADER} />);
+    const html = renderToStaticMarkup(<PropertyHeader property={FULL_HEADER} activeSourceCount={2} />);
 
     expect(html).toMatch(/Tipo<\/dt><dd[^>]*>Piso</);
     expect(html).toMatch(/Operación<\/dt><dd[^>]*>Venta</);
@@ -88,7 +107,7 @@ describe('PropertyHeader (D.9) — datos clave y aviso único', () => {
 
   it('la planta usa los rótulos naturales y un código desconocido cuenta como dato que falta', () => {
     const floorOf = (floor: string): string =>
-      renderToStaticMarkup(<PropertyHeader property={{ ...FULL_HEADER, floor }} />);
+      renderToStaticMarkup(<PropertyHeader property={{ ...FULL_HEADER, floor }} activeSourceCount={2} />);
 
     expect(floorOf('3')).toMatch(/Planta<\/dt><dd[^>]*>3\.ª</);
     expect(floorOf('bj')).toMatch(/Planta<\/dt><dd[^>]*>Bajo</);
@@ -101,7 +120,7 @@ describe('PropertyHeader (D.9) — datos clave y aviso único', () => {
 
   it('cada dato que falta lleva «—» visible y «Sin dato» solo para lectores de pantalla', () => {
     const header: PropertyDetailHeader = { ...FULL_HEADER, rooms: null, bathrooms: null };
-    const html = renderToStaticMarkup(<PropertyHeader property={header} />);
+    const html = renderToStaticMarkup(<PropertyHeader property={header} activeSourceCount={2} />);
 
     expect(html.match(/<span class="sr-only">Sin dato<\/span>/g)).toHaveLength(2);
     expect(html).toMatch(/Habitaciones<\/dt><dd[^>]*><span aria-hidden="true">—<\/span>/);
@@ -109,21 +128,21 @@ describe('PropertyHeader (D.9) — datos clave y aviso único', () => {
 
   it('el aviso aparece una sola vez aunque falten varios datos y «No consolidado» no aparece en otro sitio', () => {
     const header: PropertyDetailHeader = { ...FULL_HEADER, rooms: null, bathrooms: null, address: null };
-    const html = renderToStaticMarkup(<PropertyHeader property={header} />);
+    const html = renderToStaticMarkup(<PropertyHeader property={header} activeSourceCount={2} />);
 
     expect(html.match(/No consolidado/g)).toHaveLength(1);
     expect(html.indexOf('No consolidado')).toBeGreaterThan(html.indexOf('</dl>'));
   });
 
   it('sin datos que falten no hay «—» ni aviso', () => {
-    const html = renderToStaticMarkup(<PropertyHeader property={FULL_HEADER} />);
+    const html = renderToStaticMarkup(<PropertyHeader property={FULL_HEADER} activeSourceCount={2} />);
 
     expect(html).not.toContain('—');
     expect(html).not.toContain('Sin dato');
   });
 
   it('la descripción ya no se pinta en la cabecera', () => {
-    const html = renderToStaticMarkup(<PropertyHeader property={FULL_HEADER} />);
+    const html = renderToStaticMarkup(<PropertyHeader property={FULL_HEADER} activeSourceCount={2} />);
 
     expect(html).not.toContain('Descripción larga del piso.');
   });
@@ -131,8 +150,8 @@ describe('PropertyHeader (D.9) — datos clave y aviso único', () => {
 
 describe('PropertySummary (D.9) — precio por punto de corte', () => {
   it('lleva el gancho de cada copia, con cifras tabulares en el precio', () => {
-    const lead = renderToStaticMarkup(<PropertySummary property={FULL_HEADER} placement="lead" />);
-    const panel = renderToStaticMarkup(<PropertySummary property={FULL_HEADER} placement="panel" />);
+    const lead = renderToStaticMarkup(<PropertySummary property={FULL_HEADER} activeSourceCount={2} placement="lead" />);
+    const panel = renderToStaticMarkup(<PropertySummary property={FULL_HEADER} activeSourceCount={2} placement="panel" />);
 
     expect(lead).toContain('property-summary property-summary--lead');
     expect(panel).toContain('property-summary property-summary--panel');
@@ -142,7 +161,7 @@ describe('PropertySummary (D.9) — precio por punto de corte', () => {
 
   it('el precio ausente usa la variante discreta', () => {
     const html = renderToStaticMarkup(
-      <PropertySummary property={{ ...FULL_HEADER, minPriceCents: null }} placement="lead" />
+      <PropertySummary property={{ ...FULL_HEADER, minPriceCents: null }} activeSourceCount={2} placement="lead" />
     );
 
     expect(html).toContain('property-summary__price--missing');

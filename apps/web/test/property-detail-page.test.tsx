@@ -174,11 +174,14 @@ describe('PropertyDetailPage — composición y orden del DOM (D.9)', () => {
     address: 'Calle Mayor 1',
   };
 
-  async function renderFicha(header: Record<string, unknown>): Promise<string> {
+  async function renderFicha(
+    header: Record<string, unknown>,
+    sources: readonly Record<string, unknown>[] = [SOURCE]
+  ): Promise<string> {
     getPropertyDetailHeaderMock.mockReset();
     getPropertySourcesMock.mockReset();
     getPropertyDetailHeaderMock.mockResolvedValueOnce(header);
-    getPropertySourcesMock.mockResolvedValueOnce([SOURCE]);
+    getPropertySourcesMock.mockResolvedValueOnce(sources);
     const element = await PropertyDetailPage({ params: Promise.resolve({ listingId: VALID_LISTING_ID }) });
     return renderToStaticMarkup(element);
   }
@@ -223,5 +226,27 @@ describe('PropertyDetailPage — composición y orden del DOM (D.9)', () => {
     expect(html.indexOf('class="source-list"')).toBeGreaterThan(panelStart);
     expect(html.indexOf('class="source-list"')).toBeLessThan(description);
     expect(html).toContain('class="property-detail"');
+  });
+
+  // D.9 (decisión 176): las dos copias del resumen cuentan las fuentes distintas con
+  // algún anuncio activo, no `listingCount`.
+  it('un anuncio activo y otro retirado: «Disponible en 1 fuente» en las dos copias', async () => {
+    const html = await renderFicha({ ...HEADER, listingCount: 2 }, [
+      SOURCE,
+      { ...SOURCE, listingId: 'l2', sourceKey: 'kyero', status: 'removed' },
+    ]);
+
+    expect(html.match(/Disponible en 1 fuente</g)).toHaveLength(2);
+    expect(html).not.toContain('2 fuentes');
+  });
+
+  it('solo anuncios inactivos: «No disponible en ninguna fuente» en las dos copias', async () => {
+    const html = await renderFicha({ ...HEADER, listingCount: 2 }, [
+      { ...SOURCE, status: 'inactive' },
+      { ...SOURCE, listingId: 'l2', sourceKey: 'kyero', status: 'inactive' },
+    ]);
+
+    expect(html.match(/No disponible en ninguna fuente/g)).toHaveLength(2);
+    expect(html).not.toContain('Disponible en 2');
   });
 });

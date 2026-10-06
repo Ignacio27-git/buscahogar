@@ -25,6 +25,7 @@ import { PropertyDescription } from '@/components/property-description';
 import { PropertyHeader, PropertySummary, resolvePropertyTitle } from '@/components/property-header';
 import { SourceGallery } from '@/components/source-gallery';
 import { SourceList } from '@/components/source-list';
+import { countActiveSources } from '@/lib/count-active-sources';
 import type { RawSearchParams } from '@/lib/search-href';
 import { resolveSearchReturnLink } from '@/lib/search-return';
 import { getDb } from '@/server/db';
@@ -92,6 +93,8 @@ export default async function PropertyDetailPage(props: PropertyDetailPageProps)
   // solo lo proyecta para que `SourceList` marque esa fuente como no
   // disponible.
   const sources = await getPropertySources(getDb(), header.id);
+  // D.9 (decisión 176): fuentes distintas con algún anuncio activo, para las dos copias del resumen.
+  const activeSourceCount = countActiveSources(sources);
 
   // D.9 (decisión 171): enlace de vuelta, revalidado con los esquemas de búsqueda.
   const searchParamsRaw = (await props.searchParams) ?? {};
@@ -105,10 +108,10 @@ export default async function PropertyDetailPage(props: PropertyDetailPageProps)
         <a href={returnLink.href}>{returnLink.label}</a>
       </p>
       <h1 className="property-detail__title">{resolvePropertyTitle(header.title)}</h1>
-      <PropertySummary property={header} placement="lead" />
+      <PropertySummary property={header} activeSourceCount={activeSourceCount} placement="lead" />
       <SourceGallery sources={sources} />
       <div className="property-detail__panel">
-        <PropertyHeader property={header} />
+        <PropertyHeader property={header} activeSourceCount={activeSourceCount} />
         <SourceList sources={sources} />
       </div>
       <PropertyDescription description={header.description} />
