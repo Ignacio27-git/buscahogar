@@ -885,7 +885,7 @@ Paso D.8b de docs/DESIGN-ROADMAP.md. Usa `impeccable harden`.
 
 # Bloque 4 — Ficha de la vivienda
 
-## [ ] D.9 · Ficha: presentación
+## [x] D.9 · Ficha: presentación
 
 ```text
 Paso D.9 de docs/DESIGN-ROADMAP.md. Aplica la presentación de la ficha decidida en D.0
@@ -939,6 +939,20 @@ Paso D.9 de docs/DESIGN-ROADMAP.md. Aplica la presentación de la ficha decidida
   6. Histórico (D.10): gráfico escalonado en SVG del servidor y tabla accesible, con eje constante.
   7. Ubicación (D.11): mapa estático del servidor con teselas como `<img>` y área con la trama
      siena; la excepción a R2 la registra D.11.
+- **Estado (2026-10-06): D.9 hecha.** Aplicada en siete unidades de trabajo y tres lotes (SDD, Engram
+  `sdd/property-detail-d9/*`), un solo PR con `size:exception` aceptado por el responsable. Commits: `a7d49ed` (orden de
+  fuentes en `packages/db`), `2eee8ba` (rótulos, planta, párrafos), `3fe9c20` (enlace de vuelta), `e8d87c2` (resumen, datos clave,
+  fuentes, descripción), `925d111` (galería), `a6b5eee` (disposición), `daa6af4` (capturas) y el de documentación. Decisiones 171-174.
+- **Qué hay:** enlace «Volver a los resultados» con parámetros en lista blanca revalidados con Zod (171); galería con
+  `scroll-snap` y anclas (172); rejilla de dos columnas con panel `sticky` desde 64rem y precio duplicado por punto de corte (173);
+  datos clave en `<dl>` con «—», nota única, planta legible, nombres de fuente, «Ver en {Fuente}» e insignia «(no disponible)» (174).
+- **Tests y e2e:** web 741, `detail.db` 13. `pnpm e2e update` en Docker: 368 superados y 280 omitidos; una segunda ejecución sin
+  actualizar, igual. Solo cambian las seis capturas de `detail` (320, 768 y 1280 × claro y oscuro); `home`, `map` y la línea base
+  de axe no cambian. Revisadas a ojo: un solo precio por ancho, enlace de vuelta sobre el h1, dos columnas con panel a 1280 y una a
+  320 y 768, sin desbordamiento horizontal y legibles en ambos temas.
+- **Fuera de las capturas:** la galería no sale en el e2e (la siembra no tiene miniaturas) y la semilla tiene todos los datos, así
+  que «—» y la nota «No consolidado» solo los cubren los tests unitarios.
+- **Tamaño:** ~1000 líneas de código, tests y documentación sin contar las capturas; `size:exception`.
 
 ---
 
@@ -1397,3 +1411,6 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-06 | D.8b | Commit extra `31b5359` con el arreglo de `className` de las capas vectoriales, además de los tres de las unidades de trabajo. | El e2e de teclado mostró que las clases de D.8a y del paso 2.6 no llegaban al SVG (decisión 170, `AI-NOTES.md`). |
 | 2026-10-06 | D.8b | El paso se pausó tras el diseño y se retomó en otra sesión; la aplicación fue en tres unidades. | Falta de cuota; ningún artefacto se perdió gracias a Engram. |
 | 2026-10-06 | D.8b | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable). | Reductor con tests, control, hoja, guardas y e2e forman una unidad; no se recortaron tests, comentarios ni documentación. |
+| 2026-10-06 | D.9 | Se añade un `ORDER BY` a `getPropertySources` en `packages/db` (activos primero, precio, id), fuera de la lista de ficheros del paso. | La galería y la lista necesitan un orden determinista; ordenar en `apps/web` lo dejaba sin garantía (decisión 174). |
+| 2026-10-06 | D.9 | La ficha se reparte en más componentes que los listados (`PropertySummary`, `PropertyDescription`, `lib/search-return*.ts`, `split-paragraphs.ts`). | Mantener `page.tsx` con sus guardas de `notFound()` y las funciones puras con test propio. |
+| 2026-10-06 | D.9 | La galería no está cubierta por capturas e2e. | La siembra del e2e no tiene miniaturas; la cubren los tests de `source-gallery`. |

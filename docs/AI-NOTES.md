@@ -3608,3 +3608,33 @@ separado (223, 273 y 521 líneas). La verificación repetida dio PASS WITH WARNI
 
 **Observación:** un artefacto que solo lee un modelo admite variaciones de formato; uno que también lee una herramienta,
 no. Y «fusiona, no sobrescribas» hay que repetirlo en cada lote, no solo en el primero.
+
+### 2026-10-06 — Seis fallos intermedios en el diseño y la aplicación de D.9
+
+**Contexto:** diseño, especificación y aplicación de `property-detail-d9`.
+
+**Categoría:** contradicción con una decisión previa / premisa falsa / artefacto que no cumplía su contrato / instrucción
+contraria a una regla del responsable.
+
+**Qué se generó mal:**
+
+1. El diseño usaba «No disponible» para la insignia de un anuncio retirado, y no el literal «(no disponible)» que exige la
+   decisión 133.4 (y que `source-list.test.tsx` ya comprobaba). La puerta de revisión lo detectó.
+2. El diseño descartó componer en el cliente el enlace de los popups del mapa, con la premisa de que `baseParams` no llegaba
+   al cliente. Era falsa: `SearchMapProps.baseParams` ya se envía. Además subestimaba la carga: repetir el sufijo con el
+   polígono codificado (más de 1100 caracteres) en hasta 500 puntos inflaba el payload RSC. Se corrigió a componer el
+   sufijo una vez en `MapClusterLayer` (decisión 171, que matiza la 119).
+3. El diseño repetía «No consolidado» en texto `sr-only` por cada campo, justo la repetición que D.9 quiere eliminar. Se
+   sustituyó por «—» más «Sin dato» y una única nota (decisión 174).
+4. La especificación traducía la planta `en` como «Entreplanta», mientras que la ingestión la documenta como «entresuelo»
+   (`raw-element.schema.ts`). Se corrigió a «Entresuelo».
+5. El orquestador indicó a `sdd-apply` que añadiera un trailer `Co-Authored-By` a los commits, contra la regla global del
+   responsable (nunca atribución de IA). Se reescribieron tres commits sin publicar para quitarlo.
+6. Durante la aplicación, los heredocs y `sed` del shell se tragaron barras invertidas en las expresiones regulares de los
+   tests, de modo que las aserciones comprobaban otra cosa. Lo detectó la ejecución de los tests, no la lectura.
+
+**Cómo se detectó:** 1 a 4 por la revisión del diseño y la especificación antes de aplicar; 5 por el responsable; 6 al
+ejecutar los tests.
+
+**Observación:** una premisa sobre el código que no se ha leído («esto no llega al cliente») es el fallo más caro del
+diseño. Y una expresión regular escrita por el shell se comprueba ejecutándola, no leyéndola.

@@ -30,6 +30,23 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-06 — Ficha: presentación (paso D.9, decisiones 171-174)
+
+**Tipo de tarea:** implementación de un paso de diseño (interfaz de servidor, CSS, orden en una consulta SQL, e2e)
+**Forma de especificación:** paso de la hoja de ruta con viñetas (`docs/DESIGN-ROADMAP.md`, D.9) pegado en `/gentle-sdd-new`;
+cadena SDD completa y aplicación en tres lotes y siete unidades de trabajo, TDD estricto, un solo PR con `size:exception`
+**Resultado:** utilizable con retoques — la puerta de revisión del diseño devolvió correcciones (texto de la insignia,
+premisa falsa sobre los enlaces del mapa, repetición de «No consolidado», rótulo de planta); ver `docs/AI-NOTES.md`.
+
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.9 de docs/DESIGN-ROADMAP.md. Aplica la presentación de la ficha decidida en D.0 (está en las
+> notas de este paso). Usa `impeccable layout`, `impeccable typeset` y `impeccable clarify`. [viñetas: cabecera estructurada,
+> galería APG, lista de anuncios de origen con insignia, vuelta a los resultados]
+
+**Observación:** el diseño pasó por una ronda de correcciones antes de aplicar (revisión 2). En la aplicación los fallos fueron
+de herramienta (barras invertidas perdidas en el shell) y de proceso (un trailer `Co-Authored-By` indebido), no de producto.
+
 ### 2026-10-06 — Mapa: dibujo de zona accesible (paso D.8b, decisiones 168-170)
 
 **Tipo de tarea:** diseño y accesibilidad (SDD): reductor, control de teclado, mira, hoja CSS, guardas y e2e

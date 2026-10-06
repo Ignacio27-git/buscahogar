@@ -4977,6 +4977,54 @@ sí entra en las opciones del constructor; `map-guards.test.ts` lo vigila.
 
 ---
 
+## 171 — Vuelta a los resultados: parámetros planos en lista blanca, revalidados con Zod en la ficha
+
+**Estado:** aceptada (paso D.9). Matiza la 119 en un punto: el sufijo del enlace de los popups del mapa se compone en el cliente.
+
+**Decisión.** El enlace a la ficha lleva los parámetros de la búsqueda de una lista blanca: las claves de `FILTER_PARAM_KEYS` (derivadas, no copiadas), `sort`, `dir`, `view` y, solo desde las filas de la lista, `page` (el mapa no pagina). Nunca `q`, `form` ni `zoneQuery`. La selección (`pickSearchReturnParams`, en `lib/search-return-params.ts`) no importa ningún esquema. Las filas llevan el enlace completo, construido en el servidor con `buildPropertyDetailHref`. Los puntos del mapa siguen recibiendo del servidor `/properties/{id}`. `MapClusterLayer` calcula el sufijo una sola vez a partir de `baseParams`, que el mapa ya recibe, y lo añade en el popup. El mapa solo existe con JavaScript, así que esto no afecta al funcionamiento sin JS. La ficha vuelve a validar esas claves con `searchQuerySchema` y `searchViewSchema` (`resolveSearchReturnLink`, en `lib/search-return.ts`). Si todas validan, reconstruye `/?…` solo con ellas y en orden fijo, con el texto «Volver a los resultados». Si no hay ninguna, o si cualquiera de ellas no valida, enlaza a `/` con «Volver a la búsqueda». No se rescata una parte: una búsqueda reconstruida a medias sería otra búsqueda. Es un `<a href>` normal: sin JS, sin redirección del servidor y sin estado en el cliente (R3). El destino es siempre `/` o `/?…` construido con `URLSearchParams`, así que no puede apuntar a otro sitio.
+
+**Alternativas descartadas.** B) Un único `returnTo` con la URL codificada: obliga a validar una URL arbitraria (redirección abierta, doble codificación) y arrastra claves que la búsqueda no reconoce. C) La cabecera `Referer`: la `Referrer-Policy` configurada (`strict-origin-when-cross-origin`) y el navegador la reducen o la omiten, y falta al llegar por un enlace compartido. D) Una cookie o sesión con la última búsqueda: estado en el servidor, se pisa entre pestañas y saca los filtros de la URL. E) `history.back()` o `sessionStorage`: exigen un componente de cliente (R4) y no funcionan sin JS ni al llegar por enlace directo. Construir en el servidor el enlace completo de cada punto del mapa: repetiría hasta 500 veces el sufijo codificado (un polígono puede superar los 1100 caracteres).
+
+**Motivo.** Los filtros ya viven en la URL; pasarlos tal cual y validarlos con el mismo esquema que la búsqueda conserva la búsqueda sin estado nuevo.
+
+---
+
+## 172 — Galería: tira con `scroll-snap`, anclas de fragmento y `alt` con la fuente
+
+**Estado:** aceptada (paso D.9).
+
+**Decisión.** La galería es una `<section>` con `aria-roledescription="carrusel"` y el nombre «Fotos de la vivienda» (patrón de carrusel de la APG, sin avance automático). Cada foto es un grupo (`role="group"`, `aria-roledescription="diapositiva"`) que toma su nombre del pie visible, «Foto N de M · {Fuente}», donde M es el número de fotos. «Foto anterior» y «Foto siguiente» son anclas `#source-slide-{id}` a la foto vecina. Si no hay vecina no hay ancla, y no existe una rama para una sola foto. Los controles van en un `div`, no en un `<nav>` por foto, que daría varios landmarks con el mismo nombre. Cada foto es `next/image` con `fill` y `sizes="(min-width: 64rem) 48rem, 100vw"`, dentro de una caja 4:3 con fondo `--surface-sunken` y sin `priority`. El desplazamiento al saltar a un ancla lo da `scroll-padding-top` (143). El `alt` es «Foto del anuncio de {Fuente}»: en la galería la foto es contenido, y la fuente es lo único que se sabe de ella. Las fotos siguen el orden de `getPropertySources`: primero los anuncios activos, por precio.
+
+**Alternativas descartadas.** `?foto=N` en el servidor: recarga la página y vuelve a consultar en cada foto. Un carrusel de cliente: R4. El truco de radios y `:checked`: semántica pobre. Un control anterior/siguiente global: necesita saber qué foto está activa, y sin JS no se puede saber. `alt=""` (152): aquí no hay texto al lado que identifique la foto. «Foto N de M» como `alt`: repite el nombre del grupo.
+
+**Motivo.** Funciona con teclado y sin JS, sin salto de maquetación y con un nombre accesible igual al texto visible. Cada ancla añade una entrada al historial; es propio del mecanismo.
+
+---
+
+## 173 — Disposición de la ficha: panel `sticky` desde 64rem y precio duplicado por punto de corte
+
+**Estado:** aceptada (paso D.9; aplica la 133.1).
+
+**Decisión.** El orden del DOM es el visual en cualquier ancho: enlace de vuelta, título, precio para móvil, galería, panel (precio para escritorio, datos clave, anuncios de origen) y descripción. El precio y «Disponible en N fuentes» se pintan dos veces, y la copia que no toca lleva `display: none` en cada punto de corte, así que en el árbol de accesibilidad solo hay una. Por debajo de 64rem se ve precio → galería → resto. Desde 64rem hay una rejilla `minmax(0, 48rem) minmax(20rem, 1fr)`: la galería y la descripción a la izquierda y, a la derecha, el panel, que empieza en la fila del título. El panel lleva `position: sticky`, `top: var(--scroll-offset)`, una altura máxima igual a la de la ventana menos dos desplazamientos y su propio desbordamiento vertical. Así nunca queda cortado y, al ir en su columna, no tapa el foco. El título usa el rol de título 2 y el precio el de título 1 con cifras tabulares: el precio es la cifra con más peso sin añadir tamaños.
+
+**Alternativas descartadas.** Un único panel con `display: contents` en móvil y `order` para subir la galería: el foco y la lectura recorrerían los enlaces de las fuentes antes que los de la galería, que se ven encima, porque el orden del foco no coincidiría con el visual. Sacar el precio del panel: contradice la 133.1 y la 133.4. Dividir el panel en dos cajas: no habría una sola caja fija.
+
+**Motivo.** Cumple a la vez la 133.1 y el orden móvil sin separar el orden del foco del visual. El coste es una línea de marcado duplicada que oculta el CSS.
+
+---
+
+## 174 — Datos clave, nombres de fuente y orden de los anuncios
+
+**Estado:** aceptada (paso D.9; aplica la 133.3, 133.4 y 134).
+
+**Decisión.** Los datos clave son un `<dl>` (Tipo, Operación, Superficie, Habitaciones, Baños, Planta, Dirección) con los rótulos de `search-labels.ts`. Un dato que falta muestra «—», y los lectores de pantalla oyen «Sin dato». Si falta alguno, una sola nota bajo la lista dice «No consolidado — ver anuncios de origen», el único sitio donde aparece ese texto. La planta se escribe «3.ª», «Bajo», «Entresuelo», «Semisótano» o «Sótano»; un código desconocido cuenta como dato que falta. Sin título se usa «Ficha de la vivienda». Sin descripción no hay sección, y la descripción se parte en párrafos por los saltos de línea. La fuente se nombra con `SOURCE_LABELS`, y con «Otra fuente» si no se conoce. El enlace saliente dice «Ver en {Fuente}», con una flecha decorativa y «(web externa)» para lectores de pantalla. Se abre en la misma pestaña y lleva `rel="external"`. Un anuncio no activo lleva la insignia «(no disponible)». `getPropertySources` ordena primero los activos, después por precio ascendente y por último por id.
+
+**Alternativas descartadas.** Repetir «No consolidado» en cada dato para los lectores de pantalla: lo oirían una vez por campo. Abrir en otra pestaña: quita el control al usuario, y volver ya es barato porque la URL conserva el estado y la `Referrer-Policy` configurada solo envía nuestro origen. La columna `sources.name`: la 134 pide un `Record` tipado. Ordenar en `apps/web`: deja la consulta sin un orden determinista.
+
+**Motivo.** Una ficha que se lee de un vistazo y que dice una sola vez lo que no está consolidado.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
