@@ -30,6 +30,37 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-06 — Búsqueda en lenguaje natural: interpretación y confirmación (paso D.7, decisiones 157-162)
+
+**Tipo de tarea:** implementación (indicador de pasos, panel de revisión, estados de la zona y CSS) con tests unitarios y e2e
+**Forma de especificación:** SDD en modo automático, con las decisiones de producto confirmadas por el responsable antes de
+la propuesta; el prompt del paso D.7 de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. TDD estricto, tres unidades de
+código y una de documentación, un solo PR con `size:exception` aceptado por el responsable.
+**Resultado:** con retoques (el pedido de «texto de ejemplo en el campo» pasó a ser texto de ayuda persistente; la validación
+de especificación y diseño corrigió una contradicción de «No he entendido:», un texto de «varios municipios» y la
+comprobación del inicio; una segunda ronda de capturas por el espaciado a 320 px)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.7 de docs/DESIGN-ROADMAP.md. Usa `impeccable clarify` y `impeccable layout`.
+>
+> Rediseña la rama ?q= del paso 3.1 sin cambiar su comportamiento: interpreta y pide confirmación, nunca busca (decisión 122).
+>
+> - Pasos visibles: describe, revisa y busca. Texto de ejemplo en el campo y un nombre claro para el botón, que hoy dice
+>   «Interpretar» (acordarlo conmigo).
+> - La interpretación se muestra como campos editables agrupados y como resumen con los mismos componentes de D.6a.
+> - Lo no reconocido y los conflictos, con jerarquía visual y role=status o role=alert según corresponda.
+> - Elección de lugar inequívoca cuando hay varias coincidencias.
+> - Sin JavaScript. No toques el intérprete de packages/core ni su corpus.
+>
+> Decisiones acordadas: botón «Convertir en filtros»; ejemplo como texto de ayuda persistente («Piso en alquiler en Getafe hasta
+> 900 € con 2 habitaciones»); pasos solo en el inicio y en `?q=`; estado único que menciona la zona pendiente; títulos de grupo
+> como preguntas; «Sin zona (cualquier municipio)».
+
+**Observación:** el prompt no decía dónde mostrar los pasos, qué hacer con un único candidato por prefijo ni cómo distinguir
+«sin lugar» de «lugar no encontrado»; salió del diseño y de las decisiones del responsable. Los tests triplicaron la
+previsión de líneas por la cantidad de escenarios de la especificación.
+
+
 ### 2026-10-06 — Resultados: filas densas, paginación y bandeja de filtros (paso D.6b, decisiones 152-156)
 
 **Tipo de tarea:** implementación (fila de resultado, paginador, bandeja `<details>` y CSS) con tests unitarios y e2e

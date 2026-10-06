@@ -40,6 +40,26 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-06 — Tres errores de la especificación y el diseño de D.7 cazados por la validación (paso D.7)
+
+**Contexto:** fases de especificación y diseño de `nl-search-confirmation-d7`, antes de escribir código.
+
+**Categoría:** contradicción con una regla ya fijada y suposición no comprobada.
+
+**Qué ocurrió:** (1) La especificación conservaba «No he entendido:» y a la vez la reescribía por la decisión 134; el test
+`home-page-nl` lo afirmaba literalmente, así que hubo que autorizar solo esos dos literales. (2) El texto de la zona decía
+«varios municipios» también cuando `?q=` solo tenía un candidato por prefijo (madrid → Madridejos): falso. (3) El diseño decidía
+el «inicio» con los parámetros canonicalizados, de modo que un envío del formulario de criterios en blanco habría mostrado los
+pasos.
+
+**Cómo se detectó:** validación de la especificación y del diseño contra los tests existentes y el código real, antes de
+aplicar.
+
+**Coste:** una revisión de especificación y diseño (obs rev 3), sin código descartado.
+
+**Observación:** los textos de estado deben derivarse de los tipos reales que devuelve el código (`classifyPlaceMatches`), no
+de lo que se imagina que devuelve.
+
 ### 2026-10-06 — Fichero de e2e truncado por un heredoc y `tsc --noEmit` que no ve `e2e/` (paso D.6b)
 
 **Contexto:** `apps/web/e2e/filter-tray.spec.ts`, escrito en la fase de aplicación con un heredoc de Bash.

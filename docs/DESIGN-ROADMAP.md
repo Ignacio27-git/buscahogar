@@ -703,7 +703,7 @@ Paso D.6b de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable clari
 
 ---
 
-## [ ] D.7 · Búsqueda en lenguaje natural: interpretación y confirmación
+## [x] D.7 · Búsqueda en lenguaje natural: interpretación y confirmación
 
 ```text
 Paso D.7 de docs/DESIGN-ROADMAP.md. Usa `impeccable clarify` y `impeccable layout`.
@@ -739,6 +739,18 @@ confirmación, nunca busca (decisión 122).
 - **Evidencia:** C6, C7, C13.
 - **Registro (134):** tuteo uniforme; se reescriben «Esto es lo que he entendido», «No he
   entendido:» y «No se pudo interpretar la búsqueda».
+- **Hecho (2026-10-06):** decisiones 157-162. Tres fases de código y una de documentación, un commit por unidad. Acordado con
+  el responsable: botón «Convertir en filtros»; ejemplo como texto de ayuda persistente («Piso en alquiler en Getafe hasta
+  900 € con 2 habitaciones»), no placeholder; pasos Describe/Revisa/Busca solo en el inicio sin parámetros y en `?q=`; resumen
+  de solo lectura; un único bloque «Partes sin reconocer» e «Indicaciones contradictorias»; un único `role="status"` que
+  menciona la zona pendiente y `role="alert"` solo para el rechazo del esquema (frase previa y literal de Zod) y para `q`
+  inválido; grupos con preguntas como título; «Sin zona (cualquier municipio)». La zona tiene cuatro estados (sin lugar, no
+  encontrado, exacto, elegir) y un candidato único por prefijo no se preselecciona ni se describe como «varios».
+- **Tests y e2e:** web: 621 (579 antes). `home-page-nl` actualiza solo los dos literales autorizados («Partes sin
+  reconocer»); `search-labels` y `search-filters` se amplían. E2E: `nl-confirmation.spec.ts` (nuevo, incluido el flujo sin
+  JavaScript); `pnpm e2e update` en Docker: 267 superados y el fallo previsto de S8.3. Regeneradas las 24 capturas de
+  `home`, `map`, `home-filtered` y `nl-query`; la línea base de axe no cambia. No se tocan el intérprete ni el corpus de
+  `packages/core`, ni el texto de la rama de parámetros inválidos (D.14).
 
 ---
 
@@ -1317,3 +1329,9 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-06 | D.6b | El paginador se comprueba en e2e con `/?page=2` y no hay captura suya: el seed no llega a una página. | Sin cambiar el seed (fuera del alcance) no hay segunda página. |
 | 2026-10-06 | D.6b | WebKit queda sin comprobar en el arnés; Firefox sí. | La CSP de producción promueve `http://127.0.0.1` a https en WebKit y el guard de red aborta todo; la comprobación en Safari es manual. |
 | 2026-10-06 | D.6b | Un solo PR que supera el presupuesto de 800 líneas revisables (`size:exception`, aceptado por el responsable): ~1140 líneas de código, tests y e2e y ~180 de documentación; no se contaron las 14 capturas regeneradas. | Código, tests y documentación obligatoria son una unidad; no se recortaron tests, comentarios ni documentación. |
+| 2026-10-06 | D.7 | El ejemplo no es un placeholder sino texto de ayuda persistente enlazado con `aria-describedby`. | Decisión 158: el placeholder desaparece al escribir y no es un nombre accesible. |
+| 2026-10-06 | D.7 | Ficheros fuera de los tres listados: `step-indicator.tsx` (nuevo), `applied-filters.tsx`, `criteria-fields.tsx`, `search-labels.ts`, `search-text-form.tsx`, `globals.css`, `e2e/nl-confirmation.spec.ts` y los tests `search-filters` y `search-labels`. | Componentes y ayudas que el prompt no nombraba; se reutilizan los de D.6a. |
+| 2026-10-06 | D.7 | El indicador de pasos solo aparece en el inicio sin parámetros y en `?q=`, no en resultados, mapa ni parámetros inválidos. | Decisión 157: la URL de resultados no dice si vienen del flujo de texto o de la barra. |
+| 2026-10-06 | D.7 | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): ~1052 líneas autoradas de código, tests y e2e, más la documentación; los tests triplican la previsión. Sin contar las 24 capturas. | No se recortaron tests, comentarios ni documentación. |
+| 2026-10-06 | D.7 | Segunda ronda de Docker para las capturas, contra la ronda única de R11. | Las capturas a 320 px mostraron poco espacio bajo los pasos y sobre el panel; no lo detecta ningún test. |
+| 2026-10-06 | D.7 | El e2e sin JavaScript conserva `form=criteria` y `zone=` vacío en la URL tras «Buscar». | El formulario envía la marca y todos los campos; se comprueba que no hay `q` y que la zona está vacía. |

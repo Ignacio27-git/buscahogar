@@ -4676,6 +4676,97 @@ el recuento: dos indicadores que decir y mantener coherentes.
 
 ---
 
+## 157 — Indicador de pasos: solo en el inicio sin parámetros y en `?q=`, decidido con los parámetros enviados
+
+**Estado:** aceptada (paso D.7)
+
+**Decisión.** `StepIndicator` es una `<ol aria-label="Pasos de la búsqueda">` de tres pasos (Describe, Revisa, Busca) con
+`aria-current="step"` en uno. Se pinta en el inicio sin parámetros (paso 1), en `?q=` válido (paso 2) y con `q` inválido (paso
+1). No en resultados, mapa ni parámetros inválidos. «Inicio» se decide con los parámetros ENVIADOS, antes de
+`canonicalizeFormSubmission`.
+
+**Alternativas descartadas.** Paso 1 en todas partes: afirmaría «describe» sobre unos resultados. Paso 3 en resultados: la
+URL no distingue si vienen del texto o de la barra. Mirar los parámetros canonicalizados: un envío del formulario de criterios
+en blanco parecería el inicio. Ponerlo dentro del formulario `role="search"`: una lista dentro del landmark. Contadores CSS:
+inconsistentes con las tecnologías de apoyo.
+
+**Motivo.** Los pasos solo se muestran donde el flujo está ocurriendo.
+
+---
+
+## 158 — Botón «Convertir en filtros» y ejemplo como texto de ayuda persistente
+
+**Estado:** aceptada (paso D.7)
+
+**Decisión.** El botón de la caja de texto dice «Convertir en filtros» y el ejemplo («Piso en alquiler en Getafe hasta 900 €
+con 2 habitaciones») es un `<p id="search-text-help">` enlazado con `aria-describedby`, igual en las cuatro ramas de la home.
+
+**Alternativas descartadas.** Un placeholder: desaparece al escribir y no es un nombre accesible. Mantener «Interpretar»:
+jerga.
+
+**Motivo.** Decisiones del responsable sobre el nombre del botón y la ayuda.
+
+---
+
+## 159 — Resumen de solo lectura como `AppliedFiltersSummary`, con la forma del chip compartida
+
+**Estado:** aceptada (paso D.7)
+
+**Decisión.** Un export aparte en `applied-filters.tsx`: `<section aria-label="Filtros interpretados">` con chips `<span>` sin
+enlaces, sin recuento y sin «Quitar todos», solo si el esquema valida. Comparte con el chip interactivo la constante
+`CHIP_SHAPE`; el interactivo conserva su clase byte a byte (un test la fija). El de solo lectura va sin borde: se lee como
+etiqueta, no como control.
+
+**Alternativas descartadas.** Una prop `mode`: mezcla dos componentes con comportamientos distintos. Reutilizar los chips
+interactivos: navegarían y romperían los tests de la decisión 151.
+
+**Motivo.** Misma fuente (`describeAppliedFilters`) sin tocar la barra de D.6a.
+
+---
+
+## 160 — Un único `role="status"` y `role="alert"` solo para bloqueos
+
+**Estado:** aceptada (paso D.7)
+
+**Decisión.** `describeInterpretationStatus` produce una línea de estado (también menciona la zona pendiente). `role="alert"`
+solo para el rechazo del esquema (frase previa en tuteo, «Detalle:» y el literal de Zod) y para `q` inválido; el bloque de
+problemas es estático. Se reescriben «Esto es lo que he entendido» y «No se pudo interpretar la búsqueda» de la rama `?q=`.
+
+**Alternativas descartadas.** Un rol por bloque. Alerta para lo no entendido. Un estado que calle la zona pendiente.
+
+**Motivo.** Una persona con lector de pantalla oye una sola síntesis y solo se interrumpe por lo que bloquea.
+
+---
+
+## 161 — Campos agrupados por pregunta con `grouped` opcional en `CriteriaFields`
+
+**Estado:** aceptada (paso D.7)
+
+**Decisión.** Con `grouped={{ zone }}` aparecen cinco bloques («¿Qué buscas?», «¿Cuánto quieres pagar?», «¿De qué
+tamaño?», «¿Dónde?», «Orden de los resultados», este último más ligero). Sin la prop el marcado es el de siempre.
+
+**Alternativas descartadas.** `fieldset` anidados. Exportar subconjuntos de campos. Títulos con sustantivos (leyendas
+duplicadas con «Precio (€)»). Agrupar también la barra de filtros.
+
+**Motivo.** La prueba de identidad de D.6a se mantiene y solo el panel cambia.
+
+---
+
+## 162 — La zona según cuatro estados y sin autoselección por prefijo
+
+**Estado:** aceptada (paso D.7)
+
+**Decisión.** Exacto: marcado y con nota. Elegir (varios, o uno solo por prefijo): ninguno marcado, leyenda con el lugar
+escrito y nota distinta para uno y para varios. No encontrado y sin lugar: avisos distintos. «Sin zona (cualquier municipio)»
+siempre existe y está marcada salvo en el estado exacto.
+
+**Alternativas descartadas.** Preseleccionar el primer candidato por prefijo (decisión 122). Un `<select>`, que esconde las
+opciones. Un solo aviso para «sin lugar» y «no encontrado»: el segundo necesita una pista de ortografía.
+
+**Motivo.** Sin autoselección y sin afirmar que «varios» encajan cuando solo hay uno.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
