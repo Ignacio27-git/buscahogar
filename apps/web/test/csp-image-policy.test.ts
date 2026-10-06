@@ -114,7 +114,7 @@ describe('Política de imágenes (spec #261 csp-image-policy, diseño decisión 
       expect(csp.some((part) => part.startsWith('connect-src'))).toBe(false);
       const hosts = csp.join(' ').match(/https?:\/\/[^\s;]+/g) ?? [];
       expect(hosts).toEqual(['https://tile.openstreetmap.org']);
-      expect(csp.join(' ')).not.toMatch(/\*|https:(?!\/\/)/);
+      expect(csp.join(' ')).not.toMatch(/\*|\bhttps:(?!\/\/)/);
     }
   });
 });

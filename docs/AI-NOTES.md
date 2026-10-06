@@ -3550,4 +3550,6 @@ y el 5 enmendando el texto de la decisión 167.
 **Observación:** un requisito sobre una API de terceros se comprueba contra el código de la librería antes de
 escribirlo en la especificación (1 y 5). Y al generar ficheros con secuencias de escape desde un script, se verifica el
 byte resultante: una expresión regular sin `\b` sigue siendo una expresión regular válida. El mismo defecto ya existía en
-`csp-image-policy.test.ts` (línea 117, un `\b` convertido en retroceso): se deja anotado, sin corregirlo en este paso.
+`csp-image-policy.test.ts` (línea 117, un `\b` convertido en retroceso, introducido en el paso 2.6): se corrigió en un
+commit aparte tras cerrar D.8a. Hasta entonces la alternativa `\bhttps:(?!\/\/)` no podía coincidir nunca, así que el
+test no detectaba un origen `https:` sin host en la CSP.
