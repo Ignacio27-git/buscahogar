@@ -3609,9 +3609,9 @@ separado (223, 273 y 521 líneas). La verificación repetida dio PASS WITH WARNI
 **Observación:** un artefacto que solo lee un modelo admite variaciones de formato; uno que también lee una herramienta,
 no. Y «fusiona, no sobrescribas» hay que repetirlo en cada lote, no solo en el primero.
 
-### 2026-10-06 — Seis fallos intermedios en el diseño y la aplicación de D.9
+### 2026-10-06 — Siete fallos intermedios en el diseño, la aplicación y la verificación de D.9
 
-**Contexto:** diseño, especificación y aplicación de `property-detail-d9`.
+**Contexto:** diseño, especificación, aplicación y verificación de `property-detail-d9`.
 
 **Categoría:** contradicción con una decisión previa / premisa falsa / artefacto que no cumplía su contrato / instrucción
 contraria a una regla del responsable.
@@ -3632,9 +3632,14 @@ contraria a una regla del responsable.
    responsable (nunca atribución de IA). Se reescribieron tres commits sin publicar para quitarlo.
 6. Durante la aplicación, los heredocs y `sed` del shell se tragaron barras invertidas en las expresiones regulares de los
    tests, de modo que las aserciones comprobaban otra cosa. Lo detectó la ejecución de los tests, no la lectura.
+7. Al rehacer el informe de verificación con el sobre `gentle-ai.verify-result/v1`, el agente de verificación rellenó
+   `evidence_revision` con el hash del commit completado con ceros hasta 64 caracteres. El validador lo aceptó porque solo
+   comprueba el formato, pero no era un digest de nada. Se sustituyó por el sha256 real del diff del paso
+   (`git diff 58106c9..HEAD`, el mismo con el que se cerró el intento de verificación) y se volvió a validar.
 
-**Cómo se detectó:** 1 a 4 por la revisión del diseño y la especificación antes de aplicar; 5 por el responsable; 6 al
-ejecutar los tests.
+**Cómo se detectó:** 1 a 4 por la revisión del diseño y la especificación antes de aplicar; 5 por el orquestador al
+revisar los commits del primer lote; 6 al ejecutar los tests; 7 al leer el informe del propio agente, que lo declaraba.
 
 **Observación:** una premisa sobre el código que no se ha leído («esto no llega al cliente») es el fallo más caro del
-diseño. Y una expresión regular escrita por el shell se comprueba ejecutándola, no leyéndola.
+diseño. Y una expresión regular escrita por el shell se comprueba ejecutándola, no leyéndola. Un validador de formato no
+distingue una prueba real de un valor con la forma correcta.
