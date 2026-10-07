@@ -1108,7 +1108,7 @@ en la ficha.
 
 ---
 
-## [ ] D.12 · Ficha: comparación de fuentes
+## [x] D.12 · Ficha: comparación de fuentes
 
 ```text
 Paso D.12 de docs/DESIGN-ROADMAP.md. Función nueva (decisión 131): convierte la lista de
@@ -1140,6 +1140,24 @@ anuncios de origen en una comparación.
   fichas con varias fuentes (hueco a).
 - **Contrato de D.0 (133):** desde D.9, la lista ya va junto al precio; este paso añade la
   comparación y marca el más económico de los activos.
+- **Estado (2026-10-07): D.12 hecha.** Aplicada en seis unidades de trabajo (SDD, Engram `sdd/source-comparison-d12/*`), un solo PR
+  con `size:exception` aceptado por el responsable. Commits: `f813214` (`compareSourceListings` en `packages/core`), `a49a4ad`
+  (componente y CSS), `7d54387` (test de consistencia con `min_price_cents`), `4d20c26` (e2e), `923478e` (capturas) y el de
+  documentación. Decisión 180.
+- **Qué hay:** cada anuncio es una fila con enlace, insignia y lista de datos con etiqueta (Precio, Fotos, Visto por última vez,
+  Estado; fotos sin dato = «Sin datos»). «Más económico» marca todos los anuncios activos empatados al precio mínimo; sin ninguno
+  activo, aviso y «Precio más bajo». Nota fija bajo el título: la agrupación es una estimación. La decide `compareSourceListings`
+  (core), no el número de fuentes.
+- **Tests y e2e:** core 854, web 830 y db 300 (`test:detail` 24) superados; `typecheck` y `lint` limpios. e2e en Docker: antes de las
+  capturas, 435 superados, 375 omitidos y 24 fallos solo visuales (18 cambiadas y 6 nuevas); `pnpm e2e:update`: 459 superados y 375
+  omitidos, y una segunda pasada sin `update` igual (459/375). Casos nuevos de `property-detail.spec` (P4 una insignia y nota, P7 aviso
+  y «Precio más bajo», sin desbordamiento horizontal a 320 px) y axe de la ruta nueva `detail-single` en verde.
+- **Capturas:** cambian 18 (`detail`, `detail-gallery`, `detail-history`, seis anchos y temas) y se añaden 6 de `detail-single`;
+  `home`, `map` y el resto no cambian. Revisadas a ojo a 320 y 1280 en claro y oscuro (muestra de cada ruta): una insignia, nota
+  visible, aviso solo en P7, sin desbordamiento y regla de 3 px legible.
+- **Observación:** a 1280 px el panel lateral de P7 (sticky, con tope de altura) se desplaza por dentro y recorta la segunda fila de
+  la lista en la captura. Es el comportamiento de D.9, pero ahora la lista es más alta.
+- **Tamaño:** ~627 líneas de código, tests y e2e desde `c0f201c` (sin documentación ni las 24 capturas).
 
 ---
 
@@ -1490,3 +1508,4 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-07 | D.10 | La tabla va dentro de una región con foco y desplazamiento propio; a 320 px «Variación» queda en parte fuera de la vista en P7. | La tabla de P7 sobresalía unos 10 px de la página a 320 px; el diseño reservaba la región para ese caso (decisión 178). |
 | 2026-10-07 | D.10 | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): ~1780 líneas de código, tests y e2e y ~90 de documentación, sin contar las 30 capturas. | No se recortaron tests, comentarios ni documentación. |
 | 2026-10-07 | D.11 | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): ~970 líneas de código, tests y e2e y ~80 de documentación, sin contar las 18 capturas. | La previsión era ~780; la geometría y sus tests, el CSS y las guardas pesaron más. No se recortó nada. |
+| 2026-10-07 | D.12 | `packages/db/src/detail.ts` (`getPropertySources`) no se modifica: ya devolvía lo necesario. `seed.ts` exporta `insertE2eFixture` para el test de consistencia. La insignia «(no disponible)» por fila desaparece (enmienda la 174; `price-history.tsx` la conserva). Con entrada vacía `compareSourceListings` devuelve `mode: 'empty'` (el diseño, no la especificación). | El cálculo vive en core y el precio ya salía correcto; la columna Estado ya dice lo mismo que la insignia; el modo vacío evita lanzar en una ficha sin anuncios (decisión 180). |

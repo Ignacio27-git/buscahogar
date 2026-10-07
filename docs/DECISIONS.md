@@ -5089,6 +5089,18 @@ sí entra en las opciones del constructor; `map-guards.test.ts` lo vigila.
 
 ---
 
+## 180 — Comparación de anuncios de la ficha: empates marcados, aviso sin activos y nota de agrupación fija
+
+**Estado:** aceptada (paso D.12; aplica la 109; enmienda la 174).
+
+**Decisión.** `compareSourceListings` (`packages/core`) decide qué anuncios fijan el precio: solo el estado exacto `'active'` cuenta como activo. Si hay activos, se marcan **todos** los empatados al precio mínimo («Más económico») y se elige un anuncio principal determinista (`lastSeenAt` más reciente y después `listingId`). Si no hay ninguno, se marcan los del mínimo global con «Precio más bajo» y un aviso sobre la lista. Sin anuncios devuelve `mode: 'empty'` y no lanza. La nota «Agrupamos estos anuncios porque creemos que describen la misma vivienda. Compruébalo en cada fuente.» se ve siempre. La función es una segunda implementación de la 109, que `detail.db.test.ts` ata a `min_price_cents` con la siembra e2e. La insignia «(no disponible)» por fila desaparece (enmienda la 174): lo dice la fila «Estado». `price-history.tsx` no cambia.
+
+**Alternativas descartadas.** Marcar un único anuncio en un empate: sugiere que los demás son peores sin serlo. Mostrar «Más económico» sin activos: contradice la 109. Nota solo con varias fuentes: obliga a ramificar por número de fuentes (`no-single-source-branch`) y una sola fuente también es una agrupación estimada. Reutilizar el SQL de la cabecera en la ficha: acopla la interfaz a la consulta. Conservar la insignia por fila: duplica «Estado».
+
+**Motivo.** Que se vea por qué se muestra un precio, sin presentar la agrupación como certeza (prioridad: minimizar falsos positivos).
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

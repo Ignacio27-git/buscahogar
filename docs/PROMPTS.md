@@ -30,6 +30,26 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-07 — Ficha: comparación de anuncios de origen (paso D.12, decisión 180)
+
+**Tipo de tarea:** dominio puro (`packages/core`) + interfaz (componente y CSS) + test de consistencia con PostgreSQL + e2e y capturas
+**Forma de especificación:** SDD (explorar, proponer, especificar, diseñar, tareas y aplicar en seis unidades; Engram `sdd/source-comparison-d12/*`), un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable sin cambios.
+
+**Prompt:**
+
+> Paso D.12 de docs/DESIGN-ROADMAP.md. Función nueva (decisión 131): convierte la lista de anuncios de origen en una comparación.
+>
+> - Para cada anuncio: fuente, precio, última vez visto, número de fotos y estado.
+> - Destaca el más económico de los anuncios activos (decisión 109), calculado en packages/core, con empates resueltos de forma explícita. Si no hay ninguno activo, muestra el mínimo de todos con un aviso.
+> - El texto distingue «anuncio» de «vivienda» y no presenta la agrupación como una certeza: la prioridad del proyecto es evitar falsos positivos.
+
+**Observación:** el RED de cada unidad se vio fallar antes del GREEN, también en el e2e (`falta la ruta detail-single`). Al decidir
+el modo de entrada vacía, el diseño y la especificación discrepaban y se resolvió a favor del diseño. Las capturas revelaron que a
+1280 px el panel lateral de P7 se desplaza por dentro y recorta la segunda fila.
+
+
+
 ### 2026-10-07 — Ficha: guardas del mapa estático (paso D.11, seguimiento, decisión 179)
 
 **Tipo de tarea:** test (guardas estáticas en `apps/web/test/map-guards.test.ts`)
