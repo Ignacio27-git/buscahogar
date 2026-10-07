@@ -60,4 +60,6 @@ export const E2E_DETAIL_LISTING_ID = E2E_LISTING_IDS.p2Active;
 export const E2E_REMOVED_ONLY_LISTING_ID = E2E_LISTING_IDS.p3RemovedA;
 // D.9 (decisión 175): ficha con galería de dos fotos, «—» y la nota de no consolidado.
 export const E2E_GALLERY_LISTING_ID = E2E_LISTING_IDS.p7Idealista;
+// D.10 (decisión 178): ficha con histórico de precios (P1: dos anuncios activos con cambios).
+export const E2E_HISTORY_LISTING_ID = E2E_LISTING_IDS.p1Idealista;
 export const E2E_MISSING_LISTING_ID = e2eUuid(0xffff);
