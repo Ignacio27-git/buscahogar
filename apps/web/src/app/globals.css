@@ -1134,6 +1134,89 @@
     margin: 0 0 0.75rem;
   }
 
+  /* D.11 (decisión 179) — ubicación aproximada. Mosaico de 2×2 teselas (512×512 px de origen) con un
+     SVG encima. Sin `style`: la geometría va en atributos SVG y los colores por clase. Las teselas son
+     claras en los dos temas (140), así que cada raya y el borde del círculo llevan un filete del color
+     de superficie, que da el contraste de 3:1 en el tema oscuro. */
+  .property-location {
+    min-inline-size: 0;
+  }
+
+  .property-location h2 {
+    margin: 0 0 0.5rem;
+  }
+
+  .property-location__municipality {
+    margin: 0 0 0.75rem;
+  }
+
+  .location-map {
+    margin: 0;
+  }
+
+  .location-map__frame {
+    position: relative;
+    aspect-ratio: 1;
+    inline-size: 100%;
+    max-inline-size: 32rem;
+    overflow: hidden;
+    border: 1px solid var(--rule);
+    background-color: var(--surface-sunken);
+  }
+
+  .location-map__tiles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .location-map__tiles img {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+  }
+
+  .location-map__overlay {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  .location-map__hatch-casing {
+    fill: var(--surface);
+  }
+
+  .location-map__hatch-stripe {
+    fill: var(--hatch);
+  }
+
+  .location-map__area-casing {
+    fill: none;
+    stroke: var(--surface);
+    stroke-width: 4;
+  }
+
+  .location-map__area {
+    stroke: var(--hatch);
+    stroke-width: 2;
+  }
+
+  .location-map__caption {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 1rem;
+    margin-block-start: 0.5rem;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
+  .location-map__swatch {
+    flex: none;
+    margin-inline-end: -0.5rem;
+  }
+
   .property-description p:last-child {
     margin-block-end: 0;
   }
@@ -1147,8 +1230,9 @@
         'title panel'
         'gallery panel'
         'history panel'
+        'location panel'
         'description panel';
-      grid-template-rows: auto auto auto auto 1fr;
+      grid-template-rows: auto auto auto auto auto 1fr;
       column-gap: 2rem;
       row-gap: 0;
       align-items: start;
@@ -1171,6 +1255,11 @@
 
     .property-detail > .price-history {
       grid-area: history;
+      margin-block-start: 1.5rem;
+    }
+
+    .property-detail > .property-location {
+      grid-area: location;
       margin-block-start: 1.5rem;
     }
 

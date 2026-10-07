@@ -310,6 +310,25 @@ describe('contraste de la mira sobre teselas claras (SMV-26)', () => {
   });
 });
 
+// D.11 (decisión 179) — la trama del área aproximada se dibuja sobre teselas claras en los dos
+// temas. Cada raya lleva un filete del color de superficie: basta con que `--hatch` o
+// `--surface` alcancen 3:1 contra el color de tesela más claro y el más oscuro habituales.
+describe('contraste de la trama de ubicación sobre teselas claras (D.11)', () => {
+  const TILE_BACKGROUNDS = ['#f2efe9', '#ffffff'] as const;
+
+  it.each(['claro', 'oscuro'] as const)('tema %s: la trama o su filete llega a 3:1', (theme) => {
+    const { root, dark } = themeBlocks();
+    const values = themeValues(theme === 'claro' ? root : dark);
+    for (const tile of TILE_BACKGROUNDS) {
+      const best = Math.max(
+        contrast(parseColor(values['hatch'] ?? ''), parseColor(tile)),
+        contrast(parseColor(values['surface'] ?? ''), parseColor(tile))
+      );
+      expect(best, `${theme} sobre ${tile}`).toBeGreaterThanOrEqual(NON_TEXT_MIN);
+    }
+  });
+});
+
 describe('mapeo a Tailwind (spec «Tailwind mapping» y «Hatch is not a utility»)', () => {
   const mappedTokens = (): Map<string, string> => declarations(findBlock(ROOT, '@theme inline'));
 

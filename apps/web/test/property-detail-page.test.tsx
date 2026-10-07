@@ -83,6 +83,9 @@ describe('PropertyDetailPage — notFound() en los cuatro casos (D2/D3, AR-2)', 
       title: 'Piso',
       description: null,
       address: null,
+      lat: null,
+      lon: null,
+      municipality: null,
     });
     getPropertySourcesMock.mockResolvedValueOnce([]);
 
@@ -110,6 +113,9 @@ describe('PropertyDetailPage — enlace de vuelta (D.9)', () => {
     title: 'Piso',
     description: null,
     address: null,
+    lat: null,
+    lon: null,
+    municipality: null,
   };
 
   async function renderWith(searchParams?: Record<string, string | string[]>): Promise<string> {
@@ -164,6 +170,10 @@ describe('PropertyDetailPage — composición y orden del DOM (D.9)', () => {
     title: 'Piso luminoso',
     description: 'Un párrafo.',
     address: 'Calle Mayor 1',
+
+    lat: null,
+    lon: null,
+    municipality: null,
   };
   const SOURCE = {
     listingId: 'l1',
@@ -277,6 +287,10 @@ describe('PropertyDetailPage — histórico de precios (D.10)', () => {
     title: 'Piso',
     description: 'Un párrafo.',
     address: null,
+
+    lat: null,
+    lon: null,
+    municipality: null,
   };
   const HISTORY = [
     { sourceKey: 'idealista', listingId: 'l1', status: 'active', priceCents: 90000, capturedAt: new Date('2026-07-01T10:00:00Z') },
@@ -315,5 +329,59 @@ describe('PropertyDetailPage — histórico de precios (D.10)', () => {
     const html = await renderWithHistory(HISTORY);
 
     expect(html).toContain(`>${(85000 / 100).toLocaleString('es-ES')} €<`);
+  });
+});
+
+// D.11 (decisión 179) — la sección «Ubicación» entre el histórico y la descripción.
+describe('PropertyDetailPage — ubicación aproximada (D.11)', () => {
+  const HEADER = {
+    id: 'property-1',
+    minPriceCents: 100000,
+    listingCount: 1,
+    thumbnailUrl: null,
+    propertyType: 'flat',
+    operation: 'sale',
+    surfaceM2: 90,
+    rooms: 3,
+    bathrooms: 2,
+    floor: '3',
+    title: 'Piso',
+    description: 'Texto de la descripción',
+    address: null,
+    lat: 40.3063,
+    lon: -3.7324,
+    municipality: 'Getafe',
+  };
+
+  async function renderHeader(header: typeof HEADER | (Omit<typeof HEADER, 'lat' | 'lon'> & { lat: null; lon: null })): Promise<string> {
+    getPropertyDetailHeaderMock.mockReset();
+    getPropertySourcesMock.mockReset();
+    getPropertyPriceHistoryMock.mockReset();
+    getPropertyPriceHistoryMock.mockResolvedValue([
+      { sourceKey: 'idealista', listingId: 'l1', status: 'active', priceCents: 100000, capturedAt: new Date('2026-01-01T00:00:00Z') },
+    ]);
+    getPropertyDetailHeaderMock.mockResolvedValueOnce(header);
+    getPropertySourcesMock.mockResolvedValueOnce([]);
+    const element = await PropertyDetailPage({ params: Promise.resolve({ listingId: VALID_LISTING_ID }) });
+    return renderToStaticMarkup(element);
+  }
+
+  it('con coordenadas la sección va después del histórico y antes de la descripción', async () => {
+    const html = await renderHeader(HEADER);
+
+    const history = html.indexOf('class="price-history"');
+    const location = html.indexOf('class="property-location"');
+    const description = html.indexOf('class="property-description"');
+    expect(history).toBeGreaterThan(-1);
+    expect(location).toBeGreaterThan(history);
+    expect(description).toBeGreaterThan(location);
+    expect(html.match(/<img\b/g)).toHaveLength(4);
+  });
+
+  it('sin coordenadas no hay teselas, pero se conserva el municipio', async () => {
+    const html = await renderHeader({ ...HEADER, lat: null, lon: null });
+
+    expect(html).not.toContain('<img');
+    expect(html).toContain('Getafe');
   });
 });

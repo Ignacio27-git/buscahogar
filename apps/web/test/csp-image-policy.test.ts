@@ -24,6 +24,8 @@ interface HeaderRule {
 }
 
 const SRC_DIR = fileURLToPath(new URL('../src/', import.meta.url));
+// D.11 (decisión 179): único fichero con `<img>` nativo, solo para teselas OSM.
+const STATIC_MAP = 'components/property-location.tsx';
 
 function collectSourceFiles(dir: string): string[] {
   const files: string[] = [];
@@ -54,13 +56,29 @@ describe('Política de imágenes (spec #261 csp-image-policy, diseño decisión 
     vi.unstubAllEnvs();
   });
 
-  it('ningún fichero usa la etiqueta <img> nativa (siempre next/image)', () => {
+  it('solo el mapa estático usa la etiqueta nativa, con una sola aparición y src de osmTileUrl (decisión 179)', () => {
     const files = collectSourceFiles(SRC_DIR);
     expect(files.length).toBeGreaterThan(0);
+    const staticMap = `${SRC_DIR}${STATIC_MAP}`;
     for (const file of files) {
       const source = readFileSync(file, 'utf8');
-      expect(source).not.toMatch(/<img[\s>]/);
+      if (file === staticMap) {
+        continue;
+      }
+      expect(source, file).not.toMatch(/<img[\s>]/);
     }
+    const source = readFileSync(staticMap, 'utf8');
+    expect(source.match(/<img[\s>]/g)).toHaveLength(1);
+    expect(source).toMatch(/<img\b[^>]*\bsrc=\{osmTileUrl\(/s);
+    expect(source).not.toMatch(/next\/image/);
+  });
+
+  it('la excepción de ESLint no-img-element aparece una sola vez en src/, en el mapa estático', () => {
+    const hits = collectSourceFiles(SRC_DIR).filter((file) =>
+      readFileSync(file, 'utf8').includes('@next/next/no-img-element')
+    );
+    expect(hits).toEqual([`${SRC_DIR}${STATIC_MAP}`]);
+    expect(readFileSync(hits[0] ?? '', 'utf8').match(/@next\/next\/no-img-element/g)).toHaveLength(1);
   });
 
   it('ningún uso de next/image desactiva la optimización con `unoptimized`', () => {

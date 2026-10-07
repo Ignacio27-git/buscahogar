@@ -67,6 +67,9 @@ function headerWithTitle(title: string | null): Record<string, unknown> {
     title,
     description: null,
     address: null,
+    lat: null,
+    lon: null,
+    municipality: null,
   };
 }
 

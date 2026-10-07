@@ -24,6 +24,9 @@ const FULL_HEADER: PropertyDetailHeader = {
   title: 'Piso luminoso en el centro',
   description: 'Descripción larga del piso.',
   address: 'Calle Mayor 1',
+  lat: 40.3063,
+  lon: -3.7324,
+  municipality: 'Getafe',
 };
 
 describe('PropertyHeader (D8/AR-8) — atributo consolidado NULL, dos estados', () => {

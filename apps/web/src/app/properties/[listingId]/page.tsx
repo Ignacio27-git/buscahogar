@@ -22,6 +22,7 @@ import { propertyDetailParamsSchema } from '@buscahogar/core';
 import { getPropertyDetailHeader, getPropertyPriceHistory, getPropertySources } from '@buscahogar/db';
 
 import { PropertyDescription } from '@/components/property-description';
+import { PropertyLocation } from '@/components/property-location';
 import { PriceHistory } from '@/components/price-history';
 import { PropertyHeader, PropertySummary, resolvePropertyTitle } from '@/components/property-header';
 import { SourceGallery } from '@/components/source-gallery';
@@ -106,6 +107,7 @@ export default async function PropertyDetailPage(props: PropertyDetailPageProps)
   const searchParamsRaw = (await props.searchParams) ?? {};
   const returnLink = resolveSearchReturnLink(searchParamsRaw);
 
+  // D.11 (decisión 179): «Ubicación» va entre el histórico y la descripción.
   // D.9 (decisión 173): el orden del DOM es el visual. El resumen se pinta dos veces (la `lead`
   // bajo 64rem, la del panel desde 64rem); el CSS oculta la copia que no toca.
   return (
@@ -121,6 +123,7 @@ export default async function PropertyDetailPage(props: PropertyDetailPageProps)
         <SourceList sources={sources} />
       </div>
       <PriceHistory observations={priceHistory} />
+      <PropertyLocation property={header} />
       <PropertyDescription description={header.description} />
     </div>
   );
