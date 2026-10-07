@@ -230,5 +230,13 @@ export type {
 } from './contracts/listing-presence-verifier.js';
 export { partitionPresenceVerdicts, planPresenceBatches } from './retention/presence-batches.js';
 export type { PartitionedPresence, PresenceCandidate } from './retention/presence-batches.js';
+// Histórico de precios de la ficha (D.10, decisión 178): derivación pura.
+export { derivePriceHistory, priceChangePercentTenths } from './price-history/derive-price-history.js';
+export type {
+  PriceHistory,
+  PriceObservation,
+  PricePoint,
+  PriceSeries,
+} from './price-history/derive-price-history.js';
 
 export const CORE_VERSION = '0.0.1';
