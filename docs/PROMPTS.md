@@ -30,6 +30,23 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-07 — Ficha: histórico de precios (paso D.10, decisión 178)
+
+**Tipo de tarea:** consulta SQL + dominio (`packages/core`) + interfaz (tabla accesible y gráfico SVG del servidor) + test + capturas e2e
+**Forma de especificación:** SDD (explorar, proponer, especificar, diseñar, tareas, aplicar en dos lotes y verificar; Engram `sdd/price-history-d10/*`), un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable con retoques — la puerta de diseño corrigió el orden de las filas de la tabla (el diseño las intercalaba por fecha, contra la especificación, que las agrupa por anuncio) y el nombre accesible del SVG (el diseño lo ocultaba con `aria-hidden`); ver `docs/AI-NOTES.md`.
+
+**Prompt:**
+
+> Paso D.10 de docs/DESIGN-ROADMAP.md. Función nueva (decisión 131): muestra en la ficha el histórico de precios de los anuncios de la vivienda.
+>
+> - Consulta nueva en packages/db/src/detail.ts sobre listing_versions de todos los anuncios de la vivienda, ordenada por fecha y con su fuente, con tests en packages/db/test/detail/detail.db.test.ts. Cubre un anuncio retirado y uno redactado: la decisión 107 conserva los precios, así que su histórico se sigue mostrando.
+> - Lo que se derive (cambios, variación) va en packages/core, sin Next ni ORM.
+> - Presentación: primero una tabla accesible (con caption y encabezados) que funciona sin JS; si aporta, un gráfico SVG sencillo renderizado en el servidor. Diseña el caso de una sola versión.
+> - Comprueba que el rol de solo lectura puede leer listing_versions.
+
+**Observación:** el «si aporta» del prompt quedó superado por la 133.6 (gráfico y tabla, los dos). La capa db, la derivación y los helpers de geometría salieron a la primera con test en rojo antes; lo que costó fue la presentación: ni `detail` (P2) ni `detail-gallery` (P7) tienen cambios de precio, así que sin una ruta e2e sobre P1 el gráfico no habría salido en ninguna captura ni en axe. A 320 px la tabla de P7 desbordaba por pocos píxeles y se añadió la región con foco que el diseño reservaba.
+
 ### 2026-10-06 — Resultados: número de fuentes activas (paso D.9, seguimiento, decisión 177)
 
 **Tipo de tarea:** consulta SQL (subconsulta de `search.ts`) + test + capturas e2e

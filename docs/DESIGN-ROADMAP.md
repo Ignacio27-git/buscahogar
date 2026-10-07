@@ -979,7 +979,7 @@ Paso D.9 de docs/DESIGN-ROADMAP.md. Aplica la presentación de la ficha decidida
 
 ---
 
-## [ ] D.10 · Ficha: histórico de precios
+## [x] D.10 · Ficha: histórico de precios
 
 ```text
 Paso D.10 de docs/DESIGN-ROADMAP.md. Función nueva (decisión 131): muestra en la ficha el
@@ -1017,6 +1017,31 @@ histórico de precios de los anuncios de la vivienda.
 - **Contrato de D.0 (133):** gráfico escalonado en SVG generado en el servidor y, además, la tabla
   accesible (fecha, fuente, precio y variación). Los dos, no «si aporta». Todos los anuncios sobre
   los mismos ejes (eje constante, 132).
+- **Estado (2026-10-07): D.10 hecha.** Aplicada en ocho unidades de trabajo y dos lotes (SDD, Engram
+  `sdd/price-history-d10/*`), un solo PR con `size:exception` aceptado por el responsable. Commits: `a0126d0` (consulta en
+  `packages/db`), `b8e3bca` (derivación en `packages/core`), `6095815` (`formatUtcDate` compartido), `b830e52` (variación y geometría
+  del gráfico), `2dc1645` (componente, página y CSS), `cc104ee` (histórico de P1 en la siembra), `4411d24` (región con foco y tope de
+  ancho), `54c4bf3` (ruta `detail-history` y capturas) y el de documentación. Decisión 178.
+- **Qué hay:** sección «Histórico de precios» fuera del panel fijo (bajo la galería desde 64rem; tras los anuncios de origen en móvil),
+  con gráfico SVG escalonado del servidor (una serie por anuncio, ejes comunes, precio sin cero, trazo y marcador distintos por serie,
+  `role="img"` con nombre) y tabla accesible agrupada por anuncio (Fuente, Fecha, Precio, Variación, con `caption` que dice que son
+  fechas de nuestro barrido). Las versiones consecutivas de igual precio se unen; un anuncio retirado conserva su historia y la
+  insignia «(no disponible)»; si nada cambió, solo la tabla y «Precio observado el dd/mm/aaaa; aún sin cambios». El rol de solo lectura
+  ya leía `listing_versions` (test nuevo en `readonly-role-privileges.test.ts`).
+- **Tests y e2e:** core 824, db 300 (más 1 fichero omitido), web 795 y ingestion 842 superados con `pnpm test`. `pnpm e2e:update` en Docker: 427 superados
+  y 335 omitidos; una segunda ejecución sin actualizar, igual. Cambian las doce capturas de `detail` (P2) y de `detail-gallery` (P7),
+  que ahora llevan la tabla de «sin cambios», y se añaden las seis de `detail-history` (P1) y su entrada en la línea base axe (sin
+  violaciones). `home` y `map` no cambian. Revisadas a ojo a 320, 768 y 1280 en claro y oscuro: precio de cabecera único, la sección
+  sale tras los anuncios de origen y, a 1280, bajo el título en la columna izquierda; el gráfico se lee en los dos temas (trazo
+  continuo y discontinuo, círculo y cuadrado); P7 muestra el texto de «sin cambios» y ningún gráfico.
+- **Desviaciones del diseño:** (1) la ruta `detail-history` sobre P1 no estaba en las tareas: `detail` es P2 y `detail-gallery` P7,
+  ninguna con cambios de precio, así que sin ella el gráfico no tenía captura ni axe. (2) La tabla lleva una región con foco
+  (`role="region"`, `tabindex="0"`, `overflow-x: auto`): a 320 px la de P7 sobresalía del margen unos píxeles; el diseño la reservaba
+  para ese caso. (3) El gráfico tiene un ancho máximo de 24rem; sin él, los rótulos del SVG escalaban hasta unos 30 px a 1280. (4) `price-chart.ts` exporta
+  además `X_LABEL_Y`, `Y_LABEL_X` y `markerPath`, que el componente necesita.
+- **Observación:** la 133.6 hizo obligatorio el gráfico («si aporta» del prompt quedó superado). La especificación suponía que `detail`
+  era P1; en la siembra es P2.
+- **Tamaño:** ver el PR; `size:exception`.
 
 ---
 

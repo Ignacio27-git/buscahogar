@@ -56,9 +56,11 @@ Disponible hoy:
   estado del barrido.
 - Ficha de la vivienda con los datos consolidados, una galería de fotos y la lista de anuncios de
   origen enlazados.
+- Histórico de precios en la ficha: gráfico escalonado por anuncio y tabla accesible, con las
+  fechas en que nuestro barrido observó cada precio.
 
-Planificado, todavía no construido (no se presenta como existente): histórico de precios (D.10),
-ubicación aproximada en la ficha (D.11) y comparativa entre fuentes (D.12).
+Planificado, todavía no construido (no se presenta como existente): ubicación aproximada en la
+ficha (D.11) y comparativa entre fuentes (D.12).
 
 Restricciones:
 

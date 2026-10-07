@@ -3679,3 +3679,31 @@ revisar los commits del primer lote; 6 al ejecutar los tests; 7 al leer el infor
 **Observación:** una premisa sobre el código que no se ha leído («esto no llega al cliente») es el fallo más caro del
 diseño. Y una expresión regular escrita por el shell se comprueba ejecutándola, no leyéndola. Un validador de formato no
 distingue una prueba real de un valor con la forma correcta.
+
+### 2026-10-07 — Fallos intermedios en el diseño y la aplicación de D.10
+
+**Contexto:** diseño, puerta de diseño y aplicación de `price-history-d10`.
+
+**Categoría:** contradicción con la especificación / premisa falsa / test que valida lo equivocado.
+
+**Qué se generó mal:**
+
+1. El diseño intercalaba las filas de la tabla por fecha entre anuncios, contra la especificación, que las ordena por anuncio y
+   luego por fecha. Con filas intercaladas, la variación de Kyero queda junto a una fila de Idealista. La puerta de diseño lo
+   cazó y el diseño pasó a agrupar por anuncio (revisión 2).
+2. El diseño ocultaba el SVG con `aria-hidden`, contra la especificación, que exige un nombre accesible (`role="img"` con
+   `aria-label`). Corregido en la misma revisión: nombre breve que remite a la tabla.
+3. La especificación y las tareas daban por hecho que `detail` era la ficha de P1. En la siembra es P2 (y `detail-gallery`, P7), así
+   que ninguna captura ni axe cubría el gráfico. Se vio al abrir la captura regenerada, que mostraba P2 sin gráfico; se añadió la
+   ruta `detail-history`.
+4. Primer CSS de la tabla con `overflow-wrap: anywhere`: la captura a 320 px partía «15/09/2026» y «1180 €» por la mitad. Se
+   sustituyó por `nowrap` en fecha, precio y cabeceras. Aun así P7 desbordaba 10 px (el test de landmarks lo marcó), y hubo que
+   añadir la región con foco que el diseño reservaba. El SVG, además, escalaba los rótulos hasta unos 30 px a 1280 y se le puso un ancho máximo.
+5. Un test mío esperaba «−5 € (−5,6 %)» para 90000 a 85000 céntimos: confundí euros y céntimos (son 50 €). Lo detectó la ejecución.
+6. El test del componente se ejecutaba contra el `dist` desactualizado de `@buscahogar/core` (`derivePriceHistory is not a function`):
+   `apps/web` consume los paquetes compilados y hay que reconstruirlos antes de probar.
+
+**Cómo se detectó:** 1 y 2 por la puerta de diseño; 3 y 4 al revisar las capturas y por el test de desbordamiento; 5 y 6 al ejecutar los tests.
+
+**Observación:** una captura que existe no prueba que cubra lo nuevo: hay que abrirla y comprobar qué ficha enseña. Y una premisa de
+la especificación sobre qué dataset alimenta qué ruta se comprueba contra la siembra, no contra el nombre de la ruta.
