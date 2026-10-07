@@ -30,6 +30,22 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-07 — Ficha: mapa de ubicación aproximada (paso D.11, decisión 179)
+
+**Tipo de tarea:** geometría pura (`packages/core`) + consulta SQL + interfaz (mapa estático del servidor, SVG y CSS) + guardas + test + capturas e2e
+**Forma de especificación:** SDD (explorar, proponer, especificar, diseñar con puerta de diseño, tareas y aplicar en siete unidades; Engram `sdd/location-map-d11/*`), un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable con retoques — la puerta de diseño corrigió el valor esperado de P1, la función `latLonToTile` que faltaba, la normalización de la longitud 180, el caso de zoom 0 y un precedente de ESLint inexistente; ver `docs/AI-NOTES.md`. El prompt del paso (envoltorio de cliente) ya estaba superado por la 133.
+
+**Prompt:**
+
+> Paso D.11 de docs/DESIGN-ROADMAP.md. Función nueva (decisión 131): un mapa de ubicación en la ficha.
+>
+> - Las coordenadas pueden ser aproximadas: muestra un área, no un punto exacto, con el aviso «Ubicación aproximada».
+> - Prefiere reutilizar el envoltorio de cliente search-map.tsx con props antes que crear otro. Si hace falta un fichero de cliente nuevo, amplía el allowlist y registra la decisión (R4).
+> - Carga diferida (next/dynamic, ssr: false), atribución de OSM visible y alternativa noscript con el municipio.
+
+**Observación:** la 133.7 sustituyó el envoltorio de cliente por un mapa estático del servidor, sin JS; el responsable aceptó el radio de 500 m provisional aunque la 133 pedía fijarlo con datos reales (conflicto registrado en la 179). Geometría, consulta y módulo de teselas salieron con el test en rojo antes. Los casos e2e se escribieron después del componente, no antes. Las 18 capturas de ficha cambian y se revisaron a ojo.
+
 ### 2026-10-07 — Ficha: histórico de precios (paso D.10, decisión 178)
 
 **Tipo de tarea:** consulta SQL + dominio (`packages/core`) + interfaz (tabla accesible y gráfico SVG del servidor) + test + capturas e2e

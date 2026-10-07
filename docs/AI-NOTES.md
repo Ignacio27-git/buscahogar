@@ -3707,3 +3707,24 @@ distingue una prueba real de un valor con la forma correcta.
 
 **Observación:** una captura que existe no prueba que cubra lo nuevo: hay que abrirla y comprobar qué ficha enseña. Y una premisa de
 la especificación sobre qué dataset alimenta qué ruta se comprueba contra la siembra, no contra el nombre de la ruta.
+
+### 2026-10-07 — Fallos intermedios en el diseño y la aplicación de D.11
+
+**Contexto:** diseño, puerta de diseño y aplicación de `location-map-d11`.
+
+**Categoría:** valor calculado a mano / función ausente / precedente inventado / límite sin normalizar.
+
+**Qué se generó mal:**
+
+1. El diseño daba para P1 un círculo en cx 289,3 y la puerta de diseño lo recalculó en 290,4 (cy 359,0, r 68,6): el valor a mano estaba mal. Los tests priorizan invariantes y fijan el valor solo como ancla recomputada.
+2. El diseño no tenía `latLonToTile`, que la especificación exige (0,0 en z1 → tesela (1,1), desplazamiento (0,0)). Se añadió en la revisión 2.
+3. La longitud 180 se proyectaba a `worldSize` (tesela 2^z, fuera de rango). Se normaliza a [-180, 180): 180 pasa a -180 y x = 0.
+4. Zoom 0 con ventana 2×1 repetía la tesela (0,0); ahora `columns` o `rows` mayores que 2^zoom lanzan `RangeError`.
+5. El diseño citaba como precedente de un `eslint-disable` de `@next/next` un `search-map.ts` que no existe; el real es `site-header.tsx:32`.
+6. En la aplicación, mi test de polos usaba latitud ±85 como «tope», pero 85° está en la fila 26 de zoom 14, no en la 0: el tope es 85,05112878 (se usó ±90, que se recorta). Y el barrido de invariantes esperaba el centro en [128, 384) y el redondeo a 0,1 de 383,97 daba 384,0.
+7. Las expresiones regulares con la clase de límite de palabra (barra y b) escritas por el shell (`python` con cadena normal) acabaron con el carácter de retroceso en lugar de la barra y la `b`, y el test no encontraba nada. Se corrigió sustituyendo `chr(8)`.
+8. `apps/web` consume `packages/*` compilados: `typecheck` no vio `lat`, `lon` ni `planStaticMap` hasta reconstruir `core` y `db`. Además, las cabeceras de prueba sin `lat`/`lon` (`undefined`, no `null`) llegaban a `planStaticMap`: hubo que completarlas.
+
+**Cómo se detectó:** 1 a 5 por la puerta de diseño; 6 a 8 al ejecutar los tests y el `typecheck`.
+
+**Observación:** un valor calculado a mano se recalcula con código antes de fijarlo en un test, y una cita de un precedente se abre antes de escribirla. Un límite (180, ±90, zoom 0) es un caso de test por sí mismo.

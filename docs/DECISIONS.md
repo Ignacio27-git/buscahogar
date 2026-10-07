@@ -3442,7 +3442,7 @@ con cambiar las constantes de `policy.ts`; las purgas reciben los números por p
 
 ## 112 — CSP: `img-src` admite el host de teselas de OpenStreetMap; atribución «© OpenStreetMap» enlazada
 
-**Estado:** aceptada. Enmienda la decisión 080 (`img-src`).
+**Estado:** aceptada. Enmienda la decisión 080 (`img-src`). La 179 mueve el literal del host a `lib/osm-tiles.ts`.
 
 **Decisión.** `img-src` pasa a `'self' blob: data: https://tile.openstreetmap.org`; ninguna otra
 directiva cambia y no se añade `connect-src`. La plantilla de teselas es
@@ -5074,6 +5074,18 @@ sí entra en las opciones del constructor; `map-guards.test.ts` lo vigila.
 **Motivo.** Enseña cómo ha cambiado el precio en cada portal con ejes constantes, sin JS y sin afirmar más de lo que el barrido observó.
 
 **Ajustes de la aplicación.** (1) La tabla va dentro de una región con nombre y `tabindex="0"` (`price-history__scroll`, `overflow-x: auto`): a 320 px la de P7, con «219.000 €», la insignia y «Variación» sin partir, era unos píxeles más ancha que la columna y, sin ella, se salía del margen de la página. El diseño la dejaba como recurso si la captura mostraba desbordamiento; la mostró. Descartado partir cifras y fechas a mitad (`overflow-wrap: anywhere`): «1180 / €» y «15/09/2 / 026» no se leen. (2) El gráfico no pasa de 24rem de ancho: el SVG escala los rótulos con el `viewBox`, y a 1280 salían de unos 30 px. (3) Ni `detail` (P2) ni `detail-gallery` (P7) llevan gráfico, así que se añade la ruta e2e `detail-history` sobre P1 (`E2E_HISTORY_LISTING_ID`), con sus seis capturas, su entrada axe (sin violaciones) y las comprobaciones de landmarks y desbordamiento que se aplican a toda ruta.
+
+---
+
+## 179 — Mapa estático de ubicación aproximada en la ficha: excepción acotada a R2 y módulo único de teselas
+
+**Estado:** aceptada (paso D.11; aplica la 133.7 y la 132; enmienda R2 y el límite de la 112).
+
+**Decisión.** La sección «Ubicación» de la ficha muestra un mosaico fijo de 2×2 teselas de OpenStreetMap a zoom 14 (512×512 px), servidas como `<img>` nativo con `loading="lazy"`, que pide el navegador. El servidor solo calcula las URL (`planStaticMap`, en `packages/core`, y `osmTileUrl`) y no descarga ninguna (R8). Encima va un SVG con un círculo de 500 m de radio relleno con la trama rayada en siena, sin ningún punto, cruz ni marca en el centro, y el pie «Ubicación aproximada» con «© OpenStreetMap» enlazado. Excepción a R2: el `<img>` nativo solo se admite en `components/property-location.tsx` y solo con `src` de `osmTileUrl`; `csp-image-policy.test.ts` lo fija y `img-src` no cambia. El host de teselas deja de vivir en `search-map-canvas.tsx` y pasa a `lib/osm-tiles.ts`, que importan el lienzo y el mapa estático; SMV-9 fija ese módulo, y el mapa estático queda fuera de los ficheros del mapa interactivo (SMV-22 sigue). Como las teselas son claras en los dos temas (140), cada raya y el borde del círculo llevan un filete del color de superficie, que da el contraste en el tema oscuro. Sin coordenadas, la sección conserva el título «Ubicación» y muestra solo el municipio, sin mapa, sin aviso y sin atribución. El radio de 500 m es provisional: la 133 pedía fijarlo con datos reales («se fija con datos reales»), pero no hay ninguna señal de ofuscación (026), así que se fija ahora y se revisará cuando la haya; es un conflicto con la 133 que queda registrado aquí, no resuelto.
+
+**Alternativas descartadas.** `next/image`: el optimizador descargaría las teselas desde el servidor (R8). Fondos CSS o `<image>` de SVG: esquivan R2 sin decidirlo (133). Centrar el círculo con un desplazamiento por vivienda: exige atributos `style`. Desplazar el centro del círculo al azar: añade error a una coordenada que ya puede ser aproximada. Zoom 15 con 3×3 teselas: más peticiones y teselas reducidas en pantalla. `referrerPolicy="no-referrer"`: la política de uso de OSM exige un Referer válido.
+
+**Motivo.** Sitúa la vivienda sin JS y sin afirmar más precisión de la que tienen los datos.
 
 ---
 

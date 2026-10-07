@@ -55,7 +55,8 @@ Todo paso las cumple. Un paso que necesite saltarse una la enmienda con una entr
   `apps/web/test/security-headers.test.ts` (decisiones 080 y 112).
 - **R2 · Imágenes.** Solo con `next/image`: ni `<img>` nativo ni `unoptimized`. Los hosts remotos son
   los de `images.remotePatterns`, hoy solo `img4.idealista.com`. Añadir uno es una decisión de
-  seguridad.
+  seguridad. Única excepción (decisión 179, D.11): `<img>` nativo en `components/property-location.tsx`,
+  solo para teselas de `tile.openstreetmap.org` con `src` de `osmTileUrl`; lo fija `csp-image-policy.test.ts`.
 - **R3 · Filtros en la URL.** Los filtros viven en los search params, se validan con Zod
   (`packages/core/src/schemas/search-query.schema.ts`) y se envían con formularios GET
   (`form=criteria`, decisión 123). No hay estado de filtros en el cliente ni bibliotecas de estado.
@@ -70,7 +71,7 @@ Todo paso las cumple. Un paso que necesite saltarse una la enmienda con una entr
   `renderToStaticMarkup`: `result-card`, `property-header`, `source-gallery`, `source-list`,
   `home-page-map`, `home-page-nl`, `property-detail-page`, `property-detail-page-static`,
   `db/page-coverage-degradation`, y las guardas `no-redirect`, `no-single-source-branch`,
-  `layout-attribution`, `architecture-attribution` y `map-guards`. Cada paso presupuesta en sus notas
+  `layout-attribution`, `architecture-attribution`, `map-guards`, `csp-image-policy` y `property-location` (D.11). Cada paso presupuesta en sus notas
   qué tests cambia. Un test se actualiza conservando lo que afirma, nunca se borra para que pase.
 - **R7 · Atribuciones.** El pie con la atribución CC-BY 4.0 del IGN/CNIG es obligación legal (Orden
   FOM/2807/2015) y lo fija `layout-attribution.test.ts`. La atribución «© OpenStreetMap» enlazada
@@ -1045,7 +1046,7 @@ histórico de precios de los anuncios de la vivienda.
 
 ---
 
-## [ ] D.11 · Ficha: mapa de ubicación
+## [x] D.11 · Ficha: mapa de ubicación
 
 ```text
 Paso D.11 de docs/DESIGN-ROADMAP.md. Función nueva (decisión 131): un mapa de ubicación
@@ -1084,6 +1085,23 @@ en la ficha.
   abierto, que el responsable no ha decidido: el límite de la 112 y de `map-guards.test.ts` (SMV-9),
   que solo admite el host de teselas en `search-map-canvas.tsx`; lo resuelve este paso en su propia
   decisión. Ficheros y tests de estas notas se revisan al planificar.
+- **Estado (2026-10-07): D.11 hecha.** Aplicada en siete unidades de trabajo (SDD, Engram
+  `sdd/location-map-d11/*`), un solo PR con `size:exception` aceptado por el responsable. Commits: `60f07e2` (geometría de teselas
+  en `packages/core`), `86c543b` (`lat`, `lon` y municipio en la cabecera), `b3ea27d` (módulo `lib/osm-tiles.ts` y SMV-9), `32bc128`
+  (componente, página, CSS y guardas), `8b5ade3` (e2e), `8862cb2` (capturas) y el de documentación. Decisión 179.
+- **Qué hay:** sección «Ubicación» entre el histórico y la descripción (columna izquierda desde 64rem, nueva área `location`):
+  mosaico de 2×2 teselas OSM a zoom 14 como `<img>` nativo `loading="lazy"`, círculo de 500 m con trama siena y filete de
+  superficie (contraste en oscuro), pie «Ubicación aproximada» y «© OpenStreetMap» enlazado, sin punto ni marca. Sin coordenadas
+  conserva el título y el municipio; sin ambos no hay sección. Sin JS ni componente de cliente (R4 sin cambios).
+- **Tests y e2e:** core 840, db 300 (más 1 fichero omitido, y `test:detail` 23), web 812 y ingestion 842 superados con `pnpm test`; `lint`
+  y `typecheck` limpios y `next build` correcto. e2e en Docker: `property-detail.spec` con los dos casos nuevos (P1 con cuatro teselas y
+  P6 sin ninguna petición) en verde; `pnpm e2e:update`: 429 superados y 345 omitidos. Cambian solo las 18 capturas de `detail`,
+  `detail-gallery` y `detail-history`; `home`, `map` y la línea base axe no cambian. Revisadas a ojo a 320 y 1280 (oscuro): mapa
+  claro con la trama legible en los dos temas y círculo dentro del marco.
+- **Desviaciones del diseño:** ninguna de fondo. Los casos e2e se escribieron tras el componente (unidad 4) y no antes: el orden de
+  las unidades ponía el e2e después de la implementación, y su verde de primera vez no demuestra por sí solo que fallarían sin ella.
+- **Observación:** el radio de 500 m es provisional y choca con la 133 («se fija con datos reales»); la 179 lo registra como conflicto.
+  `apps/web` consume `packages/*` compilados: tras tocar `core` o `db` hay que reconstruirlos antes de `typecheck` y de los tests.
 
 ---
 
@@ -1468,3 +1486,4 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-07 | D.10 | Ruta e2e nueva `detail-history` sobre P1, fuera de las tareas. | `detail` es P2 y `detail-gallery` P7, sin cambios de precio: sin la ruta, el gráfico no tenía captura ni axe. |
 | 2026-10-07 | D.10 | La tabla va dentro de una región con foco y desplazamiento propio; a 320 px «Variación» queda en parte fuera de la vista en P7. | La tabla de P7 sobresalía unos 10 px de la página a 320 px; el diseño reservaba la región para ese caso (decisión 178). |
 | 2026-10-07 | D.10 | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): ~1780 líneas de código, tests y e2e y ~90 de documentación, sin contar las 30 capturas. | No se recortaron tests, comentarios ni documentación. |
+| 2026-10-07 | D.11 | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): ~970 líneas de código, tests y e2e y ~80 de documentación, sin contar las 18 capturas. | La previsión era ~780; la geometría y sus tests, el CSS y las guardas pesaron más. No se recortó nada. |
