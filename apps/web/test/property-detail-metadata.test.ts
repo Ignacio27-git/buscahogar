@@ -10,6 +10,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getPropertyDetailHeaderMock = vi.fn();
 const getPropertySourcesMock = vi.fn();
+const getPropertyPriceHistoryMock = vi.fn();
 
 vi.mock('react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react')>();
@@ -36,6 +37,7 @@ vi.mock('@buscahogar/db', async (importOriginal) => {
     ...actual,
     getPropertyDetailHeader: getPropertyDetailHeaderMock,
     getPropertySources: getPropertySourcesMock,
+    getPropertyPriceHistory: getPropertyPriceHistoryMock,
   };
 });
 
@@ -86,6 +88,8 @@ beforeEach(() => {
   getPropertyDetailHeaderMock.mockReset();
   getPropertySourcesMock.mockReset();
   getPropertySourcesMock.mockResolvedValue([]);
+  getPropertyPriceHistoryMock.mockReset();
+  getPropertyPriceHistoryMock.mockResolvedValue([]);
 });
 
 describe('una sola consulta de cabecera por petición (R4, S4.1)', () => {

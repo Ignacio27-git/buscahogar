@@ -19,9 +19,10 @@ import { cache } from 'react';
 import type { ReactElement } from 'react';
 
 import { propertyDetailParamsSchema } from '@buscahogar/core';
-import { getPropertyDetailHeader, getPropertySources } from '@buscahogar/db';
+import { getPropertyDetailHeader, getPropertyPriceHistory, getPropertySources } from '@buscahogar/db';
 
 import { PropertyDescription } from '@/components/property-description';
+import { PriceHistory } from '@/components/price-history';
 import { PropertyHeader, PropertySummary, resolvePropertyTitle } from '@/components/property-header';
 import { SourceGallery } from '@/components/source-gallery';
 import { SourceList } from '@/components/source-list';
@@ -92,7 +93,12 @@ export default async function PropertyDetailPage(props: PropertyDetailPageProps)
   // resolver por ese motivo — `getPropertySources` no filtra por `status`,
   // solo lo proyecta para que `SourceList` marque esa fuente como no
   // disponible.
-  const sources = await getPropertySources(getDb(), header.id);
+  // D.10 (decisión 178): el histórico de precios se pide a la vez, con el mismo id de vivienda.
+  const db = getDb();
+  const [sources, priceHistory] = await Promise.all([
+    getPropertySources(db, header.id),
+    getPropertyPriceHistory(db, header.id),
+  ]);
   // D.9 (decisión 176): fuentes distintas con algún anuncio activo, para las dos copias del resumen.
   const activeSourceCount = countActiveSources(sources);
 
@@ -114,6 +120,7 @@ export default async function PropertyDetailPage(props: PropertyDetailPageProps)
         <PropertyHeader property={header} activeSourceCount={activeSourceCount} />
         <SourceList sources={sources} />
       </div>
+      <PriceHistory observations={priceHistory} />
       <PropertyDescription description={header.description} />
     </div>
   );

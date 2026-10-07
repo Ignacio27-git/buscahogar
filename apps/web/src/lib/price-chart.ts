@@ -59,7 +59,7 @@ function num(value: number): string {
 
 // Marcador por estilo: 0 círculo, 1 cuadrado, 2 triángulo, 3 rombo. Distinta
 // forma además de distinto trazo: el color no es el único canal (WCAG 1.4.1).
-function markerPath(styleIndex: number, cx: number, cy: number): string {
+export function markerPath(styleIndex: number, cx: number, cy: number): string {
   const r = MARKER_RADIUS;
   switch (styleIndex) {
     case 0:

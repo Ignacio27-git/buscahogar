@@ -16,6 +16,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getPropertyDetailHeaderMock = vi.fn();
 const getPropertySourcesMock = vi.fn();
+const getPropertyPriceHistoryMock = vi.fn();
 
 vi.mock('@/server/db', () => ({
   getDb: vi.fn(() => ({})),
@@ -27,6 +28,7 @@ vi.mock('@buscahogar/db', async (importOriginal) => {
     ...actual,
     getPropertyDetailHeader: getPropertyDetailHeaderMock,
     getPropertySources: getPropertySourcesMock,
+    getPropertyPriceHistory: getPropertyPriceHistoryMock,
   };
 });
 
@@ -43,6 +45,8 @@ describe('PropertyDetailPage — notFound() en los cuatro casos (D2/D3, AR-2)', 
   beforeEach(() => {
     getPropertyDetailHeaderMock.mockReset();
     getPropertySourcesMock.mockReset();
+    getPropertyPriceHistoryMock.mockReset();
+    getPropertyPriceHistoryMock.mockResolvedValue([]);
   });
 
   it('uuid malformado: notFound() se lanza SIN consultar la base de datos', async () => {
@@ -61,6 +65,7 @@ describe('PropertyDetailPage — notFound() en los cuatro casos (D2/D3, AR-2)', 
     ).rejects.toThrow(/NEXT_HTTP_ERROR_FALLBACK;404/);
 
     expect(getPropertySourcesMock).not.toHaveBeenCalled();
+    expect(getPropertyPriceHistoryMock).not.toHaveBeenCalled();
   });
 
   it('cabecera encontrada: renderiza sin lanzar notFound()', async () => {
@@ -85,6 +90,7 @@ describe('PropertyDetailPage — notFound() en los cuatro casos (D2/D3, AR-2)', 
 
     expect(element).toBeTruthy();
     expect(getPropertySourcesMock).toHaveBeenCalledWith(expect.anything(), 'property-1');
+    expect(getPropertyPriceHistoryMock).toHaveBeenCalledWith(expect.anything(), 'property-1');
   });
 });
 
@@ -109,6 +115,8 @@ describe('PropertyDetailPage — enlace de vuelta (D.9)', () => {
   async function renderWith(searchParams?: Record<string, string | string[]>): Promise<string> {
     getPropertyDetailHeaderMock.mockReset();
     getPropertySourcesMock.mockReset();
+    getPropertyPriceHistoryMock.mockReset();
+    getPropertyPriceHistoryMock.mockResolvedValue([]);
     getPropertyDetailHeaderMock.mockResolvedValueOnce(HEADER);
     getPropertySourcesMock.mockResolvedValueOnce([]);
     const element = await PropertyDetailPage({
@@ -180,6 +188,8 @@ describe('PropertyDetailPage — composición y orden del DOM (D.9)', () => {
   ): Promise<string> {
     getPropertyDetailHeaderMock.mockReset();
     getPropertySourcesMock.mockReset();
+    getPropertyPriceHistoryMock.mockReset();
+    getPropertyPriceHistoryMock.mockResolvedValue([]);
     getPropertyDetailHeaderMock.mockResolvedValueOnce(header);
     getPropertySourcesMock.mockResolvedValueOnce(sources);
     const element = await PropertyDetailPage({ params: Promise.resolve({ listingId: VALID_LISTING_ID }) });
@@ -248,5 +258,62 @@ describe('PropertyDetailPage — composición y orden del DOM (D.9)', () => {
 
     expect(html.match(/No disponible en ninguna fuente/g)).toHaveLength(2);
     expect(html).not.toContain('Disponible en 2');
+  });
+});
+
+// D.10 (decisión 178) — histórico de precios: fuera del panel fijo, tras él y antes de la descripción.
+describe('PropertyDetailPage — histórico de precios (D.10)', () => {
+  const HEADER = {
+    id: 'property-1',
+    minPriceCents: 85000,
+    listingCount: 1,
+    thumbnailUrl: null,
+    propertyType: 'flat',
+    operation: 'sale',
+    surfaceM2: 90,
+    rooms: 3,
+    bathrooms: 2,
+    floor: '3',
+    title: 'Piso',
+    description: 'Un párrafo.',
+    address: null,
+  };
+  const HISTORY = [
+    { sourceKey: 'idealista', listingId: 'l1', status: 'active', priceCents: 90000, capturedAt: new Date('2026-07-01T10:00:00Z') },
+    { sourceKey: 'idealista', listingId: 'l1', status: 'active', priceCents: 80000, capturedAt: new Date('2026-09-01T10:00:00Z') },
+  ];
+
+  async function renderWithHistory(history: readonly unknown[]): Promise<string> {
+    getPropertyDetailHeaderMock.mockReset();
+    getPropertySourcesMock.mockReset();
+    getPropertyPriceHistoryMock.mockReset();
+    getPropertyDetailHeaderMock.mockResolvedValueOnce(HEADER);
+    getPropertySourcesMock.mockResolvedValueOnce([]);
+    getPropertyPriceHistoryMock.mockResolvedValueOnce(history);
+    const element = await PropertyDetailPage({ params: Promise.resolve({ listingId: VALID_LISTING_ID }) });
+    return renderToStaticMarkup(element);
+  }
+
+  it('con histórico: la sección va tras el panel y antes de la descripción', async () => {
+    const html = await renderWithHistory(HISTORY);
+    const panel = html.indexOf('property-detail__panel');
+    const history = html.indexOf('class="price-history"');
+    const description = html.indexOf('class="property-description"');
+
+    expect(history).toBeGreaterThan(html.indexOf('class="source-list"'));
+    expect(history).toBeGreaterThan(panel);
+    expect(history).toBeLessThan(description);
+  });
+
+  it('sin histórico: no hay sección', async () => {
+    const html = await renderWithHistory([]);
+
+    expect(html).not.toContain('price-history');
+  });
+
+  it('el precio de cabecera sigue siendo el mínimo de la vivienda aunque el histórico tenga otros', async () => {
+    const html = await renderWithHistory(HISTORY);
+
+    expect(html).toContain(`>${(85000 / 100).toLocaleString('es-ES')} €<`);
   });
 });
