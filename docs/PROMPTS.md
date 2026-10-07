@@ -30,6 +30,21 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-07 — Ficha: guardas del mapa estático (paso D.11, seguimiento, decisión 179)
+
+**Tipo de tarea:** test (guardas estáticas en `apps/web/test/map-guards.test.ts`)
+**Forma de especificación:** aviso de la verificación de D.11 (el diseño preveía fijar el import, la atribución y la lista sin `fetch`);
+unidad acotada de SDD, test primero con el rojo demostrado mutando el fuente
+**Resultado:** utilizable sin cambios.
+
+**Prompt:**
+
+> Fija en `map-guards` el import de `lib/osm-tiles`, la atribución y la lista sin fetch/innerHTML del mapa estático
+> `property-location.tsx`, sin meterlo en `MAP_FILES` (SMV-22 intacta).
+
+**Observación:** las guardas pasan en verde sobre el código existente, así que el rojo se probó rompiendo a propósito el fuente y
+restaurándolo. Un heredoc de shell volvió a convertir `\b` en retroceso dentro de una regex y hubo que corregirlo.
+
 ### 2026-10-07 — Ficha: mapa de ubicación aproximada (paso D.11, decisión 179)
 
 **Tipo de tarea:** geometría pura (`packages/core`) + consulta SQL + interfaz (mapa estático del servidor, SVG y CSS) + guardas + test + capturas e2e

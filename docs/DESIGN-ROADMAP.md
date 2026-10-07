@@ -1100,6 +1100,9 @@ en la ficha.
   claro con la trama legible en los dos temas y círculo dentro del marco.
 - **Desviaciones del diseño:** ninguna de fondo. Los casos e2e se escribieron tras el componente (unidad 4) y no antes: el orden de
   las unidades ponía el e2e después de la implementación, y su verde de primera vez no demuestra por sí solo que fallarían sin ella.
+- **Seguimiento (verificación):** `map-guards` fija ahora sobre `components/property-location.tsx` el import de `osmTileUrl` desde
+  `@/lib/osm-tiles`, el literal de atribución con su enlace exacto y la ausencia de `fetch(` e `innerHTML`; el fichero queda fuera de
+  `MAP_FILES` para no tocar SMV-22. Rojo demostrado mutando el fuente (import, atribución, enlace, `fetch`, `innerHTML`).
 - **Observación:** el radio de 500 m es provisional y choca con la 133 («se fija con datos reales»); la 179 lo registra como conflicto.
   `apps/web` consume `packages/*` compilados: tras tocar `core` o `db` hay que reconstruirlos antes de `typecheck` y de los tests.
 

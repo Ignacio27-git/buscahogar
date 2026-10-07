@@ -25,6 +25,9 @@ const DRAW_STATE = 'components/draw-polygon-state.ts';
 const MAP_FILES = [WRAPPER, CANVAS, 'components/map-cluster-layer.tsx', 'components/map-draw-control.tsx'] as const;
 // Marcado de servidor de la sección de mapa (atribución en el HTML del servidor).
 const SERVER_MARKUP = 'app/page.tsx';
+// D.11 (decisión 179): mapa estático de la ficha. Va FUERA de MAP_FILES a propósito: SMV-22
+// (sin trama de aproximación en el mapa interactivo) debe seguir intacta.
+const STATIC_MAP = 'components/property-location.tsx';
 
 function collectSourceFiles(dir: string): string[] {
   const files: string[] = [];
@@ -50,7 +53,7 @@ describe('ficheros del mapa — existencia', () => {
 });
 
 describe('ficheros del mapa — sin HTML de cadena y sin fetch (SMV-6, SMV-12)', () => {
-  const guarded = [...MAP_FILES, 'components/draw-polygon-state.ts'] as const;
+  const guarded = [...MAP_FILES, 'components/draw-polygon-state.ts', STATIC_MAP] as const;
 
   it.each(guarded)('%s no usa innerHTML ni `html:` con cadena', (relative) => {
     const source = read(relative);
@@ -85,6 +88,10 @@ describe('host de teselas — solo en lib/osm-tiles.ts (SMV-9, decisiones 112 y 
     expect(source).toContain('<TileLayer url={OSM_TILE_URL_TEMPLATE}');
   });
 
+  it('el mapa estático de la ficha importa osmTileUrl del módulo de teselas', () => {
+    expect(read(STATIC_MAP)).toMatch(/import \{[^}]*\bosmTileUrl\b[^}]*\} from '@\/lib\/osm-tiles'/);
+  });
+
   it('el módulo de teselas no usa fetch ni HTML de cadena', () => {
     const source = read(TILE_MODULE);
     expect(source).not.toMatch(/\bfetch\s*\(/);
@@ -104,6 +111,15 @@ describe('atribución OSM — literal y enlace de copyright (SMV-9, decisión 11
     expect(source).toContain('© ');
     expect(source).toContain('OpenStreetMap');
     expect(source).toContain(COPYRIGHT_LINK);
+  });
+});
+
+describe('atribución OSM del mapa estático de la ficha (D.11, decisión 179)', () => {
+  it('contiene el literal "© OpenStreetMap" y el enlace exacto de copyright', () => {
+    const source = read(STATIC_MAP);
+    expect(source).toContain('© ');
+    expect(source).toContain('OpenStreetMap');
+    expect(source).toContain(`href="${COPYRIGHT_LINK}"`);
   });
 });
 
