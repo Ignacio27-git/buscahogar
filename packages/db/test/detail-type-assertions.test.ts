@@ -22,6 +22,12 @@ export type _PropertyDetailHeaderHasNoSignals = Expect<Equal<'signals' extends k
 export type _PropertyDetailSourceHasNoScore = Expect<Equal<'score' extends keyof PropertyDetailSource ? true : false, false>>;
 export type _PropertyDetailSourceHasNoSignals = Expect<Equal<'signals' extends keyof PropertyDetailSource ? true : false, false>>;
 
+// D.11 — la ubicación del encabezado es anulable: sin `location` no hay
+// coordenadas y sin `location_id` no hay municipio.
+export type _HeaderLat = Expect<Equal<PropertyDetailHeader['lat'], number | null>>;
+export type _HeaderLon = Expect<Equal<PropertyDetailHeader['lon'], number | null>>;
+export type _HeaderMunicipality = Expect<Equal<PropertyDetailHeader['municipality'], string | null>>;
+
 // D.10 — la proyección del histórico de precios es exactamente estas cinco
 // claves: ni `score`/`signals` ni el texto que redacta el tombstone (107).
 export type _PriceObservationKeys = Expect<
@@ -58,6 +64,9 @@ describe('PropertyDetail / PropertyDetailSource — sin score/signals a nivel de
       title: null,
       description: null,
       address: null,
+      lat: 40.3,
+      lon: -3.7,
+      municipality: 'Getafe',
     };
     const source: PropertyDetailSource = {
       listingId: 'listing-1',

@@ -6,7 +6,7 @@
 // suite de detalle es nueva y no puede demostrar nada con un verde vacío,
 // mismo criterio que `vitest.consolidation.config.ts` (ROADMAP 1.10).
 import { randomUUID } from 'node:crypto';
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -14,8 +14,9 @@ import type { ConsolidationInput } from '../../src/consolidation.js';
 import { writeConsolidation } from '../../src/consolidation.js';
 import type { Database } from '../../src/db.js';
 import { getPropertyDetailHeader, getPropertyPriceHistory, getPropertySources } from '../../src/detail.js';
-import { listingVersions, listings, properties, propertyListings, sources } from '../../src/tables.js';
+import { listingVersions, listings, locations, properties, propertyListings, sources } from '../../src/tables.js';
 import { connectTestDb, truncateAll } from '../helpers/db-client.js';
+import { insertLocation } from '../helpers/fixtures.js';
 
 async function insertSourceKeyed(db: Database, key: string): Promise<string> {
   const [row] = await db.insert(sources).values({ key, name: key, kind: 'api' }).returning({ id: sources.id });
@@ -331,6 +332,52 @@ describe('detail.ts — Q1/Q2 contra Postgres real (diseño D3)', () => {
 
     const header = await getPropertyDetailHeader(db, listingId);
     expect(header).toBeUndefined();
+  });
+
+  it('D.11: lat y lon salen de properties.location (x = lon, y = lat) con precisión de 1e-9', async () => {
+    const sourceId = await insertSourceKeyed(db, 'idealista');
+    const listingId = await insertListingRow(db, sourceId);
+    await insertCurrentVersion(db, listingId);
+    const propertyId = await insertPropertyRow(db, { location: { x: -3.7324, y: 40.3063 } });
+    await linkPropertyListing(db, propertyId, listingId);
+
+    const header = await getPropertyDetailHeader(db, listingId);
+
+    expect(header?.lat).toBeCloseTo(40.3063, 9);
+    expect(header?.lon).toBeCloseTo(-3.7324, 9);
+  });
+
+  it('D.11: location NULL -> lat y lon NULL y la fila no se pierde', async () => {
+    const sourceId = await insertSourceKeyed(db, 'idealista');
+    const listingId = await insertListingRow(db, sourceId);
+    await insertCurrentVersion(db, listingId);
+    const propertyId = await insertPropertyRow(db);
+    await linkPropertyListing(db, propertyId, listingId);
+
+    const header = await getPropertyDetailHeader(db, listingId);
+
+    expect(header).toBeDefined();
+    expect(header?.lat).toBeNull();
+    expect(header?.lon).toBeNull();
+  });
+
+  it('D.11: location_id resuelve el municipio; con location_id NULL el municipio es NULL y la fila se conserva', async () => {
+    const sourceId = await insertSourceKeyed(db, 'idealista');
+    const withId = await insertListingRow(db, sourceId);
+    const withoutId = await insertListingRow(db, sourceId);
+    await insertCurrentVersion(db, withId);
+    await insertCurrentVersion(db, withoutId);
+    const locationId = await insertLocation(db);
+    await db.update(locations).set({ municipality: 'Getafe' }).where(eq(locations.id, locationId));
+    const located = await insertPropertyRow(db, { locationId });
+    const unlocated = await insertPropertyRow(db);
+    await linkPropertyListing(db, located, withId);
+    await linkPropertyListing(db, unlocated, withoutId);
+
+    expect((await getPropertyDetailHeader(db, withId))?.municipality).toBe('Getafe');
+    const orphan = await getPropertyDetailHeader(db, withoutId);
+    expect(orphan).toBeDefined();
+    expect(orphan?.municipality).toBeNull();
   });
 
   it('score y signals están ausentes de las claves del objeto devuelto (PD-3)', async () => {

@@ -20,7 +20,7 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
 
 import type { Database } from './db.js';
-import { listingVersions, listings, properties, propertyListings, sources } from './tables.js';
+import { listingVersions, listings, locations, properties, propertyListings, sources } from './tables.js';
 
 export interface PropertyDetailHeader {
   readonly id: string;
@@ -36,6 +36,11 @@ export interface PropertyDetailHeader {
   readonly title: string | null;
   readonly description: string | null;
   readonly address: string | null;
+  // D.11: coordenadas de `properties.location` (ST_Y/ST_X; ambas NULL si no hay
+  // ubicación) y municipio de `locations` (NULL sin `location_id`).
+  readonly lat: number | null;
+  readonly lon: number | null;
+  readonly municipality: string | null;
 }
 
 export interface PropertyDetailSource {
@@ -91,9 +96,13 @@ export async function getPropertyDetailHeader(
       title: properties.title,
       description: properties.description,
       address: properties.address,
+      lat: sql<number | null>`ST_Y(${properties.location})`.mapWith(Number),
+      lon: sql<number | null>`ST_X(${properties.location})`.mapWith(Number),
+      municipality: locations.municipality,
     })
     .from(propertyListings)
     .innerJoin(properties, eq(properties.id, propertyListings.propertyId))
+    .leftJoin(locations, eq(locations.id, properties.locationId))
     .where(eq(propertyListings.listingId, listingId));
 
   return row;
