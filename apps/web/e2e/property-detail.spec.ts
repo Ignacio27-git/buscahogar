@@ -20,6 +20,7 @@ function route(name: string): (typeof ROUTES)[number] {
 
 const GALLERY_ROUTE = route('detail-gallery');
 const HISTORY_ROUTE = route('detail-history');
+const SINGLE_ROUTE = route('detail-single');
 
 // La diapositiva ocupa la caja visible de la tira (con medio píxel de tolerancia por redondeo).
 async function fillsStrip(strip: Locator, slide: Locator): Promise<boolean> {
@@ -95,6 +96,51 @@ test.describe('galería de la ficha sin JavaScript', () => {
     await page.waitForURL((url) => url.pathname === '/' && url.search === '' && url.hash === '');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page.locator('ul.result-list > li').first()).toBeVisible();
+  });
+});
+
+// D.12 (decisión 180): la lista de anuncios de origen es una comparación. P4 tiene un único
+// anuncio activo, P7 solo inactivos. La nota de agrupación se ve siempre; el aviso solo sin activos.
+test.describe('comparación de anuncios de origen en la ficha', () => {
+  test('P4, una sola fuente: una insignia «Más económico», la nota y ningún aviso', async ({
+    page,
+  }) => {
+    test.skip(test.info().project.name !== 'w320-light', 'solo el ancho móvil');
+    await page.goto(SINGLE_ROUTE.path);
+
+    const list = page.locator('.source-list');
+    await expect(list.locator('.source-row')).toHaveCount(1);
+    await expect(list.locator('.source-row__highlight')).toHaveCount(1);
+    await expect(list.getByText('Más económico')).toHaveCount(1);
+    await expect(list.getByText('Precio más bajo')).toHaveCount(0);
+    await expect(list.locator('.source-list__note')).toContainText('Compruébalo en cada fuente');
+    await expect(list.locator('.source-list__warning')).toHaveCount(0);
+  });
+
+  test('P7, sin anuncios activos: aviso y «Precio más bajo», nunca «Más económico»', async ({
+    page,
+  }) => {
+    test.skip(test.info().project.name !== 'w320-light', 'solo el ancho móvil');
+    await page.goto(GALLERY_ROUTE.path);
+
+    const list = page.locator('.source-list');
+    await expect(list.locator('.source-list__warning')).toContainText(
+      'Ninguno de estos anuncios sigue disponible'
+    );
+    await expect(list.getByText('Más económico')).toHaveCount(0);
+    await expect(list.getByText('Precio más bajo')).toHaveCount(1);
+    await expect(list.locator('.source-list__note')).toBeVisible();
+  });
+
+  test('a 320 px la lista no desborda en horizontal', async ({ page }) => {
+    test.skip(test.info().project.name !== 'w320-light', 'solo el ancho móvil');
+    for (const detailRoute of [SINGLE_ROUTE, GALLERY_ROUTE, HISTORY_ROUTE]) {
+      await page.goto(detailRoute.path);
+      const overflow = await page
+        .locator('.source-list')
+        .evaluate((list) => list.scrollWidth - list.clientWidth);
+      expect(overflow, detailRoute.name).toBeLessThanOrEqual(0);
+    }
   });
 });
 
@@ -254,8 +300,9 @@ async function walkFocus(page: Page): Promise<readonly FocusStep[]> {
 
 const FOCUS_CASES = [
   { project: 'w1280-light', viewport: null, name: '1280 de ancho' },
-  // El panel de P7 mide unos 555 px y su tope es la ventana menos 2rem: a 600 de alto
-  // todavía cabe entero. A 480 tiene que desplazarse por dentro (se comprueba abajo).
+  // La altura del panel de P7 depende de la comparación de anuncios (D.12, una fila con datos
+  // etiquetados por anuncio): su tope es la ventana menos 2rem. A 480 de alto tiene que
+  // desplazarse por dentro (se comprueba abajo).
   {
     project: 'w1280-light',
     viewport: { width: 1280, height: 480 },

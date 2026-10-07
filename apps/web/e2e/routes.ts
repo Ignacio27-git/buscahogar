@@ -6,6 +6,7 @@ import {
   E2E_GALLERY_LISTING_ID,
   E2E_HISTORY_LISTING_ID,
   E2E_MISSING_LISTING_ID,
+  E2E_SINGLE_SOURCE_LISTING_ID,
 } from '@buscahogar/db/e2e';
 import type { Page } from '@playwright/test';
 
@@ -43,6 +44,9 @@ export const ROUTES: readonly E2eRoute[] = [
   // D.10 (decisión 178): P1 (dos anuncios con cambios de precio): gráfico escalonado, leyenda
   // y tabla agrupada por anuncio. `detail` es P2 y `detail-gallery` P7: ninguna lleva gráfico.
   { name: 'detail-history', path: `/properties/${E2E_HISTORY_LISTING_ID}`, map: 'none' },
+  // D.12 (decisión 180): P4, un único anuncio activo: la comparación con una sola fuente
+  // (una insignia «Más económico»). P7 (`detail-gallery`) cubre el caso sin anuncios activos.
+  { name: 'detail-single', path: `/properties/${E2E_SINGLE_SOURCE_LISTING_ID}`, map: 'none' },
   { name: 'not-found-route', path: '/no-existe', map: 'none' },
   { name: 'not-found-property', path: `/properties/${E2E_MISSING_LISTING_ID}`, map: 'none' },
 ];
