@@ -3,6 +3,7 @@
 // tapado por el panel sticky ni por nada más (WCAG 2.4.11), tampoco cuando el panel
 // tiene que desplazarse por dentro. Se usa la ficha de P7 (`detail-gallery`): la única
 // con dos fotos.
+import { E2E_NO_LOCATION_LISTING_ID } from '@buscahogar/db/e2e';
 import type { Locator, Page } from '@playwright/test';
 
 import { expect, test } from './fixtures';
@@ -18,6 +19,7 @@ function route(name: string): (typeof ROUTES)[number] {
 }
 
 const GALLERY_ROUTE = route('detail-gallery');
+const HISTORY_ROUTE = route('detail-history');
 
 // La diapositiva ocupa la caja visible de la tira (con medio píxel de tolerancia por redondeo).
 async function fillsStrip(strip: Locator, slide: Locator): Promise<boolean> {
@@ -93,6 +95,58 @@ test.describe('galería de la ficha sin JavaScript', () => {
     await page.waitForURL((url) => url.pathname === '/' && url.search === '' && url.hash === '');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page.locator('ul.result-list > li').first()).toBeVisible();
+  });
+});
+
+// D.11 (decisión 179): «Ubicación» sin JavaScript. P1 tiene coordenadas: cuatro teselas (las
+// sirve `fixtures.ts` en local), aviso, atribución y ningún punto. P6 no las tiene, pero sí
+// municipio: título y «Getafe», y ni una petición de teselas.
+test.describe('ubicación aproximada de la ficha sin JavaScript', () => {
+  test.use({ javaScriptEnabled: false });
+
+  test('P1: cuatro teselas, aviso, atribución y ningún punto', async ({ page }) => {
+    test.skip(test.info().project.name !== 'w320-light', 'solo el ancho móvil');
+    const tileRequests: string[] = [];
+    page.on('request', (request) => {
+      if (new URL(request.url()).hostname === 'tile.openstreetmap.org') tileRequests.push(request.url());
+    });
+    await page.goto(HISTORY_ROUTE.path);
+
+    const section = page.getByRole('region', { name: 'Ubicación' });
+    const map = section.getByRole('img', { name: /círculo de unos 500 m de radio en Getafe/ });
+    await expect(map).toBeVisible();
+    await map.scrollIntoViewIfNeeded();
+    const tiles = section.locator('.location-map img');
+    await expect(tiles).toHaveCount(4);
+    await expect
+      .poll(() => tiles.evaluateAll((all) => all.every((tile) => (tile as HTMLImageElement).complete)))
+      .toBe(true);
+    expect(tileRequests).toHaveLength(4);
+    for (const url of tileRequests) expect(url).toMatch(/^https:\/\/tile\.openstreetmap\.org\/14\/\d+\/\d+\.png$/);
+    await expect(section.getByText('Ubicación aproximada')).toBeVisible();
+    await expect(section.getByRole('link', { name: 'OpenStreetMap' })).toHaveAttribute(
+      'href',
+      'https://www.openstreetmap.org/copyright'
+    );
+    // Ningún punto ni marca: solo el círculo del área (y su filete).
+    await expect(section.locator('svg.location-map__overlay circle')).toHaveCount(2);
+    await expect(section.locator('.location-map__area')).toHaveCount(1);
+  });
+
+  test('P6: sin ubicación, «Ubicación» y «Getafe», y cero peticiones de teselas', async ({ page }) => {
+    test.skip(test.info().project.name !== 'w320-light', 'solo el ancho móvil');
+    const tileRequests: string[] = [];
+    page.on('request', (request) => {
+      if (new URL(request.url()).hostname === 'tile.openstreetmap.org') tileRequests.push(request.url());
+    });
+    await page.goto(`/properties/${E2E_NO_LOCATION_LISTING_ID}`);
+
+    const section = page.getByRole('region', { name: 'Ubicación' });
+    await expect(section.getByRole('heading', { name: 'Ubicación' })).toBeVisible();
+    await expect(section.getByText('Getafe')).toBeVisible();
+    await expect(section.locator('img, svg')).toHaveCount(0);
+    await expect(page.getByText('Ubicación aproximada')).toHaveCount(0);
+    expect(tileRequests).toEqual([]);
   });
 });
 

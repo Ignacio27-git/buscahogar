@@ -62,4 +62,6 @@ export const E2E_REMOVED_ONLY_LISTING_ID = E2E_LISTING_IDS.p3RemovedA;
 export const E2E_GALLERY_LISTING_ID = E2E_LISTING_IDS.p7Idealista;
 // D.10 (decisión 178): ficha con histórico de precios (P1: dos anuncios activos con cambios).
 export const E2E_HISTORY_LISTING_ID = E2E_LISTING_IDS.p1Idealista;
+// D.11 (decisión 179): P6 no tiene ubicación, solo municipio (Getafe): la sección «Ubicación» sin mapa.
+export const E2E_NO_LOCATION_LISTING_ID = E2E_LISTING_IDS.p6;
 export const E2E_MISSING_LISTING_ID = e2eUuid(0xffff);

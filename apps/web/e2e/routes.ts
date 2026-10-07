@@ -15,7 +15,8 @@ export interface E2eRoute {
   readonly path: string;
   // D.8a: la sección del mapa se renderiza en toda búsqueda válida. `markers` espera
   // marcadores; `empty` (0 coincidencias con ubicación) solo el lienzo y las teselas;
-  // `none` no tiene mapa (interpretación de `?q=`, detalle y errores).
+  // `none` no tiene mapa interactivo (Leaflet); el mapa estático de la ficha (D.11) se espera aparte,
+  // antes de esta comprobación.
   readonly map: 'none' | 'markers' | 'empty';
 }
 
@@ -59,6 +60,20 @@ export async function openRoute(page: Page, route: E2eRoute): Promise<void> {
     const image = document.querySelector<HTMLImageElement>('.property-gallery img');
     return image === null || (image.complete && image.naturalWidth > 0);
   });
+  // D.11 (decisión 179): el mapa estático de la ficha, si existe. Las teselas son `loading=lazy`,
+  // así que hay que acercarse para que se pidan; se espera a que todas decodifiquen y se vuelve
+  // arriba. Va ANTES del `return` de `none`: las rutas de ficha no tienen mapa interactivo.
+  const staticMap = page.locator('.location-map');
+  if ((await staticMap.count()) > 0) {
+    await staticMap.scrollIntoViewIfNeeded();
+    await page.waitForFunction(() => {
+      const tiles = [...document.querySelectorAll<HTMLImageElement>('.location-map img')];
+      return tiles.length > 0 && tiles.every((tile) => tile.complete && tile.naturalWidth > 0);
+    });
+    await page.evaluate(() => {
+      window.scrollTo(0, 0);
+    });
+  }
   if (route.map === 'none') return;
   const frame = page.locator('.search-map__frame');
   await frame.waitFor({ state: 'attached' });
