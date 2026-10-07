@@ -16,6 +16,9 @@ const COPYRIGHT_LINK = 'https://www.openstreetmap.org/copyright';
 // Rutas exactas relativas a `src/`.
 const CANVAS = 'components/search-map-canvas.tsx';
 const WRAPPER = 'components/search-map.tsx';
+// D.11 (decisión 179): el host de teselas vive en un único módulo que importan
+// el lienzo interactivo y el mapa estático de la ficha.
+const TILE_MODULE = 'lib/osm-tiles.ts';
 // D.8a (decisión 165): hoja de reglas propia del mapa, sin literales de color.
 const MAP_STYLESHEET = 'components/search-map-canvas.css';
 const DRAW_STATE = 'components/draw-polygon-state.ts';
@@ -61,19 +64,31 @@ describe('ficheros del mapa — sin HTML de cadena y sin fetch (SMV-6, SMV-12)',
   });
 });
 
-describe('host de teselas — solo en search-map-canvas.tsx (SMV-9, decisión 112)', () => {
+describe('host de teselas — solo en lib/osm-tiles.ts (SMV-9, decisiones 112 y 179)', () => {
   it('ningún otro fichero de src/ contiene el host de teselas', () => {
-    const canvasAbsolute = `${SRC_DIR}${CANVAS}`;
+    const tileModuleAbsolute = `${SRC_DIR}${TILE_MODULE}`;
     for (const file of collectSourceFiles(SRC_DIR)) {
-      if (file === canvasAbsolute) {
+      if (file === tileModuleAbsolute) {
         continue;
       }
       expect(readFileSync(file, 'utf8'), file).not.toContain(TILE_HOST);
     }
   });
 
-  it('el canvas SÍ contiene la URL de teselas https', () => {
-    expect(read(CANVAS)).toContain(`https://${TILE_HOST}/{z}/{x}/{y}.png`);
+  it('el módulo de teselas SÍ contiene la plantilla https', () => {
+    expect(read(TILE_MODULE)).toContain(`https://${TILE_HOST}/{z}/{x}/{y}.png`);
+  });
+
+  it('el canvas importa la plantilla del módulo y la pasa a la <TileLayer>', () => {
+    const source = read(CANVAS);
+    expect(source).toMatch(/import \{[^}]*\bOSM_TILE_URL_TEMPLATE\b[^}]*\} from '@\/lib\/osm-tiles'/);
+    expect(source).toContain('<TileLayer url={OSM_TILE_URL_TEMPLATE}');
+  });
+
+  it('el módulo de teselas no usa fetch ni HTML de cadena', () => {
+    const source = read(TILE_MODULE);
+    expect(source).not.toMatch(/\bfetch\s*\(/);
+    expect(source).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML/);
   });
 });
 

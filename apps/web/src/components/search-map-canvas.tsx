@@ -1,8 +1,8 @@
 // ROADMAP 2.6 (decisiones 112-114) — lienzo del mapa. Sin `'use client'`: se
 // carga solo a través del wrapper `search-map.tsx` (dynamic, ssr:false), así
-// que es código de cliente por el grafo de imports. Único fichero de `src/`
-// que conoce el host de teselas de OpenStreetMap: el navegador las pide
-// directamente (el servidor nunca las descarga ni las proxea, SMV-9).
+// que es código de cliente por el grafo de imports. El host de teselas de
+// OpenStreetMap vive en `lib/osm-tiles.ts` (decisión 179): el navegador las
+// pide directamente (el servidor nunca las descarga ni las proxea, SMV-9).
 //
 // CSS de Leaflet: se importa aquí, junto al componente que lo necesita, y no
 // en `layout.tsx`, para que la hoja de estilos tampoco viaje con la lista.
@@ -18,12 +18,13 @@ import { useEffect } from 'react';
 import type { ReactElement } from 'react';
 import { MapContainer, Polygon, TileLayer, ZoomControl, useMap } from 'react-leaflet';
 
+import { OSM_TILE_URL_TEMPLATE } from '@/lib/osm-tiles';
+
 import { MapClusterLayer } from './map-cluster-layer';
 import { MapDrawControl } from './map-draw-control';
 import type { SearchMapProps } from './search-map-types';
 
-// Decisión 112: un solo host, sin subdominios a/b/c.
-const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+// Decisión 112 (enmendada por la 179): el host de teselas vive en `lib/osm-tiles.ts`.
 // SMV-9 (ODbL): literal exacto con enlace a la página de copyright.
 const ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
@@ -85,7 +86,7 @@ export default function SearchMapCanvas(props: SearchMapProps): ReactElement {
     <MapContainer {...view} className="search-map__canvas" scrollWheelZoom zoomControl={false}>
       <ZoomControl zoomInTitle="Acercar" zoomOutTitle="Alejar" />
       <InitialFrame bounds={bounds} />
-      <TileLayer url={TILE_URL} attribution={ATTRIBUTION} maxZoom={19} />
+      <TileLayer url={OSM_TILE_URL_TEMPLATE} attribution={ATTRIBUTION} maxZoom={19} />
       {props.polygon !== null ? (
         <Polygon
           positions={props.polygon.map((vertex): LatLngTuple => [vertex.lat, vertex.lon])}
