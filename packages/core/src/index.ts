@@ -250,4 +250,11 @@ export type {
   PriceSeries,
 } from './price-history/derive-price-history.js';
 
+// Comparación de los anuncios de origen de la ficha (D.12, decisión 180).
+export { compareSourceListings } from './source-comparison/compare-source-listings.js';
+export type {
+  SourceComparison,
+  SourceListingSnapshot,
+} from './source-comparison/compare-source-listings.js';
+
 export const CORE_VERSION = '0.0.1';
