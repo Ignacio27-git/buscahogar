@@ -66,6 +66,9 @@ interface ListingSeed {
   readonly priceCents: number;
   // Solo P7 lleva miniatura (decisión 175); el resto, `null` (S4.6).
   readonly thumbnailUrl?: string;
+  // D.10: versiones anteriores a la vigente, de la más antigua a la más reciente. La vigente
+  // sigue siendo la de `priceCents` en `SEEN_AT`, así que búsqueda y mapa no cambian.
+  readonly history?: readonly { readonly priceCents: number; readonly capturedAt: Date }[];
 }
 
 interface PropertySeed {
@@ -84,7 +87,7 @@ interface PropertySeed {
   readonly listings: readonly ListingSeed[];
 }
 
-// P1: dos anuncios activos de dos fuentes. P2: uno activo y uno retirado.
+// P1: dos anuncios activos de dos fuentes, con histórico de precios (D.10). P2: uno activo y uno retirado.
 // P3: solo retirados (no aparece en la búsqueda; su detalle sí resuelve).
 // P4 y P5: activos con ubicación. P6: activo sin ubicación. P7: solo inactivos sin
 // redactar, con dos fotos y baños y planta sin consolidar (ficha de D.9).
@@ -101,8 +104,24 @@ const PROPERTY_SEEDS: readonly PropertySeed[] = [
     title: 'Piso luminoso en Getafe centro',
     location: { x: -3.7324, y: 40.3063 },
     listings: [
-      { id: E2E_LISTING_IDS.p1Idealista, source: 'idealista', status: 'active', priceCents: 85000 },
-      { id: E2E_LISTING_IDS.p1Kyero, source: 'kyero', status: 'active', priceCents: 87000 },
+      {
+        id: E2E_LISTING_IDS.p1Idealista,
+        source: 'idealista',
+        status: 'active',
+        priceCents: 85000,
+        // Dos versiones consecutivas de igual precio: la segunda se colapsa en la ficha.
+        history: [
+          { priceCents: 90000, capturedAt: new Date('2026-07-01T10:00:00Z') },
+          { priceCents: 90000, capturedAt: new Date('2026-08-01T10:00:00Z') },
+        ],
+      },
+      {
+        id: E2E_LISTING_IDS.p1Kyero,
+        source: 'kyero',
+        status: 'active',
+        priceCents: 87000,
+        history: [{ priceCents: 88000, capturedAt: new Date('2026-08-10T10:00:00Z') }],
+      },
     ],
   },
   {
@@ -223,6 +242,9 @@ export function buildE2eFixture(): E2eFixture {
     propertyListings: (typeof propertyListings.$inferInsert)[];
   } = { properties: [], listings: [], versions: [], propertyListings: [] };
 
+  // Ids de las versiones históricas (D.10): rango 0x70 libre, distinto de las vigentes (0x50 + n).
+  let historicalVersionCount = 0;
+
   PROPERTY_SEEDS.forEach((seed, propertyIndex) => {
     const active = seed.listings.filter((listing) => listing.status === 'active');
     // Decisión 109: el precio mostrado es el mínimo de los activos; sin
@@ -275,18 +297,26 @@ export function buildE2eFixture(): E2eFixture {
         inactiveSince: removed ? INACTIVE_SINCE : inactive ? RECENTLY_INACTIVE_SINCE : null,
         inactiveReason: removed || inactive ? 'delisted' : null,
         tombstonedAt: removed ? TOMBSTONED_AT : null,
-        firstSeenAt: SEEN_AT,
+        // La primera captura del histórico; sin él, `SEEN_AT`.
+        firstSeenAt: listing.history?.[0]?.capturedAt ?? SEEN_AT,
         lastSeenAt: removed ? REMOVED_LAST_SEEN_AT : inactive ? INACTIVE_LAST_SEEN_AT : SEEN_AT,
         createdAt: SEEN_AT,
         updatedAt: SEEN_AT,
       });
 
-      fixture.versions.push({
-        id: versionId,
+      const history = listing.history ?? [];
+      const versionRow = (
+        id: string,
+        version: number,
+        isCurrent: boolean,
+        priceCents: number,
+        capturedAt: Date
+      ): typeof listingVersions.$inferInsert => ({
+        id,
         listingId: listing.id,
-        version: 1,
-        isCurrent: true,
-        priceCents: listing.priceCents,
+        version,
+        isCurrent,
+        priceCents,
         surfaceM2: seed.surfaceM2,
         rooms: seed.rooms,
         bathrooms: seed.bathrooms,
@@ -298,9 +328,23 @@ export function buildE2eFixture(): E2eFixture {
         propertyType: seed.propertyType,
         operation: seed.operation,
         raw: removed ? null : { fixture: 'e2e', source: listing.source },
-        capturedAt: SEEN_AT,
-        createdAt: SEEN_AT,
+        capturedAt,
+        createdAt: capturedAt,
       });
+
+      history.forEach((entry, index) => {
+        historicalVersionCount += 1;
+        fixture.versions.push(
+          versionRow(
+            e2eUuid(0x70 + historicalVersionCount),
+            index + 1,
+            false,
+            entry.priceCents,
+            entry.capturedAt
+          )
+        );
+      });
+      fixture.versions.push(versionRow(versionId, history.length + 1, true, listing.priceCents, SEEN_AT));
 
       fixture.propertyListings.push({
         id: e2eUuid(0x60 + ordinal),

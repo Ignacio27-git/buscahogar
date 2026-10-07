@@ -43,7 +43,7 @@ describe('buildE2eFixture — determinismo (R3)', () => {
       ...fixture.versions.map((row) => row.id),
       ...fixture.propertyListings.map((row) => row.id),
     ];
-    expect(ids).toHaveLength(2 + 1 + 1 + 7 + 11 + 11 + 11);
+    expect(ids).toHaveLength(2 + 1 + 1 + 7 + 11 + 14 + 11);
     expect(new Set(ids).size).toBe(ids.length);
     for (const id of ids) {
       expect(id).toMatch(UUID_V4);
@@ -176,8 +176,10 @@ describe('buildE2eFixture — coherencia de la caché de visibilidad (decisión 
   it('active_listing_count, listing_count y min_price_cents coinciden con sus anuncios', () => {
     for (const property of fixture.properties) {
       const members = listingsOf(property.id ?? '');
+      // D.10: un anuncio puede tener varias versiones; el precio vigente es el de la actual.
       const priceOf = (listingId: string | undefined): number =>
-        fixture.versions.find((row) => row.listingId === listingId)?.priceCents ?? Number.NaN;
+        fixture.versions.find((row) => row.listingId === listingId && row.isCurrent === true)
+          ?.priceCents ?? Number.NaN;
       const active = members.filter((listing) => listing.status === 'active');
       const pool = active.length > 0 ? active : members;
       expect(property.listingCount).toBe(members.length);
@@ -190,16 +192,60 @@ describe('buildE2eFixture — coherencia de la caché de visibilidad (decisión 
     expect(p3?.minPriceCents).toBeGreaterThan(0);
   });
 
-  it('cada anuncio tiene una única versión vigente y una única fila de deduplicación con su desglose', () => {
+  it('cada anuncio tiene exactamente una versión vigente, que es la puntuada, y una única fila de deduplicación con su desglose', () => {
     for (const listing of fixture.listings) {
       const versions = fixture.versions.filter((row) => row.listingId === listing.id);
-      expect(versions).toHaveLength(1);
-      expect(versions[0]?.isCurrent).toBe(true);
+      const current = versions.filter((row) => row.isCurrent === true);
+      expect(current).toHaveLength(1);
       const links = fixture.propertyListings.filter((row) => row.listingId === listing.id);
       expect(links).toHaveLength(1);
-      expect(links[0]?.scoredListingVersionId).toBe(versions[0]?.id);
+      expect(links[0]?.scoredListingVersionId).toBe(current[0]?.id);
       expect(Object.keys(links[0]?.signals ?? {}).length).toBeGreaterThan(0);
     }
+  });
+});
+
+// D.10 (decisión 178): P1 es la única vivienda con histórico de precios.
+describe('buildE2eFixture — histórico de precios de P1 (D.10)', () => {
+  const versionsOf = (listingId: string): typeof fixture.versions =>
+    fixture.versions
+      .filter((row) => row.listingId === listingId)
+      .sort((a, b) => a.version - b.version);
+
+  it('P1 tiene tres versiones en Idealista y dos en Kyero; el resto, una', () => {
+    expect(versionsOf(E2E_LISTING_IDS.p1Idealista)).toHaveLength(3);
+    expect(versionsOf(E2E_LISTING_IDS.p1Kyero)).toHaveLength(2);
+    const p1 = new Set([E2E_LISTING_IDS.p1Idealista, E2E_LISTING_IDS.p1Kyero]);
+    for (const listing of fixture.listings.filter((row) => !p1.has(row.id ?? ''))) {
+      expect(versionsOf(listing.id ?? '')).toHaveLength(1);
+    }
+  });
+
+  it('hay un par consecutivo de igual precio (para ejercitar el colapso)', () => {
+    const prices = versionsOf(E2E_LISTING_IDS.p1Idealista).map((row) => row.priceCents);
+    expect(prices.some((price, index) => index > 0 && price === prices[index - 1])).toBe(true);
+  });
+
+  it('versiones crecientes en número y en fecha, con días UTC distintos; la vigente es la última', () => {
+    for (const listingId of [E2E_LISTING_IDS.p1Idealista, E2E_LISTING_IDS.p1Kyero]) {
+      const versions = versionsOf(listingId);
+      const days = versions.map((row) => row.capturedAt?.toISOString().slice(0, 10));
+      expect(new Set(days).size).toBe(versions.length);
+      versions.forEach((row, index) => {
+        if (index > 0) {
+          expect(row.capturedAt?.getTime()).toBeGreaterThan(versions[index - 1]?.capturedAt?.getTime() ?? 0);
+          expect(row.version).toBeGreaterThan(versions[index - 1]?.version ?? 0);
+        }
+        expect(row.isCurrent).toBe(index === versions.length - 1);
+        expect(row.description).not.toBeNull();
+        expect(row.raw).not.toBeNull();
+      });
+    }
+  });
+
+  it('el mínimo de P1 sigue saliendo de las versiones vigentes (85000)', () => {
+    const p1 = fixture.properties.find((row) => row.id === E2E_PROPERTY_IDS.p1);
+    expect(p1?.minPriceCents).toBe(85000);
   });
 });
 
