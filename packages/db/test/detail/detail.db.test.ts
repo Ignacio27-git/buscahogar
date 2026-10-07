@@ -10,10 +10,14 @@ import { eq, inArray } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { compareSourceListings } from '@buscahogar/core';
+
 import type { ConsolidationInput } from '../../src/consolidation.js';
 import { writeConsolidation } from '../../src/consolidation.js';
 import type { Database } from '../../src/db.js';
 import { getPropertyDetailHeader, getPropertyPriceHistory, getPropertySources } from '../../src/detail.js';
+import { buildE2eFixture } from '../../src/e2e/fixture-data.js';
+import { insertE2eFixture } from '../../src/e2e/seed.js';
 import { listingVersions, listings, locations, properties, propertyListings, sources } from '../../src/tables.js';
 import { connectTestDb, truncateAll } from '../helpers/db-client.js';
 import { insertLocation } from '../helpers/fixtures.js';
@@ -573,5 +577,47 @@ describe('getPropertyPriceHistory — contra Postgres real (D.10)', () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+describe('D.12 — compareSourceListings coincide con la cabecera (decisión 109)', () => {
+  let db: Database;
+  let pool: Pool;
+
+  beforeAll(() => {
+    ({ db, pool } = connectTestDb());
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  beforeEach(async () => {
+    await truncateAll(pool);
+  });
+
+  it('en el dataset e2e el precio calculado es properties.min_price_cents y la primera fila es destacada', async () => {
+    const fixture = buildE2eFixture();
+    await insertE2eFixture(db, fixture);
+
+    const modes = new Set<string>();
+    for (const property of fixture.properties) {
+      const link = fixture.propertyListings.find((row) => row.propertyId === property.id);
+      expect(link).toBeDefined();
+      const header = await getPropertyDetailHeader(db, link?.listingId ?? '');
+      const rows = await getPropertySources(db, property.id ?? '');
+      const comparison = compareSourceListings(rows);
+
+      expect(comparison.mode).not.toBe('empty');
+      if (comparison.mode === 'empty') {
+        continue;
+      }
+      modes.add(comparison.mode);
+      expect(comparison.priceCents).toBe(header?.minPriceCents);
+      expect(comparison.highlightedIds).toContain(rows[0]?.listingId);
+    }
+
+    // El dataset cubre ambos modos: viviendas con anuncios activos y viviendas sin ninguno.
+    expect([...modes].sort()).toEqual(['active', 'none-active']);
   });
 });

@@ -24,6 +24,7 @@ import {
   zones,
 } from '../tables.js';
 import { buildE2eFixture } from './fixture-data.js';
+import type { E2eFixture } from './fixture-data.js';
 import { assertE2eOwnerDatabaseUrl, assertE2eWebDatabaseUrl, maintenanceUrl } from './guard.js';
 
 // Rol de solo lectura que ya existe en el servidor (decisión 056): el seed
@@ -99,9 +100,14 @@ async function grantReadOnlyAccess(pool: pg.Pool, databaseName: string): Promise
   }
 }
 
-// Todo o nada: un fallo a mitad no deja un dataset parcial.
-async function insertFixture(db: Database): Promise<void> {
-  const fixture = buildE2eFixture();
+// Todo o nada: un fallo a mitad no deja un dataset parcial. Exportada (D.12) para que
+// el test de consistencia de la ficha inserte exactamente los mismos datos que el seed,
+// sin duplicar las siete inserciones; importar este módulo no ejecuta nada (el
+// entrypoint de abajo se protege con `process.argv[1]`).
+export async function insertE2eFixture(
+  db: Database,
+  fixture: E2eFixture = buildE2eFixture()
+): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.insert(sources).values(fixture.sources);
     await tx.insert(locations).values(fixture.location);
@@ -121,7 +127,7 @@ export async function seedE2eDatabase(env: NodeJS.ProcessEnv = process.env): Pro
   try {
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
     await grantReadOnlyAccess(pool, target.databaseName);
-    await insertFixture(db);
+    await insertE2eFixture(db);
   } finally {
     await pool.end();
   }
