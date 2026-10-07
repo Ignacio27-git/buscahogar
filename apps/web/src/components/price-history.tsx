@@ -61,8 +61,20 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
           >
             {model.yLabels.map((label) => (
               <g key={`y-${String(label.y)}`}>
-                <line className="price-chart__grid" x1={Y_LABEL_X + 8} x2={308} y1={label.y} y2={label.y} />
-                <text className="price-chart__label" x={Y_LABEL_X} y={label.y} textAnchor="end" dominantBaseline="middle">
+                <line
+                  className="price-chart__grid"
+                  x1={Y_LABEL_X + 8}
+                  x2={308}
+                  y1={label.y}
+                  y2={label.y}
+                />
+                <text
+                  className="price-chart__label"
+                  x={Y_LABEL_X}
+                  y={label.y}
+                  textAnchor="end"
+                  dominantBaseline="middle"
+                >
                   {label.text}
                 </text>
               </g>
@@ -79,7 +91,10 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
               </text>
             ))}
             {model.series.map((s) => (
-              <g key={s.key} className={`price-chart__series price-chart__series--${String(s.styleIndex)}`}>
+              <g
+                key={s.key}
+                className={`price-chart__series price-chart__series--${String(s.styleIndex)}`}
+              >
                 {s.linePath !== null ? <path className="price-chart__line" d={s.linePath} /> : null}
                 {s.markerPaths.map((d, i) => (
                   <path key={`${s.key}-${String(i)}`} className="price-chart__marker" d={d} />
@@ -101,55 +116,69 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
                     <path className="price-chart__marker" d={markerPath(s.styleIndex, 12, 6)} />
                   </svg>
                   <span>{s.label}</span>
-                  {s.withdrawn ? <span className="price-history__badge">(no disponible)</span> : null}
+                  {s.withdrawn ? (
+                    <span className="price-history__badge">(no disponible)</span>
+                  ) : null}
                 </li>
               ))}
             </ul>
           </figcaption>
         </figure>
       ) : null}
-      <table className="price-history__table">
-        <caption>
-          Fechas en que nuestro barrido observó cada precio; no son fechas de publicación del portal.
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col">Fuente</th>
-            <th scope="col">Fecha</th>
-            <th scope="col">Precio</th>
-            <th scope="col">Variación</th>
-          </tr>
-        </thead>
-        <tbody>
-          {history.series.flatMap((s, index) =>
-            s.points.map((point, pointIndex) => (
-              <tr key={`${s.listingId}-${String(pointIndex)}`}>
-                <td>
-                  {labels[index]}
-                  {withdrawnOf(s.status) ? (
-                    <>
-                      {' '}
-                      <span className="price-history__badge">(no disponible)</span>
-                    </>
-                  ) : null}
-                </td>
-                <td>{formatUtcDate(point.capturedAt)}</td>
-                <td className="price-history__num">{formatPriceCents(point.priceCents)}</td>
-                <td className="price-history__num">
-                  {point.deltaCents === null ? (
-                    <>
-                      <span aria-hidden="true">—</span>
-                      <span className="sr-only">Primer precio observado</span>
-                    </>
-                  ) : (
-                    formatPriceChange(point.deltaCents, point.percentTenths)
-                  )}
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+      {/* Región con foco por teclado: a 320 px la tabla puede ser unos píxeles más ancha que la
+          columna y se desplaza aquí dentro, sin desbordar la página. */}
+      <div
+        className="price-history__scroll"
+        role="region"
+        aria-label="Tabla del histórico de precios"
+        tabIndex={0}
+      >
+        <table className="price-history__table">
+          <caption>
+            Fechas en que nuestro barrido observó cada precio; no son fechas de publicación del
+            portal.
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Fuente</th>
+              <th scope="col">Fecha</th>
+              <th scope="col">Precio</th>
+              <th scope="col">Variación</th>
+            </tr>
+          </thead>
+          <tbody>
+            {history.series.flatMap((s, index) =>
+              s.points.map((point, pointIndex) => (
+                <tr key={`${s.listingId}-${String(pointIndex)}`}>
+                  <td>
+                    {labels[index]}
+                    {withdrawnOf(s.status) ? (
+                      <>
+                        {' '}
+                        <span className="price-history__badge">(no disponible)</span>
+                      </>
+                    ) : null}
+                  </td>
+                  <td className="price-history__date">{formatUtcDate(point.capturedAt)}</td>
+                  <td className="price-history__num price-history__price">
+                    {formatPriceCents(point.priceCents)}
+                  </td>
+                  <td className="price-history__num">
+                    {point.deltaCents === null ? (
+                      <>
+                        <span aria-hidden="true">—</span>
+                        <span className="sr-only">Primer precio observado</span>
+                      </>
+                    ) : (
+                      formatPriceChange(point.deltaCents, point.percentTenths)
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

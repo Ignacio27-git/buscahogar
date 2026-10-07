@@ -1004,6 +1004,7 @@
   .price-chart__plot {
     display: block;
     inline-size: 100%;
+    max-inline-size: 24rem;
     block-size: auto;
   }
 
@@ -1074,6 +1075,10 @@
     flex: none;
   }
 
+  .price-history__scroll {
+    overflow-x: auto;
+  }
+
   .price-history__table {
     inline-size: 100%;
     border-collapse: collapse;
@@ -1089,11 +1094,27 @@
 
   .price-history__table th,
   .price-history__table td {
-    padding: 0.5rem 0.5rem 0.5rem 0;
+    padding: 0.5rem 0.375rem 0.5rem 0;
     border-block-start: 1px solid var(--rule);
     text-align: start;
     vertical-align: baseline;
-    overflow-wrap: anywhere;
+  }
+
+  .price-history__table th:last-child,
+  .price-history__table td:last-child {
+    padding-inline-end: 0;
+  }
+
+  .price-history__table .price-history__badge {
+    padding-inline: 0.25rem;
+  }
+
+  /* Fecha, precio y cabeceras no se parten a mitad de palabra o cifra; la fuente y la variación
+     ceden el ancho en los espacios. */
+  .price-history__table th,
+  .price-history__table .price-history__date,
+  .price-history__table .price-history__price {
+    white-space: nowrap;
   }
 
   .price-history__table th {

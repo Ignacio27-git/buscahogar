@@ -128,6 +128,14 @@ describe('PriceHistory', () => {
     expect(html).toContain('Idealista');
   });
 
+  it('la tabla va en una región con nombre y foco por teclado, por si desborda a 320 px', () => {
+    const html = render(TWO_LISTINGS);
+
+    expect(html).toMatch(
+      /<div class="price-history__scroll" role="region" aria-label="Tabla del histórico de precios" tabindex="0"><table/
+    );
+  });
+
   it('no emite atributos style (CSP)', () => {
     expect(render(TWO_LISTINGS)).not.toContain('style=');
     expect(render([obs('a', 'idealista', 1, '2026-01-01T00:00:00Z')])).not.toContain('style=');
