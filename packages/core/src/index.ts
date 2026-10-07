@@ -76,6 +76,17 @@ export type { PropertySource } from './contracts/property-source.js';
 // `../src/strategies/rule-based/...`, igual que el resto de tests de este
 // paquete (contracts.test.ts:3-9).
 export { haversineDistanceMeters } from './geo/distance.js';
+// Geometría Web Mercator del mapa estático de la ficha (D.11, decisión 179).
+export type { PixelPoint, StaticMapPlan, StaticMapTile, TileCoordinate } from './geo/tile-geometry.js';
+export {
+  APPROXIMATE_LOCATION_RADIUS_M,
+  latLonToTile,
+  metresPerPixel,
+  planStaticMap,
+  projectToWorldPixel,
+  TILE_SIZE_PX,
+  WEB_MERCATOR_MAX_LATITUDE,
+} from './geo/tile-geometry.js';
 // Códec puro del polígono (ROADMAP 2.6, decisión 115): lo usan el esquema de
 // search params y el control de dibujo del navegador.
 export type {
