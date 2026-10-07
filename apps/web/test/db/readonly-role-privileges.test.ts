@@ -18,7 +18,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 
-import { createDb } from '@buscahogar/db';
+import { createDb, getPropertyPriceHistory } from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
 import { coverageJobs, listings, locations, sources, zones } from '@buscahogar/db';
 
@@ -82,11 +82,12 @@ describeWithReadonlyDb(
     let ownerDb: Database;
     let ownerPool: import('../helpers/db-client.js').TestDbHandle['pool'];
     let readonlyPool: import('../helpers/db-client.js').TestDbHandle['pool'];
+    let readonlyDb: Database;
 
     beforeAll(() => {
       ({ db: ownerDb, pool: ownerPool } = connectTestDb());
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- describeWithReadonlyDb ya garantiza que la variable existe
-      ({ pool: readonlyPool } = createDb(process.env.WEB_DATABASE_URL!));
+      ({ db: readonlyDb, pool: readonlyPool } = createDb(process.env.WEB_DATABASE_URL!));
     });
 
     afterAll(async () => {
@@ -106,6 +107,17 @@ describeWithReadonlyDb(
       await seedCoverageJob(ownerDb);
 
       await expect(readonlyPool.query('select * from coverage_jobs limit 1')).resolves.toBeDefined();
+    });
+
+    // D.10: el histórico de precios lee `listing_versions` sin filtrar por
+    // `is_current`; el rol de solo lectura ya tiene SELECT (sin cambio de
+    // permisos).
+    it('SELECT en listing_versions SÍ está permitido', async () => {
+      await expect(readonlyPool.query('select * from listing_versions limit 1')).resolves.toBeDefined();
+    });
+
+    it('getPropertyPriceHistory se ejecuta con el rol de solo lectura', async () => {
+      await expect(getPropertyPriceHistory(readonlyDb, randomUUID())).resolves.toEqual([]);
     });
 
     it('INSERT en coverage_jobs está RECHAZADO', async () => {

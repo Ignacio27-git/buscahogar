@@ -55,6 +55,18 @@ export interface PropertyDetailSource {
   readonly address: string | null;
 }
 
+// D.10 — una observación de precio: una fila por versión de anuncio. Solo
+// estos cinco campos: ni `score`/`signals` ni el texto que el tombstone
+// redacta (decisión 107), de modo que un anuncio retirado o redactado sigue
+// aportando precio y fecha.
+export interface PropertyPriceObservation {
+  readonly sourceKey: string;
+  readonly listingId: string;
+  readonly status: string;
+  readonly priceCents: number;
+  readonly capturedAt: Date;
+}
+
 // Devuelve `undefined` cuando no hay ninguna fila `property_listings` para
 // este `listingId` — cubre los tres casos de 404 no cubiertos ya por la
 // validación Zod del parámetro (listing inexistente por completo, y el
@@ -120,4 +132,28 @@ export async function getPropertySources(db: Database, propertyId: string): Prom
     // Orden determinista (D.9): activos primero, luego precio y por último id,
     // para que la lista y la galería de la ficha compartan un único orden.
     .orderBy(sql`(${listings.status} = 'active') DESC`, asc(listingVersions.priceCents), asc(listings.id));
+}
+
+// D.10 — histórico de precios de la vivienda: TODAS las versiones de sus
+// anuncios (sin filtrar por `isCurrent` ni por `status`), en una única
+// sentencia. Orden determinista: `captured_at`, `version` e id del anuncio.
+// Sin LIMIT: pocas versiones por vivienda y sin consulta a fuentes externas.
+export async function getPropertyPriceHistory(
+  db: Database,
+  propertyId: string
+): Promise<readonly PropertyPriceObservation[]> {
+  return db
+    .select({
+      sourceKey: sources.key,
+      listingId: listings.id,
+      status: listings.status,
+      priceCents: listingVersions.priceCents,
+      capturedAt: listingVersions.capturedAt,
+    })
+    .from(propertyListings)
+    .innerJoin(listings, eq(listings.id, propertyListings.listingId))
+    .innerJoin(listingVersions, eq(listingVersions.listingId, listings.id))
+    .innerJoin(sources, eq(sources.id, listings.sourceId))
+    .where(eq(propertyListings.propertyId, propertyId))
+    .orderBy(asc(listingVersions.capturedAt), asc(listingVersions.version), asc(listings.id));
 }

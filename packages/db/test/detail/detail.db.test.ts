@@ -8,12 +8,12 @@
 import { randomUUID } from 'node:crypto';
 import { inArray } from 'drizzle-orm';
 import type { Pool } from 'pg';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConsolidationInput } from '../../src/consolidation.js';
 import { writeConsolidation } from '../../src/consolidation.js';
 import type { Database } from '../../src/db.js';
-import { getPropertyDetailHeader, getPropertySources } from '../../src/detail.js';
+import { getPropertyDetailHeader, getPropertyPriceHistory, getPropertySources } from '../../src/detail.js';
 import { listingVersions, listings, properties, propertyListings, sources } from '../../src/tables.js';
 import { connectTestDb, truncateAll } from '../helpers/db-client.js';
 
@@ -362,5 +362,169 @@ describe('detail.ts — Q1/Q2 contra Postgres real (diseño D3)', () => {
     // tipo (uuid inválido).
     const stillQueryable = await db.select().from(properties).limit(1);
     expect(Array.isArray(stillQueryable)).toBe(true);
+  });
+});
+
+// D.10 — histórico de precios: todas las versiones, sin filtrar por
+// `isCurrent` ni por `status`, en una única sentencia.
+interface HistoryVersion {
+  readonly version: number;
+  readonly priceCents: number;
+  readonly capturedAt: string;
+  readonly isCurrent?: boolean;
+  readonly redacted?: boolean;
+}
+
+async function insertHistoryVersions(
+  db: Database,
+  listingId: string,
+  versions: readonly HistoryVersion[]
+): Promise<void> {
+  for (const v of versions) {
+    await db.insert(listingVersions).values({
+      listingId,
+      version: v.version,
+      isCurrent: v.isCurrent ?? false,
+      priceCents: v.priceCents,
+      operation: 'sale',
+      description: v.redacted === true ? null : 'texto',
+      raw: v.redacted === true ? null : { a: 1 },
+      capturedAt: new Date(v.capturedAt),
+    });
+  }
+}
+
+describe('getPropertyPriceHistory — contra Postgres real (D.10)', () => {
+  let db: Database;
+  let pool: Pool;
+
+  beforeAll(() => {
+    ({ db, pool } = connectTestDb());
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  beforeEach(async () => {
+    await truncateAll(pool);
+  });
+
+  async function propertyWithListing(
+    sourceKey: string,
+    status?: string
+  ): Promise<{ readonly propertyId: string; readonly listingId: string }> {
+    const sourceId = await insertSourceKeyed(db, sourceKey);
+    const listingId = await insertListingRow(db, sourceId, status !== undefined ? { status } : {});
+    const propertyId = await insertPropertyRow(db, { listingCount: 1 });
+    await linkPropertyListing(db, propertyId, listingId);
+    return { propertyId, listingId };
+  }
+
+  it('devuelve todas las versiones de un anuncio, también las no vigentes', async () => {
+    const { propertyId, listingId } = await propertyWithListing('idealista');
+    await insertHistoryVersions(db, listingId, [
+      { version: 1, priceCents: 300_000, capturedAt: '2026-01-01T10:00:00Z' },
+      { version: 2, priceCents: 290_000, capturedAt: '2026-02-01T10:00:00Z' },
+      { version: 3, priceCents: 280_000, capturedAt: '2026-03-01T10:00:00Z', isCurrent: true },
+    ]);
+
+    const rows = await getPropertyPriceHistory(db, propertyId);
+
+    expect(rows.map((r) => r.priceCents)).toEqual([300_000, 290_000, 280_000]);
+    expect(rows.every((r) => r.listingId === listingId && r.sourceKey === 'idealista')).toBe(true);
+    expect(rows[0]?.capturedAt).toBeInstanceOf(Date);
+  });
+
+  it('una vivienda desconocida devuelve un array vacío', async () => {
+    const rows = await getPropertyPriceHistory(db, randomUUID());
+    expect(rows).toEqual([]);
+  });
+
+  it('un anuncio retirado conserva sus versiones con su estado', async () => {
+    const { propertyId, listingId } = await propertyWithListing('kyero', 'removed');
+    await insertHistoryVersions(db, listingId, [
+      { version: 1, priceCents: 100_000, capturedAt: '2026-01-01T10:00:00Z' },
+      { version: 2, priceCents: 95_000, capturedAt: '2026-02-01T10:00:00Z', isCurrent: true },
+    ]);
+
+    const rows = await getPropertyPriceHistory(db, propertyId);
+
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.status === 'removed')).toBe(true);
+  });
+
+  it('un anuncio con descripción y raw redactados (107) mantiene precio y fecha', async () => {
+    const { propertyId, listingId } = await propertyWithListing('idealista', 'removed');
+    await insertHistoryVersions(db, listingId, [
+      { version: 1, priceCents: 100_000, capturedAt: '2026-01-01T10:00:00Z', redacted: true },
+      { version: 2, priceCents: 100_000, capturedAt: '2026-02-01T10:00:00Z', isCurrent: true, redacted: true },
+    ]);
+
+    const rows = await getPropertyPriceHistory(db, propertyId);
+
+    expect(rows.map((r) => [r.priceCents, r.capturedAt.toISOString()])).toEqual([
+      [100_000, '2026-01-01T10:00:00.000Z'],
+      [100_000, '2026-02-01T10:00:00.000Z'],
+    ]);
+  });
+
+  it('desempata por capturedAt, luego versión y luego id de anuncio, igual en cada llamada', async () => {
+    const sourceId = await insertSourceKeyed(db, 'idealista');
+    const a = await insertListingRow(db, sourceId, { id: '00000000-0000-4000-8000-000000000002' });
+    const b = await insertListingRow(db, sourceId, { id: '00000000-0000-4000-8000-000000000001' });
+    const propertyId = await insertPropertyRow(db, { listingCount: 2 });
+    await linkPropertyListing(db, propertyId, a);
+    await linkPropertyListing(db, propertyId, b);
+    const same = '2026-01-01T10:00:00Z';
+    await insertHistoryVersions(db, a, [
+      { version: 1, priceCents: 1, capturedAt: same },
+      { version: 2, priceCents: 2, capturedAt: same, isCurrent: true },
+    ]);
+    await insertHistoryVersions(db, b, [
+      { version: 1, priceCents: 3, capturedAt: same },
+      { version: 2, priceCents: 4, capturedAt: same, isCurrent: true },
+    ]);
+
+    const first = await getPropertyPriceHistory(db, propertyId);
+    const second = await getPropertyPriceHistory(db, propertyId);
+
+    // Versión ascendente primero; dentro de la misma versión, id de anuncio ascendente (b < a).
+    expect(first.map((r) => r.priceCents)).toEqual([3, 1, 4, 2]);
+    expect(second).toEqual(first);
+  });
+
+  it('proyecta exactamente cinco campos', async () => {
+    const { propertyId, listingId } = await propertyWithListing('idealista');
+    await insertHistoryVersions(db, listingId, [
+      { version: 1, priceCents: 1, capturedAt: '2026-01-01T10:00:00Z', isCurrent: true },
+    ]);
+
+    const [row] = await getPropertyPriceHistory(db, propertyId);
+
+    expect(Object.keys(row ?? {}).sort()).toEqual(['capturedAt', 'listingId', 'priceCents', 'sourceKey', 'status']);
+  });
+
+  it('emite una única sentencia SQL para varios anuncios y versiones (sin N+1)', async () => {
+    const sourceId = await insertSourceKeyed(db, 'idealista');
+    const propertyId = await insertPropertyRow(db, { listingCount: 3 });
+    for (let i = 0; i < 3; i += 1) {
+      const listingId = await insertListingRow(db, sourceId);
+      await linkPropertyListing(db, propertyId, listingId);
+      await insertHistoryVersions(db, listingId, [
+        { version: 1, priceCents: 100 + i, capturedAt: '2026-01-01T10:00:00Z' },
+        { version: 2, priceCents: 200 + i, capturedAt: '2026-02-01T10:00:00Z' },
+        { version: 3, priceCents: 300 + i, capturedAt: '2026-03-01T10:00:00Z', isCurrent: true },
+      ]);
+    }
+
+    const spy = vi.spyOn(pool, 'query');
+    try {
+      const rows = await getPropertyPriceHistory(db, propertyId);
+      expect(rows).toHaveLength(9);
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
