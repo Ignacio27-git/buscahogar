@@ -15,6 +15,7 @@ import type { ReactElement } from 'react';
 
 import type { PropertyDetailSource } from '@buscahogar/db';
 
+import { formatUtcDate } from '@/lib/format-date';
 import { formatPriceCents } from '@/lib/format-price';
 import { sourceLabel } from '@/lib/search-labels';
 
@@ -22,18 +23,8 @@ export interface SourceListProps {
   readonly sources: readonly PropertyDetailSource[];
 }
 
-// Getters UTC, no locales: las fechas llegan de Postgres
-// (`timestamp with time zone`) y el runtime de test/CI no debe influir en
-// qué día cae la medianoche de un fixture.
-function formatObservedAt(date: Date): string {
-  const day = String(date.getUTCDate()).padStart(2, '0');
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const year = String(date.getUTCFullYear());
-  return `${day}/${month}/${year}`;
-}
-
 function formatObservedPhotos(numPhotos: number | null, lastSeenAt: Date): string {
-  const observedAt = formatObservedAt(lastSeenAt);
+  const observedAt = formatUtcDate(lastSeenAt);
   if (numPhotos === null) {
     return `Sin datos de fotos (visto por última vez el ${observedAt})`;
   }
