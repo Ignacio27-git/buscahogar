@@ -1,8 +1,9 @@
-// ROADMAP 1.12 (diseño D3/D6; arbitraje obs #193 AR-5) — una fila por
-// anuncio de origen, precio propio, enlace de salida, y el recuento de
-// fotos como cifra FECHADA junto a `lastSeenAt` (nunca un número vivo suelto
-// — D6, AR-5: `numPhotos` es identity-column, congelada en el primer
-// avistamiento).
+// ROADMAP 1.12 y D.12 (decisión 180) — una fila por anuncio de origen, precio
+// propio, enlace de salida y el recuento de fotos como cifra FECHADA junto a
+// `lastSeenAt` (nunca un número vivo suelto — D6, AR-5: `numPhotos` es
+// identity-column, congelada en el primer avistamiento). D.12 añade la
+// comparación: «Más económico» / «Precio más bajo», el aviso sin anuncios
+// activos y la nota de agrupación.
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -15,7 +16,7 @@ function makeSource(overrides: Partial<PropertyDetailSource>): PropertyDetailSou
     listingId: 'aaaaaaaa-0000-0000-0000-000000000001',
     sourceKey: 'idealista',
     url: 'https://www.idealista.com/inmueble/1',
-    priceCents: 100000,
+    priceCents: 10000000,
     thumbnailUrl: 'https://img4.idealista.com/1.jpg',
     numPhotos: 46,
     status: 'active',
@@ -30,6 +31,10 @@ function makeSource(overrides: Partial<PropertyDetailSource>): PropertyDetailSou
   };
 }
 
+function rowsOf(html: string): string[] {
+  return [...html.matchAll(/<li[^>]*>(.*?)<\/li>/g)].map((match) => match[1] ?? '');
+}
+
 describe('SourceList (D3/D6, AR-5) — cada fuente con su propio precio y enlace', () => {
   it('dos fuentes con precios distintos aparecen en filas independientes, cada precio junto a su propia fuente', () => {
     const sources = [
@@ -38,7 +43,7 @@ describe('SourceList (D3/D6, AR-5) — cada fuente con su propio precio y enlace
     ];
     const html = renderToStaticMarkup(<SourceList sources={sources} />);
 
-    const items = [...html.matchAll(/<li[^>]*>(.*?)<\/li>/g)].map((match) => match[1]);
+    const items = rowsOf(html);
     expect(items).toHaveLength(2);
     expect(items[0]).toContain('Idealista');
     // `.toLocaleString('es-ES')` con la regla CLDR "min2" (Node 22, ICU
@@ -57,21 +62,49 @@ describe('SourceList (D3/D6, AR-5) — cada fuente con su propio precio y enlace
     expect(html).toContain('href="https://www.idealista.com/inmueble/42"');
   });
 
-  it('el recuento de fotos se muestra junto a una frase que lo fecha con lastSeenAt, nunca como número suelto', () => {
-    const sources = [makeSource({ numPhotos: 46, lastSeenAt: new Date('2026-09-10T00:00:00Z') })];
+  it('cada fila etiqueta Precio, Fotos, Visto por última vez y Estado', () => {
+    const sources = [
+      makeSource({ numPhotos: 46, lastSeenAt: new Date('2026-09-10T00:00:00Z'), status: 'active' }),
+    ];
     const html = renderToStaticMarkup(<SourceList sources={sources} />);
 
-    expect(html).toContain('46');
-    expect(html).toContain('10/09/2026');
-    expect(html).toMatch(/46 fotos.*10\/09\/2026/);
+    expect(html).toContain('<dl class="source-row__facts">');
+    expect(html).toMatch(/<dt>Precio<\/dt><dd[^>]*>100\.000 €<\/dd>/);
+    expect(html).toMatch(/<dt>Fotos<\/dt><dd[^>]*>46<\/dd>/);
+    expect(html).toMatch(/<dt>Visto por última vez<\/dt><dd[^>]*>10\/09\/2026<\/dd>/);
+    expect(html).toMatch(/<dt>Estado<\/dt><dd[^>]*>Disponible<\/dd>/);
   });
 
-  it('un anuncio retirado (status !== active) se marca como no disponible, pero sigue en la lista', () => {
-    const sources = [makeSource({ status: 'removed' })];
+  it('un anuncio sin recuento de fotos muestra «Sin datos» y no inventa una cifra', () => {
+    const html = renderToStaticMarkup(
+      <SourceList sources={[makeSource({ numPhotos: null, status: 'removed' })]} />
+    );
+
+    expect(html).toMatch(/<dt>Fotos<\/dt><dd[^>]*>Sin datos<\/dd>/);
+    expect(html).not.toMatch(/<dt>Fotos<\/dt><dd[^>]*>\d/);
+    expect(html).toMatch(/<dt>Precio<\/dt><dd[^>]*>100\.000 €<\/dd>/);
+    expect(html).toMatch(/<dt>Visto por última vez<\/dt><dd[^>]*>10\/09\/2026<\/dd>/);
+  });
+
+  it.each([
+    ['active', 'Disponible'],
+    ['inactive', 'No disponible'],
+    ['removed', 'Retirado'],
+    ['pending-review', 'No disponible'],
+    ['toString', 'No disponible'],
+  ])('el estado «%s» se muestra como «%s»', (status, label) => {
+    const html = renderToStaticMarkup(<SourceList sources={[makeSource({ status })]} />);
+
+    expect(html).toMatch(new RegExp(`<dt>Estado</dt><dd[^>]*>${label}</dd>`));
+  });
+
+  it('un anuncio retirado sigue en la lista y ya no lleva la insignia «(no disponible)»', () => {
+    const sources = [makeSource({ listingId: 'a' }), makeSource({ listingId: 'b', status: 'removed' })];
     const html = renderToStaticMarkup(<SourceList sources={sources} />);
 
-    expect(html).toContain('no disponible');
-    expect(html).toContain('idealista');
+    expect(rowsOf(html)).toHaveLength(2);
+    expect(html).not.toContain('(no disponible)');
+    expect(html).toMatch(/<dt>Estado<\/dt><dd[^>]*>Retirado<\/dd>/);
   });
 
   it('N=1 renderiza exactamente una fila, sin mensaje de degradación', () => {
@@ -89,12 +122,6 @@ describe('SourceList (D3/D6, AR-5) — cada fuente con su propio precio y enlace
     expect(html).not.toContain('foo');
   });
 
-  it('la insignia de un anuncio retirado lleva el texto literal «(no disponible)»', () => {
-    const html = renderToStaticMarkup(<SourceList sources={[makeSource({ status: 'removed' })]} />);
-
-    expect(html).toContain('<span class="source-row__badge">(no disponible)</span>');
-  });
-
   it('el enlace saliente dice «Ver en {Fuente}», es de la misma pestaña y lleva rel=external', () => {
     const html = renderToStaticMarkup(<SourceList sources={[makeSource({})]} />);
 
@@ -109,5 +136,107 @@ describe('SourceList (D3/D6, AR-5) — cada fuente con su propio precio y enlace
 
     expect(html).toContain('<section class="source-list" aria-labelledby="anuncios-de-origen">');
     expect(html).toContain('id="anuncios-de-origen"');
+  });
+});
+
+describe('SourceList (D.12) — comparación de anuncios', () => {
+  it('el anuncio activo más barato lleva «Más económico»; el resto no', () => {
+    const sources = [
+      makeSource({ listingId: 'l1', priceCents: 8_700_000, sourceKey: 'idealista' }),
+      makeSource({ listingId: 'l2', priceCents: 8_500_000, sourceKey: 'kyero' }),
+    ];
+    const html = renderToStaticMarkup(<SourceList sources={sources} />);
+    const items = rowsOf(html);
+
+    expect(items[0]).not.toContain('Más económico');
+    expect(items[1]).toContain('Más económico');
+    expect(html).not.toContain('Precio más bajo');
+  });
+
+  it('un único anuncio activo también lleva «Más económico»', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[makeSource({})]} />);
+
+    expect(html.match(/Más económico/g)).toHaveLength(1);
+  });
+
+  it('un empate destaca todas las filas empatadas', () => {
+    const sources = [
+      makeSource({ listingId: 'l1', priceCents: 8_500_000 }),
+      makeSource({ listingId: 'l2', priceCents: 8_500_000, sourceKey: 'kyero' }),
+      makeSource({ listingId: 'l3', priceCents: 9_000_000, sourceKey: 'fotocasa' }),
+    ];
+    const html = renderToStaticMarkup(<SourceList sources={sources} />);
+    const items = rowsOf(html);
+
+    expect(html.match(/Más económico/g)).toHaveLength(2);
+    expect(items[2]).not.toContain('Más económico');
+  });
+
+  it('un activo más caro que un retirado sigue siendo el destacado', () => {
+    const sources = [
+      makeSource({ listingId: 'l1', priceCents: 9_000_000 }),
+      makeSource({ listingId: 'l2', priceCents: 7_000_000, status: 'removed', sourceKey: 'kyero' }),
+    ];
+    const items = rowsOf(renderToStaticMarkup(<SourceList sources={sources} />));
+
+    expect(items[0]).toContain('Más económico');
+    expect(items[1]).not.toContain('Más económico');
+  });
+
+  it('la insignia queda fuera del enlace saliente', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[makeSource({})]} />);
+    const anchor = html.match(/<a [^>]*>.*?<\/a>/)?.[0] ?? '';
+
+    expect(anchor).toContain('Ver en Idealista');
+    expect(anchor).not.toContain('Más económico');
+    expect(html).toContain('<strong class="source-row__highlight">Más económico</strong>');
+  });
+
+  it('sin ningún anuncio activo avisa sobre la lista y marca «Precio más bajo», nunca «Más económico»', () => {
+    const sources = [
+      makeSource({ listingId: 'l1', status: 'inactive', priceCents: 9_000_000 }),
+      makeSource({ listingId: 'l2', status: 'removed', priceCents: 7_500_000, sourceKey: 'kyero' }),
+    ];
+    const html = renderToStaticMarkup(<SourceList sources={sources} />);
+    const items = rowsOf(html);
+
+    const warning =
+      'Ninguno de estos anuncios sigue disponible. Mostramos el más bajo de sus últimos precios.';
+    expect(html).toContain(`<p class="source-list__warning">${warning}</p>`);
+    expect(html.indexOf(warning)).toBeLessThan(html.indexOf('<ul'));
+    expect(html.match(/Precio más bajo/g)).toHaveLength(1);
+    expect(items[1]).toContain('Precio más bajo');
+    expect(html).not.toContain('Más económico');
+  });
+
+  it('con algún anuncio activo no muestra el aviso', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[makeSource({})]} />);
+
+    expect(html).not.toContain('source-list__warning');
+    expect(html).not.toContain('Ninguno de estos anuncios');
+  });
+
+  it('una lista vacía no muestra aviso ni insignia', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[]} />);
+
+    expect(html).toContain('id="anuncios-de-origen"');
+    expect(html).not.toContain('source-list__warning');
+    expect(html).not.toContain('Más económico');
+    expect(html).not.toContain('Precio más bajo');
+  });
+
+  it('la nota de agrupación se muestra siempre bajo el h2, con uno o varios anuncios', () => {
+    const note =
+      '<p class="source-list__note">Agrupamos estos anuncios porque creemos que describen la misma vivienda. Compruébalo en cada fuente.</p>';
+    const one = renderToStaticMarkup(<SourceList sources={[makeSource({})]} />);
+    const many = renderToStaticMarkup(
+      <SourceList sources={[makeSource({ listingId: 'l1' }), makeSource({ listingId: 'l2' })]} />
+    );
+
+    for (const html of [one, many]) {
+      expect(html).toContain(note);
+      expect(html.indexOf('</h2>')).toBeLessThan(html.indexOf(note));
+      expect(html.indexOf(note)).toBeLessThan(html.indexOf('<ul'));
+    }
   });
 });
