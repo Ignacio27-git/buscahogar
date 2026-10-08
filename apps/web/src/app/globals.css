@@ -649,14 +649,20 @@
     font-weight: 600;
   }
 
+  /* Panel de aviso con borde de 1px: lo comparten la revisión de `?q=` (D.7), el aviso de
+     fuentes sin anuncios activos (D.12) y el aviso de cobertura (D.13). Solo la alerta cambia el
+     borde a --danger; ningún aviso lleva franja lateral (decisión 182). */
   .nl-review__alert,
-  .nl-issues {
+  .nl-issues,
+  .source-list__warning,
+  .coverage-notice {
     padding: 0.75rem 1rem;
     border: 1px solid var(--rule);
     border-radius: var(--radius-panel);
   }
 
-  .nl-review__alert {
+  .nl-review__alert,
+  .coverage-notice[role='alert'] {
     border-color: var(--danger);
   }
 
@@ -952,25 +958,17 @@
     color: var(--ink-muted);
   }
 
-  /* El aviso de «sin anuncios activos» pesa más que la nota: texto en tinta y una regla de 3px,
-     sin color de acento. */
+  /* El aviso de «sin anuncios activos» pesa más que la nota: texto en tinta dentro del panel de
+     1px de D.7 (borde y relleno en la regla compartida), sin color de acento. */
   .source-list__warning {
-    padding-inline-start: 0.75rem;
-    border-inline-start: 3px solid var(--ink);
     color: var(--ink);
   }
 
-  /* D.13: aviso de cobertura. Misma regla de 3px que el aviso de fuentes; solo el fallo
-     (role="alert") cambia a --danger. El título pesa más que el detalle. */
+  /* D.13: aviso de cobertura en el mismo panel de 1px de D.7; solo el fallo (role="alert") cambia
+     el borde a --danger. El título pesa más que el detalle. */
   .coverage-notice {
     margin: 0 0 0.75rem;
-    padding-inline-start: 0.75rem;
-    border-inline-start: 3px solid var(--ink);
     color: var(--ink);
-  }
-
-  .coverage-notice[role='alert'] {
-    border-inline-start-color: var(--danger);
   }
 
   .coverage-notice__title {
