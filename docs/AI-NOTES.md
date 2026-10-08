@@ -3769,7 +3769,10 @@ y `.gitignore` ignora cualquier carpeta `coverage/`, así que el módulo no entr
 renombró a `coverage-jobs`); y la hipótesis de que quitar `nowrap` bastaba para que la tabla del histórico cupiera a 320 px falló en
 el e2e (8 px de desbordamiento en P7) y hubo que aplicar la alternativa de filas apiladas.
 
-**Cómo se detectó:** la auditoría a mano, el estado de git y el e2e en Docker.
+**Cómo se detectó:** la auditoría a mano, el estado de git y el e2e en Docker. (4) La aplicación omitió el e2e del svg del zoom y del
+cierre del popup que exigía el diseño (la fila E2E de la tabla de pruebas) y lo dejó en guardas estáticas; lo detectó el validador de la
+aplicación. Además, la primera versión del histórico apilado dejaba el valor de «Fuente» a mitad de fila (`space-between` con texto e
+insignia como dos elementos): se corrigió con el margen automático de la etiqueta.
 
 **Observación:** un paso que reutiliza un patrón también carga el suelo antes de editar; una hipótesis de maqueta se mide en el
 navegador antes de darla por buena; y un directorio nuevo se comprueba con `git check-ignore`.

@@ -1293,6 +1293,9 @@ auditoría de D.0-D.13 (notas de este paso), en este orden:
 - **Capturas revisadas a ojo:** `detail-gallery` a 320 px en claro (histórico apilado, iconos, sin desbordamiento), `home-filtered` a
   320 px en oscuro (los nueve chips envuelven), `detail-history` a 1280 px en claro (etiquetas del gráfico, precio fijo con filete) y
   `coverage-failed` a 1280 px en oscuro (variante agotada, sin enlace, aviso a 48rem, zoom con iconos).
+- **Ronda correctiva (2026-10-08):** el validador echó en falta el e2e de Leaflet que pedía el diseño: `search-map.spec.ts` comprueba ahora el svg
+  en el zoom y en el cierre del popup (nombre «Cerrar», cierra y lo conserva al reabrir), y los valores del histórico apilado, también el de
+  «Fuente», quedan alineados al final. Cambian 4 capturas (`detail` y `detail-gallery` a 320 px); e2e 632 superados y 520 omitidos.
 - **Tamaño real:** 1086 líneas añadidas y 172 borradas en código, tests y e2e (previstas ~805), sin documentación, las 98 capturas ni
   `axe-baseline.json`.
 
