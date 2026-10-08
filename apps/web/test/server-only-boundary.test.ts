@@ -10,7 +10,8 @@ import { describe, expect, it } from 'vitest';
 
 const SERVER_DIR = fileURLToPath(new URL('../src/server/', import.meta.url));
 
-const GUARDED_MODULES = ['db.ts', 'coverage-db.ts', 'coverage.ts', 'coverage-client.ts'] as const;
+// D.14 (decisión 187): `property-header.ts` consulta la base de datos con el handle de `db.ts`.
+const GUARDED_MODULES = ['db.ts', 'coverage-db.ts', 'coverage.ts', 'coverage-client.ts', 'property-header.ts'] as const;
 
 function importsServerOnly(source: string): boolean {
   return /^\s*import\s+['"]server-only['"]/m.test(source);

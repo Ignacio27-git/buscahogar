@@ -15,11 +15,10 @@
 // limpio, la interfaz de props local).
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { cache } from 'react';
 import type { ReactElement } from 'react';
 
 import { propertyDetailParamsSchema } from '@buscahogar/core';
-import { getPropertyDetailHeader, getPropertyPriceHistory, getPropertySources } from '@buscahogar/db';
+import { getPropertyPriceHistory, getPropertySources } from '@buscahogar/db';
 
 import { PropertyDescription } from '@/components/property-description';
 import { PropertyLocation } from '@/components/property-location';
@@ -31,6 +30,7 @@ import { countActiveSources } from '@/lib/count-active-sources';
 import type { RawSearchParams } from '@/lib/search-href';
 import { resolveSearchReturnLink } from '@/lib/search-return';
 import { getDb } from '@/server/db';
+import { loadPropertyHeader } from '@/server/property-header';
 
 interface PropertyDetailPageProps {
   readonly params: Promise<{ listingId: string }>;
@@ -38,10 +38,8 @@ interface PropertyDetailPageProps {
   readonly searchParams?: Promise<RawSearchParams>;
 }
 
-// D.5 (decisión 148): `generateMetadata` y la página necesitan la misma cabecera. Un
-// `cache()` de React, privado del módulo, la consulta una sola vez por petición y no
-// guarda nada entre peticiones (a diferencia de `unstable_cache` o `'use cache'`).
-const loadPropertyHeader = cache((listingId: string) => getPropertyDetailHeader(getDb(), listingId));
+// D.5 (decisión 148) y D.14 (decisión 187): la cabecera la carga `loadPropertyHeader`, el mismo
+// cargador memoizado que usa el layout, de modo que layout, página y metadatos son UNA consulta.
 
 // El título es el del anuncio, recortado; sin título (nulo, vacío o en blanco) se usa
 // un texto fijo, nunca «No consolidado». La plantilla del layout añade « · Buscahogar».

@@ -42,6 +42,7 @@ vi.mock('@buscahogar/db', async (importOriginal) => {
 });
 
 const PAGE_PATH = fileURLToPath(new URL('../src/app/properties/[listingId]/page.tsx', import.meta.url));
+const LOADER_PATH = fileURLToPath(new URL('../src/server/property-header.ts', import.meta.url));
 const VALID_LISTING_ID = '11111111-1111-4111-8111-111111111111';
 const NOT_FOUND = /NEXT_HTTP_ERROR_FALLBACK;404/;
 
@@ -156,9 +157,17 @@ describe('ficha inexistente (R3)', () => {
 describe('código fuente de la ficha (R3, R4)', () => {
   const source = readFileSync(PAGE_PATH, 'utf8');
 
-  it('importa cache de react y llama a getPropertyDetailHeader una sola vez', () => {
-    expect(source).toMatch(/import\s*\{[^}]*\bcache\b[^}]*\}\s*from\s*'react'/);
-    expect(source.match(/getPropertyDetailHeader\(/g)).toHaveLength(1);
+  it('usa el cargador compartido (decisión 187) y no consulta la cabecera por su cuenta', () => {
+    expect(source).toMatch(/import\s*\{[^}]*\bloadPropertyHeader\b[^}]*\}\s*from\s*'@\/server\/property-header'/);
+    expect(source).not.toMatch(/\bgetPropertyDetailHeader\(/);
+    expect(source).not.toMatch(/\bcache\(/);
+  });
+
+  it('el cargador compartido es el único sitio que llama a getPropertyDetailHeader, con cache de react', () => {
+    const loader = readFileSync(LOADER_PATH, 'utf8');
+    expect(loader).toMatch(/import\s*\{[^}]*\bcache\b[^}]*\}\s*from\s*'react'/);
+    expect(loader.match(/getPropertyDetailHeader\(/g)).toHaveLength(1);
+    expect(loader).toMatch(/export const loadPropertyHeader = cache\(/);
   });
 
   it('conserva los dos bloques notFound() literales en generateMetadata y en la página', () => {
