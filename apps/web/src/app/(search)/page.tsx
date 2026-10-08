@@ -16,6 +16,7 @@ import { CoverageNotice, isReloadable, noticeForOutcome } from '@/components/cov
 import type { CoverageNoticeVariant } from '@/components/coverage-notice';
 import { CoverageStatus } from '@/components/coverage-status';
 import { CriteriaForm } from '@/components/criteria-form';
+import { EmptyResults } from '@/components/empty-results';
 import { FilterBar } from '@/components/filter-bar';
 import { Pagination } from '@/components/pagination';
 import { ResultCard } from '@/components/result-card';
@@ -23,6 +24,7 @@ import { SearchMap } from '@/components/search-map';
 import type { MapPointView } from '@/components/search-map-types';
 import { SearchTextForm } from '@/components/search-text-form';
 import { StepIndicator } from '@/components/step-indicator';
+import { scopeEmptyResultsFilters, selectEmptyResultsKind } from '@/lib/empty-results';
 import { formatPriceCents } from '@/lib/format-price';
 import { PLACE_SUGGESTION_LIMIT, classifyPlaceMatches } from '@/lib/place-match';
 import { buildPropertyDetailHref } from '@/lib/property-href';
@@ -32,7 +34,7 @@ import {
   buildZoneSelectionHref,
   canonicalizeFormSubmission,
 } from '@/lib/search-href';
-import { countTrayFilters, formatListCount, formatMapCount } from '@/lib/search-labels';
+import { countTrayFilters, describeAppliedFilters, formatListCount, formatMapCount } from '@/lib/search-labels';
 import { pickSearchReturnParams } from '@/lib/search-return-params';
 import { resolveCoverageClientLimit } from '@/server/coverage-client';
 import { getCoverageDb } from '@/server/coverage-db';
@@ -353,6 +355,22 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
   // D.9 (decisión 171): una sola vez; las filas llevan los parámetros de la búsqueda
   // (con `page`) a la ficha. Los puntos del mapa siguen planos: el popup los añade en el cliente.
   const returnParams = pickSearchReturnParams(rawSearchParams, { includePage: true });
+  // D.14 (decisión 190): qué explica cada sección vacía. Con un polígono las dos consultas dan el
+  // mismo total; una zona sin cubrir no se aplicó (D10). El alcance se calcula una vez y lo
+  // comparten la lista y el mapa.
+  const polygonEmpty = criteria.polygon !== undefined && total === 0;
+  const zoneUnapplied = criteria.zone !== undefined && effectiveCriteria.geo === undefined;
+  const emptyScope = scopeEmptyResultsFilters({
+    filters: describeAppliedFilters(criteria, zoneName),
+    polygonEmpty,
+    zoneUnapplied,
+  });
+  const listEmptyKind =
+    results.length === 0
+      ? selectEmptyResultsKind({ page: criteria.page, polygonEmpty, filters: emptyScope.filters })
+      : null;
+  const mapEmptyKind =
+    total === 0 ? selectEmptyResultsKind({ page: 1, polygonEmpty, filters: emptyScope.filters }) : null;
   const pointViews: readonly MapPointView[] = points.map((point) => ({
     id: point.id,
     lat: point.lat,
@@ -375,12 +393,19 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
         />
         {/* DAS-11: región compartida; con polígono las dos consultas dan el mismo
             total, así que M === 0 vale también en páginas posteriores de la lista. */}
-        {criteria.polygon !== undefined && total === 0 ? <CoverageNotice variant={{ kind: 'outside-polygon' }} /> : null}
+        {polygonEmpty ? <CoverageNotice variant={{ kind: 'outside-polygon' }} /> : null}
       </div>
       <div className="search-results" data-view={view}>
         <section aria-label="Resultados" className="search-results__list">
           {results.length === 0 ? (
-            <p>No se encontraron viviendas con esos filtros.</p>
+            listEmptyKind !== null ? (
+              <EmptyResults
+                kind={listEmptyKind}
+                params={rawSearchParams}
+                filters={emptyScope.filters}
+                keepOnClear={emptyScope.keepOnClear}
+              />
+            ) : null
           ) : (
             <ul className="result-list">
               {results.map((result) => (
@@ -404,7 +429,8 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
               Mostrando {points.length} de {total}
             </p>
           ) : null}
-          {total === 0 ? <p>Ninguna vivienda con ubicación coincide con estos filtros</p> : null}
+          {mapEmptyKind === 'filtered' ? <p>Ninguna vivienda con ubicación coincide con tu búsqueda.</p> : null}
+          {mapEmptyKind === 'unfiltered' ? <p>Todavía no hay viviendas con ubicación.</p> : null}
           <p>Las posiciones del mapa pueden ser aproximadas.</p>
           {/* El marco es del servidor: el aviso de carga, el lienzo y el noscript
               comparten dimensiones, y sin JS el noscript queda dentro del marco. */}

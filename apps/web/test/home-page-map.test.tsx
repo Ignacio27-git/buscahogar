@@ -64,6 +64,14 @@ const POLYGON = '40.4,-3.7;40.4,-3.6;40.5,-3.6;40.5,-3.7';
 const NOT_COVERED = 'No hay viviendas en la zona dibujada.';
 const NO_SWEEPS = 'Dibujar una zona no pide su actualización';
 const RELOAD_LINK = '>Comprobar de nuevo</a>';
+// D.14: toda línea de estado vacío de lista o mapa que NO debe aparecer cuando el aviso de
+// cobertura es la única explicación.
+const EMPTY_LINES = [
+  'Ninguna vivienda coincide',
+  'Ninguna vivienda con ubicación',
+  'Todavía no hay viviendas',
+  'Esta página ya no tiene viviendas',
+];
 
 async function render(params: Record<string, string | string[] | undefined>): Promise<string> {
   return renderToStaticMarkup(await HomePage({ searchParams: Promise.resolve(params) }));
@@ -237,12 +245,14 @@ describe('lista y mapa en cada petición válida (SMV-15, WSL-D8a-1)', () => {
     expect(mapSection(html)).not.toContain('Página siguiente');
   });
 
-  it('sin resultados la lista dice su vacío y el mapa el suyo, una vez cada uno', async () => {
+  it('sin resultados ni filtros la lista dice su vacío y el mapa el suyo, una vez cada uno, sin hablar de filtros', async () => {
     const html = await render({});
-    expect(count(html, 'No se encontraron viviendas con esos filtros.')).toBe(1);
-    expect(listSection(html)).toContain('No se encontraron viviendas con esos filtros.');
-    expect(count(html, 'Ninguna vivienda con ubicación coincide con estos filtros')).toBe(1);
-    expect(mapSection(html)).toContain('Ninguna vivienda con ubicación coincide con estos filtros');
+    expect(count(html, 'Todavía no hay viviendas.')).toBe(1);
+    expect(listSection(html)).toContain('Todavía no hay viviendas.');
+    expect(count(html, 'Todavía no hay viviendas con ubicación.')).toBe(1);
+    expect(mapSection(html)).toContain('Todavía no hay viviendas con ubicación.');
+    expect(mapSection(html)).not.toMatch(/filtros/);
+    expect(html).not.toContain('Quitar');
   });
 });
 
@@ -362,16 +372,18 @@ describe('vista de mapa — estados vacío y de error (SMV-13, DAS-11)', () => {
   it('cero coincidencias: mensaje de vacío, sin truncado, el mapa sigue disponible', async () => {
     mapResult(0);
     const html = await render({ view: 'map' });
-    expect(html).toContain('Ninguna vivienda con ubicación coincide con estos filtros');
+    expect(html).toContain('Todavía no hay viviendas con ubicación.');
     expect(html).not.toContain('Mostrando');
     expect(html).not.toContain(NOT_COVERED);
     expect(html).toContain('data-testid="search-map"');
   });
 
-  it('cero coincidencias con polígono: vacío + aviso de fuera de cobertura sin condición de página', async () => {
+  it('cero coincidencias con polígono solo: el aviso de fuera de cobertura es la única explicación, sin condición de página', async () => {
     mapResult(0);
     const html = await render({ view: 'map', polygon: POLYGON, page: '4' });
-    expect(html).toContain('Ninguna vivienda con ubicación coincide con estos filtros');
+    for (const line of EMPTY_LINES) {
+      expect(html).not.toContain(line);
+    }
     expect(html).toContain(NOT_COVERED);
     expect(html).toContain(NO_SWEEPS);
     // D.8a (SMV-17): una sola vez, en la región compartida, antes de las secciones.
@@ -388,15 +400,56 @@ describe('vista de mapa — estados vacío y de error (SMV-13, DAS-11)', () => {
       expect(count(html, 'role="status"')).toBe(1);
       expect(html).not.toContain('aria-live');
       expect(html).not.toContain(RELOAD_LINK);
-      expect(count(html, 'No se encontraron viviendas con esos filtros.')).toBe(1);
-      expect(count(html, 'Ninguna vivienda con ubicación coincide con estos filtros')).toBe(1);
+      for (const line of EMPTY_LINES) {
+        expect(count(html, line)).toBe(0);
+      }
+      expect(count(html, 'Quitar «Zona dibujada»')).toBe(0);
     }
   );
+
+  // D.14 (D13) — polígono sin viviendas MÁS otro filtro: el aviso y la guía `filtered`, que
+  // nunca ofrece quitar el polígono.
+  it.each([{ view: 'list' }, { view: 'map' }, {}])(
+    'polígono, operación=sale y M=0 con %j: aviso una vez y guía filtered sin quitar el polígono',
+    async (params) => {
+      mapResult(0);
+      const html = await render({ ...params, polygon: POLYGON, operation: 'sale' });
+      expect(count(html, NOT_COVERED)).toBe(1);
+      expect(count(html, 'role="status"')).toBe(1);
+      expect(count(html, 'Ninguna vivienda coincide con tu búsqueda.')).toBe(1);
+      expect(count(html, 'Ninguna vivienda con ubicación coincide con tu búsqueda.')).toBe(1);
+      expect(listSection(html)).toContain('Ninguna vivienda coincide con tu búsqueda.');
+      expect(mapSection(html)).toContain('Ninguna vivienda con ubicación coincide con tu búsqueda.');
+      expect(count(html, 'Quitar «Operación: Venta»')).toBe(1);
+      expect(count(html, 'Quitar «Zona dibujada»')).toBe(0);
+      expect(listSection(html)).not.toContain('Quitar todos');
+      expect(listSection(html)).not.toContain('Quitar los demás');
+    }
+  );
+
+  it('polígono + operación + tipo: «Quitar los demás filtros» conserva el polígono; la barra sigue quitándolo', async () => {
+    mapResult(0);
+    const html = await render({ view: 'map', polygon: POLYGON, operation: 'sale', propertyType: 'flat' });
+    const encoded = new URLSearchParams({ polygon: POLYGON }).toString().replaceAll('&', '&amp;');
+    expect(listSection(html)).toContain(`href="/?view=map&amp;${encoded}">Quitar los demás filtros</a>`);
+    expect(count(html, 'Quitar los demás filtros')).toBe(1);
+    expect(count(html, 'Quitar «Zona dibujada»')).toBe(0);
+    // La barra de filtros aplicados conserva su nombre y su destino: quita el polígono también.
+    expect(html).toMatch(/href="\/\?view=map"[^>]*>Quitar todos<span class="sr-only"> los filtros<\/span>/);
+  });
 
   it('con polígono y M>0 el aviso no aparece aunque la página de la lista esté vacía', async () => {
     mapResult(4);
     const html = await render({ polygon: POLYGON, page: '2' });
     expect(html).not.toContain(NOT_COVERED);
+    expect(listSection(html)).toContain('Esta página ya no tiene viviendas.');
+  });
+
+  it('sin polígono, página pasada del final: past-last-page con enlace a la primera página y sin «Quitar»', async () => {
+    const html = await render({ operation: 'sale', page: '99' });
+    expect(count(html, 'Esta página ya no tiene viviendas.')).toBe(1);
+    expect(listSection(html)).toContain('href="/?operation=sale">Ir a la primera página</a>');
+    expect(listSection(html)).not.toContain('Quitar');
   });
 
   it('parámetro inválido: el mismo rechazo nombrado, sin consultar ni pintar mapa', async () => {
@@ -483,12 +536,15 @@ describe('avisos de cobertura de la página (D.13)', () => {
     };
   }
 
-  async function renderZone(outcome: unknown): Promise<string> {
+  async function renderZone(
+    outcome: unknown,
+    extra: Record<string, string> = {}
+  ): Promise<string> {
     resolveZoneGeometryMock.mockResolvedValue(geometry);
     resolveNewZonesDailyCapMock.mockReturnValue(10);
     resolveCoverageClientLimitMock.mockResolvedValue(null);
     resolveCoverageForZoneMock.mockResolvedValue(outcome);
-    return render({ zone: ZONE });
+    return render({ zone: ZONE, ...extra });
   }
 
   it('registrada sin job (V4): título de solicitud registrada y enlace de recarga plano', async () => {
@@ -555,5 +611,66 @@ describe('avisos de cobertura de la página (D.13)', () => {
     resolveCoverageForZoneMock.mockResolvedValue({ kind: 'covered' });
     const html = await render({ zone: ZONE });
     expect(html).not.toContain('coverage-notice');
+  });
+});
+
+// D.14 (D10) — zona sin aplicar: el aviso de cobertura explica la zona; la guía solo habla de los
+// demás filtros y nunca ofrece quitar la zona.
+describe('estado vacío con zona sin cubrir (D10)', () => {
+  const geometry = {
+    zoneId: 'zone-1',
+    ineCode: '28074',
+    municipality: 'Leganés',
+    state: 'uncovered',
+    centroid: { latitude: 40.33, longitude: -3.76 },
+    sweepRadiusM: 4500,
+  };
+
+  async function renderUncovered(extra: Record<string, string>): Promise<string> {
+    resolveZoneGeometryMock.mockResolvedValue(geometry);
+    resolveNewZonesDailyCapMock.mockReturnValue(10);
+    resolveCoverageClientLimitMock.mockResolvedValue(null);
+    resolveCoverageForZoneMock.mockResolvedValue({ kind: 'not-sweepable' });
+    suggestZonesMock.mockResolvedValue([]);
+    return render({ zone: '28074', ...extra });
+  }
+
+  it('zona + operación: aviso y guía filtered con «Quitar» solo para la operación', async () => {
+    const html = await renderUncovered({ operation: 'sale' });
+    expect(count(html, 'Todavía no hay viviendas de Leganés.')).toBe(1);
+    expect(count(html, 'role="status"')).toBe(1);
+    expect(listSection(html)).toContain('Ninguna vivienda coincide con tu búsqueda.');
+    expect(mapSection(html)).toContain('Ninguna vivienda con ubicación coincide con tu búsqueda.');
+    expect(listSection(html)).toContain('Quitar «Operación: Venta»');
+    expect(html).not.toContain('Quitar «Zona');
+    expect(listSection(html)).not.toContain('Quitar todos');
+  });
+
+  it('zona + dos filtros: «Quitar los demás filtros» conserva zone y zoneQuery', async () => {
+    const html = await renderUncovered({ operation: 'sale', propertyType: 'flat', zoneQuery: 'lega' });
+    expect(listSection(html)).toContain(
+      'href="/?zone=28074&amp;zoneQuery=lega">Quitar los demás filtros</a>'
+    );
+    expect(html).not.toContain('Quitar «Zona');
+  });
+
+  it('zona sola: aviso y estado sin filtros (unfiltered), sin enlaces «Quitar» en la guía', async () => {
+    const html = await renderUncovered({});
+    expect(count(html, 'role="status"')).toBe(1);
+    expect(listSection(html)).toContain('Todavía no hay viviendas.');
+    expect(mapSection(html)).toContain('Todavía no hay viviendas con ubicación.');
+    expect(listSection(html)).not.toContain('Quitar');
+  });
+
+  it('zona cubierta con filtros: filtered con la zona entre los filtros y sin aviso de cobertura', async () => {
+    resolveZoneGeometryMock.mockResolvedValue({ ...geometry, state: 'covered' });
+    resolveCoverageForZoneMock.mockResolvedValue({ kind: 'covered' });
+    resolveNewZonesDailyCapMock.mockReturnValue(10);
+    resolveCoverageClientLimitMock.mockResolvedValue(null);
+    const html = await render({ zone: '28074', operation: 'sale' });
+    expect(html).not.toContain('coverage-notice');
+    expect(listSection(html)).toContain('Ninguna vivienda coincide con tu búsqueda.');
+    expect(listSection(html)).toContain('Quitar «Zona: Leganés»');
+    expect(listSection(html)).toContain('Quitar «Operación: Venta»');
   });
 });

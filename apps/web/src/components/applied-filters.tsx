@@ -25,7 +25,8 @@ export interface AppliedFiltersProps {
   readonly count: string;
 }
 
-const CLEAR_ALL_THRESHOLD = 2;
+// Exportado: el estado vacío (D.14) usa el mismo umbral para ofrecer «Quitar los demás filtros».
+export const CLEAR_ALL_THRESHOLD = 2;
 
 // D.7 (decisión 159) — forma común del chip interactivo y del de solo lectura. El
 // interactivo debe seguir produciendo, byte a byte, la clase de D.6a (lo fija un test).

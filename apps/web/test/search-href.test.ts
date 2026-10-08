@@ -192,6 +192,38 @@ describe('buildClearFiltersHref — D.6a "Clear all"', () => {
   it('devuelve `/` cuando no hay nada que conservar', () => {
     expect(buildClearFiltersHref({ operation: 'sale', page: '2' })).toBe('/');
   });
+
+  // D.14 (N2) — «Quitar los demás filtros» del estado vacío conserva la zona sin aplicar o el
+  // polígono, para no deshacer la causa que explica el aviso de cobertura.
+  describe('opción `keep`', () => {
+    const params = {
+      view: 'map',
+      sort: 'price',
+      dir: 'asc',
+      minRooms: '2',
+      zone: '28079',
+      zoneQuery: 'mad',
+      polygon: '40,-3;40,-4;41,-4',
+      page: '4',
+    };
+
+    it('conserva la zona y su consulta tras view, sort y dir', () => {
+      expect(buildClearFiltersHref(params, { keep: ['zone', 'zoneQuery'] })).toBe(
+        '/?view=map&sort=price&dir=asc&zone=28079&zoneQuery=mad'
+      );
+    });
+
+    it('conserva el polígono codificado', () => {
+      expect(buildClearFiltersHref({ polygon: params.polygon, minRooms: '2' }, { keep: ['polygon'] })).toBe(
+        `/?${new URLSearchParams({ polygon: params.polygon }).toString()}`
+      );
+    });
+
+    it('ignora una clave que no está en los parámetros y sin opciones sigue igual', () => {
+      expect(buildClearFiltersHref({ operation: 'sale' }, { keep: ['polygon'] })).toBe('/');
+      expect(buildClearFiltersHref(params, {})).toBe('/?view=map&sort=price&dir=asc');
+    });
+  });
 });
 
 describe('buildPageHref y buildCurrentHref — movidos desde la página, misma salida', () => {

@@ -154,9 +154,17 @@ export function buildRemoveFilterHref(params: RawSearchParams, filter: AppliedFi
 // «Quitar todos»: conserva solo la vista y la ordenación.
 const KEPT_ON_CLEAR = ['view', 'sort', 'dir'] as const;
 
-export function buildClearFiltersHref(params: RawSearchParams): string {
+// D.14 (N2) — claves extra que el estado vacío puede conservar: la zona sin aplicar (D10) y el
+// polígono sin viviendas (D13) explican el vacío, así que «Quitar los demás filtros» no los borra.
+// La barra de filtros aplicados llama sin opciones y sigue quitándolos.
+export type ClearKeepKey = 'polygon' | 'zone' | 'zoneQuery';
+
+export function buildClearFiltersHref(
+  params: RawSearchParams,
+  options: { readonly keep?: readonly ClearKeepKey[] } = {}
+): string {
   const query = new URLSearchParams();
-  for (const key of KEPT_ON_CLEAR) {
+  for (const key of [...KEPT_ON_CLEAR, ...(options.keep ?? [])]) {
     const value = params[key];
     if (value !== undefined) {
       for (const entry of Array.isArray(value) ? value : [value]) {
@@ -191,6 +199,11 @@ export function buildPageHref(params: RawSearchParams, targetPage: number): stri
   const query = copyParams(params, new Set(['page']));
   query.set('page', String(targetPage));
   return `/?${query.toString()}`;
+}
+
+// D.14 — «Ir a la primera página» del estado vacío: conserva los filtros y quita `page`.
+export function buildFirstPageHref(params: RawSearchParams): string {
+  return toHref(copyParams(params, new Set(['page'])));
 }
 
 // Enlace de recarga PLANO: la misma URL actual, un `href` real, sin JavaScript.
