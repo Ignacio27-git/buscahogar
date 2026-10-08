@@ -344,6 +344,15 @@ describe('AppliedFilters — spec "Applied-filter chips" y "Clear all"', () => {
     expect((html.match(/<li/g) ?? []).length).toBe(2);
   });
 
+  it('la lista de chips envuelve en varias líneas y nunca se desplaza en horizontal', () => {
+    const html = chips({ minRooms: '2', minBathrooms: '1' });
+    const list = /<ul class="([^"]*)"/.exec(html)?.[1] ?? '';
+    expect(list.split(' ')).toEqual(expect.arrayContaining(['flex', 'flex-wrap', 'min-w-0', 'gap-2']));
+    expect(list).not.toContain('overflow-x-auto');
+    expect(html).toContain('<li class="min-w-0 max-w-full">');
+    expect((html.match(/<li/g) ?? []).length).toBe(2);
+  });
+
   it('el nombre accesible empieza por «Quitar» y el icono de cierre es decorativo', () => {
     const html = chips({ minRooms: '2' });
     expect(html).toMatch(/<span class="sr-only">Quitar filtro: <\/span>Habitaciones: 2 o más/);

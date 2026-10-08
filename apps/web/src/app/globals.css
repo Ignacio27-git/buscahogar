@@ -817,6 +817,18 @@
     }
   }
 
+  /* Cabecera de la búsqueda (D.13b): título, formularios, aviso de cobertura y chips son hermanos
+     directos; un único ritmo vertical en vez de márgenes sueltos que se pisan. */
+  .search-header {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .search-header > * {
+    margin-block: 0;
+  }
+
   /* Lista y mapa (D.8a, decisión 164). Las dos secciones son hermanas dentro de
      `.search-results[data-view]`. Bajo 64rem (768px incluido, porque la columna del mapa
      quedaría por debajo de 20rem) `data-view` elige cuál se ve; las reglas que ocultan van
@@ -1048,6 +1060,7 @@
   /* D.13: aviso de cobertura en el mismo panel de 1px de D.7; solo el fallo (role="alert") cambia
      el borde a --danger. El título pesa más que el detalle. */
   .coverage-notice {
+    max-inline-size: 48rem;
     margin: 0 0 0.75rem;
     color: var(--ink);
   }

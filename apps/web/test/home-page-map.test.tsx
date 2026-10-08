@@ -187,6 +187,18 @@ describe('lista y mapa en cada petición válida (SMV-15, WSL-D8a-1)', () => {
     expect(await render({ view: 'map' })).toContain('class="search-results" data-view="map"');
   });
 
+  it('el título, los filtros aplicados y el aviso de polígono van juntos en .search-header, antes de los resultados', async () => {
+    const html = await render({ polygon: POLYGON });
+    const start = html.indexOf('<div class="search-header">');
+    const end = html.indexOf('class="search-results"');
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    const header = html.slice(start, end);
+    expect(header).toContain('<h1');
+    expect(header).toContain('aria-label="Filtros aplicados"');
+    expect(header).toContain('coverage-notice');
+  });
+
   it('las consultas arrancan a la vez: la del mapa se lanza sin esperar a que termine la de la lista', async () => {
     let releaseList: (value: { results: never[]; hasNextPage: boolean }) => void = () => undefined;
     searchPropertiesMock.mockReturnValue(

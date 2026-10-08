@@ -112,3 +112,45 @@ test.describe('barra de filtros y filtros aplicados', () => {
     await expect(bar.getByLabel('Precio máximo (€)')).toHaveValue('100');
   });
 });
+
+// D.13b: los chips envuelven en varias líneas a 320 px (sin desplazamiento horizontal) y un chip
+// muy largo se parte dentro de sí mismo en vez de desbordar. El texto largo se inyecta en el
+// primer chip real: la fixture no trae un rótulo tan largo y lo que se prueba es la maqueta.
+test.describe('chips de filtros aplicados a 320 px', () => {
+  test.beforeEach(() => {
+    test.skip(test.info().project.name !== 'w320-light', 'solo el ancho móvil');
+  });
+
+  test('con nueve filtros los chips envuelven y ninguno desborda', async ({ page }) => {
+    await openRoute(page, route('home-filtered'));
+    const list = page.getByRole('region', { name: 'Filtros aplicados' }).locator('ul');
+    const overflow = await list.evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+    const rows = await list
+      .locator('a')
+      .evaluateAll((chips) => new Set(chips.map((chip) => Math.round(chip.getBoundingClientRect().top))).size);
+    expect(rows).toBeGreaterThan(1);
+    const widest = await list
+      .locator('a')
+      .evaluateAll((chips) => Math.max(...chips.map((chip) => chip.scrollWidth - chip.clientWidth)));
+    expect(widest).toBeLessThanOrEqual(0);
+  });
+
+  test('un chip con un texto larguísimo se parte dentro del chip y no desborda la página', async ({
+    page,
+  }) => {
+    await openRoute(page, route('home-filtered'));
+    const chip = page.getByRole('region', { name: 'Filtros aplicados' }).locator('a').first();
+    await chip.evaluate((el) => {
+      el.append(document.createTextNode('ÑandúCaminoDeLosPinaresDeLaSierraDeGuadarramaNorteSinEspacios1234567890'));
+    });
+    const box = await chip.boundingBox();
+    expect(box).not.toBeNull();
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(320);
+    expect(await chip.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+    const pageOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    );
+    expect(pageOverflow).toBeLessThanOrEqual(0);
+  });
+});

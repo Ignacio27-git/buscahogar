@@ -363,17 +363,20 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
 
   return (
     <>
-      {header}
-      {/* El recuento de la lista vive aquí, compartido por las dos secciones. */}
-      <AppliedFilters
-        criteria={criteria}
-        params={rawSearchParams}
-        zoneName={zoneName}
-        count={formatListCount(results.length, criteria.page, hasNextPage)}
-      />
-      {/* DAS-11: región compartida; con polígono las dos consultas dan el mismo
-          total, así que M === 0 vale también en páginas posteriores de la lista. */}
-      {criteria.polygon !== undefined && total === 0 ? <CoverageNotice variant={{ kind: 'outside-polygon' }} /> : null}
+      {/* D.13b: los grupos de la cabecera comparten un ritmo vertical (gap de 1rem). */}
+      <div className="search-header">
+        {header}
+        {/* El recuento de la lista vive aquí, compartido por las dos secciones. */}
+        <AppliedFilters
+          criteria={criteria}
+          params={rawSearchParams}
+          zoneName={zoneName}
+          count={formatListCount(results.length, criteria.page, hasNextPage)}
+        />
+        {/* DAS-11: región compartida; con polígono las dos consultas dan el mismo
+            total, así que M === 0 vale también en páginas posteriores de la lista. */}
+        {criteria.polygon !== undefined && total === 0 ? <CoverageNotice variant={{ kind: 'outside-polygon' }} /> : null}
+      </div>
       <div className="search-results" data-view={view}>
         <section aria-label="Resultados" className="search-results__list">
           {results.length === 0 ? (

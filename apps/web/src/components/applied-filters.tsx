@@ -3,9 +3,9 @@
 // Component puro: cada enlace es un `href` real, así que funciona sin JavaScript.
 // El recuento se pinta siempre, también con 0 resultados.
 //
-// La lista lleva `relative`: el texto `sr-only` de cada enlace es `position: absolute`
-// y, sin un bloque contenedor dentro del desplazamiento, escaparía del recorte y
-// ensancharía el documento (desbordamiento horizontal a 320px).
+// La lista envuelve (D.13b): los chips pasan a la línea siguiente en vez de desplazarse en
+// horizontal, y un chip más ancho que la fila se parte dentro de sí mismo. Lleva `relative`
+// porque el texto `sr-only` de cada enlace es `position: absolute` y no debe ensanchar el documento.
 import type { ReactElement } from 'react';
 
 import type { PropertySearchCriteria } from '@buscahogar/core';
@@ -38,7 +38,7 @@ export function AppliedFilters({ criteria, params, zoneName, count }: AppliedFil
       <p className="font-semibold tabular-nums">{count}</p>
       {filters.length > 0 ? (
         <section aria-label="Filtros aplicados" className="flex min-w-0 flex-1">
-          <ul className="relative flex min-w-0 flex-1 gap-2 overflow-x-auto overscroll-x-contain p-1 sm:flex-wrap sm:overflow-visible">
+          <ul className="relative flex min-w-0 flex-1 flex-wrap gap-2 p-1">
             {filters.map((filter) => (
               <li key={filter.key} className="min-w-0 max-w-full">
                 <a

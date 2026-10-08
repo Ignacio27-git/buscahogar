@@ -611,3 +611,20 @@ describe('controles base y superficies del navegador (D.13b)', () => {
     expect(active.get('background-color')).toBe('var(--surface-sunken)');
   });
 });
+
+// D.13b — ritmo de la cabecera de búsqueda y medida del aviso de cobertura.
+describe('cabecera de búsqueda y medida del aviso (D.13b)', () => {
+  const components = (): CssNode => findBlock(ROOT, '@layer components');
+
+  it('.search-header apila sus grupos con separación y sin márgenes propios', () => {
+    const header = declarations(findBlock(components(), '.search-header'));
+    expect(header.get('display')).toBe('flex');
+    expect(header.get('flex-direction')).toBe('column');
+    expect(header.get('gap')).toBe('1rem');
+    expect(declarations(findBlock(components(), '.search-header > *')).get('margin-block')).toBe('0');
+  });
+
+  it('el aviso de cobertura mide como mucho 48rem', () => {
+    expect(declarations(findBlock(components(), '.coverage-notice')).get('max-inline-size')).toBe('48rem');
+  });
+});
