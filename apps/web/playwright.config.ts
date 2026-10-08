@@ -78,9 +78,13 @@ export default defineConfig({
     env: {
       DATABASE_URL: webDatabaseUrl,
       // Las credenciales de escritura acotadas se anulan aunque el entorno las
-      // heredase: el e2e solo lee, y la ruta `?q=` no escribe (decisión 122).
+      // heredase: el e2e solo lee (decisión 135), y la ruta `?q=` no escribe (decisión 122).
       WEB_DATABASE_URL: '',
       WEB_COVERAGE_DATABASE_URL: '',
+      // D.13 (decisión 181): las rutas `?zone=` leen el tope diario de zonas nuevas, que la página
+      // exige y nunca inventa. Con 1, el job pendiente sembrado «hoy» ya lo agota y la zona sin
+      // job (`coverage-cap`) muestra el aviso del tope global sin intentar escribir.
+      NEW_ZONES_DAILY_CAP: '1',
     },
   },
 });

@@ -11,6 +11,9 @@ test.describe('capturas visuales', () => {
       await expect(page).toHaveScreenshot(`${route.name}.png`, {
         fullPage: true,
         animations: 'disabled',
+        // D.13: la hora de reinicio del tope (aviso del tope global) depende de la fecha
+        // del servidor; se enmascara. Es `tabular-nums`, así que el ancho no cambia.
+        mask: [page.locator('.coverage-notice__reset')],
       });
     });
   }

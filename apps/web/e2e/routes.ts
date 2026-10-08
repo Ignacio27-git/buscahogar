@@ -2,6 +2,7 @@
 // rutas del e2e visual y de accesibilidad. Los identificadores de vivienda
 // vienen de la siembra (`@buscahogar/db/e2e`): una única fuente.
 import {
+  E2E_COVERAGE_ZONES,
   E2E_DETAIL_LISTING_ID,
   E2E_GALLERY_LISTING_ID,
   E2E_HISTORY_LISTING_ID,
@@ -19,6 +20,10 @@ export interface E2eRoute {
   // `none` no tiene mapa interactivo (Leaflet); el mapa estático de la ficha (D.11) se espera aparte,
   // antes de esta comprobación.
   readonly map: 'none' | 'markers' | 'empty';
+}
+
+function coverageZonePath(zone: keyof typeof E2E_COVERAGE_ZONES): string {
+  return `/?zone=${E2E_COVERAGE_ZONES[zone].ineCode}`;
 }
 
 export const ROUTES: readonly E2eRoute[] = [
@@ -47,6 +52,16 @@ export const ROUTES: readonly E2eRoute[] = [
   // D.12 (decisión 180): P4, un único anuncio activo: la comparación con una sola fuente
   // (una insignia «Más económico»). P7 (`detail-gallery`) cubre el caso sin anuncios activos.
   { name: 'detail-single', path: `/properties/${E2E_SINGLE_SOURCE_LISTING_ID}`, map: 'none' },
+  // D.13 (decisión 181): un aviso de cobertura por ruta, con zonas sembradas por estado. Los
+  // cuatro estados de job y el tope global se ven sin escribir en la base (decisión 135): el
+  // servidor e2e no tiene credencial de escritura, así que ninguna ruta llega a registrar nada.
+  // El tope por cliente (V3) necesita escribir y solo se prueba en unitarias.
+  { name: 'coverage-pending', path: coverageZonePath('pending'), map: 'markers' },
+  { name: 'coverage-running', path: coverageZonePath('running'), map: 'markers' },
+  { name: 'coverage-done', path: coverageZonePath('done'), map: 'markers' },
+  { name: 'coverage-failed', path: coverageZonePath('failed'), map: 'markers' },
+  { name: 'coverage-not-sweepable', path: coverageZonePath('notSweepable'), map: 'markers' },
+  { name: 'coverage-cap', path: coverageZonePath('cap'), map: 'markers' },
   { name: 'not-found-route', path: '/no-existe', map: 'none' },
   { name: 'not-found-property', path: `/properties/${E2E_MISSING_LISTING_ID}`, map: 'none' },
 ];
