@@ -3,6 +3,7 @@
 // comprueban rol, región viva única, intención del texto (tuteo, sin jerga) y
 // presencia del enlace de recarga vía `isReloadable`; las cadenas exactas solo
 // se fijan donde la especificación lo pide (horas y título de «registrada»).
+import { COVERAGE_JOB_MAX_ATTEMPTS } from '@buscahogar/core';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
@@ -68,7 +69,7 @@ const VARIANTS: readonly {
   },
   {
     id: 'V5 job pending',
-    variant: { kind: 'job', municipality: MUNICIPALITY, status: 'pending', startedAt: null },
+    variant: { kind: 'job', municipality: MUNICIPALITY, status: 'pending', startedAt: null, retriesLeft: true },
     role: 'status',
     reloadable: true,
     title: /La actualización de Leganés está en cola\./,
@@ -76,7 +77,7 @@ const VARIANTS: readonly {
   },
   {
     id: 'V6 job running',
-    variant: { kind: 'job', municipality: MUNICIPALITY, status: 'running', startedAt: STARTED_AT },
+    variant: { kind: 'job', municipality: MUNICIPALITY, status: 'running', startedAt: STARTED_AT, retriesLeft: true },
     role: 'status',
     reloadable: true,
     title: /La actualización de Leganés está en curso\./,
@@ -84,7 +85,7 @@ const VARIANTS: readonly {
   },
   {
     id: 'V7 job done',
-    variant: { kind: 'job', municipality: MUNICIPALITY, status: 'done', startedAt: STARTED_AT },
+    variant: { kind: 'job', municipality: MUNICIPALITY, status: 'done', startedAt: STARTED_AT, retriesLeft: true },
     role: 'status',
     reloadable: true,
     title: /La actualización de Leganés ha terminado\./,
@@ -92,11 +93,11 @@ const VARIANTS: readonly {
   },
   {
     id: 'V8 job failed',
-    variant: { kind: 'job', municipality: MUNICIPALITY, status: 'failed', startedAt: STARTED_AT },
+    variant: { kind: 'job', municipality: MUNICIPALITY, status: 'failed', startedAt: STARTED_AT, retriesLeft: true },
     role: 'alert',
     reloadable: true,
     title: /La actualización de Leganés ha fallado\./,
-    detail: /Se volverá a intentar más tarde/,
+    detail: /Lo volveremos a intentar más tarde/,
   },
   {
     id: 'V9 outside-polygon',
@@ -187,6 +188,7 @@ describe('CoverageNotice — fecha de inicio solo si existe', () => {
       municipality: MUNICIPALITY,
       status: 'running',
       startedAt: null,
+      retriesLeft: true,
     });
     expect(html).toMatch(/está en curso/);
     expect(html).not.toContain('Empezó');
@@ -241,6 +243,86 @@ describe('noticeForOutcome', () => {
       municipality: MUNICIPALITY,
       status: 'running',
       startedAt: STARTED_AT,
+      retriesLeft: true,
     });
+  });
+});
+
+// D.13b (decisión 184) — el aviso de un job `failed` depende de los intentos: con reintentos
+// restantes promete volver a intentarlo y deja «Comprobar de nuevo»; agotados, lo dice sin
+// rodeos y no ofrece ningún enlace (decisión 181: sin callejones sin salida).
+describe('CoverageNotice — job fallido según los intentos (D.13b)', () => {
+  const failed = (retriesLeft: boolean): CoverageNoticeVariant => ({
+    kind: 'job',
+    municipality: MUNICIPALITY,
+    status: 'failed',
+    startedAt: STARTED_AT,
+    retriesLeft,
+  });
+  const failedOutcome = (attempts: number): Parameters<typeof noticeForOutcome>[0] => ({
+    kind: 'registered',
+    job: { status: 'failed', attempts, requestedAt: STARTED_AT, startedAt: STARTED_AT, error: null },
+  });
+
+  it('con reintentos: promete el reintento y es recargable', () => {
+    const html = render(failed(true));
+    expect(visibleText(html)).toContain('Lo volveremos a intentar más tarde');
+    expect(visibleText(html)).toContain('«Comprobar de nuevo»');
+    expect(isReloadable(failed(true))).toBe(true);
+  });
+
+  it('sin reintentos: no promete nada, dice que no se reintenta solo y no es recargable', () => {
+    const html = render(failed(false));
+    expect(visibleText(html)).toContain('No lo volveremos a intentar de forma automática');
+    expect(visibleText(html)).toContain('prueba con un municipio cercano');
+    expect(visibleText(html)).not.toMatch(/Lo volveremos a intentar más tarde|Comprobar de nuevo/);
+    expect(html).toContain('role="alert"');
+    expect(isReloadable(failed(false))).toBe(false);
+  });
+
+  it('los otros estados siguen siendo recargables aunque no quede ningún reintento', () => {
+    for (const status of ['pending', 'running', 'done'] as const) {
+      expect(
+        isReloadable({ kind: 'job', municipality: MUNICIPALITY, status, startedAt: null, retriesLeft: false })
+      ).toBe(true);
+    }
+  });
+
+  it('noticeForOutcome: attempts por debajo del máximo deja reintentos y en el máximo no', () => {
+    const base = { kind: 'job', municipality: MUNICIPALITY, status: 'failed', startedAt: STARTED_AT } as const;
+    expect(noticeForOutcome(failedOutcome(COVERAGE_JOB_MAX_ATTEMPTS - 1), MUNICIPALITY, STARTED_AT)).toEqual({
+      ...base,
+      retriesLeft: true,
+    });
+    expect(noticeForOutcome(failedOutcome(COVERAGE_JOB_MAX_ATTEMPTS), MUNICIPALITY, STARTED_AT)).toEqual({
+      ...base,
+      retriesLeft: false,
+    });
+  });
+});
+
+// D.13b — voz de «nosotros» y tuteo: sin formas impersonales, y los dos topes con frases distintas.
+describe('CoverageNotice — voz personal y topes distintos (D.13b)', () => {
+  const global = visibleText(
+    render({ kind: 'cap-exhausted', municipality: MUNICIPALITY, resetsAt: RESETS_AT })
+  );
+  const client = visibleText(
+    render({ kind: 'client-cap-exhausted', municipality: MUNICIPALITY, resetsAt: RESETS_AT })
+  );
+
+  it('ninguna variante usa «Se ha»/«Se volverá»', () => {
+    for (const { variant } of VARIANTS) {
+      expect(visibleText(render(variant))).not.toMatch(/Se (ha|han|volverá)/);
+    }
+  });
+
+  it('el límite diario global está en primera persona del plural', () => {
+    expect(global).toContain('Hemos llegado al límite diario de zonas nuevas');
+  });
+
+  it('el tope por cliente conserva su frase propia, distinta de la global', () => {
+    expect(client).toContain('Has alcanzado tu límite personal');
+    expect(client).not.toContain('límite diario');
+    expect(global).not.toContain('límite personal');
   });
 });

@@ -35,4 +35,11 @@ describe('RootLayout — atribución CC-BY/IGN (A-3, DD-24)', () => {
       'Datos geográficos derivados del Nomenclátor Geográfico de Municipios y Entidades de Población (NGMEP), Instituto Geográfico Nacional (IGN) / Centro Nacional de Información Geográfica (CNIG), bajo licencia CC-BY 4.0.'
     );
   });
+
+  // D.13b: el texto del pie respeta la medida de lectura (65-75ch) en pantallas anchas.
+  it('el párrafo del pie lleva la medida de lectura (max-w-prose)', () => {
+    const html = renderToStaticMarkup(RootLayout({ children: 'contenido de prueba' }));
+    const footer = html.slice(html.indexOf('<footer'), html.indexOf('</footer>'));
+    expect(footer).toMatch(/<p class="max-w-prose">Datos geográficos/);
+  });
 });

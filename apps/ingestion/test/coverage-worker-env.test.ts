@@ -5,6 +5,7 @@
 // Zod y nunca toman un valor por defecto que gaste cuota sin que el operador
 // lo pida. `readEnv` es pura (recibe el entorno), así que se prueba sin tocar
 // el proceso real.
+import { COVERAGE_JOB_MAX_ATTEMPTS } from '@buscahogar/core';
 import { describe, expect, it } from 'vitest';
 
 import { readEnv, WorkerEnvError } from '../scripts/coverage-worker.js';
@@ -92,5 +93,18 @@ describe('readEnv — VERIFICATION_RADIUS_MARGIN_M', () => {
 
   it.each([['-1'], ['1.5'], ['abc'], ['']])('"%s" se rechaza (se espera un entero no negativo)', (raw) => {
     expect(() => readEnv({ ...BASE_ENV, VERIFICATION_RADIUS_MARGIN_M: raw })).toThrow(/VERIFICATION_RADIUS_MARGIN_M/);
+  });
+});
+
+// D.13b (decisión 184) — el tope de reintentos sale de `@buscahogar/core` (lo comparte la web para
+// decidir el aviso de un job fallido); la variable `MAX_ATTEMPTS` ya no existe y se ignora.
+describe('readEnv — tope de reintentos compartido (D.13b)', () => {
+  it('sin MAX_ATTEMPTS usa la constante de core', () => {
+    expect(readEnv(BASE_ENV).options.maxAttempts).toBe(COVERAGE_JOB_MAX_ATTEMPTS);
+  });
+
+  it.each([['9'], ['1'], ['abc'], ['']])('MAX_ATTEMPTS="%s" se ignora por completo', (raw) => {
+    const env = readEnv({ ...BASE_ENV, MAX_ATTEMPTS: raw });
+    expect(env.options.maxAttempts).toBe(COVERAGE_JOB_MAX_ATTEMPTS);
   });
 });

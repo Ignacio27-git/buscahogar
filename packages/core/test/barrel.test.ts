@@ -14,6 +14,12 @@ describe('barril público de @buscahogar/core', () => {
     expect(barrel.CORE_VERSION).toBeDefined();
   });
 
+  it('D.13b: expone el tope de reintentos de un coverage_job y su predicado', () => {
+    expect(barrel.COVERAGE_JOB_MAX_ATTEMPTS).toBe(3);
+    expect(barrel.hasRetriesLeft(2)).toBe(true);
+    expect(barrel.hasRetriesLeft(3)).toBe(false);
+  });
+
   it('ROADMAP 1.11: expone searchQuerySchema, utilizable como validador Zod', () => {
     expect(barrel.searchQuerySchema).toBeDefined();
     const result = barrel.searchQuerySchema.safeParse({ operation: 'sale' });

@@ -16,6 +16,7 @@
 // 00:00 y las 02:00 de Madrid el reinicio cae aún en el mismo día natural.
 import type { ReactElement, ReactNode } from 'react';
 
+import { hasRetriesLeft } from '@buscahogar/core';
 import type { CoverageJobState } from '@buscahogar/db';
 
 import { formatMadridDateTime, formatMadridTime, nextUtcMidnight } from '@/lib/madrid-time';
@@ -35,6 +36,8 @@ export type CoverageNoticeVariant =
       readonly municipality: string;
       readonly status: CoverageJobState['status'];
       readonly startedAt: Date | null;
+      // Solo importa en `failed` (D.13b, decisión 184): ¿el worker volverá a coger el job?
+      readonly retriesLeft: boolean;
     };
 
 // Traduce el resultado de cobertura a su variante. `covered` no lleva aviso.
@@ -61,14 +64,17 @@ export function noticeForOutcome(
             municipality,
             status: outcome.job.status,
             startedAt: outcome.job.startedAt,
+            retriesLeft: hasRetriesLeft(outcome.job.attempts),
           };
   }
 }
 
-// Recargar solo puede cambiar el estado cuando hay una solicitud en marcha.
-// En los otros cinco casos el enlace sería un callejón sin salida.
+// Recargar solo puede cambiar el estado cuando hay una solicitud en marcha. En los otros casos el
+// enlace sería un callejón sin salida, también en un job `failed` sin reintentos (D.13b): el
+// worker no volverá a cogerlo, así que recargar nunca lo cambia.
 export function isReloadable(variant: CoverageNoticeVariant): boolean {
-  return variant.kind === 'registered-without-job' || variant.kind === 'job';
+  if (variant.kind === 'job') return variant.status !== 'failed' || variant.retriesLeft;
+  return variant.kind === 'registered-without-job';
 }
 
 interface NoticeCopy {
@@ -117,7 +123,7 @@ function copyFor(variant: CoverageNoticeVariant): NoticeCopy {
         title: `Todavía no hay viviendas de ${variant.municipality}.`,
         detail: (
           <>
-            Se ha alcanzado el límite diario de zonas nuevas. Vuelve a buscar {variant.municipality}{' '}
+            Hemos llegado al límite diario de zonas nuevas. Vuelve a buscar {variant.municipality}{' '}
             a partir de las {resetTime(variant.resetsAt)} de la madrugada para pedir la
             actualización de la zona.
           </>
@@ -170,8 +176,11 @@ function jobCopy(variant: Extract<CoverageNoticeVariant, { kind: 'job' }>): Noti
       return {
         role: 'alert',
         title: `La actualización de ${variant.municipality} ha fallado.`,
-        detail:
-          `Se volverá a intentar más tarde; pulsa «Comprobar de nuevo» dentro de un rato. ${started}`.trim(),
+        detail: `${
+          variant.retriesLeft
+            ? 'Lo volveremos a intentar más tarde; pulsa «Comprobar de nuevo» dentro de un rato.'
+            : 'No lo volveremos a intentar de forma automática. Mientras tanto, prueba con un municipio cercano.'
+        } ${started}`.trim(),
       };
   }
 }

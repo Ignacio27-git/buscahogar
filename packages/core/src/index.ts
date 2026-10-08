@@ -257,4 +257,7 @@ export type {
   SourceListingSnapshot,
 } from './source-comparison/compare-source-listings.js';
 
+// Tope de reintentos de un coverage_job, compartido entre ingesta y web (D.13b, decisión 184).
+export { COVERAGE_JOB_MAX_ATTEMPTS, hasRetriesLeft } from './coverage-jobs/job-retry.js';
+
 export const CORE_VERSION = '0.0.1';

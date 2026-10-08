@@ -19,7 +19,7 @@
 // este entrypoint — ver el comentario que reemplaza su `main()` placeholder.
 import { fileURLToPath } from 'node:url';
 
-import { blockingThresholdsSchema } from '@buscahogar/core';
+import { COVERAGE_JOB_MAX_ATTEMPTS, blockingThresholdsSchema } from '@buscahogar/core';
 import { createDb } from '@buscahogar/db';
 import { z } from 'zod';
 
@@ -51,7 +51,6 @@ const EnvSchema = z.object({
   BLOCKING_SURFACE_TOLERANCE_M2: z.string().min(1),
   POLL_INTERVAL_MS: z.string().min(1).optional(),
   MAX_SEARCH_REQUESTS_PER_SWEEP: z.string().min(1).optional(),
-  MAX_ATTEMPTS: z.string().min(1).optional(),
   // ROADMAP 2.5 (decisión 104). Se validan con Zod más abajo (mensaje que
   // nombra la variable); aquí solo se declara que existen. Sin `.min(1)` a
   // propósito: una cadena vacía debe llegar al validador y rechazarse, no
@@ -115,7 +114,6 @@ function parseRefreshBudgetFraction(value: string | undefined): number {
 
 const DEFAULT_POLL_INTERVAL_MS = 15_000;
 const DEFAULT_MAX_SEARCH_REQUESTS_PER_SWEEP = 10;
-const DEFAULT_MAX_ATTEMPTS = 3;
 
 export interface WorkerEnv {
   readonly apiKey: string;
@@ -178,8 +176,8 @@ export function readEnv(env: Readonly<Record<string, string | undefined>>): Work
           ? parsePositiveInteger('MAX_SEARCH_REQUESTS_PER_SWEEP', raw.MAX_SEARCH_REQUESTS_PER_SWEEP)
           : DEFAULT_MAX_SEARCH_REQUESTS_PER_SWEEP,
       dailySearchCap: parsePositiveInteger('DAILY_SEARCH_CAP', raw.DAILY_SEARCH_CAP),
-      maxAttempts:
-        raw.MAX_ATTEMPTS !== undefined ? parsePositiveInteger('MAX_ATTEMPTS', raw.MAX_ATTEMPTS) : DEFAULT_MAX_ATTEMPTS,
+      // D.13b (decisión 184): el tope es una constante de core, ya no una variable de entorno.
+      maxAttempts: COVERAGE_JOB_MAX_ATTEMPTS,
       refreshBudgetFraction: parseRefreshBudgetFraction(raw.REFRESH_BUDGET_FRACTION),
       maintenanceEveryTicks:
         raw.MAINTENANCE_EVERY_TICKS !== undefined

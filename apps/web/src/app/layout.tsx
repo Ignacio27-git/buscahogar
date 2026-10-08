@@ -24,7 +24,7 @@ function AttributionFooter(): ReactElement {
   return (
     <footer className="border-t border-rule">
       <div className={`${SHELL_CONTAINER} py-6 text-dense text-ink-muted`}>
-        <p>
+        <p className="max-w-prose">
           Datos geográficos derivados del Nomenclátor Geográfico de Municipios y Entidades de
           Población (NGMEP), Instituto Geográfico Nacional (IGN) / Centro Nacional de Información
           Geográfica (CNIG), bajo licencia CC-BY 4.0.
