@@ -1154,10 +1154,14 @@ anuncios de origen en una comparación.
   y «Precio más bajo», sin desbordamiento horizontal a 320 px) y axe de la ruta nueva `detail-single` en verde.
 - **Capturas:** cambian 18 (`detail`, `detail-gallery`, `detail-history`, seis anchos y temas) y se añaden 6 de `detail-single`;
   `home`, `map` y el resto no cambian. Revisadas a ojo a 320 y 1280 en claro y oscuro (muestra de cada ruta): una insignia, nota
-  visible, aviso solo en P7, sin desbordamiento y regla de 3 px legible.
+  visible, aviso solo en P7, sin desbordamiento y regla de 3 px legible (sustituida después por el panel de 1px; ver abajo).
 - **Observación:** a 1280 px el panel lateral de P7 (sticky, con tope de altura) se desplaza por dentro y recorta la segunda fila de
   la lista en la captura. Es el comportamiento de D.9, pero ahora la lista es más alta.
 - **Tamaño:** ~627 líneas de código, tests y e2e desde `c0f201c` (sin documentación ni las 24 capturas).
+- **Corrección (2026-10-08, decisión 182):** el detector de impeccable marcó `side-tab` en la regla lateral de 3 px del aviso
+  (`.source-list__warning`); el suelo de oficio la prohíbe. El aviso pasa al panel de 1px de D.7 (borde `--rule`, mismo relleno y
+  radio, regla compartida con `.nl-review__alert` y `.nl-issues`). Commits `58f4ec5` (CSS) y `1dd2174` (capturas: cambian las seis
+  de `detail-gallery`, P7).
 
 ---
 
@@ -1210,13 +1214,19 @@ Paso D.13 de docs/DESIGN-ROADMAP.md. Usa `impeccable clarify`.
   e2e en Docker: `pnpm e2e:update` 621 superados y 465 omitidos; dos pasadas seguidas de `pnpm e2e` iguales (621/465). Las 36 capturas
   nuevas (6 rutas `coverage-*` por 6 proyectos) no cambian ninguna de las anteriores; el axe de las 6 rutas nuevas da cero
   infracciones. La hora de reinicio se enmascara en las capturas.
-- **Capturas:** revisadas a ojo `coverage-failed` a 320 px en claro (regla roja de 3 px, título, detalle, enlace) y `coverage-cap` a
+- **Capturas:** revisadas a ojo `coverage-failed` a 320 px en claro (regla roja de 3 px, después panel de 1px; título, detalle, enlace) y `coverage-cap` a
   1280 px en oscuro (hora enmascarada, sin desbordamiento).
 - **Observación:** con la zona sin cubrir la página sigue enseñando todos los resultados sin filtro geográfico bajo el aviso («Todavía
   no hay viviendas de Pinto» junto a «5 resultados»). Es el comportamiento heredado de 1.13 (degradación honesta); el aviso lo
   explica poco. Queda para D.14 o un paso propio.
 - **Tamaño:** 1148 líneas añadidas y 125 borradas en código, tests y e2e (sin documentación, capturas ni `axe-baseline.json`), frente
   a ~870 previstas: el componente (191) y sus tests (246) salieron más largos que en el diseño.
+- **Corrección (2026-10-08, decisión 182):** la regla de 3 px se copió a propósito del aviso de D.12 y el detector de impeccable la
+  marcó como `side-tab`. El aviso pasa al panel de 1px de D.7 (borde `--rule`; `role="alert"` con borde `--danger`), sin `ignore`.
+  `impeccable detect` sobre `globals.css` queda sin hallazgos. Web 909 superados; `typecheck` y `lint` limpios; `pnpm e2e:update` y
+  `pnpm e2e` 621 superados y 465 omitidos. Cambian 42 capturas: las 36 `coverage-*` y las 6 de `detail-gallery`; `axe-baseline.json`
+  no cambia. Revisadas a ojo `coverage-failed` a 320 px en claro (borde rojo de 1px), `coverage-cap` a 320 px en oscuro y
+  `detail-gallery` a 320 px en claro. Commits `58f4ec5` (CSS) y `1dd2174` (capturas).
 
 ---
 
@@ -1534,3 +1544,4 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-08 | D.13 | La fecha de siembra e2e se inyecta (`buildE2eFixture(seedNow)`): el dataset es idéntico dentro del mismo día UTC, no entre días. Enmienda la 135. | El tope global cuenta jobs solicitados «hoy» y el e2e no puede escribir: hace falta un job pendiente sembrado con el día del servidor (decisión 181). |
 | 2026-10-08 | D.13 | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): 1148 líneas añadidas y 125 borradas de código, tests y e2e (previstas ~870), sin contar documentación, las 36 capturas ni `axe-baseline.json`. | El componente y sus tests salieron más largos que en el diseño; no se podía partir sin dejar la página con avisos viejos y nuevos a la vez. |
 | 2026-10-08 | D.13 | Los tests nuevos viven en `apps/web/test/` y `packages/db/test/`, no junto al código (`src/**`) como decía el reparto de tareas. | `vitest.config.ts` solo incluye `test/**`. |
+| 2026-10-08 | D.12, D.13 | La regla lateral de 3 px de los avisos (`.source-list__warning`, `.coverage-notice`) se sustituye por el panel de 1px de D.7 (decisión 182). Cambian las capturas `coverage-*` y `detail-gallery`. | El suelo de oficio de impeccable prohíbe un borde lateral de color de más de 1px en avisos y alertas; el detector lo marcó (`side-tab`) y el responsable exige seguirlo siempre, sin `ignore`. |

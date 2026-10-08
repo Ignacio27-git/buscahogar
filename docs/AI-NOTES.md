@@ -3755,3 +3755,26 @@ error del propio shell.
 
 **Observación:** una cita de decisión se abre antes de escribirla y un recuento se hace sobre la tabla, no de memoria. Antes de
 formatear un fichero existente, comprobar con `prettier --check` que ya estaba limpio: si no, formatear es ruido en el diff.
+
+### 2026-10-08 — Regla lateral prohibida por impeccable en los avisos de D.12 y D.13
+
+**Contexto:** CSS de los avisos en `apps/web/src/app/globals.css`: «sin anuncios activos» de la ficha (D.12) y aviso de cobertura
+(D.13).
+
+**Categoría:** contradicción con una regla del proyecto (el suelo de oficio de la skill de diseño obligatoria).
+
+**Qué se generó mal:** D.12 introdujo en `.source-list__warning` una regla lateral `border-inline-start: 3px solid`, y D.13 la copió a
+propósito en `.coverage-notice` («misma regla de 3px que el aviso de fuentes»), con `--danger` para `role="alert"`. El suelo de
+oficio de impeccable (`reference/craft-floor.md`) prohíbe un borde lateral de color de más de 1px en avisos, elementos de lista y
+alertas, y el proyecto ya tenía el patrón aceptado: el panel de 1px de D.7 (`.nl-review__alert`, cuyo comentario dice «nunca una
+franja lateral»). Se corrigió pasando los dos avisos a ese panel con una regla compartida (decisión 182), sin `ignore`.
+
+**Causa:** las fases de diseño y aplicación cargaron `SKILL.md` de impeccable y `reference/clarify.md`, pero no
+`reference/craft-floor.md`, que `SKILL.md` exige leer justo antes de cualquier edición de interfaz. La segunda vez el fallo se
+propagó por copiar un precedente propio sin revisarlo contra el suelo.
+
+**Cómo se detectó:** después del hecho, por el hook del detector de impeccable (`side-tab`) al editar `globals.css`; ni los tests,
+ni axe, ni la revisión a ojo de las capturas lo señalaron (la nota de D.13 llegó a describir la «regla roja de 3 px» como correcta).
+
+**Observación:** el suelo de oficio se lee antes de cada edición de interfaz, también en un paso que reutiliza un estilo existente:
+un precedente propio no lo valida.

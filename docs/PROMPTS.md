@@ -30,6 +30,21 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-08 — Avisos sin regla lateral (seguimiento de D.12 y D.13, decisión 182)
+
+**Tipo de tarea:** corrección de diseño (CSS) + capturas
+**Forma de especificación:** prosa con la dirección fijada por el responsable (reutilizar el panel de aviso de D.7) y el hallazgo del detector como criterio de cierre; trabajo directo, sin SDD
+**Resultado:** utilizable sin cambios.
+
+**Prompt:**
+
+> hay que hacer caso siempre lo que indique impeccable, para eso usamos esta skill
+
+(Tras el hallazgo `side-tab` del hook de impeccable sobre `.source-list__warning` (D.12) y `.coverage-notice` (D.13).)
+
+**Observación:** la corrección es una regla compartida con `.nl-review__alert` y `.nl-issues`; `impeccable detect` queda sin
+hallazgos y solo cambian las 42 capturas previstas (36 `coverage-*` y 6 `detail-gallery`). El fallo de origen está en `AI-NOTES.md`.
+
 ### 2026-10-08 — Avisos de cobertura (paso D.13, decisión 181)
 
 **Tipo de tarea:** interfaz (componente de servidor, CSS y módulo de hora) + cableado de la página + siembra e2e + rutas y capturas

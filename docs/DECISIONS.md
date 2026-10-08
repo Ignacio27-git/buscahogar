@@ -5138,6 +5138,26 @@ pantalla y sin ampliar el código de cliente.
 
 ---
 
+## 182 — Avisos de la ficha y de cobertura en el panel de 1px de D.7, sin franja lateral
+
+**Estado:** aceptada (seguimiento de D.12 y D.13; enmienda la parte visual de la 180 y de la 181).
+
+**Decisión.** El aviso de «sin anuncios activos» de la ficha (`.source-list__warning`, D.12) y el aviso de cobertura
+(`.coverage-notice`, D.13) dejan la regla lateral de 3 px (`border-inline-start: 3px solid`) y pasan al panel de aviso de D.7
+(`.nl-review__alert`, `.nl-issues`): borde completo de 1px en `--rule`, relleno `0.75rem 1rem` y `--radius-panel`. Las cuatro
+clases comparten una regla en `globals.css`; solo las alertas (`.nl-review__alert` y `.coverage-notice[role='alert']`) cambian el
+borde a `--danger`. El aviso de fuentes sigue pesando más que la nota por el texto en tinta y el panel; el aviso de cobertura
+conserva el título en 600 y sus márgenes. Textos, roles ARIA y la hora de reinicio enmascarada no cambian.
+
+**Alternativas descartadas.** Conservar la regla de 3 px y silenciar el hallazgo `side-tab` del detector con un `ignore`: el
+responsable exige seguir siempre lo que indica impeccable, y su suelo de oficio (`craft-floor.md`) prohíbe un borde lateral de color
+de más de 1px en avisos, elementos de lista y alertas. Copiar los valores del panel en cada aviso en lugar de compartir la regla:
+tres copias que pueden divergir.
+
+**Motivo.** Un solo patrón de aviso en toda la interfaz, el que ya aceptaba el suelo de oficio, en lugar de un adorno prohibido.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
