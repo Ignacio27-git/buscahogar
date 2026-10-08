@@ -1284,6 +1284,48 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* Bajo 30rem la tabla de cuatro columnas no cabe en 288px ni envolviendo las celdas (P7 desbordaba
+     8px): cada observación pasa a una tarjeta sin caja con la etiqueta de la columna delante.
+     Los roles ARIA del marcado conservan la semántica de tabla; la cabecera visual se recorta
+     sin `display: none` para que los lectores de pantalla sigan oyendo las columnas. */
+  @media (width < 30rem) {
+    .price-history__table,
+    .price-history__table tbody,
+    .price-history__table caption {
+      display: block;
+    }
+
+    .price-history__table thead {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+
+    .price-history__table tr {
+      display: block;
+      padding-block: 0.5rem;
+      border-block-start: 1px solid var(--rule);
+    }
+
+    .price-history__table td {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.125rem 0;
+      border: 0;
+      text-align: end;
+    }
+
+    .price-history__table td::before {
+      content: attr(data-label);
+      flex: none;
+      color: var(--ink-muted);
+      text-align: start;
+    }
+  }
+
   .property-description {
     max-inline-size: 65ch;
   }

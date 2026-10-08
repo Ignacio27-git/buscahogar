@@ -93,3 +93,36 @@ describe('ficha: titulares, histórico y cifras', () => {
     expect(date.get('font-variant-numeric')).toBe('tabular-nums');
   });
 });
+
+// D.13b — a 320 px la tabla del histórico no cabe ni envolviendo (P7 desbordaba 8px): bajo 30rem
+// cada fila se apila con la etiqueta de la columna delante (los roles ARIA van en el marcado).
+describe('histórico apilado bajo 30rem (alternativa del diseño)', () => {
+  const narrow = (): CssNode => {
+    const block = COMPONENTS.children.find(
+      (child) =>
+        canon(child.prelude) === canon('@media (width < 30rem)') &&
+        child.children.some((rule) => rule.prelude.includes('.price-history__table'))
+    );
+    if (block === undefined) throw new Error('No existe el @media de 30rem del histórico.');
+    return block;
+  };
+
+  it('tabla, filas y celdas pasan a bloque', () => {
+    const table = rule(narrow(), '.price-history__table');
+    expect(table.get('display')).toBe('block');
+    expect(rule(narrow(), '.price-history__table tr').get('display')).toBe('block');
+    expect(rule(narrow(), '.price-history__table td').get('display')).toBe('flex');
+  });
+
+  it('cada celda muestra su etiqueta antes del valor', () => {
+    const label = rule(narrow(), '.price-history__table td::before');
+    expect(label.get('content')).toBe('attr(data-label)');
+  });
+
+  it('la cabecera visual se oculta sin sacarla del árbol de accesibilidad', () => {
+    const head = rule(narrow(), '.price-history__table thead');
+    expect(head.get('position')).toBe('absolute');
+    expect(head.get('clip-path')).toBe('inset(50%)');
+    expect(head.get('display')).toBeUndefined();
+  });
+});

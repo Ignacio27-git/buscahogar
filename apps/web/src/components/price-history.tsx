@@ -126,32 +126,41 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
           </figcaption>
         </figure>
       ) : null}
-      {/* Región con foco por teclado: a 320 px la tabla puede ser unos píxeles más ancha que la
-          columna y se desplaza aquí dentro, sin desbordar la página. */}
+      {/* Región con foco por teclado por si la tabla no cupiera. Bajo 30rem las filas se apilan
+          (CSS) con la etiqueta de cada columna; `display` distinto de `table` quita la semántica de
+          tabla en algunos navegadores, por eso los roles son explícitos. */}
       <div
         className="price-history__scroll"
         role="region"
         aria-label="Tabla del histórico de precios"
         tabIndex={0}
       >
-        <table className="price-history__table">
+        <table className="price-history__table" role="table">
           <caption>
             Fechas en que nuestro barrido observó cada precio; no son fechas de publicación del
             portal.
           </caption>
-          <thead>
-            <tr>
-              <th scope="col">Fuente</th>
-              <th scope="col">Fecha</th>
-              <th scope="col">Precio</th>
-              <th scope="col">Variación</th>
+          <thead role="rowgroup">
+            <tr role="row">
+              <th scope="col" role="columnheader">
+                Fuente
+              </th>
+              <th scope="col" role="columnheader">
+                Fecha
+              </th>
+              <th scope="col" role="columnheader">
+                Precio
+              </th>
+              <th scope="col" role="columnheader">
+                Variación
+              </th>
             </tr>
           </thead>
-          <tbody>
+          <tbody role="rowgroup">
             {history.series.flatMap((s, index) =>
               s.points.map((point, pointIndex) => (
-                <tr key={`${s.listingId}-${String(pointIndex)}`}>
-                  <td>
+                <tr key={`${s.listingId}-${String(pointIndex)}`} role="row">
+                  <td role="cell" data-label="Fuente">
                     {labels[index]}
                     {withdrawnOf(s.status) ? (
                       <>
@@ -160,11 +169,11 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
                       </>
                     ) : null}
                   </td>
-                  <td className="price-history__date">{formatUtcDate(point.capturedAt)}</td>
-                  <td className="price-history__num price-history__price">
+                  <td role="cell" data-label="Fecha" className="price-history__date">{formatUtcDate(point.capturedAt)}</td>
+                  <td role="cell" data-label="Precio" className="price-history__num price-history__price">
                     {formatPriceCents(point.priceCents)}
                   </td>
-                  <td className="price-history__num">
+                  <td role="cell" data-label="Variación" className="price-history__num">
                     {point.deltaCents === null ? (
                       <>
                         <span aria-hidden="true">—</span>

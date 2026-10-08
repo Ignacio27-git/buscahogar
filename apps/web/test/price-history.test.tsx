@@ -64,6 +64,19 @@ describe('PriceHistory', () => {
     expect(headers).toEqual(['Fuente', 'Fecha', 'Precio', 'Variación']);
   });
 
+  it('la tabla lleva roles explícitos y cada celda su etiqueta, para apilarse a 320 px sin perder la semántica', () => {
+    const html = render(TWO_LISTINGS);
+
+    expect(html).toContain('<table class="price-history__table" role="table">');
+    expect(html).toContain('<thead role="rowgroup">');
+    expect(html).toContain('<tbody role="rowgroup">');
+    const cells = [...html.matchAll(/<td role="cell"[^>]*data-label="([^"]+)"/g)].map((m) => m[1]);
+    // Cuatro puntos × cuatro columnas, en el orden de las cabeceras.
+    expect(cells).toHaveLength(16);
+    expect(cells.slice(0, 4)).toEqual(['Fuente', 'Fecha', 'Precio', 'Variación']);
+    expect(new Set(cells)).toEqual(new Set(['Fuente', 'Fecha', 'Precio', 'Variación']));
+  });
+
   it('el pie de tabla (caption) dice que son fechas de nuestro barrido', () => {
     const html = render(TWO_LISTINGS);
 
@@ -72,7 +85,7 @@ describe('PriceHistory', () => {
 
   it('filas agrupadas por anuncio (activo primero, precio actual asc) y por fecha', () => {
     const html = render(TWO_LISTINGS);
-    const rows = [...html.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map((m) => m[1] ?? '');
+    const rows = [...html.matchAll(/<tr role="row">([\s\S]*?)<\/tr>/g)].map((m) => m[1] ?? '');
     const body = rows.filter((row) => row.includes('<td'));
     const dates = body.map((row) => /(\d{2}\/\d{2}\/\d{4})/.exec(row)?.[1]);
 
@@ -98,7 +111,7 @@ describe('PriceHistory', () => {
     ]);
 
     expect(html.match(/\(no disponible\)/g)?.length).toBeGreaterThanOrEqual(1);
-    const kyeroRows = [...html.matchAll(/<tr>([\s\S]*?)<\/tr>/g)]
+    const kyeroRows = [...html.matchAll(/<tr role="row">([\s\S]*?)<\/tr>/g)]
       .map((m) => m[1] ?? '')
       .filter((row) => row.includes('Kyero'));
     expect(kyeroRows.length).toBeGreaterThan(0);
