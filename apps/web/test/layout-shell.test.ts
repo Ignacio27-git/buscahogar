@@ -112,9 +112,11 @@ describe('Metadatos raíz (page-metadata R1)', () => {
 describe('Escaneo estático de src/ (R2, R5)', () => {
   const files = sourceFiles(SRC_DIR);
 
-  it('solo layout.tsx contiene <main', () => {
+  // D.14: `global-error.tsx` es la excepción — sustituye al layout raíz con un documento propio,
+  // así que es el único dueño de su `main`.
+  it('solo layout.tsx y el documento propio de global-error.tsx contienen <main', () => {
     const owners = files.filter((file) => read(file).includes('<main'));
-    expect(owners.map((file) => file.split(/[\\/]/).pop())).toEqual(['layout.tsx']);
+    expect(owners.map((file) => file.split(/[\\/]/).pop())).toEqual(['global-error.tsx', 'layout.tsx']);
   });
 
   it('no queda texto de esqueleto, nombre antiguo ni WEB_VERSION', () => {
