@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildE2eFixture } from '../../src/e2e/fixture-data.js';
 import {
+  E2E_COVERAGE_ZONES,
   E2E_DETAIL_LISTING_ID,
   E2E_GALLERY_LISTING_ID,
   E2E_GETAFE,
@@ -14,6 +15,7 @@ import {
   E2E_MISSING_LISTING_ID,
   E2E_PROPERTY_IDS,
   E2E_REMOVED_ONLY_LISTING_ID,
+  E2E_SOURCE_IDS,
 } from '../../src/e2e/fixture-ids.js';
 
 const fixture = buildE2eFixture();
@@ -36,14 +38,15 @@ describe('buildE2eFixture — determinismo (R3)', () => {
   it('todos los identificadores son UUID v4 válidos y no se repiten', () => {
     const ids = [
       ...fixture.sources.map((row) => row.id),
-      fixture.location.id,
-      fixture.zone.id,
+      ...fixture.locations.map((row) => row.id),
+      ...fixture.zones.map((row) => row.id),
       ...fixture.properties.map((row) => row.id),
       ...fixture.listings.map((row) => row.id),
       ...fixture.versions.map((row) => row.id),
       ...fixture.propertyListings.map((row) => row.id),
+      ...fixture.coverageJobs.map((row) => row.id),
     ];
-    expect(ids).toHaveLength(2 + 1 + 1 + 7 + 11 + 14 + 11);
+    expect(ids).toHaveLength(2 + 7 + 7 + 7 + 11 + 14 + 11 + 4);
     expect(new Set(ids).size).toBe(ids.length);
     for (const id of ids) {
       expect(id).toMatch(UUID_V4);
@@ -97,11 +100,13 @@ describe('buildE2eFixture — forma del dataset (R4)', () => {
   });
 
   it('S4.4 existen Getafe (28065) y su zona cubierta, con centroide y nombre plegado', () => {
-    expect(fixture.location.ineCode).toBe(E2E_GETAFE.ineCode);
-    expect(fixture.location.searchName).toBe('getafe');
-    expect(fixture.location.centroid).toMatch(/^POINT\(-3\.\d+ 40\.\d+\)$/);
-    expect(fixture.zone.locationId).toBe(fixture.location.id);
-    expect(fixture.zone.state).toBe('covered');
+    const getafe = fixture.locations.find((row) => row.id === E2E_GETAFE.locationId);
+    const zone = fixture.zones.find((row) => row.id === E2E_GETAFE.zoneId);
+    expect(getafe?.ineCode).toBe(E2E_GETAFE.ineCode);
+    expect(getafe?.searchName).toBe('getafe');
+    expect(getafe?.centroid).toMatch(/^POINT\(-3\.\d+ 40\.\d+\)$/);
+    expect(zone?.locationId).toBe(getafe?.id);
+    expect(zone?.state).toBe('covered');
   });
 
   it('S4.5 al menos 3 viviendas tienen coordenadas y exactamente una vivienda activa no', () => {
@@ -233,7 +238,9 @@ describe('buildE2eFixture — histórico de precios de P1 (D.10)', () => {
       expect(new Set(days).size).toBe(versions.length);
       versions.forEach((row, index) => {
         if (index > 0) {
-          expect(row.capturedAt?.getTime()).toBeGreaterThan(versions[index - 1]?.capturedAt?.getTime() ?? 0);
+          expect(row.capturedAt?.getTime()).toBeGreaterThan(
+            versions[index - 1]?.capturedAt?.getTime() ?? 0
+          );
           expect(row.version).toBeGreaterThan(versions[index - 1]?.version ?? 0);
         }
         expect(row.isCurrent).toBe(index === versions.length - 1);
@@ -258,5 +265,118 @@ describe('IDs publicados para las specs', () => {
     expect(ids).not.toContain(E2E_MISSING_LISTING_ID);
     expect(E2E_MISSING_LISTING_ID).toMatch(UUID_V4);
     expect(Object.values(E2E_LISTING_IDS)).toHaveLength(fixture.listings.length);
+  });
+});
+
+// D.13 (decisión 181): una zona por estado de aviso de cobertura. Las zonas nuevas no tienen
+// viviendas; solo importan su estado, su centroide y su job.
+describe('buildE2eFixture — zonas de los avisos de cobertura (D.13)', () => {
+  type ZoneKey = keyof typeof E2E_COVERAGE_ZONES;
+  const zoneOf = (key: ZoneKey): (typeof fixture.zones)[number] | undefined =>
+    fixture.zones.find((row) => row.id === E2E_COVERAGE_ZONES[key].zoneId);
+  const locationOf = (key: ZoneKey): (typeof fixture.locations)[number] | undefined =>
+    fixture.locations.find((row) => row.id === E2E_COVERAGE_ZONES[key].locationId);
+  const jobOf = (zoneId: string): (typeof fixture.coverageJobs)[number] | undefined =>
+    fixture.coverageJobs.find((row) => row.zoneId === zoneId);
+
+  it('hay seis zonas de aviso con código INE propio y una zona por localidad', () => {
+    const keys = Object.keys(E2E_COVERAGE_ZONES) as ZoneKey[];
+    expect(keys).toHaveLength(6);
+    expect(fixture.locations).toHaveLength(7);
+    expect(fixture.zones).toHaveLength(7);
+    expect(new Set(fixture.locations.map((row) => row.ineCode)).size).toBe(7);
+    for (const key of keys) {
+      expect(locationOf(key)?.ineCode).toBe(E2E_COVERAGE_ZONES[key].ineCode);
+      expect(zoneOf(key)?.locationId).toBe(E2E_COVERAGE_ZONES[key].locationId);
+    }
+  });
+
+  it('cada estado de job tiene su zona: pending, running, done y failed, todos de Idealista', () => {
+    expect(fixture.coverageJobs).toHaveLength(4);
+    for (const key of ['pending', 'running', 'done', 'failed'] as const) {
+      const job = jobOf(E2E_COVERAGE_ZONES[key].zoneId);
+      expect(job?.status).toBe(key);
+      expect(job?.id).toBe(E2E_COVERAGE_ZONES[key].jobId);
+      expect(job?.sourceId).toBe(E2E_SOURCE_IDS.idealista);
+    }
+  });
+
+  it('el job en curso, el terminado y el fallido llevan startedAt; el pendiente no', () => {
+    expect(jobOf(E2E_COVERAGE_ZONES.pending.zoneId)?.startedAt).toBeNull();
+    for (const key of ['running', 'done', 'failed'] as const) {
+      expect(jobOf(E2E_COVERAGE_ZONES[key].zoneId)?.startedAt).toBeInstanceOf(Date);
+    }
+    // Triangulación: el fallido lleva un error interno que la página nunca debe enseñar.
+    expect(jobOf(E2E_COVERAGE_ZONES.failed.zoneId)?.error).not.toBeNull();
+    expect(jobOf(E2E_COVERAGE_ZONES.done.zoneId)?.error).toBeNull();
+  });
+
+  it('estados de zona: Leganés sin cubrir, Fuenlabrada cubriendo, Móstoles obsoleta', () => {
+    expect(zoneOf('pending')?.state).toBe('uncovered');
+    expect(zoneOf('running')?.state).toBe('covering');
+    expect(zoneOf('done')?.state).toBe('stale');
+  });
+
+  it('Parla no tiene centroide ni job; Pinto tiene centroide y ningún job', () => {
+    expect(locationOf('notSweepable')?.centroid).toBeNull();
+    expect(locationOf('notSweepable')?.sweepRadiusM).toBeNull();
+    expect(jobOf(E2E_COVERAGE_ZONES.notSweepable.zoneId)).toBeUndefined();
+    expect(locationOf('cap')?.centroid).toMatch(/^POINT\(-3\.\d+ 40\.\d+\)$/);
+    expect(jobOf(E2E_COVERAGE_ZONES.cap.zoneId)).toBeUndefined();
+    expect(zoneOf('cap')?.state).toBe('uncovered');
+  });
+});
+
+// D.13 (decisión 181, enmienda la 135): el tope global exige un job solicitado «hoy» (día UTC
+// del servidor). La fecha de siembra se inyecta, así que el dataset es idéntico dentro del
+// mismo día UTC y solo ese campo cambia entre días.
+describe('buildE2eFixture — fecha de siembra inyectada (D.13)', () => {
+  type Built = ReturnType<typeof buildE2eFixture>;
+  const pendingJob = (data: Built): Built['coverageJobs'][number] | undefined =>
+    data.coverageJobs.find((row) => row.zoneId === E2E_COVERAGE_ZONES.pending.zoneId);
+
+  it('la misma fecha de siembra produce datos idénticos byte a byte', () => {
+    const seedNow = new Date('2026-10-08T12:05:00Z');
+    expect(JSON.stringify(buildE2eFixture(seedNow))).toBe(JSON.stringify(buildE2eFixture(seedNow)));
+  });
+
+  it('dos instantes del mismo día UTC producen datos idénticos', () => {
+    const morning = buildE2eFixture(new Date('2026-10-08T00:00:01Z'));
+    const night = buildE2eFixture(new Date('2026-10-08T23:59:59Z'));
+    expect(JSON.stringify(morning)).toBe(JSON.stringify(night));
+  });
+
+  it('el job pendiente se solicita al inicio del día UTC de la siembra', () => {
+    const data = buildE2eFixture(new Date('2026-10-08T12:05:00Z'));
+    expect(pendingJob(data)?.requestedAt?.toISOString()).toBe('2026-10-08T00:00:00.000Z');
+  });
+
+  it('otro día UTC cambia únicamente el requestedAt del job pendiente', () => {
+    const today = buildE2eFixture(new Date('2026-10-08T12:05:00Z'));
+    const tomorrow = buildE2eFixture(new Date('2026-10-09T12:05:00Z'));
+    expect(JSON.stringify(today)).not.toBe(JSON.stringify(tomorrow));
+
+    const normalised = (data: Built): string => {
+      const copy = structuredClone(data);
+      const job = pendingJob(copy);
+      if (job === undefined) {
+        throw new Error('falta el job pendiente');
+      }
+      job.requestedAt = new Date(0);
+      return JSON.stringify(copy);
+    };
+    expect(normalised(today)).toBe(normalised(tomorrow));
+  });
+
+  it('los demás jobs son anteriores al inicio del día de la siembra por defecto', () => {
+    const data = buildE2eFixture();
+    const dayStart = pendingJob(data)?.requestedAt?.getTime() ?? Number.NaN;
+    const others = data.coverageJobs.filter(
+      (row) => row.zoneId !== E2E_COVERAGE_ZONES.pending.zoneId
+    );
+    expect(others).toHaveLength(3);
+    for (const job of others) {
+      expect(job.requestedAt?.getTime()).toBeLessThan(dayStart);
+    }
   });
 });

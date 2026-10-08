@@ -15,6 +15,7 @@ import pg from 'pg';
 import { createDb } from '../db.js';
 import type { Database } from '../db.js';
 import {
+  coverageJobs,
   listingVersions,
   listings,
   locations,
@@ -110,12 +111,13 @@ export async function insertE2eFixture(
 ): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.insert(sources).values(fixture.sources);
-    await tx.insert(locations).values(fixture.location);
-    await tx.insert(zones).values(fixture.zone);
+    await tx.insert(locations).values(fixture.locations);
+    await tx.insert(zones).values(fixture.zones);
     await tx.insert(properties).values(fixture.properties);
     await tx.insert(listings).values(fixture.listings);
     await tx.insert(listingVersions).values(fixture.versions);
     await tx.insert(propertyListings).values(fixture.propertyListings);
+    await tx.insert(coverageJobs).values(fixture.coverageJobs);
   });
 }
 
@@ -127,7 +129,9 @@ export async function seedE2eDatabase(env: NodeJS.ProcessEnv = process.env): Pro
   try {
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
     await grantReadOnlyAccess(pool, target.databaseName);
-    await insertE2eFixture(db);
+    // D.13 (decisión 181, enmienda la 135): fecha de siembra real; solo el job pendiente depende de
+    // ella (el tope global cuenta los jobs solicitados «hoy»).
+    await insertE2eFixture(db, buildE2eFixture(new Date()));
   } finally {
     await pool.end();
   }

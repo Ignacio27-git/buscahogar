@@ -10,6 +10,7 @@ import { normalizeSearchName } from '@buscahogar/core';
 
 import { geographyPointWkt } from '../spatial.js';
 import type {
+  coverageJobs,
   listingVersions,
   listings,
   locations,
@@ -19,6 +20,7 @@ import type {
   zones,
 } from '../tables.js';
 import {
+  E2E_COVERAGE_ZONES,
   E2E_GETAFE,
   E2E_LISTING_IDS,
   E2E_PROPERTY_IDS,
@@ -28,12 +30,14 @@ import {
 
 export interface E2eFixture {
   readonly sources: (typeof sources.$inferInsert)[];
-  readonly location: typeof locations.$inferInsert;
-  readonly zone: typeof zones.$inferInsert;
+  readonly locations: (typeof locations.$inferInsert)[];
+  readonly zones: (typeof zones.$inferInsert)[];
   readonly properties: (typeof properties.$inferInsert)[];
   readonly listings: (typeof listings.$inferInsert)[];
   readonly versions: (typeof listingVersions.$inferInsert)[];
   readonly propertyListings: (typeof propertyListings.$inferInsert)[];
+  // D.13 (decisión 181): un job por estado de aviso, para las rutas e2e de cobertura.
+  readonly coverageJobs: (typeof coverageJobs.$inferInsert)[];
 }
 
 // Instante «ahora» del dataset y los de los anuncios que dejaron de verse.
@@ -58,6 +62,88 @@ const E2E_THUMBNAILS = {
 // Centroide aproximado de Getafe (28065) y radio de barrido en metros.
 const GETAFE_CENTROID = { latitude: 40.3057, longitude: -3.7326 };
 const GETAFE_SWEEP_RADIUS_M = 3500;
+
+// D.13 (decisión 181): zonas de los avisos de cobertura. Sin viviendas: solo importan el estado de
+// la zona, si hay centroide y el job. Las marcas de los jobs son fijas, salvo el `requestedAt` del
+// pendiente, que cae al inicio del día UTC de la siembra (ver `buildE2eFixture`).
+interface CoverageSeed {
+  readonly key: keyof typeof E2E_COVERAGE_ZONES;
+  readonly municipality: string;
+  readonly centroid: { readonly latitude: number; readonly longitude: number } | null;
+  readonly zoneState: 'uncovered' | 'covering' | 'stale';
+  readonly job?: {
+    readonly status: 'pending' | 'running' | 'done' | 'failed';
+    readonly startedAt: Date | null;
+    readonly finishedAt: Date | null;
+    readonly attempts: number;
+    readonly error: string | null;
+  };
+}
+
+const COVERAGE_SWEEP_RADIUS_M = 4000;
+// Los jobs que no son el pendiente se solicitaron el día anterior a `SEEN_AT`: nunca cuentan como «hoy».
+const COVERAGE_JOB_REQUESTED_AT = new Date('2026-09-14T09:00:00Z');
+
+const COVERAGE_SEEDS: readonly CoverageSeed[] = [
+  {
+    key: 'pending',
+    municipality: 'Leganés',
+    centroid: { latitude: 40.3272, longitude: -3.7635 },
+    zoneState: 'uncovered',
+    job: { status: 'pending', startedAt: null, finishedAt: null, attempts: 0, error: null },
+  },
+  {
+    key: 'running',
+    municipality: 'Fuenlabrada',
+    centroid: { latitude: 40.2842, longitude: -3.7942 },
+    zoneState: 'covering',
+    job: {
+      status: 'running',
+      startedAt: new Date('2026-09-14T09:05:00Z'),
+      finishedAt: null,
+      attempts: 1,
+      error: null,
+    },
+  },
+  {
+    key: 'done',
+    municipality: 'Móstoles',
+    centroid: { latitude: 40.3223, longitude: -3.8649 },
+    zoneState: 'stale',
+    job: {
+      status: 'done',
+      startedAt: new Date('2026-09-14T09:05:00Z'),
+      finishedAt: new Date('2026-09-14T09:40:00Z'),
+      attempts: 1,
+      error: null,
+    },
+  },
+  {
+    key: 'failed',
+    municipality: 'Alcorcón',
+    centroid: { latitude: 40.3458, longitude: -3.8249 },
+    zoneState: 'uncovered',
+    job: {
+      status: 'failed',
+      startedAt: new Date('2026-09-14T09:05:00Z'),
+      finishedAt: new Date('2026-09-14T09:10:00Z'),
+      attempts: 3,
+      // Texto interno del worker: la página nunca lo enseña.
+      error: 'fixture: la fuente respondió con un error',
+    },
+  },
+  { key: 'notSweepable', municipality: 'Parla', centroid: null, zoneState: 'uncovered' },
+  {
+    key: 'cap',
+    municipality: 'Pinto',
+    centroid: { latitude: 40.2411, longitude: -3.6998 },
+    zoneState: 'uncovered',
+  },
+];
+
+function utcDayStartOf(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
 
 interface ListingSeed {
   readonly id: string;
@@ -234,7 +320,10 @@ const PROPERTY_SEEDS: readonly PropertySeed[] = [
   },
 ];
 
-export function buildE2eFixture(): E2eFixture {
+// `seedNow` solo decide el `requestedAt` del job pendiente (inicio de SU día UTC): el tope global
+// de zonas nuevas cuenta los jobs solicitados «hoy» según el reloj del servidor. Con el valor por
+// defecto el dataset es constante; con la fecha real, idéntico dentro del mismo día UTC.
+export function buildE2eFixture(seedNow: Date = SEEN_AT): E2eFixture {
   const fixture: {
     properties: (typeof properties.$inferInsert)[];
     listings: (typeof listings.$inferInsert)[];
@@ -344,7 +433,9 @@ export function buildE2eFixture(): E2eFixture {
           )
         );
       });
-      fixture.versions.push(versionRow(versionId, history.length + 1, true, listing.priceCents, SEEN_AT));
+      fixture.versions.push(
+        versionRow(versionId, history.length + 1, true, listing.priceCents, SEEN_AT)
+      );
 
       fixture.propertyListings.push({
         id: e2eUuid(0x60 + ordinal),
@@ -384,26 +475,73 @@ export function buildE2eFixture(): E2eFixture {
         updatedAt: SEEN_AT,
       },
     ],
-    location: {
-      id: E2E_GETAFE.locationId,
-      ineCode: E2E_GETAFE.ineCode,
-      municipality: 'Getafe',
-      province: 'Madrid',
-      provinceCode: '28',
-      autonomousCommunity: 'Comunidad de Madrid',
-      centroid: geographyPointWkt(GETAFE_CENTROID),
-      sweepRadiusM: GETAFE_SWEEP_RADIUS_M,
-      searchName: normalizeSearchName('Getafe'),
-      createdAt: SEEN_AT,
-    },
-    zone: {
-      id: E2E_GETAFE.zoneId,
-      locationId: E2E_GETAFE.locationId,
-      state: 'covered',
-      lastSweptAt: SEEN_AT,
-      createdAt: SEEN_AT,
-      updatedAt: SEEN_AT,
-    },
+    locations: [
+      {
+        id: E2E_GETAFE.locationId,
+        ineCode: E2E_GETAFE.ineCode,
+        municipality: 'Getafe',
+        province: 'Madrid',
+        provinceCode: '28',
+        autonomousCommunity: 'Comunidad de Madrid',
+        centroid: geographyPointWkt(GETAFE_CENTROID),
+        sweepRadiusM: GETAFE_SWEEP_RADIUS_M,
+        searchName: normalizeSearchName('Getafe'),
+        createdAt: SEEN_AT,
+      },
+      ...COVERAGE_SEEDS.map((seed): typeof locations.$inferInsert => ({
+        id: E2E_COVERAGE_ZONES[seed.key].locationId,
+        ineCode: E2E_COVERAGE_ZONES[seed.key].ineCode,
+        municipality: seed.municipality,
+        province: 'Madrid',
+        provinceCode: '28',
+        autonomousCommunity: 'Comunidad de Madrid',
+        centroid: seed.centroid === null ? null : geographyPointWkt(seed.centroid),
+        sweepRadiusM: seed.centroid === null ? null : COVERAGE_SWEEP_RADIUS_M,
+        searchName: normalizeSearchName(seed.municipality),
+        createdAt: SEEN_AT,
+      })),
+    ],
+    zones: [
+      {
+        id: E2E_GETAFE.zoneId,
+        locationId: E2E_GETAFE.locationId,
+        state: 'covered',
+        lastSweptAt: SEEN_AT,
+        createdAt: SEEN_AT,
+        updatedAt: SEEN_AT,
+      },
+      ...COVERAGE_SEEDS.map((seed): typeof zones.$inferInsert => ({
+        id: E2E_COVERAGE_ZONES[seed.key].zoneId,
+        locationId: E2E_COVERAGE_ZONES[seed.key].locationId,
+        state: seed.zoneState,
+        lastSweptAt: null,
+        createdAt: SEEN_AT,
+        updatedAt: SEEN_AT,
+      })),
+    ],
+    coverageJobs: COVERAGE_SEEDS.flatMap((seed): (typeof coverageJobs.$inferInsert)[] => {
+      const zone = E2E_COVERAGE_ZONES[seed.key];
+      if (seed.job === undefined || !('jobId' in zone)) {
+        return [];
+      }
+      return [
+        {
+          id: zone.jobId,
+          zoneId: zone.zoneId,
+          sourceId: E2E_SOURCE_IDS.idealista,
+          status: seed.job.status,
+          cursor: null,
+          attempts: seed.job.attempts,
+          error: seed.job.error,
+          requestedAt:
+            seed.job.status === 'pending' ? utcDayStartOf(seedNow) : COVERAGE_JOB_REQUESTED_AT,
+          startedAt: seed.job.startedAt,
+          finishedAt: seed.job.finishedAt,
+          refreshRequestedAt: null,
+          cycleStartedAt: null,
+        },
+      ];
+    }),
     ...fixture,
   };
 }

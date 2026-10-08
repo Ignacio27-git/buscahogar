@@ -27,6 +27,38 @@ export const E2E_GETAFE = {
   ineCode: '28065',
 } as const;
 
+// D.13 (decisión 181): una zona por estado de aviso de cobertura, en municipios reales de
+// Madrid. Localidades 0x23, 0x25... y zonas 0x24, 0x26...; los jobs (0x81-0x84) solo existen en
+// los cuatro estados que tienen job. `notSweepable` no tiene centroide y `cap` no tiene job.
+export const E2E_COVERAGE_ZONES = {
+  pending: {
+    ineCode: '28074',
+    locationId: e2eUuid(0x23),
+    zoneId: e2eUuid(0x24),
+    jobId: e2eUuid(0x81),
+  },
+  running: {
+    ineCode: '28058',
+    locationId: e2eUuid(0x25),
+    zoneId: e2eUuid(0x26),
+    jobId: e2eUuid(0x82),
+  },
+  done: {
+    ineCode: '28092',
+    locationId: e2eUuid(0x27),
+    zoneId: e2eUuid(0x28),
+    jobId: e2eUuid(0x83),
+  },
+  failed: {
+    ineCode: '28007',
+    locationId: e2eUuid(0x29),
+    zoneId: e2eUuid(0x2a),
+    jobId: e2eUuid(0x84),
+  },
+  notSweepable: { ineCode: '28106', locationId: e2eUuid(0x2b), zoneId: e2eUuid(0x2c) },
+  cap: { ineCode: '28113', locationId: e2eUuid(0x2d), zoneId: e2eUuid(0x2e) },
+} as const;
+
 // P1..P6 (spec R4). P3 solo tiene anuncios retirados; P6 no tiene ubicación.
 // P7 (D.9, decisión 175): solo anuncios inactivos SIN redactar, con fotos locales y
 // datos clave sin consolidar; no aparece en la búsqueda, solo en su ficha.
