@@ -8,6 +8,54 @@
     "wcag2aa"
   ],
   "entries": {
+    "coverage-cap": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "coverage-done": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "coverage-failed": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "coverage-not-sweepable": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "coverage-pending": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "coverage-running": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
     "detail": {
       "w1280-dark": [],
       "w1280-light": [],
