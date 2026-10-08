@@ -82,6 +82,55 @@ test.describe('ruta de teclado a 1280px (SMV-20)', () => {
   });
 });
 
+// D.13b (decisión 185) — los controles de Leaflet usan el conjunto de iconos dibujados. Antes del
+// paso el zoom llevaba los glifos «+» y «−» y el cierre del popup un «×» en un <span>, así que estas
+// comprobaciones (svg dentro, ningún glifo como texto) habrían fallado contra ese marcado.
+test.describe('iconos dibujados en los controles del mapa (D.13b)', () => {
+  test.beforeEach(() => {
+    onlyProject('w1280-light');
+  });
+
+  test('el zoom lleva svg y ningún glifo +/−, y sigue funcionando', async ({ page }) => {
+    await openRoute(page, route('map'));
+    const zoomIn = page.getByRole('button', { name: 'Acercar' });
+    const zoomOut = page.getByRole('button', { name: 'Alejar' });
+    for (const control of [zoomIn, zoomOut]) {
+      await expect(control.locator('svg.icon')).toHaveCount(1);
+      await expect(control.locator('svg.icon')).toHaveAttribute('aria-hidden', 'true');
+      expect(((await control.textContent()) ?? '').trim()).toBe('');
+    }
+    const zoomLevel = (): Promise<number> =>
+      page.evaluate(() => {
+        const tile = document.querySelector('.leaflet-tile-loaded');
+        return Number(tile?.getAttribute('src')?.split('/').at(-3));
+      });
+    const before = await zoomLevel();
+    await zoomIn.click();
+    await expect.poll(zoomLevel).toBeGreaterThan(before);
+  });
+
+  test('el cierre del popup lleva svg, se llama «Cerrar», cierra y lo conserva al reabrir', async ({
+    page,
+  }) => {
+    await openRoute(page, route('map'));
+    const markers = page.locator('.leaflet-marker-icon[title^="Vivienda, "]');
+    const popup = page.locator('.leaflet-popup.map-popup');
+    expect(await markers.count()).toBeGreaterThan(1);
+
+    for (const index of [0, 1]) {
+      await markers.nth(index).focus();
+      await page.keyboard.press('Enter');
+      await expect(popup).toBeVisible();
+      const close = popup.getByRole('button', { name: 'Cerrar' });
+      await expect(close.locator('svg.icon')).toHaveCount(1);
+      await expect(close.locator('svg.icon')).toHaveAttribute('aria-hidden', 'true');
+      expect(((await close.textContent()) ?? '').trim()).toBe('');
+      await close.click();
+      await expect(popup).toHaveCount(0);
+    }
+  });
+});
+
 test.describe('mapa oculto a 320px en la vista de lista (SMV-16)', () => {
   test.beforeEach(() => {
     onlyProject('w320-light');
