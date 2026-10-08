@@ -30,6 +30,23 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-08 — Correcciones de la auditoría del suelo de oficio (paso D.13b, decisiones 183-185)
+
+**Tipo de tarea:** interfaz (CSS base, iconos, ficha, cabecera de búsqueda), copy y dominio mínimo (tope de reintentos en core) + capturas
+**Forma de especificación:** SDD (explorar, investigar, proponer, especificar, diseñar, tareas y aplicar en siete unidades; Engram
+`sdd/craft-floor-fixes-d13b/*`), un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable con retoques. Las puertas de especificación y diseño corrigieron cosas antes de aplicar (la reserva de foco
+solo desde 64rem, el comportamiento del job agotado, el límite de chips largos a 320 px, el nombre del archivo de iconos del mapa).
+En la aplicación: el directorio `coverage/` estaba ignorado por git (renombrado), la tabla del histórico seguía desbordando 8 px en
+P7 sin `nowrap` (se aplicó la alternativa apilada) y el chip de solo lectura tenía un test fijado a la clase anterior.
+
+**Prompt:** el del paso D.13b de `docs/DESIGN-ROADMAP.md`, literal: «Carga impeccable y lee reference/craft-floor.md antes de editar UI,
+en el diseño y en la aplicación. Corrige los hallazgos de la auditoría de D.0-D.13 (notas de este paso), en este orden: capa base de
+controles; iconos dibujados; ficha; cabecera de la búsqueda; texto» — invocado vía `/gentle-sdd-new`.
+
+**Observación:** los hallazgos que el detector no ve (relleno, hover, iconos, ritmo) se cierran con tests de CSS leído como texto y
+con una pasada a ojo por las capturas; `impeccable detect` queda en cero hallazgos y sin ignores.
+
 ### 2026-10-08 — Auditoría de D.0-D.13 contra el suelo de oficio de impeccable (origen del paso D.13b)
 
 **Tipo de tarea:** auditoría de diseño (solo lectura)

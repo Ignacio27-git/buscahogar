@@ -5158,6 +5158,65 @@ tres copias que pueden divergir.
 
 ---
 
+## 183 — Ficha: solo el resumen de precio es fijo (enmienda la 133.1)
+
+**Estado:** aceptada (D.13b; el responsable confirmó el hallazgo 5 el 2026-10-08).
+
+**Decisión.** Desde 64rem solo `.property-summary--panel` es `position: sticky` (superficie opaca y filete de 1px); el panel de la
+ficha deja de ser una caja con `max-block-size` y scroll propio y los datos y las fuentes fluyen con la página. `.property-header`
+pasa a `display: contents` y el panel se estira (`align-self: stretch`) para que el precio tenga recorrido. El foco por teclado no
+queda tapado (WCAG 2.4.11, técnica C43): `html:has(.property-detail)` suma 5.5rem + 1px a `scroll-padding-top`, solo desde 64rem.
+Por debajo nada es fijo y rige el desplazamiento base. El recuadro anidado del aviso de D.12 desaparece con la caja exterior.
+
+**Alternativas descartadas.** Mantener el panel entero fijo con scroll interno: cortaba la comparación de anuncios a 1280×800 y era un
+recuadro dentro de un recuadro. Medir el precio con un `ResizeObserver`: la altura es fija por construcción y exigiría un componente
+de cliente. Mover el resumen en el TSX: se prefirió solo CSS para no tocar los tests de orden del DOM.
+
+**Motivo.** Un precio siempre visible sin esconder lo que se compara, y un foco que el propio precio no tapa.
+
+---
+
+## 184 — Tope de reintentos compartido y aviso de job fallido según los intentos
+
+**Estado:** aceptada (D.13b; el responsable confirmó el comportamiento el 2026-10-08; enmienda la parte de copy de la 181).
+
+**Decisión.** `COVERAGE_JOB_MAX_ATTEMPTS = 3` y `hasRetriesLeft(attempts)` viven en `packages/core/src/coverage-jobs/job-retry.ts` y se
+exportan por el barril; el worker de ingesta los usa y se elimina la variable `MAX_ATTEMPTS` (no estaba definida en ningún entorno).
+`noticeForOutcome` recibe los intentos del job (`retriesLeft`). Un job `failed` con reintentos dice «Lo volveremos a intentar más
+tarde» y conserva «Comprobar de nuevo»; sin reintentos dice que no se reintentará de forma automática, propone un municipio cercano y
+no pinta el enlace ni `CoverageStatus` (`isReloadable` es falso). El resto del copy impersonal pasa a primera persona del plural o
+tuteo, y los dos topes mantienen frases distintas. El directorio se llama `coverage-jobs` y no `coverage` porque `.gitignore` ignora
+cualquier carpeta `coverage/`.
+
+**Alternativas descartadas.** Conservar el enlace en un job agotado: es un callejón sin salida (decisión 181). Que la web importe el
+valor de `apps/ingestion`: está prohibido por la regla de no importarse entre apps. Mantener el override por entorno: dos fuentes de
+verdad que la web no puede leer.
+
+**Motivo.** El aviso debe decir la verdad sobre lo que hará el worker, con una única fuente del tope.
+
+---
+
+## 185 — Capa base de controles, hover con puntero fino, superficies del navegador e iconos dibujados
+
+**Estado:** aceptada (D.13b; auditoría del suelo de oficio de impeccable).
+
+**Decisión.** (1) `input`, `select`, `textarea` y `button` comparten el relleno `0.5rem 0.75rem` en `@layer base`; se quitan los rellenos
+sueltos (la barra de dibujo del mapa es la única excepción compacta documentada). (2) Todo `:hover` va bajo
+`(hover: hover) and (pointer: fine)` y se acompaña de `:active`; no se usa la variante `hover:` de Tailwind v4, que solo comprueba
+`(hover: hover)` (lo fija `hover-gating.test.ts`). El primario mezcla `color-mix(in oklab, var(--accent), var(--ink) 12%)` (20% al
+pulsar), sin token nuevo. (3) `caret-color` y `accent-color` desde `--accent` (radios y casillas conservan su forma nativa; solo cambia su
+acento) y `scrollbar-color` bajo `@supports`. (4) `components/icon.tsx` (cerrar, enlace externo, más, menos; rejilla de 24, trazo 2,
+`currentColor`, decorativos) sustituye a ×, ↗ y los glifos de Leaflet: el zoom recibe cadenas de confianza iguales al render del
+componente y el cierre del popup se sustituye con `createElementNS`. (5) Los chips envuelven en vez de desplazarse, y la tabla del
+histórico se apila bajo 30rem porque no cabía a 320 px ni envolviendo.
+
+**Alternativas descartadas.** `hover:` de Tailwind: se activa en táctiles con ratón emulado. Una máscara CSS con `url()` para el
+cierre: `url(` está prohibido en `globals.css`. Una biblioteca de iconos: una dependencia para cuatro trazos.
+
+**Motivo.** Un único comportamiento de controles en toda la interfaz y sin caracteres haciendo de iconos.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

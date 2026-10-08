@@ -1230,7 +1230,7 @@ Paso D.13 de docs/DESIGN-ROADMAP.md. Usa `impeccable clarify`.
 
 ---
 
-## [ ] D.13b · Correcciones de la auditoría del suelo de oficio
+## [x] D.13b · Correcciones de la auditoría del suelo de oficio
 
 ```text
 Paso D.13b de docs/DESIGN-ROADMAP.md. Carga impeccable y lee reference/craft-floor.md
@@ -1277,6 +1277,24 @@ auditoría de D.0-D.13 (notas de este paso), en este orden:
   estado vacío en D.14.
 - **Capturas:** la capa base de controles cambia todas las rutas en los seis proyectos.
 - **Tamaño:** M-L.
+- **Estado (2026-10-08): D.13b hecha.** Aplicada en siete unidades más una corrección (SDD, Engram `sdd/craft-floor-fixes-d13b/*`), un
+  solo PR con `size:exception` aceptado por el responsable. Commits: `fc012ba` (controles base y hover), `b998e4a` (iconos), `af484a9`
+  (ficha), `19853a6` (cabecera), `a4b0b07` (tope de reintentos y copy), `234158b` (histórico apilado), `f5f20ca` (capturas) y el de
+  documentación. Decisiones 183, 184 y 185.
+- **Qué hay:** relleno base `.5rem .75rem` para input, select y button; hover solo con puntero fino y `:active`; `caret-color`,
+  `accent-color` y `scrollbar-color` con tokens; `components/icon.tsx` (cerrar, enlace externo, más, menos) también en el zoom y el
+  cierre del popup de Leaflet; solo el resumen de precio es fijo en la ficha desde 64rem, con reserva de foco (WCAG 2.4.11) y el
+  recuadro anidado fuera; «Ubicación» en la escala de sección; gráfico a 288 de ancho; histórico apilado bajo 30rem; `.search-header`
+  con ritmo, chips que envuelven y aviso a 48rem; `COVERAGE_JOB_MAX_ATTEMPTS` en core y aviso de job fallido según los intentos (sin
+  enlace cuando ya no hay reintentos); copy en primera persona; pie con `max-w-prose`.
+- **Tests y comprobaciones:** web 957, core 859, ingestion 847 y db 310 (1 fichero omitido) superados; `typecheck` y `lint` limpios;
+  `impeccable detect apps/web/src` sin hallazgos y sin `ignore`. e2e en Docker: `pnpm e2e:update` y `pnpm e2e` 630 superados y 510
+  omitidos. Cambian 98 capturas (17 rutas por 6 proyectos, menos las que no varían); `axe-baseline.json` no cambia.
+- **Capturas revisadas a ojo:** `detail-gallery` a 320 px en claro (histórico apilado, iconos, sin desbordamiento), `home-filtered` a
+  320 px en oscuro (los nueve chips envuelven), `detail-history` a 1280 px en claro (etiquetas del gráfico, precio fijo con filete) y
+  `coverage-failed` a 1280 px en oscuro (variante agotada, sin enlace, aviso a 48rem, zoom con iconos).
+- **Tamaño real:** 1086 líneas añadidas y 172 borradas en código, tests y e2e (previstas ~805), sin documentación, las 98 capturas ni
+  `axe-baseline.json`.
 
 ## [ ] D.14 · Estados globales: carga, error, 404, vacío y 429
 
@@ -1593,4 +1611,7 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-08 | D.13 | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): 1148 líneas añadidas y 125 borradas de código, tests y e2e (previstas ~870), sin contar documentación, las 36 capturas ni `axe-baseline.json`. | El componente y sus tests salieron más largos que en el diseño; no se podía partir sin dejar la página con avisos viejos y nuevos a la vez. |
 | 2026-10-08 | D.13 | Los tests nuevos viven en `apps/web/test/` y `packages/db/test/`, no junto al código (`src/**`) como decía el reparto de tareas. | `vitest.config.ts` solo incluye `test/**`. |
 | 2026-10-08 | D.12, D.13 | La regla lateral de 3 px de los avisos (`.source-list__warning`, `.coverage-notice`) se sustituye por el panel de 1px de D.7 (decisión 182). Cambian las capturas `coverage-*` y `detail-gallery`. | El suelo de oficio de impeccable prohíbe un borde lateral de color de más de 1px en avisos y alertas; el detector lo marcó (`side-tab`) y el responsable exige seguirlo siempre, sin `ignore`. |
+| 2026-10-08 | D.13b | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): 1086 añadidas y 172 borradas de código, tests y e2e (previstas ~805), sin documentación, capturas ni `axe-baseline.json`. | Los tests de CSS leído como texto, el e2e reescrito de la ficha y la alternativa apilada del histórico pesaron más de lo previsto. No se recortó nada. |
+| 2026-10-08 | D.13b | Se aplicó la alternativa de filas apiladas del histórico (bajo 30rem, con `data-label` y roles ARIA explícitos) y hubo un commit más (`234158b`). | Sin `nowrap` la tabla de P7 seguía desbordando 8 px a 320 px; el e2e lo midió. |
+| 2026-10-08 | D.13b | El módulo de reintentos vive en `packages/core/src/coverage-jobs/`, no en `coverage/`. El chip de filtros aplicados cambió su hover a una clase CSS en la unidad 1 y no en la 2. | `.gitignore` ignora cualquier carpeta `coverage/`; el test de hover prohíbe la variante `hover:` desde la primera unidad. |
 | 2026-10-08 | D.13b | Paso nuevo entre D.13 y D.14 para corregir los 14 hallazgos de la auditoría de D.0-D.13 contra `craft-floor.md` de impeccable. | Solo D.3 había cargado el suelo de oficio; el responsable prefiere corregir antes de que D.14-D.17 se construyan sobre la base actual. |

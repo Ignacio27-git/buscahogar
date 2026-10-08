@@ -3756,6 +3756,24 @@ error del propio shell.
 **Observación:** una cita de decisión se abre antes de escribirla y un recuento se hace sobre la tabla, no de memoria. Antes de
 formatear un fichero existente, comprobar con `prettier --check` que ya estaba limpio: si no, formatear es ruido en el diff.
 
+### 2026-10-08 — El suelo de oficio sin cargar en D.5-D.13 y el recuadro anidado de la decisión 182 (hallazgos de D.13b)
+
+**Contexto:** auditoría previa a D.13b y aplicación del paso.
+
+**Categoría:** contradicción con una regla del proyecto y código que compilaba pero no hacía lo correcto.
+
+**Qué se generó mal:** (1) De D.5 a D.13 ninguna fase cargó `reference/craft-floor.md`; solo D.3 lo hizo, y de ahí salieron los 14
+hallazgos del paso. (2) La corrección de la decisión 182 dejó el aviso de «sin anuncios activos» como un recuadro de 1px dentro del
+panel fijo de la ficha (un recuadro anidado, que el mismo suelo prohíbe). (3) Durante la aplicación: se creó `packages/core/src/coverage/`
+y `.gitignore` ignora cualquier carpeta `coverage/`, así que el módulo no entraba en el commit (se detectó al revisar el estado y se
+renombró a `coverage-jobs`); y la hipótesis de que quitar `nowrap` bastaba para que la tabla del histórico cupiera a 320 px falló en
+el e2e (8 px de desbordamiento en P7) y hubo que aplicar la alternativa de filas apiladas.
+
+**Cómo se detectó:** la auditoría a mano, el estado de git y el e2e en Docker.
+
+**Observación:** un paso que reutiliza un patrón también carga el suelo antes de editar; una hipótesis de maqueta se mide en el
+navegador antes de darla por buena; y un directorio nuevo se comprueba con `git check-ignore`.
+
 ### 2026-10-08 — Regla lateral prohibida por impeccable en los avisos de D.12 y D.13
 
 **Contexto:** CSS de los avisos en `apps/web/src/app/globals.css`: «sin anuncios activos» de la ficha (D.12) y aviso de cobertura
