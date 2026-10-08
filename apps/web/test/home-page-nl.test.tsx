@@ -195,7 +195,7 @@ describe('?q= interpreta sin buscar (spec "Interpret Without Searching")', () =>
   it('un rango invertido muestra el rechazo nombrado del esquema y deja los campos editables', async () => {
     const html = await render({ q: 'entre 900 y 600 euros' });
     expect(html).toContain('role="alert"');
-    expect(html).toContain('minPrice no puede ser mayor que maxPrice');
+    expect(html).toContain('Precio mínimo (€): no puede ser mayor que el precio máximo');
     expect(findTag(html, 'input', 'name="minPrice"', 'value="900"')).toBeDefined();
     expect(findTag(html, 'input', 'name="maxPrice"', 'value="600"')).toBeDefined();
     expectNoSideEffects();
@@ -227,7 +227,7 @@ describe('confirmar el panel ejecuta la búsqueda normal (spec "Confirm")', () =
   it('sin la marca, un minPrice vacío sigue rechazándose con nombre', async () => {
     const html = await render({ minPrice: '' });
     expect(html).toContain('role="alert"');
-    expect(html).toContain('minPrice');
+    expect(html).toContain('Precio mínimo (€): escribe un importe');
     expect(searchPropertiesMock).not.toHaveBeenCalled();
   });
 
@@ -298,7 +298,7 @@ describe('barra de filtros en la home (D.6a, spec "Filter bar")', () => {
   it('parámetros inválidos con valores representables: alerta y entradas 900/100 editables (min > max)', async () => {
     const html = await render({ minPrice: '900', maxPrice: '100' });
     expect(html).toContain('role="alert"');
-    expect(html).toContain('minPrice no puede ser mayor que maxPrice.');
+    expect(html).toContain('Precio mínimo (€): no puede ser mayor que el precio máximo.');
     const form = barForm(html);
     expect(findTag(form, 'input', 'name="minPrice"', 'value="900"')).toBeDefined();
     expect(findTag(form, 'input', 'name="maxPrice"', 'value="100"')).toBeDefined();
@@ -307,9 +307,10 @@ describe('barra de filtros en la home (D.6a, spec "Filter bar")', () => {
 
   it('valores no representables: la alerta nombra el parámetro y la barra se pinta con el valor crudo', async () => {
     const html = await render({ minPrice: 'abc', operation: 'foo' });
-    // El mensaje por defecto de Zod para un enum no nombra el parámetro: la
-    // página lo antepone para que la alerta lo diga.
-    expect(html).toMatch(/<p role="alert">[^<]*operation: [^<]*minPrice: |<p role="alert">[^<]*minPrice: [^<]*operation: /);
+    // D.14 (D8, D11): el detalle nombra cada filtro con su rótulo en español, nunca con la clave.
+    expect(html).toContain('Operación: elige una de las opciones de la lista.');
+    expect(html).toContain('Precio mínimo (€): escribe un importe en euros, con dos decimales como mucho.');
+    expect(html).not.toMatch(/operation: |minPrice: |Invalid/);
     const form = barForm(html);
     expect(findTag(form, 'input', 'type="number"', 'name="minPrice"', 'value="abc"')).toBeDefined();
     expect(form).not.toMatch(/<option value="(sale|rent)" selected/);
@@ -318,7 +319,7 @@ describe('barra de filtros en la home (D.6a, spec "Filter bar")', () => {
 
   it('un oculto rechazado no se reenvía (polígono junto a zona) pero los demás sí', async () => {
     const html = await render({ polygon: POLYGON, zone: '28079', view: 'map' });
-    expect(html).toContain('polygon no puede combinarse con zone');
+    expect(html).toContain('Zona dibujada: no puede combinarse con el municipio; usa solo una forma de indicar la zona.');
     const form = barForm(html);
     expect(findTag(form, 'input', 'type="hidden"', 'name="polygon"')).toBeUndefined();
     expect(findTag(form, 'input', 'type="hidden"', 'name="zone"', 'value="28079"')).toBeDefined();
@@ -574,10 +575,10 @@ describe('panel de revisión: estado y alertas (D.7, R6, R7)', () => {
     const html = await render({ q: 'entre 900 y 600 euros' });
     expect(countOf(html, 'role="alert"')).toBe(1);
     const lead = html.indexOf('Algún filtro no es válido; corrígelo abajo antes de buscar.');
-    const literal = html.indexOf('minPrice no puede ser mayor que maxPrice');
+    const literal = html.indexOf('Precio mínimo (€): no puede ser mayor que el precio máximo');
     expect(lead).toBeGreaterThan(-1);
     expect(literal).toBeGreaterThan(lead);
-    expect(countOf(html, 'minPrice no puede ser mayor que maxPrice')).toBe(1);
+    expect(countOf(html, 'Precio mínimo (€): no puede ser mayor que el precio máximo')).toBe(1);
     expect(html).not.toContain('No se pudo interpretar la búsqueda');
   });
 
@@ -711,7 +712,18 @@ describe('panel de revisión: estructura (D.7, R3, R9)', () => {
     expect(html).not.toContain('Esto es lo que he entendido');
   });
 
-  it('S9.2: la copia de la rama de parámetros inválidos no cambia', async () => {
-    expect(await render({ minPrice: 'abc' })).toContain('<p role="alert">No se pudo interpretar la búsqueda: ');
+  // S9.2 («la copia no cambia») queda SUPERSEDED por D8/D11: la copia cambia a tuteo con rótulos.
+  it('D8: la rama de parámetros inválidos habla en tuteo, con rótulos y sin el texto antiguo', async () => {
+    const html = await render({ minPrice: 'abc' });
+    expect(html).toContain('<p role="alert">Algún filtro no es válido; corrígelo abajo y vuelve a buscar. Detalle: Precio mínimo (€): escribe un importe en euros, con dos decimales como mucho.</p>');
+    expect(html).not.toContain('No se pudo interpretar la búsqueda');
+    expect(html).not.toMatch(/\bSe (ha|han|pudo|esperaba)\b/);
+  });
+
+  it('N1: un precio que desborda (400 nueves) da el mensaje explícito con su rótulo, sin texto de Zod', async () => {
+    const html = await render({ minPrice: '9'.repeat(400) });
+    expect(html).toContain('Precio mínimo (€): escribe un importe más pequeño.');
+    expect(html).not.toContain('Invalid input');
+    expectNoSideEffects();
   });
 });

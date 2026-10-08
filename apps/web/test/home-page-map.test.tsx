@@ -455,19 +455,19 @@ describe('vista de mapa — estados vacío y de error (SMV-13, DAS-11)', () => {
   it('parámetro inválido: el mismo rechazo nombrado, sin consultar ni pintar mapa', async () => {
     const polygon = await render({ view: 'map', polygon: 'abc' });
     expect(polygon).toContain('role="alert"');
-    expect(polygon).toContain('polygon');
+    expect(polygon).toContain('Zona dibujada: ');
     expect(polygon).not.toContain('data-testid="search-map"');
 
     const view = await render({ view: 'satellite' });
     expect(view).toContain('role="alert"');
-    expect(view).toContain('view');
+    expect(view).toContain('Vista: elige lista o mapa.');
     expect(searchMapPointsMock).not.toHaveBeenCalled();
     expect(searchPropertiesMock).not.toHaveBeenCalled();
   });
 
   it('un polígono junto a zone se rechaza nombrando ambos parámetros', async () => {
     const html = await render({ view: 'map', polygon: POLYGON, zone: '28079' });
-    expect(html).toContain('polygon no puede combinarse con zone');
+    expect(html).toContain('Zona dibujada: no puede combinarse con el municipio; usa solo una forma de indicar la zona.');
     expect(resolveZoneGeometryMock).not.toHaveBeenCalled();
   });
 });

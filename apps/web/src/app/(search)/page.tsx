@@ -34,7 +34,13 @@ import {
   buildZoneSelectionHref,
   canonicalizeFormSubmission,
 } from '@/lib/search-href';
-import { countTrayFilters, describeAppliedFilters, formatListCount, formatMapCount } from '@/lib/search-labels';
+import {
+  countTrayFilters,
+  describeAppliedFilters,
+  formatListCount,
+  formatMapCount,
+  formatSearchIssue,
+} from '@/lib/search-labels';
 import { pickSearchReturnParams } from '@/lib/search-return-params';
 import { resolveCoverageClientLimit } from '@/server/coverage-client';
 import { getCoverageDb } from '@/server/coverage-db';
@@ -61,13 +67,6 @@ interface HomePageProps {
 // autocompletado. Constante de servidor, nunca un parámetro de URL — mismo
 // principio que `PAGE_SIZE` en `packages/db/src/search.ts`.
 const ZONE_SUGGESTION_LIMIT = 10;
-
-// El mensaje por defecto de Zod para un enum («Invalid option: …») no nombra el
-// parámetro; la alerta debe nombrarlo (spec search-filters), así que se antepone.
-function describeIssue(issue: { readonly path: readonly PropertyKey[]; readonly message: string }): string {
-  const name = issue.path[0];
-  return typeof name === 'string' && !issue.message.includes(name) ? `${name}: ${issue.message}` : issue.message;
-}
 
 function firstStringValue(value: string | string[] | undefined): string | undefined {
   return typeof value === 'string' ? value : undefined;
@@ -191,7 +190,7 @@ async function renderInterpretation(rawQ: string | string[]): Promise<ReactEleme
         selectedZone={selectedZone}
         unrecognised={unrecognised}
         conflicts={interpretation.conflicts}
-        issues={validated.success ? [] : validated.error.issues.map((issue) => issue.message)}
+        issues={validated.success ? [] : validated.error.issues.map(formatSearchIssue)}
         criteria={validated.success ? validated.data : null}
         placeText={interpretation.placeText}
       />
@@ -230,7 +229,9 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
   if (!parsed.success || !viewParsed.success) {
     const issues = [
       ...(parsed.success ? [] : parsed.error.issues),
-      ...(viewParsed.success ? [] : viewParsed.error.issues),
+      // `view` se valida suelto (su esquema no es un objeto): sus problemas llegan sin camino y
+      // se les pone el de la clave para que el detalle lleve su rótulo.
+      ...(viewParsed.success ? [] : viewParsed.error.issues.map((issue) => ({ ...issue, path: ['view'] }))),
     ];
     // D.6a: la barra se pinta con lo recibido para poder corregirlo, pero no
     // reenvía como oculto ningún parámetro que el esquema haya rechazado.
@@ -244,7 +245,9 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       <>
         <h1>Buscar vivienda</h1>
         <SearchTextForm value="" />
-        <p role="alert">No se pudo interpretar la búsqueda: {issues.map(describeIssue).join('; ')}</p>
+        <p role="alert">
+          Algún filtro no es válido; corrígelo abajo y vuelve a buscar. Detalle: {issues.map(formatSearchIssue).join(' ')}
+        </p>
         <FilterBar params={rawSearchParams} rejectedKeys={rejectedKeys} open />
       </>
     );

@@ -106,7 +106,7 @@ test.describe('barra de filtros y filtros aplicados', () => {
   }) => {
     await page.goto('/?minPrice=900&maxPrice=100');
     // `p[role=alert]`: Next también monta un anunciador de rutas con ese rol.
-    await expect(page.locator('p[role="alert"]')).toContainText('minPrice no puede ser mayor que maxPrice');
+    await expect(page.locator('p[role="alert"]')).toContainText('Precio mínimo (€): no puede ser mayor que el precio máximo');
     const bar = page.getByRole('form', { name: BAR });
     await expect(bar.getByLabel('Precio mínimo (€)')).toHaveValue('900');
     await expect(bar.getByLabel('Precio máximo (€)')).toHaveValue('100');

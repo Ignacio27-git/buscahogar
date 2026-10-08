@@ -311,17 +311,17 @@ describe('searchQuerySchema — polygon (ROADMAP 2.6)', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.issues[0]?.path).toEqual(['polygon']);
-      expect(result.error.issues[0]?.message).toContain('polygon');
+      expect(result.error.issues[0]?.message).toBe('aparece repetido en el enlace; deja un solo valor.');
     }
   });
 
-  it('un polígono inválido lleva el código nombrado y mensaje que nombra polygon', () => {
+  it('un polígono inválido lleva el código nombrado y un mensaje en español sin la clave', () => {
     const result = searchQuerySchema.safeParse({ polygon: '0,0;1,1;1,0;0,1' });
     expect(result.success).toBe(false);
     if (!result.success) {
       const first = result.error.issues[0];
       expect(first?.path).toEqual(['polygon']);
-      expect(first?.message).toMatch(/^polygon: /);
+      expect(first?.message).toBe('sus lados se cruzan; vuelve a dibujar la zona.');
       expect(first).toMatchObject({ params: { polygonCode: 'self-intersecting' } });
     }
   });
@@ -335,7 +335,9 @@ describe('searchQuerySchema — polygon (ROADMAP 2.6)', () => {
     const result = searchQuerySchema.safeParse({ polygon: VALID, zone: '28079' });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe('polygon no puede combinarse con zone');
+      expect(result.error.issues[0]?.message).toBe(
+        'no puede combinarse con el municipio; usa solo una forma de indicar la zona.'
+      );
     }
   });
 
@@ -343,7 +345,9 @@ describe('searchQuerySchema — polygon (ROADMAP 2.6)', () => {
     const result = searchQuerySchema.safeParse({ polygon: VALID, lat: '40', lng: '-3', radius: '2000' });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe('polygon no puede combinarse con lat, lng, radius');
+      expect(result.error.issues[0]?.message).toBe(
+        'no puede combinarse con el punto con radio; usa solo una forma de indicar la zona.'
+      );
     }
   });
 
@@ -351,7 +355,9 @@ describe('searchQuerySchema — polygon (ROADMAP 2.6)', () => {
     const result = searchQuerySchema.safeParse({ polygon: VALID, radius: '2000' });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe('polygon no puede combinarse con radius');
+      expect(result.error.issues[0]?.message).toBe(
+        'no puede combinarse con el punto con radio; usa solo una forma de indicar la zona.'
+      );
     }
   });
 
@@ -359,7 +365,9 @@ describe('searchQuerySchema — polygon (ROADMAP 2.6)', () => {
     const result = searchQuerySchema.safeParse({ polygon: VALID, zone: '28079', radius: '2000' });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe('polygon no puede combinarse con zone, radius');
+      expect(result.error.issues[0]?.message).toBe(
+        'no puede combinarse con el municipio ni con el punto con radio; usa solo una forma de indicar la zona.'
+      );
     }
   });
 
@@ -370,5 +378,106 @@ describe('searchQuerySchema — polygon (ROADMAP 2.6)', () => {
   it('zone y radius sin polygon: comportamiento anterior intacto', () => {
     expect(searchQuerySchema.safeParse({ zone: '28079' }).success).toBe(true);
     expect(searchQuerySchema.safeParse({ radius: '2000' }).success).toBe(false);
+  });
+});
+
+// D.14 (D11, N1) — todos los mensajes llegan ya en español, sin la clave del parámetro (la página
+// antepone el rótulo) y sin ningún texto por defecto de Zod. Tabla: cada clave con un valor
+// inválido, uno repetido (array) y el desbordamiento numérico de 400 nueves (`Number()` da
+// `Infinity`).
+describe('searchQuerySchema — mensajes en español sin la clave (D11, N1)', () => {
+  const VALID_POLYGON = '40,-3;40,-2.9;40.1,-2.9';
+  const INVALID_BY_KEY: Readonly<Record<string, string>> = {
+    operation: 'foo',
+    propertyType: 'chalet',
+    minPrice: 'abc',
+    maxPrice: 'abc',
+    minSurface: 'abc',
+    maxSurface: '-1',
+    minRooms: '-1',
+    minBathrooms: 'x',
+    lat: 'x',
+    lng: 'x',
+    radius: 'x',
+    sort: 'popularity',
+    dir: 'sideways',
+    page: '0',
+    zone: '1234',
+    polygon: 'abc',
+  };
+  const KEYS = Object.keys(INVALID_BY_KEY);
+
+  function messagesOf(params: Record<string, unknown>): string[] {
+    const result = searchQuerySchema.safeParse(params);
+    return result.success ? [] : result.error.issues.map((issue) => issue.message);
+  }
+
+  function expectCleanCopy(key: string, message: string): void {
+    expect(message, key).toMatch(/^[a-záéíóúñ]/);
+    expect(message, key).not.toMatch(new RegExp(`\\b${key}\\b`));
+    expect(message, key).not.toMatch(/Invalid|expected|se esperaba|\bSe /);
+  }
+
+  it.each(KEYS)('%s inválido: al menos un mensaje y todos sin clave ni texto de Zod', (key) => {
+    const messages = messagesOf({ [key]: INVALID_BY_KEY[key] });
+
+    expect(messages.length).toBeGreaterThan(0);
+    for (const message of messages) {
+      expectCleanCopy(key, message);
+    }
+  });
+
+  it.each(KEYS)('%s repetido (array): mensajes sin clave ni texto de Zod', (key) => {
+    const value = key === 'polygon' ? [VALID_POLYGON, VALID_POLYGON] : ['sale', 'sale'];
+    const messages = messagesOf({ [key]: value });
+
+    expect(messages.length).toBeGreaterThan(0);
+    for (const message of messages) {
+      expectCleanCopy(key, message);
+    }
+  });
+
+  it.each([
+    ['minPrice', 'escribe un importe más pequeño.'],
+    ['maxPrice', 'escribe un importe más pequeño.'],
+    ['minSurface', 'escribe un número más pequeño.'],
+    ['maxSurface', 'escribe un número más pequeño.'],
+    ['page', 'elige una página entre 1 y 100.'],
+  ])('desbordamiento (400 nueves) en %s: mensaje explícito, no el de Zod', (key, expected) => {
+    expect(messagesOf({ [key]: '9'.repeat(400) })).toEqual([expected]);
+  });
+
+  it.each(KEYS)('desbordamiento (400 nueves) en %s: cualquier mensaje sigue las reglas de copy', (key) => {
+    for (const message of messagesOf({ [key]: '9'.repeat(400) })) {
+      expectCleanCopy(key, message);
+    }
+  });
+
+  it('mensajes concretos de los rangos y del bloque geográfico', () => {
+    expect(messagesOf({ minPrice: '900', maxPrice: '600' })).toEqual(['no puede ser mayor que el precio máximo.']);
+    expect(messagesOf({ minSurface: '90', maxSurface: '60' })).toEqual([
+      'no puede ser mayor que la superficie máxima.',
+    ]);
+    expect(messagesOf({ lat: '40' })).toEqual([
+      'el punto con radio está incompleto; elige un municipio en el buscador.',
+    ]);
+    expect(messagesOf({ lat: '40', lng: '-3', radius: '0' })).toEqual(['escribe un número mayor que cero.']);
+    expect(messagesOf({ zone: '28079', lat: '40', lng: '-3', radius: '100' })).toEqual([
+      'no puede combinarse con el punto con radio; usa solo una forma de indicar la zona.',
+    ]);
+  });
+
+  it('mensajes concretos de entero, decimal, importe, superficie negativa, zona y enumerado', () => {
+    expect(messagesOf({ minRooms: '1.5' })).toEqual(['escribe un número entero, sin signo ni decimales.']);
+    // El bloque geográfico se evalúa aunque `lat` falle: el primer mensaje es el del propio campo.
+    expect(messagesOf({ lat: 'x', lng: '-3', radius: '100' })[0]).toBe(
+      'escribe un número; usa punto para los decimales.'
+    );
+    expect(messagesOf({ minPrice: '1.999' })).toEqual(['escribe un importe en euros, con dos decimales como mucho.']);
+    expect(messagesOf({ minSurface: '-1' })).toEqual(['escribe un número igual o mayor que cero.']);
+    expect(messagesOf({ zone: '1234' })).toEqual([
+      'el municipio del enlace no es válido; escribe su nombre en el buscador.',
+    ]);
+    expect(messagesOf({ operation: 'foo' })).toEqual(['elige una de las opciones de la lista.']);
   });
 });

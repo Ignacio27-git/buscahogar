@@ -100,6 +100,42 @@ export const FIELD_LABELS: Readonly<Record<NlParamKey | 'place', string>> = {
   place: 'Lugar',
 };
 
+// D.14 (decisión 192) — rótulo de cada clave de la URL que el esquema de búsqueda puede rechazar.
+// Tipado con `Record` sobre la unión de claves, así que una clave nueva sin rótulo no compila.
+// Reutiliza los de `FIELD_LABELS` (sin `place`, que no es un parámetro de la URL).
+type SearchParamKey = Exclude<keyof typeof FIELD_LABELS, 'place'> | 'lat' | 'lng' | 'radius' | 'zone' | 'polygon' | 'page' | 'view';
+
+export const SEARCH_PARAM_LABELS: Readonly<Record<SearchParamKey, string>> = {
+  operation: FIELD_LABELS.operation,
+  propertyType: FIELD_LABELS.propertyType,
+  minPrice: FIELD_LABELS.minPrice,
+  maxPrice: FIELD_LABELS.maxPrice,
+  minSurface: FIELD_LABELS.minSurface,
+  maxSurface: FIELD_LABELS.maxSurface,
+  minRooms: FIELD_LABELS.minRooms,
+  minBathrooms: FIELD_LABELS.minBathrooms,
+  sort: FIELD_LABELS.sort,
+  dir: FIELD_LABELS.dir,
+  lat: 'Latitud',
+  lng: 'Longitud',
+  radius: 'Radio',
+  zone: 'Zona',
+  polygon: 'Zona dibujada',
+  page: 'Página',
+  view: 'Vista',
+};
+
+// «Rótulo: mensaje». Los mensajes del núcleo son fragmentos sin la clave, pensados para leerse
+// detrás de la etiqueta. Un problema sin clave con rótulo (camino vacío, clave desconocida o
+// segmento numérico) devuelve el mensaje con la inicial en mayúscula: nunca la clave cruda.
+export function formatSearchIssue(issue: { readonly path: readonly PropertyKey[]; readonly message: string }): string {
+  const key = issue.path[0];
+  if (typeof key === 'string' && Object.hasOwn(SEARCH_PARAM_LABELS, key)) {
+    return `${SEARCH_PARAM_LABELS[key as SearchParamKey]}: ${issue.message}`;
+  }
+  return issue.message.charAt(0).toLocaleUpperCase('es-ES') + issue.message.slice(1);
+}
+
 // D.6a — un filtro aplicado: la clave identifica qué quita su enlace
 // (`buildRemoveFilterHref`) y el rótulo es el nombre más el valor real.
 export interface AppliedFilter {

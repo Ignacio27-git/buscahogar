@@ -7,12 +7,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   TRAY_FILTER_KEYS,
+  SEARCH_PARAM_LABELS,
   SOURCE_LABELS,
   countTrayFilters,
   describeInterpretationStatus,
   floorLabel,
   formatClusterUnit,
   formatMarkerTitle,
+  formatSearchIssue,
   operationLabel,
   propertyTypeLabel,
   sourceLabel,
@@ -194,5 +196,59 @@ describe('floorLabel — D.9', () => {
     expect(floorLabel('zz')).toBeNull();
     expect(floorLabel('')).toBeNull();
     expect(floorLabel(null)).toBeNull();
+  });
+});
+
+// D.14 (D8, D11) — los mensajes del núcleo no llevan la clave; la página antepone el rótulo.
+describe('formatSearchIssue y SEARCH_PARAM_LABELS', () => {
+  it('antepone el rótulo en español de la clave del primer segmento del camino', () => {
+    expect(formatSearchIssue({ path: ['minPrice'], message: 'escribe un importe en euros.' })).toBe(
+      'Precio mínimo (€): escribe un importe en euros.'
+    );
+    expect(formatSearchIssue({ path: ['polygon'], message: 'sus lados se cruzan.' })).toBe(
+      'Zona dibujada: sus lados se cruzan.'
+    );
+    expect(formatSearchIssue({ path: ['view'], message: 'elige lista o mapa.' })).toBe(
+      'Vista: elige lista o mapa.'
+    );
+  });
+
+  it('sin camino, con clave sin rótulo o con segmento no textual: el mensaje en mayúscula inicial, nunca la clave', () => {
+    expect(formatSearchIssue({ path: [], message: 'escribe un número.' })).toBe('Escribe un número.');
+    expect(formatSearchIssue({ path: ['utm_source'], message: 'elige una opción.' })).toBe('Elige una opción.');
+    expect(formatSearchIssue({ path: [3], message: 'ángulo no válido.' })).toBe('Ángulo no válido.');
+  });
+
+  it('una clave del prototipo no cuenta como rótulo', () => {
+    expect(formatSearchIssue({ path: ['constructor'], message: 'está mal.' })).toBe('Está mal.');
+    expect(formatSearchIssue({ path: ['toString'], message: 'está mal.' })).toBe('Está mal.');
+  });
+
+  it('SEARCH_PARAM_LABELS cubre todas las claves de la búsqueda, y «place» no entra', () => {
+    expect(Object.keys(SEARCH_PARAM_LABELS).sort()).toEqual(
+      [
+        'operation',
+        'propertyType',
+        'minPrice',
+        'maxPrice',
+        'minSurface',
+        'maxSurface',
+        'minRooms',
+        'minBathrooms',
+        'sort',
+        'dir',
+        'lat',
+        'lng',
+        'radius',
+        'zone',
+        'polygon',
+        'page',
+        'view',
+      ].sort()
+    );
+    expect(SEARCH_PARAM_LABELS.lat).toBe('Latitud');
+    expect(SEARCH_PARAM_LABELS.radius).toBe('Radio');
+    expect(SEARCH_PARAM_LABELS.page).toBe('Página');
+    expect(SEARCH_PARAM_LABELS.zone).toBe('Zona');
   });
 });

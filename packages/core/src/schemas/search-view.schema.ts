@@ -7,7 +7,7 @@ import { z } from 'zod';
 export const SEARCH_VIEWS = ['list', 'map'] as const;
 
 export const searchViewSchema = z
-  .enum(SEARCH_VIEWS, { error: 'view: se esperaba list o map' })
+  .enum(SEARCH_VIEWS, { error: 'elige lista o mapa.' })
   .default('list');
 
 export type SearchView = z.infer<typeof searchViewSchema>;

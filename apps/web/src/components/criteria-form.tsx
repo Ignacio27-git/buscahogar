@@ -131,7 +131,7 @@ export function CriteriaForm(props: CriteriaFormProps): ReactElement {
       {issues.length > 0 ? (
         <p role="alert" className="nl-review__alert">
           <span className="nl-review__lead">Algún filtro no es válido; corrígelo abajo antes de buscar.</span> Detalle:{' '}
-          {issues.join('; ')}
+          {issues.join(' ')}
         </p>
       ) : null}
       {!hasRecognised && !zonePending ? (
