@@ -7,7 +7,7 @@
 import type { ReactElement } from 'react';
 
 // Enlace normal a `/` (convención de la app, como en `site-header.tsx`): `next/link` añadiría
-// JavaScript de cliente y, en `global-error`, no hay contexto de router.
+// JavaScript de cliente.
 /* eslint-disable @next/next/no-html-link-for-pages */
 interface ErrorPageProps {
   readonly error: Error & { digest?: string };
@@ -19,13 +19,15 @@ export default function ErrorPage({ retry }: ErrorPageProps): ReactElement {
     <section className="flex max-w-prose flex-col items-start gap-4 py-8">
       <h1>No hemos podido cargar esta página</h1>
       <p className="text-ink-muted">
-        Algo ha fallado al prepararla. Tus filtros siguen en la dirección, así que puedes
-        reintentarlo sin perderlos.
+        Algo ha fallado al prepararla. Vuelve a intentarlo en un momento o regresa a la búsqueda.
       </p>
       <div className="flex flex-wrap items-center gap-4">
-        <button type="button" onClick={() => {
+        <button
+          type="button"
+          onClick={() => {
             retry();
-          }}>
+          }}
+        >
           Reintentar
         </button>
         <a href="/">Ir a la búsqueda</a>

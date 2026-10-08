@@ -6,7 +6,7 @@ import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 
 // Enlace normal a `/` (convención de la app, como en `site-header.tsx`): `next/link` añadiría
-// JavaScript de cliente y, en `global-error`, no hay contexto de router.
+// JavaScript de cliente.
 /* eslint-disable @next/next/no-html-link-for-pages */
 export const metadata: Metadata = { title: 'Página no encontrada' };
 
@@ -14,9 +14,7 @@ export default function NotFound(): ReactElement {
   return (
     <section className="flex max-w-prose flex-col items-start gap-4 py-8">
       <h1>No encontramos esta página</h1>
-      <p className="text-ink-muted">
-        Puede que la dirección esté mal escrita o que el enlace sea antiguo.
-      </p>
+      <p className="text-ink-muted">Puede que el enlace esté mal escrito o que ya no exista.</p>
       <p>
         <a href="/">Ir a la búsqueda</a>
       </p>

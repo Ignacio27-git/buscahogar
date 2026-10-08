@@ -54,6 +54,11 @@ describe('not-found.tsx', () => {
     expect(html).toMatch(/<a[^>]*href="\/"[^>]*>Ir a la búsqueda<\/a>/);
   });
 
+  it('explica la causa sin decir «dirección» (podría leerse como domicilio)', () => {
+    expect(text(html)).toContain('Puede que el enlace esté mal escrito o que ya no exista.');
+    expect(text(html)).not.toMatch(/dirección/i);
+  });
+
   it('no contiene texto técnico ni formas impersonales', () => {
     expect(text(html)).not.toMatch(TECHNICAL);
     expect(text(html)).not.toMatch(IMPERSONAL);
@@ -84,6 +89,15 @@ describe('error.tsx', () => {
     expect(html).not.toContain('5432');
     expect(html).not.toContain('abc123digest');
     expect(text(html)).not.toMatch(TECHNICAL);
+  });
+
+  it('no promete filtros que la ficha no tiene ni habla de «dirección»', () => {
+    const html = renderToStaticMarkup(<ErrorPage error={failure} retry={vi.fn()} />);
+
+    expect(text(html)).toContain(
+      'Algo ha fallado al prepararla. Vuelve a intentarlo en un momento o regresa a la búsqueda.'
+    );
+    expect(text(html)).not.toMatch(/filtros|dirección/i);
   });
 
   it('ofrece Reintentar y la salida a la búsqueda, en tuteo', () => {

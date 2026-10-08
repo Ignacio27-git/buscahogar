@@ -27,9 +27,12 @@ export default function GlobalError({ retry }: GlobalErrorProps): ReactElement {
           <h1>Buscahogar no está disponible ahora mismo</h1>
           <p>Algo ha fallado al cargar la página. Puedes reintentarlo o volver a la búsqueda.</p>
           <div className="standalone__actions">
-            <button type="button" onClick={() => {
-            retry();
-          }}>
+            <button
+              type="button"
+              onClick={() => {
+                retry();
+              }}
+            >
               Reintentar
             </button>
             <a href="/">Ir a la búsqueda</a>
