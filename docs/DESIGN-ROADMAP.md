@@ -1230,6 +1230,54 @@ Paso D.13 de docs/DESIGN-ROADMAP.md. Usa `impeccable clarify`.
 
 ---
 
+## [ ] D.13b · Correcciones de la auditoría del suelo de oficio
+
+```text
+Paso D.13b de docs/DESIGN-ROADMAP.md. Carga impeccable y lee reference/craft-floor.md
+antes de editar UI, en el diseño y en la aplicación. Corrige los hallazgos de la
+auditoría de D.0-D.13 (notas de este paso), en este orden:
+
+- Capa base de controles: un relleno común para input, select y button en
+  @layer base, sin rellenos sueltos por sitio; hover (solo con hover:hover y
+  pointer:fine) y :active; caret-color, accent-color y scrollbar-color desde los tokens.
+- Iconos dibujados: cerrar, enlace externo, más y menos como SVG en línea con
+  currentColor y un solo grosor de trazo, también en los controles de zoom de Leaflet.
+- Ficha: sin recuadro dentro del panel fijo; «Ubicación» en el tamaño de sección;
+  tabular-nums en fechas comparables; la tabla del histórico sin desbordar a 320 px;
+  la etiqueta del gráfico no baja de --text-small; y el panel fijo deja de esconder
+  la comparación de anuncios.
+- Cabecera de la búsqueda: separación entre grupos; chips de filtros visibles a
+  320 px; el aviso de cobertura en la columna de la lista.
+- Texto: tuteo o primera persona del plural en los avisos de cobertura que siguen en
+  impersonal; el pie con una medida de 65-75 caracteres.
+```
+
+**Objetivo.** Que lo construido en D.0-D.13 cumpla el suelo de oficio de impeccable antes de seguir construyendo encima.
+
+**Revisar.**
+
+- `impeccable detect` sigue sin hallazgos y axe sin infracciones nuevas.
+- Una pasada a ojo por las capturas regeneradas: ningún texto pegado a un borde, ningún recuadro anidado, ningún carácter como icono.
+- El panel fijo de la ficha (hallazgo 5) toca la decisión 133: lo decide el responsable antes del diseño.
+
+**Notas:**
+
+- **Origen:** auditoría del 2026-10-08 (Engram `design/craft-floor-audit-d0-d13`), hecha porque solo D.3 había cargado
+  `craft-floor.md`. El detector y axe no encuentran nada; los 14 hallazgos salen del CSS y de las capturas.
+- **Hallazgos importantes:** (1) controles sin relleno base (`globals.css`, `@layer base`); (2) el aviso de D.12 es un recuadro dentro
+  del panel fijo a partir de 64rem, consecuencia de la decisión 182; (3) ×, ↗ y los +/− y × de Leaflet como iconos; (4) sin hover ni
+  `:active` en botones, el resumen de la bandeja, el envío y el selector de tema; (5) el panel fijo (`max-block-size` con scroll propio)
+  corta la comparación de anuncios a 1280 px; (6) sin separación entre los grupos de la cabecera de búsqueda; (7) el `h2` de
+  «Ubicación» (D.11) hereda el tamaño de título.
+- **Hallazgos menores:** (8) superficies del navegador por defecto; (9) `tabular-nums` en las fechas del histórico y en «Visto por
+  última vez»; (10) la tabla del histórico desborda a 320 px; (11) chips ocultos en un scroll horizontal a 320 px; (12) la etiqueta del
+  gráfico sale a ~10.8 px a 320 px; (13) «Se ha alcanzado…» y «Se volverá a intentar…» en `coverage-notice.tsx`; (14) el pie a ~180
+  caracteres por línea y el aviso de cobertura más ancho que la lista.
+- **No se tocan (contrato):** fuente del sistema (132, 141), precio protagonista y pasos numerados (157). Movimiento en D.16; 404 y
+  estado vacío en D.14.
+- **Capturas:** la capa base de controles cambia todas las rutas en los seis proyectos.
+- **Tamaño:** M-L.
+
 ## [ ] D.14 · Estados globales: carga, error, 404, vacío y 429
 
 ```text
@@ -1545,3 +1593,4 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-08 | D.13 | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): 1148 líneas añadidas y 125 borradas de código, tests y e2e (previstas ~870), sin contar documentación, las 36 capturas ni `axe-baseline.json`. | El componente y sus tests salieron más largos que en el diseño; no se podía partir sin dejar la página con avisos viejos y nuevos a la vez. |
 | 2026-10-08 | D.13 | Los tests nuevos viven en `apps/web/test/` y `packages/db/test/`, no junto al código (`src/**`) como decía el reparto de tareas. | `vitest.config.ts` solo incluye `test/**`. |
 | 2026-10-08 | D.12, D.13 | La regla lateral de 3 px de los avisos (`.source-list__warning`, `.coverage-notice`) se sustituye por el panel de 1px de D.7 (decisión 182). Cambian las capturas `coverage-*` y `detail-gallery`. | El suelo de oficio de impeccable prohíbe un borde lateral de color de más de 1px en avisos y alertas; el detector lo marcó (`side-tab`) y el responsable exige seguirlo siempre, sin `ignore`. |
+| 2026-10-08 | D.13b | Paso nuevo entre D.13 y D.14 para corregir los 14 hallazgos de la auditoría de D.0-D.13 contra `craft-floor.md` de impeccable. | Solo D.3 había cargado el suelo de oficio; el responsable prefiere corregir antes de que D.14-D.17 se construyan sobre la base actual. |

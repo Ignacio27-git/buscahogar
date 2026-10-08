@@ -30,6 +30,24 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-08 — Auditoría de D.0-D.13 contra el suelo de oficio de impeccable (origen del paso D.13b)
+
+**Tipo de tarea:** auditoría de diseño (solo lectura)
+**Forma de especificación:** prosa breve; el criterio es `reference/craft-floor.md` de impeccable, con el contrato visual de la
+decisión 132 por encima
+**Resultado:** utilizable sin cambios. Se comprobaron a mano en el código los hallazgos 1, 3, 5, 7 y 13.
+
+**Prompt:**
+
+> si, vamos con la auditoría, desde D.0 hasta D.13
+
+(Respuesta a la pregunta de si auditar lo construido, tras descubrir que solo D.3 había cargado `craft-floor.md`.)
+
+**Observación:** `impeccable detect` y axe no encuentran nada, pero la revisión de las capturas y del CSS da 7 hallazgos importantes y
+7 menores, todos visuales o de estructura (controles sin relleno, recuadro anidado, iconos con caracteres, sin hover, panel fijo que
+corta la comparación, ritmo de la cabecera, escala de «Ubicación»). Uno lo introdujo la propia decisión 182: el aviso de D.12 queda
+como recuadro dentro del panel fijo de la ficha. El responsable decide corregirlos en un paso nuevo, D.13b, antes de D.14.
+
 ### 2026-10-08 — Avisos sin regla lateral (seguimiento de D.12 y D.13, decisión 182)
 
 **Tipo de tarea:** corrección de diseño (CSS) + capturas
