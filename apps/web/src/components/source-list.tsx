@@ -25,6 +25,8 @@ import { formatUtcDate } from '@/lib/format-date';
 import { formatPriceCents } from '@/lib/format-price';
 import { sourceLabel } from '@/lib/search-labels';
 
+import { Icon } from './icon';
+
 export interface SourceListProps {
   readonly sources: readonly PropertyDetailSource[];
 }
@@ -74,7 +76,7 @@ export function SourceList({ sources }: SourceListProps): ReactElement {
               <div className="source-row__head">
                 <a className="source-row__link" href={source.url} rel="external">
                   {`Ver en ${name}`}
-                  <span aria-hidden="true"> ↗</span>
+                  <Icon name="external-link" className="ms-1" />
                   <span className="sr-only"> (web externa)</span>
                 </a>
                 {comparison.mode !== 'empty' && highlighted.has(source.listingId) ? (
@@ -92,7 +94,7 @@ export function SourceList({ sources }: SourceListProps): ReactElement {
                 </div>
                 <div>
                   <dt>Visto por última vez</dt>
-                  <dd>{formatUtcDate(source.lastSeenAt)}</dd>
+                  <dd className="tabular-nums">{formatUtcDate(source.lastSeenAt)}</dd>
                 </div>
                 <div>
                   <dt>Estado</dt>

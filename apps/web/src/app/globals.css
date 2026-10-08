@@ -282,6 +282,24 @@
     transform: none;
   }
 
+  /* Iconos dibujados (D.13b, ): miden 1em y heredan el color del texto. */
+  .icon {
+    display: inline-block;
+    inline-size: 1em;
+    block-size: 1em;
+    flex: none;
+    vertical-align: -0.125em;
+  }
+
+  /* Iconos dibujados (D.13b, componente Icon): miden 1em y heredan el color del texto. */
+  .icon {
+    display: inline-block;
+    inline-size: 1em;
+    block-size: 1em;
+    flex: none;
+    vertical-align: -0.125em;
+  }
+
   .theme-selector fieldset {
     display: flex;
     flex-wrap: wrap;

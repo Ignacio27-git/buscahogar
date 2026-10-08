@@ -83,7 +83,11 @@
 }
 
 .leaflet-container .map-popup a.leaflet-popup-close-button {
+  display: grid;
+  place-items: center;
   color: var(--ink-muted);
+  font: inherit;
+  text-indent: 0;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -122,6 +126,10 @@
 }
 
 .leaflet-container .leaflet-bar a {
+  display: grid;
+  place-items: center;
+  font: inherit;
+  text-indent: 0;
   background-color: var(--surface-raised);
   color: var(--ink);
   border-bottom: 1px solid var(--rule-control);
@@ -136,6 +144,13 @@
   .leaflet-container .leaflet-bar a:hover {
     background-color: var(--surface);
   }
+}
+
+/* Los iconos de zoom y de cierre miden 1rem y sustituyen a los glifos monoespaciados de Leaflet. */
+.leaflet-container .leaflet-bar a .icon,
+.leaflet-container a.leaflet-popup-close-button .icon {
+  inline-size: 1rem;
+  block-size: 1rem;
 }
 
 .leaflet-container .leaflet-bar a.leaflet-disabled {

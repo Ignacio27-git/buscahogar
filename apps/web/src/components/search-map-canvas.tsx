@@ -20,6 +20,7 @@ import { MapContainer, Polygon, TileLayer, ZoomControl, useMap } from 'react-lea
 
 import { OSM_TILE_URL_TEMPLATE } from '@/lib/osm-tiles';
 
+import { ZOOM_IN_MARKUP, ZOOM_OUT_MARKUP } from './icon';
 import { MapClusterLayer } from './map-cluster-layer';
 import { MapDrawControl } from './map-draw-control';
 import type { SearchMapProps } from './search-map-types';
@@ -84,7 +85,12 @@ export default function SearchMapCanvas(props: SearchMapProps): ReactElement {
 
   return (
     <MapContainer {...view} className="search-map__canvas" scrollWheelZoom zoomControl={false}>
-      <ZoomControl zoomInTitle="Acercar" zoomOutTitle="Alejar" />
+      <ZoomControl
+        zoomInTitle="Acercar"
+        zoomOutTitle="Alejar"
+        zoomInText={ZOOM_IN_MARKUP}
+        zoomOutText={ZOOM_OUT_MARKUP}
+      />
       <InitialFrame bounds={bounds} />
       <TileLayer url={OSM_TILE_URL_TEMPLATE} attribution={ATTRIBUTION} maxZoom={19} />
       {props.polygon !== null ? (

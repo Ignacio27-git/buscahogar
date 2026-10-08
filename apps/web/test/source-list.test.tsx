@@ -131,6 +131,21 @@ describe('SourceList (D3/D6, AR-5) — cada fuente con su propio precio y enlace
     expect(html).toContain('(web externa)');
   });
 
+  it('el enlace saliente lleva un svg decorativo en vez de ↗ y su nombre sigue completo', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[makeSource({})]} />);
+    const anchor = html.match(/<a [^>]*>.*?<\/a>/)?.[0] ?? '';
+
+    expect(anchor).toMatch(/<svg class="icon ms-1"[^>]*aria-hidden="true"/);
+    expect(html).not.toContain('↗');
+    // Nombre accesible = texto del enlace sin las etiquetas (el svg aporta cadena vacía).
+    expect(anchor.replace(/<[^>]+>/g, '')).toBe('Ver en Idealista (web externa)');
+  });
+
+  it('la fecha de «Visto por última vez» usa cifras tabulares', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[makeSource({})]} />);
+    expect(html).toContain('<dd class="tabular-nums">10/09/2026</dd>');
+  });
+
   it('tiene un encabezado de sección que nombra la lista', () => {
     const html = renderToStaticMarkup(<SourceList sources={[makeSource({})]} />);
 

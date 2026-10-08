@@ -21,6 +21,7 @@ import { formatClusterUnit, formatMarkerTitle } from '@/lib/search-labels';
 import { pickSearchReturnParams } from '@/lib/search-return-params';
 import type { SearchReturnParams } from '@/lib/search-return-params';
 
+import { createIconElement } from './icon';
 import type { MapPointView } from './search-map-types';
 
 const LABEL_SIZE: L.PointTuple = [96, 24];
@@ -63,13 +64,15 @@ function buildPopup(point: MapPointView, returnParams: SearchReturnParams): HTML
   return box;
 }
 
-// Leaflet rotula el cierre del popup en inglés («Close»): se pasa al español al abrirlo
-// (WCAG 3.1.2, decisión 166).
+// Leaflet rotula el cierre del popup en inglés («Close») y lo dibuja con un glifo ×: se pasa al
+// español y se sustituye por el icono dibujado al abrirlo (WCAG 3.1.2, decisión 166). Leaflet crea
+// el botón una vez por popup y conserva su manejador de clic; la comprobación de svg hace el
+// cambio idempotente si el popup se reabre.
 function labelPopupClose(event: L.PopupEvent): void {
-  event.popup
-    .getElement()
-    ?.querySelector('.leaflet-popup-close-button')
-    ?.setAttribute('aria-label', 'Cerrar');
+  const close = event.popup.getElement()?.querySelector('.leaflet-popup-close-button');
+  if (close === null || close === undefined) return;
+  close.setAttribute('aria-label', 'Cerrar');
+  if (close.querySelector('svg') === null) close.replaceChildren(createIconElement('close'));
 }
 
 export function MapClusterLayer({

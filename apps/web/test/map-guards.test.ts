@@ -313,3 +313,33 @@ describe('mira de dibujo y botones (SMV-26)', () => {
     expect(source).toMatch(/<\/p>\s*<\/div>\s*\);/);
   });
 });
+
+// D.13b (decisión 185) — el zoom y el cierre del popup usan el conjunto de iconos dibujados.
+describe('iconos del mapa (D.13b)', () => {
+  it('el lienzo importa los marcados del zoom de ./icon y los pasa al ZoomControl', () => {
+    const source = read(CANVAS);
+    expect(source).toMatch(/import \{[^}]*\bZOOM_IN_MARKUP\b[^}]*\bZOOM_OUT_MARKUP\b[^}]*\} from '\.\/icon'/);
+    expect(source).toContain('zoomInText={ZOOM_IN_MARKUP}');
+    expect(source).toContain('zoomOutText={ZOOM_OUT_MARKUP}');
+  });
+
+  it('el cierre del popup cambia el glifo por un svg dibujado, una sola vez y con nombre «Cerrar»', () => {
+    const source = read('components/map-cluster-layer.tsx');
+    expect(source).toMatch(/createIconElement\('close'\)/);
+    expect(source).toMatch(/querySelector\('svg'\)/);
+    expect(source).toContain("'Cerrar'");
+  });
+
+  it('el módulo de iconos no es de cliente y no compone HTML de cadena con datos', () => {
+    const source = read('components/icon.tsx');
+    expect(source).not.toMatch(/^\s*['"]use client['"]/m);
+    expect(source).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML/);
+  });
+
+  it('la hoja del mapa centra y dimensiona el icono de zoom y de cierre', () => {
+    const sheet = read(MAP_STYLESHEET);
+    expect(sheet).toMatch(/\.leaflet-bar a\s*\{[^}]*display:\s*grid/);
+    expect(sheet).toMatch(/\.leaflet-popup-close-button\s*\{[^}]*display:\s*grid/);
+    expect(sheet).toMatch(/\.icon\s*\{[^}]*inline-size:\s*1rem/);
+  });
+});

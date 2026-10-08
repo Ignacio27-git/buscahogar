@@ -344,17 +344,20 @@ describe('AppliedFilters — spec "Applied-filter chips" y "Clear all"', () => {
     expect((html.match(/<li/g) ?? []).length).toBe(2);
   });
 
-  it('el nombre accesible empieza por «Quitar» y la × es decorativa', () => {
+  it('el nombre accesible empieza por «Quitar» y el icono de cierre es decorativo', () => {
     const html = chips({ minRooms: '2' });
     expect(html).toMatch(/<span class="sr-only">Quitar filtro: <\/span>Habitaciones: 2 o más/);
-    expect(html).toMatch(/<span aria-hidden="true"[^>]*>×<\/span>/);
+    expect(html).toMatch(/<svg class="icon text-ink-muted"[^>]*aria-hidden="true"/);
+    expect(html).not.toContain('×');
+    expect(html).not.toContain('nowrap');
+    expect(html).not.toContain('hover:');
   });
 });
 
 // D.7 (decisión 159, spec applied-filters-summary S11.1/S11.2) — el chip
 // interactivo no cambia y la variante de solo lectura reutiliza su forma.
 const INTERACTIVE_CHIP_CLASS =
-  'inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-control border border-rule-control bg-surface-raised px-3 text-dense text-ink no-underline applied-filters__chip';
+  'inline-flex min-h-8 max-w-full items-center gap-1 rounded-control [overflow-wrap:anywhere] border border-rule-control bg-surface-raised px-3 text-dense text-ink no-underline applied-filters__chip';
 
 describe('AppliedFilters — chip interactivo intacto tras extraer la forma común (S11.1)', () => {
   it('la clase del enlace es, byte a byte, la de D.6a', () => {
@@ -382,7 +385,7 @@ describe('AppliedFiltersSummary — variante de solo lectura (S2.1, S11.2)', () 
 
   it('el chip comparte la forma del interactivo pero no es un control (sin borde)', () => {
     const html = summary({ minRooms: '2' });
-    expect(html).toContain('inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-control');
+    expect(html).toContain('inline-flex min-h-8 max-w-full items-center gap-1 rounded-control [overflow-wrap:anywhere]');
     expect(html).toContain('bg-surface-sunken');
     expect(html).not.toContain('border-rule-control');
   });
