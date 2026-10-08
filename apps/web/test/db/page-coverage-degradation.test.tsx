@@ -139,7 +139,7 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     await insertMunicipality(db, { ineCode, municipality: 'Zona Cubierta', searchName: 'zona cubierta', state: 'covered', centroid: { latitude: 37.1, longitude: -3.6 } });
 
     const html = await renderHome({ zone: ineCode });
-    expect(html).not.toMatch(/no hay cobertura|límite diario|no se ha encontrado ningún municipio/i);
+    expect(html).not.toContain('coverage-notice');
   });
 
   it('zona uncovered con job YA registrado: markup server-rendered muestra el estado Y un enlace de recarga plano con href real', async () => {
@@ -155,8 +155,11 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     await registerCoverageJob(db, zoneId, sourceRow.id);
 
     const html = await renderHome({ zone: ineCode });
-    expect(html).toMatch(/pendiente/i);
-    expect(html).toMatch(/href="\/\?zone=/);
+    expect(html).toContain('La actualización de Zona Pendiente está en cola.');
+    // D.13: una sola región viva, sin aria-live, y el enlace de recarga plano con href real.
+    expect(html.match(/role="(status|alert)"/g)).toEqual(['role="status"']);
+    expect(html).not.toContain('aria-live');
+    expect(html).toMatch(/<a href="\/\?zone=[^"]*">Comprobar de nuevo<\/a>/);
   });
 
   it('DD-14: tope de zonas nuevas agotado: notificación NOMBRADA, cero filas nuevas en coverage_jobs', async () => {
@@ -177,6 +180,9 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
 
     const html = await renderHome({ zone: ineCode });
     expect(html).toMatch(/límite diario/i);
+    // D.13: sin enlace de recarga (recargar no cambia el estado) y sin «UTC».
+    expect(html).not.toContain('>Comprobar de nuevo</a>');
+    expect(html).not.toMatch(/UTC|mañana/);
     // validador notes obs #263: con CLIENT_IP_HEADER sin definir,
     // resolveCoverageClientLimit() nunca invoca next/headers.
     expect(headersMock).not.toHaveBeenCalled();
@@ -226,12 +232,14 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     await insertMunicipality(db, { ineCode, municipality: 'Sin Centroide', searchName: 'sin centroide' });
 
     const html = await renderHome({ zone: ineCode });
-    expect(html).toMatch(/no hay cobertura disponible/i);
+    expect(html).toContain('Todavía no hay viviendas de Sin Centroide.');
+    expect(html).not.toContain('>Comprobar de nuevo</a>');
   });
 
   it('código INE bien formado pero desconocido: notificación distinta de la anterior', async () => {
     const html = await renderHome({ zone: '00000' });
-    expect(html).toMatch(/no se ha encontrado ningún municipio/i);
+    expect(html).toContain('El enlace lleva un municipio que no existe.');
+    expect(html).not.toContain('>Comprobar de nuevo</a>');
   });
 
   it('CR-10/DD-19: ?zoneQuery= renderiza sugerencias JUNTO a los resultados existentes, en la MISMA respuesta', async () => {

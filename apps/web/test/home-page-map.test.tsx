@@ -39,6 +39,15 @@ vi.mock('@buscahogar/db', async (importOriginal) => {
     resolveZoneGeometry: resolveZoneGeometryMock,
   };
 });
+// D.13: `CoverageStatus` (cliente, `useRouter`) no se puede renderizar en estático; el doble
+// deja una marca para comprobar cuándo la página lo monta.
+vi.mock('@/components/coverage-status', async () => {
+  const { createElement } = await import('react');
+  return {
+    CoverageStatus: (props: { job: { status: string } }): unknown =>
+      createElement('p', { 'data-testid': 'coverage-status' }, props.job.status),
+  };
+});
 // Doble del wrapper de cliente: vuelca sus props en un atributo para poder
 // inspeccionarlas sin cargar Leaflet.
 vi.mock('@/components/search-map', async () => {
@@ -52,8 +61,9 @@ vi.mock('@/components/search-map', async () => {
 const { default: HomePage } = await import('../src/app/page.js');
 
 const POLYGON = '40.4,-3.7;40.4,-3.6;40.5,-3.6;40.5,-3.7';
-const NOT_COVERED = 'puede que la zona no esté cubierta';
-const NO_SWEEPS = 'no solicita barridos de cobertura';
+const NOT_COVERED = 'No hay viviendas en la zona dibujada.';
+const NO_SWEEPS = 'Dibujar una zona no pide su actualización';
+const RELOAD_LINK = '>Comprobar de nuevo</a>';
 
 async function render(params: Record<string, string | string[] | undefined>): Promise<string> {
   return renderToStaticMarkup(await HomePage({ searchParams: Promise.resolve(params) }));
@@ -164,7 +174,9 @@ describe('lista y mapa en cada petición válida (SMV-15, WSL-D8a-1)', () => {
       expect(html).toContain('search-results__list"');
       expect(html).toContain('search-results__map"');
       expect(html).toContain('data-testid="search-map"');
-      expect(html.indexOf('search-results__list"')).toBeLessThan(html.indexOf('search-results__map"'));
+      expect(html.indexOf('search-results__list"')).toBeLessThan(
+        html.indexOf('search-results__map"')
+      );
     }
   );
 
@@ -205,7 +217,9 @@ describe('lista y mapa en cada petición válida (SMV-15, WSL-D8a-1)', () => {
     searchPropertiesMock.mockResolvedValue({ results: [makeListResult(1)], hasNextPage: true });
     mapResult(5);
     const html = await render({ page: '2' });
-    expect(html.indexOf('1 resultado en esta página')).toBeLessThan(html.indexOf('search-results__list"'));
+    expect(html.indexOf('1 resultado en esta página')).toBeLessThan(
+      html.indexOf('search-results__list"')
+    );
     expect(count(html, 'Página siguiente')).toBe(1);
     expect(listSection(html)).toContain('Página siguiente');
     expect(mapSection(html)).not.toContain('Página siguiente');
@@ -312,7 +326,9 @@ describe('vista de mapa — puntos, avisos y atribución (SMV-5..SMV-9)', () => 
       '<noscript><p>El mapa interactivo necesita JavaScript.</p><a href="/?operation=sale">Ver la lista de resultados</a></noscript>';
     expect(count(html, '<noscript>')).toBe(1);
     expect(html).toContain(noscript);
-    expect(html).toMatch(/<div class="search-map__frame">[\s\S]*<noscript>[\s\S]*<\/noscript><\/div>/);
+    expect(html).toMatch(
+      /<div class="search-map__frame">[\s\S]*<noscript>[\s\S]*<\/noscript><\/div>/
+    );
     expect(html.indexOf('<noscript>')).toBeGreaterThan(html.indexOf('search-map__frame'));
     expect(html).toContain('7 viviendas con ubicación coinciden');
   });
@@ -323,7 +339,9 @@ describe('vista de mapa — puntos, avisos y atribución (SMV-5..SMV-9)', () => 
     const props = propsOf(html);
     expect(props.polygon).toHaveLength(4);
     expect(props.polygon?.[0]).toEqual({ lat: 40.4, lon: -3.7 });
-    expect(html).toMatch(/<a [^>]*href="\/\?view=map&amp;operation=sale"[^>]*>[\s\S]*?Zona dibujada/);
+    expect(html).toMatch(
+      /<a [^>]*href="\/\?view=map&amp;operation=sale"[^>]*>[\s\S]*?Zona dibujada/
+    );
     expect(html).not.toContain('Quitar zona dibujada');
   });
 });
@@ -356,6 +374,8 @@ describe('vista de mapa — estados vacío y de error (SMV-13, DAS-11)', () => {
       const html = await render({ ...params, polygon: POLYGON });
       expect(count(html, NOT_COVERED)).toBe(1);
       expect(count(html, 'role="status"')).toBe(1);
+      expect(html).not.toContain('aria-live');
+      expect(html).not.toContain(RELOAD_LINK);
       expect(count(html, 'No se encontraron viviendas con esos filtros.')).toBe(1);
       expect(count(html, 'Ninguna vivienda con ubicación coincide con estos filtros')).toBe(1);
     }
@@ -423,5 +443,105 @@ describe('vista de lista — aviso de fuera de cobertura y conmutador (DAS-11, S
     mapResult(1);
     const html = await render({ view: 'map', operation: 'sale', page: '3' });
     expect(html).toContain('<a href="/?operation=sale">Ver lista</a>');
+  });
+});
+
+// D.13 (decisión 181) — la página monta el aviso único según el resultado de cobertura.
+describe('avisos de cobertura de la página (D.13)', () => {
+  const ZONE = '28074';
+  const geometry = {
+    zoneId: 'zone-1',
+    ineCode: ZONE,
+    municipality: 'Leganés',
+    state: 'uncovered',
+    centroid: { latitude: 40.33, longitude: -3.76 },
+    sweepRadiusM: 4500,
+  };
+
+  function job(status: 'pending' | 'running' | 'done' | 'failed'): unknown {
+    return {
+      kind: 'registered',
+      job: {
+        status,
+        attempts: 0,
+        requestedAt: new Date('2026-10-08T12:00:00Z'),
+        startedAt: null,
+        error: 'boom interno',
+      },
+    };
+  }
+
+  async function renderZone(outcome: unknown): Promise<string> {
+    resolveZoneGeometryMock.mockResolvedValue(geometry);
+    resolveNewZonesDailyCapMock.mockReturnValue(10);
+    resolveCoverageClientLimitMock.mockResolvedValue(null);
+    resolveCoverageForZoneMock.mockResolvedValue(outcome);
+    return render({ zone: ZONE });
+  }
+
+  it('registrada sin job (V4): título de solicitud registrada y enlace de recarga plano', async () => {
+    const html = await renderZone({ kind: 'registered', job: null });
+    expect(html).toContain('Tu solicitud de actualización de Leganés está registrada.');
+    expect(count(html, RELOAD_LINK)).toBe(1);
+    expect(html).toContain('<a href="/?zone=28074">Comprobar de nuevo</a>');
+    expect(html).toContain('aria-label="Actualización de la zona"');
+    expect(html).not.toContain('data-testid="coverage-status"');
+  });
+
+  it.each([['pending'], ['running'], ['done']] as const)(
+    'job %s: una región status, enlace de recarga y CoverageStatus montado',
+    async (status) => {
+      const html = await renderZone(job(status));
+      expect(count(html, 'role="status"')).toBe(1);
+      expect(count(html, 'role="alert"')).toBe(0);
+      expect(count(html, RELOAD_LINK)).toBe(1);
+      expect(html).toContain('data-testid="coverage-status"');
+      expect(html).not.toContain('aria-live');
+      expect(html).not.toContain('boom interno');
+    }
+  );
+
+  it('job failed: la región es un alert, sin job.error, con enlace de recarga', async () => {
+    const html = await renderZone(job('failed'));
+    expect(count(html, 'role="alert"')).toBe(1);
+    expect(count(html, 'role="status"')).toBe(0);
+    expect(html).toContain('La actualización de Leganés ha fallado.');
+    expect(html).not.toContain('boom interno');
+    expect(count(html, RELOAD_LINK)).toBe(1);
+  });
+
+  it.each([
+    [{ kind: 'not-sweepable' }, 'Todavía no hay viviendas de Leganés.'],
+    [{ kind: 'cap-exhausted' }, 'límite diario de zonas nuevas'],
+    [{ kind: 'client-cap-exhausted' }, 'tu límite personal'],
+  ])('%j: aviso sin enlace de recarga ni sondeo', async (outcome, text) => {
+    const html = await renderZone(outcome);
+    expect(html).toContain(text);
+    expect(count(html, 'role="status"')).toBe(1);
+    expect(html).not.toContain(RELOAD_LINK);
+    expect(html).not.toContain('data-testid="coverage-status"');
+    expect(html).not.toMatch(/UTC|mañana|barrido/);
+  });
+
+  it('tope agotado: la hora de reinicio va en hora de Madrid, sin palabra de día', async () => {
+    const html = await renderZone({ kind: 'cap-exhausted' });
+    expect(html).toMatch(/a partir de las <time[^>]*>\d{1,2}:00<\/time> de la madrugada/);
+  });
+
+  it('zona desconocida (V10): aviso literal sin enlace de recarga', async () => {
+    resolveZoneGeometryMock.mockResolvedValue(null);
+    const html = await render({ zone: '00000' });
+    expect(html).toContain('El enlace lleva un municipio que no existe.');
+    expect(count(html, 'role="status"')).toBe(1);
+    expect(html).not.toContain(RELOAD_LINK);
+  });
+
+  it('zona cubierta: sin aviso de cobertura', async () => {
+    resolveZoneGeometryMock.mockResolvedValue({ ...geometry, state: 'covered' });
+    resolveNewZonesDailyCapMock.mockReturnValue(10);
+    resolveCoverageClientLimitMock.mockResolvedValue(null);
+    resolveCoverageForZoneMock.mockResolvedValue({ kind: 'covered' });
+    const html = await render({ zone: ZONE });
+    expect(html).not.toContain('coverage-notice');
   });
 });

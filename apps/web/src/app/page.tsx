@@ -9,9 +9,11 @@ import {
   zoneQuerySchema,
 } from '@buscahogar/core';
 import { resolveZoneGeometry, searchMapPoints, searchProperties, suggestZones } from '@buscahogar/db';
-import type { ZoneGeometry, ZoneSuggestion } from '@buscahogar/db';
+import type { CoverageJobState, ZoneGeometry, ZoneSuggestion } from '@buscahogar/db';
 
 import { AppliedFilters } from '@/components/applied-filters';
+import { CoverageNotice, isReloadable, noticeForOutcome } from '@/components/coverage-notice';
+import type { CoverageNoticeVariant } from '@/components/coverage-notice';
 import { CoverageStatus } from '@/components/coverage-status';
 import { CriteriaForm } from '@/components/criteria-form';
 import { FilterBar } from '@/components/filter-bar';
@@ -114,26 +116,6 @@ async function recordDemandSignal(zoneGeometry: ZoneGeometry): Promise<void> {
   if (zoneGeometry.centroid !== null) {
     await recordZoneQuerySignalSafely(getCoverageDb, zoneGeometry.zoneId);
   }
-}
-
-// ROADMAP 2.6 (DAS-11, decisión 118) — aviso genérico de un polígono sin
-// coincidencias. Un polígono nunca consulta cobertura ni registra señal de
-// demanda ni consume cuota: el aviso lo dice.
-function OutsideCoverageNotice(): ReactElement {
-  return (
-    <p role="status">
-      No hay viviendas de nuestra base en la zona dibujada; puede que la zona no esté cubierta. La zona dibujada no
-      solicita barridos de cobertura.
-    </p>
-  );
-}
-
-function formatJobStatus(status: string): string {
-  if (status === 'pending') return 'pendiente';
-  if (status === 'running') return 'en curso';
-  if (status === 'done') return 'completado';
-  if (status === 'failed') return 'falló, reintento pendiente';
-  return status;
 }
 
 // ROADMAP 3.1 (decisión 122) — rama `?q=`: interpretar y pedir confirmación,
@@ -290,8 +272,12 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
   // caso (no cubierta, sin centroide, tope agotado, desconocida) la
   // búsqueda se degrada a un resultado sin filtro geográfico, nunca a cero
   // resultados silenciosos (D6).
-  let coverageNotice: ReactElement | null = null;
-  let coverageStatusSection: ReactElement | null = null;
+  // D.13 (decisión 181): un único `now` por petición; el aviso lo muestra
+  // `CoverageNotice` (única región viva) y el enlace de recarga solo aparece
+  // donde recargar puede cambiar el estado.
+  const now = new Date();
+  let coverageVariant: CoverageNoticeVariant | null = null;
+  let coverageJob: CoverageJobState | null = null;
   let effectiveCriteria = criteria;
   // Nombre del municipio ya resuelto para el chip de zona: sin consulta nueva.
   let zoneName: string | null = null;
@@ -301,9 +287,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
     zoneName = zoneGeometry?.municipality ?? null;
 
     if (zoneGeometry === null) {
-      coverageNotice = (
-        <p role="status">No se ha encontrado ningún municipio con el código {criteria.zone}.</p>
-      );
+      coverageVariant = { kind: 'unknown-zone' };
     } else if (zoneGeometry.state === 'covered' && zoneGeometry.centroid !== null) {
       await recordDemandSignal(zoneGeometry);
       effectiveCriteria = {
@@ -323,46 +307,23 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       // `next/headers` en absoluto (validador notes obs #263).
       const clientLimit = await resolveCoverageClientLimit();
       const outcome = await resolveCoverageForZone(db, getCoverageDb, zoneGeometry, newZonesDailyCap, clientLimit);
-
-      if (outcome.kind === 'not-sweepable') {
-        coverageNotice = (
-          <p role="status">
-            No hay cobertura disponible para {zoneGeometry.municipality} en este momento (sin datos de
-            ubicación suficientes para barrer la zona).
-          </p>
-        );
-      } else if (outcome.kind === 'cap-exhausted') {
-        coverageNotice = (
-          <p role="status">
-            No se ha podido programar el barrido de {zoneGeometry.municipality}: se ha alcanzado el límite
-            diario de zonas nuevas. El límite se restablece a las 00:00 UTC — vuelve a intentarlo mañana.
-          </p>
-        );
-      } else if (outcome.kind === 'client-cap-exhausted') {
-        // spec #261 "A Per-Client Limit Hit Is The Distinct Outcome
-        // client-cap-exhausted, Never cap-exhausted" (D6): mensaje DISTINTO
-        // del anterior — este bloquea a UN cliente, no a todos.
-        coverageNotice = (
-          <p role="status">
-            No se ha podido programar el barrido de {zoneGeometry.municipality}: has alcanzado tu límite
-            personal de solicitudes de hoy. Vuelve a intentarlo mañana.
-          </p>
-        );
-      } else if (outcome.kind === 'registered' && outcome.job !== null) {
-        const job = outcome.job;
-        coverageStatusSection = (
-          <section aria-label="Estado del barrido">
-            <p role="status">
-              Barrido de {zoneGeometry.municipality}: {formatJobStatus(job.status)}
-              {job.startedAt !== null ? ` · iniciado ${job.startedAt.toISOString()}` : ''}
-            </p>
-            <a href={buildCurrentHref(rawSearchParams)}>Comprobar de nuevo</a>
-            <CoverageStatus job={job} />
-          </section>
-        );
-      }
+      // spec #261 (D6): el tope por cliente es un resultado DISTINTO del global;
+      // `noticeForOutcome` los mantiene separados.
+      coverageVariant = noticeForOutcome(outcome, zoneGeometry.municipality, now);
+      coverageJob = outcome.kind === 'registered' ? outcome.job : null;
     }
   }
+
+  const coverageSection =
+    coverageVariant === null ? null : isReloadable(coverageVariant) ? (
+      <section aria-label="Actualización de la zona">
+        <CoverageNotice variant={coverageVariant} />
+        <a href={buildCurrentHref(rawSearchParams)}>Comprobar de nuevo</a>
+        {coverageJob !== null ? <CoverageStatus job={coverageJob} /> : null}
+      </section>
+    ) : (
+      <CoverageNotice variant={coverageVariant} />
+    );
 
   const header = (
     <>
@@ -371,8 +332,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       <SearchTextForm value="" />
       <FilterBar params={rawSearchParams} activeCount={countTrayFilters(criteria)} />
       {suggestions !== null ? <ZoneSuggestions suggestions={suggestions} rawSearchParams={rawSearchParams} /> : null}
-      {coverageNotice}
-      {coverageStatusSection}
+      {coverageSection}
       <p className="view-toggle">
         <a href={buildViewHref(rawSearchParams, view === 'map' ? 'list' : 'map')}>
           {view === 'map' ? 'Ver lista' : 'Ver mapa'}
@@ -413,7 +373,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       />
       {/* DAS-11: región compartida; con polígono las dos consultas dan el mismo
           total, así que M === 0 vale también en páginas posteriores de la lista. */}
-      {criteria.polygon !== undefined && total === 0 ? <OutsideCoverageNotice /> : null}
+      {criteria.polygon !== undefined && total === 0 ? <CoverageNotice variant={{ kind: 'outside-polygon' }} /> : null}
       <div className="search-results" data-view={view}>
         <section aria-label="Resultados" className="search-results__list">
           {results.length === 0 ? (
