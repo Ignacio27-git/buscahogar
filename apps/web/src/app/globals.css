@@ -1311,7 +1311,7 @@
 
     .price-history__table td {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-end;
       gap: 0.5rem;
       padding: 0.125rem 0;
       border: 0;
@@ -1321,6 +1321,7 @@
     .price-history__table td::before {
       content: attr(data-label);
       flex: none;
+      margin-inline-end: auto;
       color: var(--ink-muted);
       text-align: start;
     }

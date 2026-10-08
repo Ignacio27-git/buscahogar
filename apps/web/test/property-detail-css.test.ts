@@ -119,6 +119,20 @@ describe('histórico apilado bajo 30rem (alternativa del diseño)', () => {
     expect(label.get('content')).toBe('attr(data-label)');
   });
 
+  it('todos los valores se alinean al final, también el de «Fuente» (texto y insignia)', () => {
+    const cell = rule(narrow(), '.price-history__table td');
+    expect(cell.get('justify-content')).toBe('flex-end');
+    // La etiqueta empuja a la izquierda con su margen automático; el resto se agrupa a la derecha.
+    expect(rule(narrow(), '.price-history__table td::before').get('margin-inline-end')).toBe('auto');
+  });
+
+  it('todos los valores se alinean al final, también el de «Fuente» (texto y insignia)', () => {
+    const cell = rule(narrow(), '.price-history__table td');
+    expect(cell.get('justify-content')).toBe('flex-end');
+    // La etiqueta empuja a la izquierda con su margen automático; el resto se agrupa a la derecha.
+    expect(rule(narrow(), '.price-history__table td::before').get('margin-inline-end')).toBe('auto');
+  });
+
   it('la cabecera visual se oculta sin sacarla del árbol de accesibilidad', () => {
     const head = rule(narrow(), '.price-history__table thead');
     expect(head.get('position')).toBe('absolute');
