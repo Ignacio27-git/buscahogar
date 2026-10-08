@@ -1017,6 +1017,7 @@
 
   .source-list h2,
   .price-history h2,
+  .property-location h2,
   .property-description h2 {
     margin: 0 0 0.5rem;
     font-size: var(--text-heading-3);
@@ -1251,12 +1252,14 @@
     padding-inline: 0.25rem;
   }
 
-  /* Fecha, precio y cabeceras no se parten a mitad de palabra o cifra; la fuente y la variación
-     ceden el ancho en los espacios. */
-  .price-history__table th,
-  .price-history__table .price-history__date,
+  /* Solo el precio no se parte; fuente, variación y cabeceras ceden el ancho en los espacios, así
+     que la tabla cabe a 320px sin desplazamiento. La fecha no tiene espacios y alinea sus cifras. */
   .price-history__table .price-history__price {
     white-space: nowrap;
+  }
+
+  .price-history__table .price-history__date {
+    font-variant-numeric: tabular-nums;
   }
 
   .price-history__table th {
@@ -1282,10 +1285,6 @@
      de superficie, que da el contraste de 3:1 en el tema oscuro. */
   .property-location {
     min-inline-size: 0;
-  }
-
-  .property-location h2 {
-    margin: 0 0 0.5rem;
   }
 
   .property-location__municipality {
@@ -1418,18 +1417,36 @@
       display: flex;
     }
 
-    /* El panel va en su propia columna, así que no tapa el foco del resto de la página; el
-       tope de altura y su propio desbordamiento evitan que quede cortado en pantallas bajas. */
+    /* D.13b (decisión 183, enmienda la 133): el panel ya no es una caja con scroll propio. Se
+       estira a toda la altura de la rejilla (así el precio sticky tiene recorrido) y sus datos y
+       fuentes fluyen con la página. El contenedor del encabezado se disuelve para que el resumen sea hijo
+       directo del panel. */
     .property-detail__panel {
       grid-area: panel;
+      align-self: stretch;
+    }
+
+    .property-header {
+      display: contents;
+    }
+
+    /* Solo el precio queda fijo: superficie opaca y filete. El margen negativo y el relleno
+       superior iguales a --scroll-offset lo pegan al borde sin mover su posición en reposo. Mide
+       5.5rem + 1px, y esa cifra fija la reserva de foco de abajo. */
+    .property-summary--panel {
       position: sticky;
-      top: var(--scroll-offset);
-      max-block-size: calc(100dvh - 2 * var(--scroll-offset));
-      overflow-y: auto;
-      overscroll-behavior: contain;
-      padding: 1.25rem;
-      border: 1px solid var(--rule);
-      border-radius: var(--radius-panel);
+      top: 0;
+      z-index: var(--z-sticky-header);
+      margin-block-start: calc(-1 * var(--scroll-offset));
+      padding-block: var(--scroll-offset) 0.75rem;
+      background-color: var(--surface);
+      border-block-end: 1px solid var(--rule);
+    }
+
+    /* WCAG 2.4.11 (C43): el foco por teclado no queda oculto bajo el precio fijo. Solo aquí, donde
+       es sticky; por debajo de 64rem rige el desplazamiento base. */
+    html:has(.property-detail) {
+      scroll-padding-top: calc(var(--scroll-offset) + 5.5rem + 1px);
     }
   }
 

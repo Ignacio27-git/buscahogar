@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { formatPriceCents } from '../src/lib/format-price.js';
-import { buildPriceChart, chartAriaLabel, labelSeries } from '../src/lib/price-chart.js';
+import { GRID_X2, buildPriceChart, chartAriaLabel, labelSeries } from '../src/lib/price-chart.js';
 import type { ChartSeriesInput } from '../src/lib/price-chart.js';
 
 function d(day: number): Date {
@@ -34,7 +34,7 @@ describe('buildPriceChart — escalas compartidas', () => {
 
     // pad = max(round(30000 * 0,1), round(310000 * 0,01), 100) = 3100
     // dominio 276900..313100 (rango 36200); área útil y 12..132 (alto 120).
-    expect(model.viewBox).toBe('0 0 320 160');
+    expect(model.viewBox).toBe('0 0 288 160');
     expect(model.yLabels.map((l) => l.text)).toEqual([formatPriceCents(310_000), formatPriceCents(280_000)]);
     expect(model.yLabels[0]?.y).toBe(22.3); // 12 + 3100 / 36200 * 120
     expect(model.yLabels[1]?.y).toBe(121.7); // 12 + 33100 / 36200 * 120
@@ -61,14 +61,28 @@ describe('buildPriceChart — escalas compartidas', () => {
 
     expect(model.xLabels).toEqual([
       { x: 72, text: '01/01/2026', anchor: 'start' },
-      { x: 308, text: '11/01/2026', anchor: 'end' },
+      { x: 276, text: '11/01/2026', anchor: 'end' },
     ]);
   });
 
   it('una sola fecha da un único rótulo centrado', () => {
     const model = buildPriceChart([series('a', [[3, 300_000]]), series('b', [[3, 310_000]])]);
 
-    expect(model.xLabels).toEqual([{ x: 190, text: '03/01/2026', anchor: 'middle' }]);
+    expect(model.xLabels).toEqual([{ x: 174, text: '03/01/2026', anchor: 'middle' }]);
+  });
+});
+
+describe('GRID_X2 — borde derecho del área útil', () => {
+  it('coincide con el rótulo final del eje de tiempo, sin 308 fijo', () => {
+    const model = buildPriceChart([
+      series('a', [
+        [1, 300_000],
+        [11, 290_000],
+      ]),
+    ]);
+
+    expect(GRID_X2).toBe(276);
+    expect(model.xLabels[1]?.x).toBe(GRID_X2);
   });
 });
 
@@ -80,7 +94,7 @@ describe('buildPriceChart — rangos degenerados', () => {
     expect(text).not.toMatch(/NaN|Infinity|null.*undefined/);
     expect(model.yLabels).toHaveLength(1);
     expect(Number.isFinite(model.yLabels[0]?.y)).toBe(true);
-    // Punto centrado: x = 190; y a mitad del área útil (dominio simétrico).
+    // Punto centrado: x = 174; y a mitad del área útil (dominio simétrico).
     expect(model.series[0]?.markerPaths[0]).toMatch(/^M/);
   });
 
@@ -105,7 +119,7 @@ describe('buildPriceChart — trazado en escalón', () => {
 
     // pad = max(1000, 3000, 100) = 3000; dominio 287000..303000 (16000).
     // y(300000) = 12 + 3000/16000*120 = 34.5; y(290000) = 12 + 13000/16000*120 = 109.5.
-    expect(model.series[0]?.linePath).toBe('M72 34.5 H308 V109.5');
+    expect(model.series[0]?.linePath).toBe('M72 34.5 H276 V109.5');
   });
 
   it('encadena varios escalones', () => {
@@ -117,8 +131,8 @@ describe('buildPriceChart — trazado en escalón', () => {
       ]),
     ]);
 
-    // x: 72, 190, 308. y(300000) = 34.5; y(290000) = 109.5.
-    expect(model.series[0]?.linePath).toBe('M72 34.5 H190 V109.5 H308 V34.5');
+    // x: 72, 174, 276. y(300000) = 34.5; y(290000) = 109.5.
+    expect(model.series[0]?.linePath).toBe('M72 34.5 H174 V109.5 H276 V34.5');
   });
 
   it('un anuncio de un solo punto no tiene línea, solo marcador', () => {
@@ -148,9 +162,9 @@ describe('buildPriceChart — trazado en escalón', () => {
       ]),
     ]);
 
-    // El último H de `short` llega a x(día 4) = 72 + 3/10*236 = 142,8, no a 308.
-    expect(model.series[0]?.linePath).toMatch(/H142\.8 V/);
-    expect(model.series[0]?.linePath).not.toContain('H308');
+    // El último H de `short` llega a x(día 4) = 72 + 3/10*204 = 133,2, no a 276.
+    expect(model.series[0]?.linePath).toMatch(/H133\.2 V/);
+    expect(model.series[0]?.linePath).not.toContain('H276');
   });
 
   it('conserva clave, rótulo y estado retirado de cada serie', () => {

@@ -1,8 +1,7 @@
 // Paso D.9 (decisiones 172, 173 y 175) — la ficha más allá de la captura: la galería se
 // recorre sin JavaScript con las anclas de fragmento, y ningún elemento enfocable queda
-// tapado por el panel sticky ni por nada más (WCAG 2.4.11), tampoco cuando el panel
-// tiene que desplazarse por dentro. Se usa la ficha de P7 (`detail-gallery`): la única
-// con dos fotos.
+// tapado por el resumen sticky ni por nada más (WCAG 2.4.11, F110), en los dos sentidos. Se
+// usa la ficha de P7 (`detail-gallery`): la única con dos fotos.
 import { E2E_NO_LOCATION_LISTING_ID } from '@buscahogar/db/e2e';
 import type { Locator, Page } from '@playwright/test';
 
@@ -206,7 +205,10 @@ interface FocusedElement {
 interface FocusStep {
   readonly label: string;
   readonly inPanel: boolean;
-  readonly panelScrollTop: number;
+  // Con el foco aquí, la página llevaba este desplazamiento y el resumen de precio estaba a esta
+  // distancia del borde superior (0 = pegado).
+  readonly scrollY: number;
+  readonly summaryTop: number | null;
 }
 
 // Marca el elemento enfocado como visitado y lo describe. `null` si el foco salió del documento.
@@ -231,6 +233,8 @@ function describeFocus(page: Page): Promise<FocusedElement | null> {
 
 // Problemas de ocultación del elemento enfocado; vacío si se ve. Se repite con
 // `expect.poll` hasta que el desplazamiento por el foco termina (sin esperas por tiempo).
+// Lo que tapa el foco por arriba es el resumen sticky: el punto central del elemento tiene que
+// pertenecer al propio elemento (F110), no al resumen ni a nada más.
 function focusProblems(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const element = document.activeElement;
@@ -261,85 +265,136 @@ function focusProblems(page: Page): Promise<string[]> {
           : `${hit.tagName.toLowerCase()}.${hit.className}`;
       problems.push(`en su centro está ${by}`);
     }
-
-    const panel = element.closest('.property-detail__panel');
-    if (panel !== null) {
-      const panelBox = panel.getBoundingClientRect();
-      const visible = {
-        left: Math.max(panelBox.left, viewport.left),
-        top: Math.max(panelBox.top, viewport.top),
-        right: Math.min(panelBox.right, viewport.right),
-        bottom: Math.min(panelBox.bottom, viewport.bottom),
-      };
-      if (!overlaps(box, visible)) problems.push('fuera de la parte visible del panel');
-    }
     return problems;
   });
 }
 
-// Recorre con Tab TODOS los enfocables de la ficha y comprueba cada uno. Devuelve los pasos.
-async function walkFocus(page: Page): Promise<readonly FocusStep[]> {
+// Estado del desplazamiento y del resumen sticky en el instante del foco.
+function stickyState(page: Page): Promise<{ scrollY: number; summaryTop: number | null }> {
+  return page.evaluate(() => {
+    const summary = document.querySelector('.property-summary--panel');
+    const visible = summary !== null && getComputedStyle(summary).display !== 'none';
+    return { scrollY, summaryTop: visible ? summary.getBoundingClientRect().top : null };
+  });
+}
+
+// Recorre con una tecla (Tab hacia delante, Shift+Tab hacia atrás) TODOS los enfocables de la
+// ficha y comprueba cada uno. Devuelve los pasos.
+async function walkFocus(page: Page, key: 'Tab' | 'Shift+Tab'): Promise<readonly FocusStep[]> {
   const steps: FocusStep[] = [];
-  for (let tab = 0; tab < MAX_TABS; tab += 1) {
-    await page.keyboard.press('Tab');
+  for (let press = 0; press < MAX_TABS; press += 1) {
+    await page.keyboard.press(key);
     const focused = await describeFocus(page);
     // Fin del recorrido: el foco sale del documento o vuelve a uno ya visitado.
     if (focused === null || focused.revisited) return steps;
     await expect
       .poll(() => focusProblems(page), {
-        message: `foco tapado en «${focused.label}» (paso ${String(tab + 1)})`,
+        message: `foco tapado en «${focused.label}» (${key}, paso ${String(press + 1)})`,
       })
       .toEqual([]);
-    const panelScrollTop = await page
-      .locator('.property-detail__panel')
-      .evaluate((panel) => panel.scrollTop);
-    steps.push({ label: focused.label, inPanel: focused.inPanel, panelScrollTop });
+    steps.push({ label: focused.label, inPanel: focused.inPanel, ...(await stickyState(page)) });
   }
-  throw new Error(`el recorrido con Tab no terminó en ${String(MAX_TABS)} pasos`);
+  throw new Error(`el recorrido con ${key} no terminó en ${String(MAX_TABS)} pasos`);
 }
 
 const FOCUS_CASES = [
   { project: 'w1280-light', viewport: null, name: '1280 de ancho' },
-  // La altura del panel de P7 depende de la comparación de anuncios (D.12, una fila con datos
-  // etiquetados por anuncio): su tope es la ventana menos 2rem. A 480 de alto tiene que
-  // desplazarse por dentro (se comprueba abajo).
-  {
-    project: 'w1280-light',
-    viewport: { width: 1280, height: 480 },
-    name: '1280×480, panel con desplazamiento interno',
-  },
+  // A 480 de alto el precio sticky ocupa una parte grande de la ventana: es el caso que más
+  // expone un foco tapado.
+  { project: 'w1280-light', viewport: { width: 1280, height: 480 }, name: '1280×480' },
   { project: 'w320-light', viewport: null, name: '320 de ancho' },
 ] as const;
 
-test.describe('ficha: el foco nunca queda tapado (WCAG 2.4.11)', () => {
+const EXPECTED_LABELS = [
+  'Saltar al contenido',
+  'Volver a la búsqueda',
+  'Foto siguiente',
+  'Foto anterior',
+  'Ver en Idealista (web externa)',
+  'Ver en Kyero (web externa)',
+];
+
+test.describe('ficha: el foco nunca queda tapado (WCAG 2.4.11, F110)', () => {
   for (const focusCase of FOCUS_CASES) {
-    test(`Tab por todos los enfocables, a ${focusCase.name}`, async ({ page }) => {
-      test.skip(test.info().project.name !== focusCase.project, `solo ${focusCase.project}`);
-      if (focusCase.viewport !== null) await page.setViewportSize(focusCase.viewport);
-      await openRoute(page, GALLERY_ROUTE);
+    for (const key of ['Tab', 'Shift+Tab'] as const) {
+      test(`${key} por todos los enfocables, a ${focusCase.name}`, async ({ page }) => {
+        test.skip(test.info().project.name !== focusCase.project, `solo ${focusCase.project}`);
+        if (focusCase.viewport !== null) await page.setViewportSize(focusCase.viewport);
+        await openRoute(page, GALLERY_ROUTE);
 
-      const panel = page.locator('.property-detail__panel');
-      const panelScrolls = await panel.evaluate((el) => el.scrollHeight > el.clientHeight);
-      // El caso bajo solo tiene sentido si el panel se desplaza de verdad por dentro.
-      if (focusCase.viewport !== null) expect(panelScrolls).toBe(true);
+        const steps = await walkFocus(page, key);
+        const labels = steps.map((step) => step.label);
+        for (const expected of EXPECTED_LABELS) expect(labels).toContain(expected);
+        expect(steps.filter((step) => step.inPanel).length).toBeGreaterThanOrEqual(2);
+        // En ancho, con el foco en los datos del panel la página se ha desplazado y el precio
+        // sigue pegado arriba: sin ese anclaje la comprobación anterior no probaría nada.
+        if (focusCase.viewport !== null) {
+          const pinned = steps.filter(
+            (step) => step.inPanel && step.scrollY > 0 && step.summaryTop !== null
+          );
+          expect(pinned.length).toBeGreaterThan(0);
+          for (const step of pinned) expect(Math.abs(step.summaryTop ?? NaN)).toBeLessThanOrEqual(0.5);
+        }
+      });
+    }
+  }
+});
 
-      const steps = await walkFocus(page);
-      const labels = steps.map((step) => step.label);
-      for (const expected of [
-        'Saltar al contenido',
-        'Volver a la búsqueda',
-        'Foto siguiente',
-        'Foto anterior',
-        'Ver en Idealista ↗ (web externa)',
-        'Ver en Kyero ↗ (web externa)',
-      ]) {
-        expect(labels).toContain(expected);
-      }
-      expect(steps.filter((step) => step.inPanel).length).toBeGreaterThanOrEqual(2);
-      // A 1280×480 el foco obligó al panel a desplazarse por dentro para enseñar un enlace.
-      if (focusCase.viewport !== null) {
-        expect(Math.max(...steps.map((step) => step.panelScrollTop))).toBeGreaterThan(0);
-      }
+// D.13b (decisión 183): solo el precio es sticky y el panel ya no tiene caja ni desplazamiento propio.
+test.describe('ficha: el precio es lo único fijo', () => {
+  test('1280: resumen sticky, panel sin overflow ni caja, y las fuentes se alcanzan con la página', async ({
+    page,
+  }) => {
+    test.skip(test.info().project.name !== 'w1280-light', 'solo el ancho de escritorio');
+    await openRoute(page, GALLERY_ROUTE);
+
+    const summary = page.locator('.property-summary--panel');
+    const panel = page.locator('.property-detail__panel');
+    await expect(summary).toHaveCSS('position', 'sticky');
+    await expect(panel).toHaveCSS('position', 'static');
+    await expect(panel).toHaveCSS('overflow-y', 'visible');
+    await expect(panel).toHaveCSS('border-top-width', '0px');
+    const noInnerScroll = await panel.evaluate((el) => el.scrollHeight <= el.clientHeight);
+    expect(noInnerScroll).toBe(true);
+
+    await page.locator('.source-list').scrollIntoViewIfNeeded();
+    await page.mouse.wheel(0, 400);
+    await expect
+      .poll(() => summary.evaluate((el) => Math.abs(el.getBoundingClientRect().top)))
+      .toBeLessThanOrEqual(0.5);
+    await expect(page.getByRole('link', { name: 'Ver en Kyero (web externa)' })).toBeVisible();
+    await expect(page.locator('body')).not.toContainText('↗');
+  });
+
+  test('320: nada es sticky', async ({ page }) => {
+    test.skip(test.info().project.name !== 'w320-light', 'solo el ancho móvil');
+    await openRoute(page, GALLERY_ROUTE);
+
+    await expect(page.locator('.property-summary--lead')).toHaveCSS('position', 'static');
+    await expect(page.locator('.property-summary--panel')).toBeHidden();
+    await expect(page.locator('.property-detail__panel')).toHaveCSS('position', 'static');
+  });
+});
+
+// D.13b: el histórico cabe a 320 px envolviendo las celdas; sin desplazamiento horizontal.
+test.describe('ficha: el histórico de precios a 320 px', () => {
+  for (const detailRoute of [HISTORY_ROUTE, GALLERY_ROUTE]) {
+    test(`${detailRoute.name}: la tabla no desborda y «Variación» se ve entera`, async ({ page }) => {
+      test.skip(test.info().project.name !== 'w320-light', 'solo el ancho móvil');
+      await openRoute(page, detailRoute);
+
+      await expect(page.locator('.price-history')).toBeVisible();
+      const tableOverflow = await page
+        .locator('.price-history__scroll')
+        .evaluate((el) => el.scrollWidth - el.clientWidth);
+      expect(tableOverflow).toBeLessThanOrEqual(0);
+      const pageOverflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+      );
+      expect(pageOverflow).toBeLessThanOrEqual(0);
+      const box = await page.getByRole('columnheader', { name: 'Variación' }).boundingBox();
+      expect(box).not.toBeNull();
+      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(320);
     });
   }
 });

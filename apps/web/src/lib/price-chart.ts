@@ -32,7 +32,9 @@ export interface PriceChartModel {
   }[];
 }
 
-const WIDTH = 320;
+// Ancho 288 = columna de contenido a 320 px (viewport menos 2 × 16): el svg se muestra a 1:1 y
+// los rótulos de 12px no se reducen por debajo de --text-small.
+const WIDTH = 288;
 const HEIGHT = 160;
 const PAD_TOP = 12;
 const PAD_RIGHT = 12;
@@ -45,6 +47,8 @@ const PLOT_BOTTOM = HEIGHT - PAD_BOTTOM;
 // Posición fija de los rótulos (la usa el componente): fechas en y = 152, precios a la izquierda del área útil.
 export const X_LABEL_Y = HEIGHT - 8;
 export const Y_LABEL_X = PLOT_LEFT - 8;
+// Borde derecho de la rejilla: el componente lo usa en vez de un 308 fijo.
+export const GRID_X2 = PLOT_RIGHT;
 const MARKER_RADIUS = 3;
 const STYLE_COUNT = 4;
 

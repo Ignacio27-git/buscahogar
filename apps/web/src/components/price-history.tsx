@@ -15,6 +15,7 @@ import {
   chartAriaLabel,
   labelSeries,
   markerPath,
+  GRID_X2,
   X_LABEL_Y,
   Y_LABEL_X,
 } from '@/lib/price-chart';
@@ -64,7 +65,7 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
                 <line
                   className="price-chart__grid"
                   x1={Y_LABEL_X + 8}
-                  x2={308}
+                  x2={GRID_X2}
                   y1={label.y}
                   y2={label.y}
                 />
