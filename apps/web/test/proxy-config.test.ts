@@ -104,6 +104,29 @@ describe('proxy.ts — limitador activo (spec #261, decisiones 075/076)', () => 
     expect(Number(denied.headers.get('Retry-After'))).toBeGreaterThan(0);
   });
 
+  // D.14 (decisión 189): el 429 es una página HTML en español, no texto plano.
+  it('el 429 es HTML en español, con Retry-After tal cual, no-store y sin RateLimit-*', async () => {
+    proxy(requestFrom('203.0.113.20'));
+    proxy(requestFrom('203.0.113.20'));
+    const denied = proxy(requestFrom('203.0.113.20'));
+
+    expect(denied.status).toBe(429);
+    expect(denied.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
+    expect(denied.headers.get('Retry-After')).toMatch(/^\d+(\.\d+)?$/);
+    expect(denied.headers.get('Cache-Control')).toBe('no-store');
+    expect([...denied.headers.keys()].filter((name) => name.startsWith('ratelimit'))).toEqual([]);
+    const body = await denied.text();
+    expect(body).toContain('<h1>Demasiadas peticiones seguidas</h1>');
+    expect(body).not.toContain('Too Many Requests');
+  });
+
+  it('por debajo del límite la respuesta no es la página 429', () => {
+    const allowed = proxy(requestFrom('203.0.113.21'));
+
+    expect(allowed.status).not.toBe(429);
+    expect(allowed.headers.get('Content-Type')).not.toBe('text/html; charset=utf-8');
+  });
+
   it('indexa el limitador por la clave HMAC de la IP, nunca por la IP en claro', () => {
     proxy(requestFrom('198.51.100.7'));
     expect(hmacClientKey).toHaveBeenCalledWith('198.51.100.7', hmacKey);
@@ -113,5 +136,19 @@ describe('proxy.ts — limitador activo (spec #261, decisiones 075/076)', () => 
     expect(proxy(requestFrom(null)).status).not.toBe(429);
     expect(proxy(requestFrom('garbage')).status).not.toBe(429);
     expect(proxy(requestFrom('203.0.113.1, 203.0.113.2')).status).toBe(429);
+  });
+});
+
+// D.14 (decisión 189): el 429 de `proxy.ts` hereda las cabeceras de seguridad de `next.config`
+// (fuente `/(.*)`); la CSP debe admitir el `<style>` en línea de la página.
+describe('next.config — cabeceras de seguridad en la ruta que recibe el 429', () => {
+  it('la fuente /(.*) lleva la CSP y esta admite estilos en línea', async () => {
+    const entries = (await nextConfig.headers?.()) ?? [];
+    const catchAll = entries.find((entry) => entry.source === '/(.*)');
+    const csp = catchAll?.headers.find((header) => header.key === 'Content-Security-Policy')?.value;
+
+    expect(catchAll).toBeDefined();
+    expect(csp).toContain("style-src 'self' 'unsafe-inline'");
+    expect(catchAll?.headers.some((header) => header.key === 'Strict-Transport-Security')).toBe(true);
   });
 });

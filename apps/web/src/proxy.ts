@@ -17,6 +17,7 @@ import { parseTrustedClientIp, UNKNOWN_CLIENT_IDENTITY } from '@buscahogar/core'
 import { hmacClientKey } from './server/client-identity';
 import { readClientLimitConfig } from './server/env';
 import { createProxyRateLimiter } from './server/proxy-rate-limit';
+import { buildRateLimitResponse } from './server/rate-limit-page';
 
 const limiter = createProxyRateLimiter();
 
@@ -41,10 +42,9 @@ export function proxy(request: NextRequest): NextResponse {
   });
 
   if (!result.allowed) {
-    return new NextResponse('Too Many Requests', {
-      status: 429,
-      headers: { 'Retry-After': String(result.retryAfterSeconds) },
-    });
+    // D.14 (decisión 189): página HTML en español; `Retry-After` conserva el valor del limitador.
+    const { body, headers } = buildRateLimitResponse(result.retryAfterSeconds);
+    return new NextResponse(body, { status: 429, headers });
   }
 
   return NextResponse.next();

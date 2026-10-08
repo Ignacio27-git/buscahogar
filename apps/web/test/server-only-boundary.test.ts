@@ -23,8 +23,8 @@ describe('Frontera server-only (spec #261, diseño decisión 081)', () => {
     expect(importsServerOnly(source)).toBe(true);
   });
 
-  it('env.ts, client-identity.ts y proxy-rate-limit.ts NO importan "server-only" (alcanzables desde proxy.ts)', () => {
-    for (const file of ['env.ts', 'client-identity.ts', 'proxy-rate-limit.ts']) {
+  it('env.ts, client-identity.ts, proxy-rate-limit.ts y rate-limit-page.ts NO importan "server-only" (alcanzables desde proxy.ts)', () => {
+    for (const file of ['env.ts', 'client-identity.ts', 'proxy-rate-limit.ts', 'rate-limit-page.ts']) {
       const source = readFileSync(`${SERVER_DIR}${file}`, 'utf8');
       expect(importsServerOnly(source)).toBe(false);
     }
