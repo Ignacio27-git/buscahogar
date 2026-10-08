@@ -960,6 +960,31 @@
     color: var(--ink);
   }
 
+  /* D.13: aviso de cobertura. Misma regla de 3px que el aviso de fuentes; solo el fallo
+     (role="alert") cambia a --danger. El título pesa más que el detalle. */
+  .coverage-notice {
+    margin: 0 0 0.75rem;
+    padding-inline-start: 0.75rem;
+    border-inline-start: 3px solid var(--ink);
+    color: var(--ink);
+  }
+
+  .coverage-notice[role='alert'] {
+    border-inline-start-color: var(--danger);
+  }
+
+  .coverage-notice__title {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .coverage-notice__detail {
+    margin: 0.25rem 0 0;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
   .source-row {
     display: flex;
     flex-direction: column;
