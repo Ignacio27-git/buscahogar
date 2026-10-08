@@ -86,8 +86,10 @@
   color: var(--ink-muted);
 }
 
-.leaflet-container .map-popup a.leaflet-popup-close-button:hover {
-  color: var(--ink);
+@media (hover: hover) and (pointer: fine) {
+  .leaflet-container .map-popup a.leaflet-popup-close-button:hover {
+    color: var(--ink);
+  }
 }
 
 .leaflet-container .map-popup a.leaflet-popup-close-button:focus-visible,
@@ -125,9 +127,15 @@
   border-bottom: 1px solid var(--rule-control);
 }
 
-.leaflet-container .leaflet-bar a:hover,
-.leaflet-container .leaflet-bar a:focus {
+.leaflet-container .leaflet-bar a:focus,
+.leaflet-container .leaflet-bar a:active {
   background-color: var(--surface);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .leaflet-container .leaflet-bar a:hover {
+    background-color: var(--surface);
+  }
 }
 
 .leaflet-container .leaflet-bar a.leaflet-disabled {
@@ -198,7 +206,8 @@
   line-height: var(--text-dense--line-height);
 }
 
-/* Objetivo táctil mínimo explícito (WCAG 2.5.8). */
+/* Objetivo táctil mínimo explícito (WCAG 2.5.8). Excepción compacta documentada al relleno
+   único de los botones (decisión 185): la barra flota sobre el mapa. */
 .map-draw-toolbar button {
   min-block-size: 1.5rem;
   min-inline-size: 1.5rem;

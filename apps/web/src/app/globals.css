@@ -201,9 +201,23 @@
     opacity: 1;
   }
 
+  /* Superficies del navegador con la paleta (D.13b, decisión 185): cursor de texto y acento
+     nativo; la barra de desplazamiento solo donde el navegador la admite. */
+  :root {
+    caret-color: var(--accent);
+    accent-color: var(--accent);
+  }
+
+  @supports (scrollbar-color: auto) {
+    :root {
+      scrollbar-color: var(--rule-control) var(--surface);
+    }
+  }
+
   /* Colores explícitos: con `color-scheme: light dark` los controles nativos heredarían
-     los del sistema y podrían quedar claro sobre claro. Radios, casillas, rangos y
-     selectores de color conservan su aspecto nativo. */
+     los del sistema y podrían quedar claro sobre claro. Radios, casillas, rangos y selectores
+     de color conservan su aspecto nativo; `accent-color` solo tiñe su acento con la paleta.
+     Un único relleno para todos los controles; el de la barra de dibujo es la excepción compacta. */
   input:not([type='radio'], [type='checkbox'], [type='range'], [type='color']),
   select,
   textarea {
@@ -211,6 +225,7 @@
     color: var(--ink);
     border: 1px solid var(--rule-control);
     border-radius: var(--radius-control);
+    padding: 0.5rem 0.75rem;
   }
 
   button {
@@ -218,6 +233,20 @@
     color: var(--ink);
     border: 1px solid var(--rule-control);
     border-radius: var(--radius-control);
+    padding: 0.5rem 0.75rem;
+  }
+
+  /* Pulsado en toda pantalla; el resalte al pasar el puntero solo con puntero fino, porque en
+     táctil el :hover se queda pegado. */
+  button:active {
+    background-color: var(--surface-sunken);
+    border-color: var(--ink);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    button:hover {
+      background-color: var(--surface-sunken);
+    }
   }
 
   .leaflet-container {
@@ -284,6 +313,28 @@
     user-select: none;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  .filter-tray > summary:active {
+    background-color: var(--surface-sunken);
+    border-color: var(--ink);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .filter-tray > summary:hover {
+      background-color: var(--surface-sunken);
+    }
+  }
+
+  /* Chip de filtro aplicado: mismo trato que el resto de controles (pulsado y hover fino). */
+  .applied-filters__chip:active {
+    background-color: var(--surface-sunken);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .applied-filters__chip:hover {
+      border-color: var(--ink);
+    }
   }
 
   .filter-tray[open] > summary {
@@ -620,7 +671,6 @@
 
   .search-text button {
     justify-self: start;
-    padding-inline: 1rem;
   }
 
   @media (width >= 48rem) {
@@ -730,11 +780,23 @@
     min-block-size: 2.5rem;
     font-size: var(--text-body);
     align-self: flex-start;
-    padding-inline: 1.25rem;
     background-color: var(--accent);
     color: var(--ink-on-accent);
     border-color: var(--accent);
     font-weight: 600;
+  }
+
+  /* Primario: mezcla del acento con la tinta (sin token nuevo); pulsado un poco más oscuro. */
+  .criteria-form__submit:active {
+    background-color: color-mix(in oklab, var(--accent), var(--ink) 20%);
+    border-color: color-mix(in oklab, var(--accent), var(--ink) 20%);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .criteria-form__submit:hover {
+      background-color: color-mix(in oklab, var(--accent), var(--ink) 12%);
+      border-color: color-mix(in oklab, var(--accent), var(--ink) 12%);
+    }
   }
 
   /* Lista y mapa (D.8a, decisión 164). Las dos secciones son hermanas dentro de

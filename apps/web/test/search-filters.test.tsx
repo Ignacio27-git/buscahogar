@@ -354,7 +354,7 @@ describe('AppliedFilters — spec "Applied-filter chips" y "Clear all"', () => {
 // D.7 (decisión 159, spec applied-filters-summary S11.1/S11.2) — el chip
 // interactivo no cambia y la variante de solo lectura reutiliza su forma.
 const INTERACTIVE_CHIP_CLASS =
-  'inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-control border border-rule-control bg-surface-raised px-3 text-dense text-ink no-underline hover:border-ink';
+  'inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-control border border-rule-control bg-surface-raised px-3 text-dense text-ink no-underline applied-filters__chip';
 
 describe('AppliedFilters — chip interactivo intacto tras extraer la forma común (S11.1)', () => {
   it('la clase del enlace es, byte a byte, la de D.6a', () => {

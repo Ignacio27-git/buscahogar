@@ -566,3 +566,48 @@ describe('fuentes sin red (spec «System font stack»)', () => {
     expect(infractores).toEqual([]);
   });
 });
+
+// D.13b (decisión 185) — controles de formulario con un solo relleno, superficies del navegador
+// con la paleta y estados :active. El hover con puntero fino lo cubre `hover-gating.test.ts`.
+describe('controles base y superficies del navegador (D.13b)', () => {
+  const baseLayer = (): CssNode => findBlock(ROOT, '@layer base');
+  const components = (): CssNode => findBlock(ROOT, '@layer components');
+  const baseRule = (selector: string): Map<string, string> =>
+    declarations(findBlock(baseLayer(), selector));
+  const controlSelector =
+    "input:not([type='radio'], [type='checkbox'], [type='range'], [type='color']), select, textarea";
+
+  it('input, select, textarea y button comparten el relleno 0.5rem 0.75rem', () => {
+    expect(baseRule(controlSelector).get('padding')).toBe('0.5rem 0.75rem');
+    expect(baseRule('button').get('padding')).toBe('0.5rem 0.75rem');
+  });
+
+  it('ni el botón de la caja de texto ni el de criterios redeclaran el relleno', () => {
+    const submit = declarations(findBlock(components(), '.criteria-form__submit'));
+    const texto = declarations(findBlock(components(), '.search-text button'));
+    expect([...submit.keys(), ...texto.keys()].filter((name) => /^padding/.test(name))).toEqual([]);
+  });
+
+  it(':root pinta el cursor y el acento nativo con la paleta', () => {
+    expect(baseRule(':root').get('caret-color')).toBe('var(--accent)');
+    expect(baseRule(':root').get('accent-color')).toBe('var(--accent)');
+  });
+
+  it('scrollbar-color va bajo @supports y solo con tokens', () => {
+    const supports = findBlock(baseLayer(), '@supports (scrollbar-color: auto)');
+    const value = declarations(findBlock(supports, ':root')).get('scrollbar-color') ?? '';
+    expect(value).toMatch(/^var\(--[a-z-]+\) var\(--[a-z-]+\)$/);
+  });
+
+  it('button:active tiene estilo de pulsado y el primario mezcla el 12% de tinta (oklab)', () => {
+    expect(baseRule('button:active').get('background-color')).toBe('var(--surface-sunken)');
+    expect(RAW_CSS).toMatch(/color-mix\(in oklab, var\(--accent\), var\(--ink\) 12%\)/);
+    const active = declarations(findBlock(components(), '.criteria-form__submit:active'));
+    expect(active.get('background-color')).toContain('color-mix(in oklab');
+  });
+
+  it('el resumen de la bandeja tiene :active', () => {
+    const active = declarations(findBlock(components(), '.filter-tray > summary:active'));
+    expect(active.get('background-color')).toBe('var(--surface-sunken)');
+  });
+});

@@ -10,13 +10,13 @@ function ThemeSelector(): ReactElement {
     <form method="post" action="/theme" className="theme-selector sm:ml-auto">
       <fieldset>
         <legend>Tema</legend>
-        <button type="submit" name="theme" value="light" className="min-h-10 px-3 text-dense">
+        <button type="submit" name="theme" value="light" className="min-h-10 text-dense">
           Claro
         </button>
-        <button type="submit" name="theme" value="dark" className="min-h-10 px-3 text-dense">
+        <button type="submit" name="theme" value="dark" className="min-h-10 text-dense">
           Oscuro
         </button>
-        <button type="submit" name="theme" value="system" className="min-h-10 px-3 text-dense">
+        <button type="submit" name="theme" value="system" className="min-h-10 text-dense">
           Sistema
         </button>
       </fieldset>

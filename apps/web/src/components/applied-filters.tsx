@@ -41,7 +41,7 @@ export function AppliedFilters({ criteria, params, zoneName, count }: AppliedFil
               <li key={filter.key} className="shrink-0">
                 <a
                   href={buildRemoveFilterHref(params, filter.key)}
-                  className={`${CHIP_SHAPE} border border-rule-control bg-surface-raised px-3 text-dense text-ink no-underline hover:border-ink`}
+                  className={`${CHIP_SHAPE} border border-rule-control bg-surface-raised px-3 text-dense text-ink no-underline applied-filters__chip`}
                 >
                   <span className="sr-only">Quitar filtro: </span>
                   {filter.label}
