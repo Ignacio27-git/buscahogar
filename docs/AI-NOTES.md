@@ -3728,3 +3728,30 @@ la especificación sobre qué dataset alimenta qué ruta se comprueba contra la 
 **Cómo se detectó:** 1 a 5 por la puerta de diseño; 6 a 8 al ejecutar los tests y el `typecheck`.
 
 **Observación:** un valor calculado a mano se recalcula con código antes de fijarlo en un test, y una cita de un precedente se abre antes de escribirla. Un límite (180, ±90, zoom 0) es un caso de test por sí mismo.
+
+### 2026-10-08 — Fallos intermedios en la preparación y la aplicación de D.13
+
+**Contexto:** exploración, especificación, diseño y aplicación de `coverage-notices-d13`.
+
+**Categoría:** cita de decisión errónea / recuento erróneo / valor visible que no es texto / formato ajeno.
+
+**Qué se generó mal:**
+
+1. El traspaso de la exploración citaba la decisión 122 como la que fija que el e2e es de solo lectura. La que lo fija es la 135 (la
+   122 es la búsqueda en lenguaje natural, que sí aparece en `playwright.config.ts` para `?q=`). El comentario del `webServer`
+   atribuía a la 122 las dos cosas y se ha corregido: 135 para el solo lectura, 122 solo para `?q=`.
+2. El orquestador contó «11 variantes» de aviso. Hay 10 (V1-V10); no existe una undécima. El recuento falso llegó a la propuesta y
+   se corrigió en la revisión 2 de la especificación.
+3. El primer test de «sin ISO» del aviso comprobaba el HTML entero y falló: el atributo `dateTime` de `<time>` lleva la fecha ISO a
+   propósito (para máquinas). La comprobación pasó a mirar solo el texto visible, sin etiquetas ni atributos.
+4. Ejecuté `prettier --write` sobre ficheros que ya estaban fuera de formato (`page.tsx`, el test de degradación): 498 líneas de
+   diferencia sin relación con el paso. Se restauraron los originales y se reaplicaron solo las ediciones; los ficheros nuevos y los
+   ya limpios sí se formatean.
+5. Heredocs de shell con `'''` y acentos rompieron dos veces el script de edición (el shell se quedó esperando una comilla); se pasó
+   a ediciones directas del fichero.
+
+**Cómo se detectó:** 1 y 2 en la puerta de especificación y de diseño; 3 al ejecutar el test; 4 al ver el `git diff --stat`; 5 por el
+error del propio shell.
+
+**Observación:** una cita de decisión se abre antes de escribirla y un recuento se hace sobre la tabla, no de memoria. Antes de
+formatear un fichero existente, comprobar con `prettier --check` que ya estaba limpio: si no, formatear es ruido en el diff.

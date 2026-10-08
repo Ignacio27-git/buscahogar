@@ -5101,6 +5101,43 @@ sí entra en las opciones del constructor; `map-guards.test.ts` lo vigila.
 
 ---
 
+## 181 — Avisos de cobertura: un componente de servidor, hora de Madrid, una sola región viva y fecha de siembra inyectada
+
+**Estado:** aceptada (paso D.13; enmienda la 135; aplica la 134).
+
+**Decisión.**
+
+- **(a) Un componente.** `CoverageNotice` (servidor, sin `'use client'`) pinta las 10 variantes: zona desconocida, polígono fuera de
+  cobertura, municipio no barrible, tope global, tope por cliente, solicitud registrada sin job y los cuatro estados del job.
+  `noticeForOutcome` traduce el `CoverageOutcome` (`covered` no lleva aviso) y `page.tsx` ya no tiene avisos propios ni
+  `formatJobStatus`. El enlace «Comprobar de nuevo» solo aparece donde recargar puede cambiar el estado: solicitud registrada y los
+  cuatro estados de job. Es un `<a>` plano, así que funciona sin JavaScript.
+- **(b) Hora de Madrid.** `apps/web/src/lib/madrid-time.ts` (`nextUtcMidnight`, `formatMadridDateTime`, `formatMadridTime`) con
+  `Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid' })`. Es presentación (cadenas de idioma y zona), como `format-date.ts`,
+  que no cambia. El reinicio del tope es la siguiente medianoche UTC mostrada en Madrid («2:00» en horario de verano, «1:00» en
+  invierno) y la frase no lleva palabra de día: «a partir de las 2:00 de la madrugada», nunca «mañana» ni «hoy».
+- **(c) Una sola región viva.** El aviso del servidor es la única región viva de la sección: un nodo estable con `aria-atomic="true"`,
+  sin `key` y sin `aria-live` añadido; el texto cambia dentro del mismo nodo tras `router.refresh()`. Solo `failed` usa
+  `role="alert"`, en ese mismo nodo. `CoverageStatus` pierde su `aria-live` y solo explica el refresco (`describeRefresh`, puro:
+  cada 5 segundos durante 2 minutos y después el enlace). Limitación aceptada: un `failed` que ya viene en el HTML inicial no se
+  anuncia, porque anunciarlo exigiría un efecto de cliente.
+- **(d) Fecha de siembra inyectada (enmienda la 135).** `buildE2eFixture(seedNow = SEEN_AT)`: solo el `requested_at` del job
+  pendiente depende de ella (inicio del día UTC). La garantía pasa de «volcados idénticos entre ejecuciones» a «idénticos dentro del
+  mismo día UTC». El tope global se prueba con `NEW_ZONES_DAILY_CAP=1` y ese job pendiente «de hoy».
+
+**Alternativas descartadas.** Un aviso por variante en `page.tsx`: ya había seis redacciones distintas. «Mañana» o un «hoy/mañana»
+calculado: entre las 00:00 y las 02:00 de Madrid el reinicio cae en el mismo día natural y el texto cambia de longitud entre
+capturas. Dos regiones persistentes (estado y alerta) o un elemento distinto por variante: el cambio de elemento se anuncia poco o
+nada. Un efecto de cliente que inyecte el texto: amplía el allowlist de `'use client'`. Poner el módulo de hora en `packages/core`
+o duplicarlo en `packages/db`: `core` es solo dominio y el día del tope lo define SQL con el reloj de Postgres. Una fecha 2099 para
+el job pendiente: depende de que `countZonesOpenedToday` use `>=` sin cota superior (queda como respaldo). Credencial de escritura
+en el e2e: contradice la 135.
+
+**Motivo.** Que se entienda qué pasa con una zona y cuándo volver, en hora local y sin jerga, con un solo anuncio para lectores de
+pantalla y sin ampliar el código de cliente.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

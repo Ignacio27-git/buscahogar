@@ -1163,7 +1163,7 @@ anuncios de origen en una comparación.
 
 # Bloque 5 — Estados
 
-## [ ] D.13 · Avisos de cobertura
+## [x] D.13 · Avisos de cobertura
 
 ```text
 Paso D.13 de docs/DESIGN-ROADMAP.md. Usa `impeccable clarify`.
@@ -1196,6 +1196,27 @@ Paso D.13 de docs/DESIGN-ROADMAP.md. Usa `impeccable clarify`.
 - **Tamaño:** S-M.
 - **Evidencia:** C13.
 - **Registro (134):** tuteo; fechas legibles en español en lugar de ISO.
+- **Estado (2026-10-08): D.13 hecha.** Aplicada en siete unidades de trabajo (SDD, Engram `sdd/coverage-notices-d13/*`), un solo PR
+  con `size:exception` aceptado por el responsable. Commits: `e02cebc` (módulo de hora de Madrid), `47a03b5` (`CoverageNotice` y CSS),
+  `55440b5` (página y `CoverageStatus`), `dc8c562` (siembra), `801273e` (rutas e2e), `9e17bd6` (capturas) y el de documentación.
+  Decisión 181.
+- **Qué hay:** `CoverageNotice` (servidor) pinta las 10 variantes (V1-V10; no hay una undécima) con título y detalle en tuteo,
+  «actualización de la zona» en lugar de «barrido», sin ISO ni «UTC» y sin `job.error`. `role="alert"` solo en `failed`; el resto,
+  `status`, con `aria-atomic="true"` y sin `aria-live` en `CoverageStatus`, que ahora solo explica el refresco («cada 5 segundos
+  durante 2 minutos» y después el enlace). El reinicio del tope sale en hora de Madrid sin palabra de día («a partir de las 2:00 de la
+  madrugada»). El enlace «Comprobar de nuevo» (un `<a>` plano) solo aparece con solicitud registrada y los cuatro estados de job.
+  Una solicitud registrada sin job ya no se pinta como nada: es la variante V4.
+- **Tests y e2e:** web 905 y db 310 (1 omitido) superados; `typecheck` y `lint` limpios.
+  e2e en Docker: `pnpm e2e:update` 621 superados y 465 omitidos; dos pasadas seguidas de `pnpm e2e` iguales (621/465). Las 36 capturas
+  nuevas (6 rutas `coverage-*` por 6 proyectos) no cambian ninguna de las anteriores; el axe de las 6 rutas nuevas da cero
+  infracciones. La hora de reinicio se enmascara en las capturas.
+- **Capturas:** revisadas a ojo `coverage-failed` a 320 px en claro (regla roja de 3 px, título, detalle, enlace) y `coverage-cap` a
+  1280 px en oscuro (hora enmascarada, sin desbordamiento).
+- **Observación:** con la zona sin cubrir la página sigue enseñando todos los resultados sin filtro geográfico bajo el aviso («Todavía
+  no hay viviendas de Pinto» junto a «5 resultados»). Es el comportamiento heredado de 1.13 (degradación honesta); el aviso lo
+  explica poco. Queda para D.14 o un paso propio.
+- **Tamaño:** 1148 líneas añadidas y 125 borradas en código, tests y e2e (sin documentación, capturas ni `axe-baseline.json`), frente
+  a ~870 previstas: el componente (191) y sus tests (246) salieron más largos que en el diseño.
 
 ---
 
@@ -1509,3 +1530,7 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-07 | D.10 | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): ~1780 líneas de código, tests y e2e y ~90 de documentación, sin contar las 30 capturas. | No se recortaron tests, comentarios ni documentación. |
 | 2026-10-07 | D.11 | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): ~970 líneas de código, tests y e2e y ~80 de documentación, sin contar las 18 capturas. | La previsión era ~780; la geometría y sus tests, el CSS y las guardas pesaron más. No se recortó nada. |
 | 2026-10-07 | D.12 | `packages/db/src/detail.ts` (`getPropertySources`) no se modifica: ya devolvía lo necesario. `seed.ts` exporta `insertE2eFixture` para el test de consistencia. La insignia «(no disponible)» por fila desaparece (enmienda la 174; `price-history.tsx` la conserva). Con entrada vacía `compareSourceListings` devuelve `mode: 'empty'` (el diseño, no la especificación). | El cálculo vive en core y el precio ya salía correcto; la columna Estado ya dice lo mismo que la insignia; el modo vacío evita lanzar en una ficha sin anuncios (decisión 180). |
+| 2026-10-08 | D.13 | El aviso del tope por cliente (V3, `client-cap-exhausted`) solo se prueba en unitarias, sin ruta e2e. | Necesita escribir en la base (`consumeClientQuota`) y el e2e no tiene credencial de escritura (decisión 135). |
+| 2026-10-08 | D.13 | La fecha de siembra e2e se inyecta (`buildE2eFixture(seedNow)`): el dataset es idéntico dentro del mismo día UTC, no entre días. Enmienda la 135. | El tope global cuenta jobs solicitados «hoy» y el e2e no puede escribir: hace falta un job pendiente sembrado con el día del servidor (decisión 181). |
+| 2026-10-08 | D.13 | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): 1148 líneas añadidas y 125 borradas de código, tests y e2e (previstas ~870), sin contar documentación, las 36 capturas ni `axe-baseline.json`. | El componente y sus tests salieron más largos que en el diseño; no se podía partir sin dejar la página con avisos viejos y nuevos a la vez. |
+| 2026-10-08 | D.13 | Los tests nuevos viven en `apps/web/test/` y `packages/db/test/`, no junto al código (`src/**`) como decía el reparto de tareas. | `vitest.config.ts` solo incluye `test/**`. |

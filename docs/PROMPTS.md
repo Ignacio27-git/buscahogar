@@ -30,6 +30,26 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-08 — Avisos de cobertura (paso D.13, decisión 181)
+
+**Tipo de tarea:** interfaz (componente de servidor, CSS y módulo de hora) + cableado de la página + siembra e2e + rutas y capturas
+**Forma de especificación:** SDD (explorar, investigar, proponer, especificar, diseñar, tareas y aplicar en siete unidades; Engram `sdd/coverage-notices-d13/*`), un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable con retoques: las puertas de especificación y diseño corrigieron cuatro cosas antes de aplicar (la cita de la decisión 135, el recuento de 10 variantes, la palabra de día en el reinicio del tope y el título de «solicitud registrada»); la aplicación no necesitó retoques de diseño.
+
+**Prompt:**
+
+> Paso D.13 de docs/DESIGN-ROADMAP.md. Usa `impeccable clarify`.
+>
+> - Un componente de aviso con variantes para los cuatro mensajes de cobertura (zona no barrible, tope agotado, tope del cliente agotado, solicitud registrada) y el estado del trabajo. role=status para el progreso; role=alert solo para lo que exige atención.
+> - Fechas en hora local con Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid' }) en lugar de ISO; «00:00 UTC» pasa a hora local.
+> - Estado de progreso mientras llegan resultados, y se conserva el enlace de recarga sin JS.
+> - CoverageStatus (coverage-status.tsx) sigue siendo el único cliente de este flujo.
+
+**Observación:** la propuesta decía «11 variantes» y eran 10; el traspaso citaba la decisión 122 donde era la 135 (ver `AI-NOTES.md`). El
+RED de cada unidad se vio fallar antes del GREEN. La fecha de siembra inyectada (decisión 181, enmienda la 135) nació de que el tope
+global exige un job «de hoy» y el e2e no puede escribir.
+
+
 ### 2026-10-07 — Ficha: comparación de anuncios de origen (paso D.12, decisión 180)
 
 **Tipo de tarea:** dominio puro (`packages/core`) + interfaz (componente y CSS) + test de consistencia con PostgreSQL + e2e y capturas
