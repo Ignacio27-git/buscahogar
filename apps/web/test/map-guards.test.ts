@@ -24,7 +24,7 @@ const MAP_STYLESHEET = 'components/search-map-canvas.css';
 const DRAW_STATE = 'components/draw-polygon-state.ts';
 const MAP_FILES = [WRAPPER, CANVAS, 'components/map-cluster-layer.tsx', 'components/map-draw-control.tsx'] as const;
 // Marcado de servidor de la sección de mapa (atribución en el HTML del servidor).
-const SERVER_MARKUP = 'app/page.tsx';
+const SERVER_MARKUP = 'app/(search)/page.tsx';
 // D.11 (decisión 179): mapa estático de la ficha. Va FUERA de MAP_FILES a propósito: SMV-22
 // (sin trama de aproximación en el mapa interactivo) debe seguir intacta.
 const STATIC_MAP = 'components/property-location.tsx';

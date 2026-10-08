@@ -5,7 +5,7 @@
 // `coverage_jobs`, nunca leer `locations.centroid` ni `zones.state`, así
 // que ambas comprobaciones (centroide, tope diario) viven aquí, contra el
 // rol de SOLO LECTURA, ANTES de intentar cualquier escritura. Cableada en
-// `apps/web/src/app/page.tsx` en la fase 12 de esta misma unidad.
+// `apps/web/src/app/(search)/page.tsx` en la fase 12 de esta misma unidad.
 //
 // Conexión de prueba: el owner (`DATABASE_URL`) para AMBOS lados
 // (lectura/escritura) — se prueba la LÓGICA de la guarda, no el límite de

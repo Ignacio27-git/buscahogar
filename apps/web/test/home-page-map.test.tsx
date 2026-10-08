@@ -58,7 +58,7 @@ vi.mock('@/components/search-map', async () => {
   };
 });
 
-const { default: HomePage } = await import('../src/app/page.js');
+const { default: HomePage } = await import('../src/app/(search)/page.js');
 
 const POLYGON = '40.4,-3.7;40.4,-3.6;40.5,-3.6;40.5,-3.7';
 const NOT_COVERED = 'No hay viviendas en la zona dibujada.';

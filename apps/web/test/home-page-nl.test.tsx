@@ -38,7 +38,7 @@ vi.mock('@/components/search-map', async () => {
   return { SearchMap: (): unknown => createElement('div', { 'data-testid': 'search-map' }) };
 });
 
-const { default: HomePage } = await import('../src/app/page.js');
+const { default: HomePage } = await import('../src/app/(search)/page.js');
 
 async function render(params: Record<string, string | string[] | undefined>): Promise<string> {
   return renderToStaticMarkup(await HomePage({ searchParams: Promise.resolve(params) }));

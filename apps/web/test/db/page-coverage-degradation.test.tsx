@@ -49,7 +49,7 @@ vi.mock('@/components/search-map', () => ({
 const headersMock = vi.fn();
 vi.mock('next/headers', () => ({ headers: headersMock }));
 
-const { default: HomePage } = await import('../../src/app/page.js');
+const { default: HomePage } = await import('../../src/app/(search)/page.js');
 
 async function insertMunicipality(
   db: Database,

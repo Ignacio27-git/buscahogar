@@ -1,6 +1,6 @@
 // ROADMAP 1.11 — searchQuerySchema (diseño D2; docs/DECISIONS.md, decisión
 // 057). Frontera externa real: entra desde los search params de la página
-// de resultados (`apps/web/src/app/page.tsx`). Cada valor reconocido llega
+// de resultados (`apps/web/src/app/(search)/page.tsx`). Cada valor reconocido llega
 // como `string | string[] | undefined` —tal como Next.js resuelve
 // `searchParams`—, nunca ya tipado.
 //
@@ -211,7 +211,7 @@ export interface PropertySearchCriteria {
   readonly minBathrooms?: number;
   readonly geo?: { readonly lon: number; readonly lat: number; readonly radiusMeters: number };
   // ROADMAP 1.13 Unit D (DD-21) — código INE resuelto, consumido por
-  // `apps/web/src/app/page.tsx` (resolución de zona) para derivar `geo` en
+  // `apps/web/src/app/(search)/page.tsx` (resolución de zona) para derivar `geo` en
   // un paso posterior; `buildPropertySearchQuery` (packages/db/src/search.ts)
   // ignora este campo — no es una columna de `properties`, no filtra nada
   // por sí solo.

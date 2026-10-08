@@ -5,7 +5,7 @@
 // ESCRIBIR `coverage_jobs`, nunca leer `locations.centroid` ni
 // `zones.state` — ambas comprobaciones (centroide, tope diario) viven aquí,
 // contra el rol de SOLO LECTURA, ANTES de intentar cualquier escritura.
-// Cableada en `apps/web/src/app/page.tsx` (fase 12 de esta misma unidad).
+// Cableada en `apps/web/src/app/(search)/page.tsx` (fase 12 de esta misma unidad).
 //
 // ROADMAP 1.15 (security-hardening, diseño decisión 081): guardado con
 // `import 'server-only'` — este módulo consume ambos handles de DB.
@@ -35,7 +35,7 @@ const IDEALISTA_SOURCE_KEY = 'idealista';
 // Zod vive ahora en `./env.js` (lector canónico compartido);
 // `MissingNewZonesDailyCapError` y `resolveNewZonesDailyCap` se RE-EXPORTAN
 // desde aquí para que ningún import existente (`test/coverage-env.test.ts`,
-// `src/app/page.tsx`) cambie.
+// `src/app/(search)/page.tsx`) cambie.
 export { MissingNewZonesDailyCapError, readNewZonesDailyCap as resolveNewZonesDailyCap } from './env';
 
 export type CoverageOutcome =
