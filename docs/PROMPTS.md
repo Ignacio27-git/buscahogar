@@ -38,8 +38,8 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 **Resultado:** utilizable con retoques. Hubo que mantener siete desactivaciones de `jsx-a11y` en `price-history.tsx` (el diseño
 preveía tres), corregir el conmutador «Ver mapa/Ver lista» (20 px de alto aunque axe pasaba; no estaba en el diseño), escribir un
 puente de prueba para renderizar `error.tsx` y `global-error.tsx` bajo el runtime JSX de Playwright y arreglar una expresión regular
-`\b` rota que se había confirmado en `5f8301b` (corregida en `c7c023e`). La lista manual con NVDA queda pendiente del responsable, así
-que el paso sigue en curso.
+`\b` rota que se había confirmado en `5f8301b` (corregida en `c7c023e`). La lista manual queda pendiente del responsable, con el
+Narrador de Windows en vez de NVDA (no se pudo instalar), así que el paso sigue en curso.
 
 **Prompt:** el del paso D.15 de `docs/DESIGN-ROADMAP.md`, literal: «Paso D.15 de docs/DESIGN-ROADMAP.md. Usa `impeccable audit`,
 `impeccable harden` e `impeccable adapt`.
