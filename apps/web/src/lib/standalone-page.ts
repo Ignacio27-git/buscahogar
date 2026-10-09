@@ -66,4 +66,6 @@ body {
 }
 .standalone button:active { background-color: var(--surface-sunken); border-color: var(--ink); }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* El título que recibe el foco por programa (frontera de error) no es un control: sin contorno. */
+.standalone h1[tabindex="-1"]:focus-visible { outline: none; }
 `;

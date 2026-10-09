@@ -8,6 +8,15 @@ import { isValidElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
+// Estas pruebas invocan error/global-error como funciones, fuera de un renderizado de React. Desde
+// D.15 (decisión 203) usan `useRef`/`useEffect` para el foco; aquí se neutralizan (el foco se
+// prueba en `error-focus.test.tsx`).
+vi.mock('react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react')>()),
+  useRef: (): { current: null } => ({ current: null }),
+  useEffect: (): undefined => undefined,
+}));
+
 import ErrorPage from '../src/app/error.js';
 import GlobalError from '../src/app/global-error.js';
 import * as globalErrorModule from '../src/app/global-error.js';
