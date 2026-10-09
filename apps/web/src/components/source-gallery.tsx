@@ -46,6 +46,10 @@ function collectSlides(sources: readonly PropertyDetailSource[]): readonly Slide
   return slides;
 }
 
+// D.15 (F8, decisión 200): objetivo táctil de 40 px, como los enlaces de la cabecera y del popup;
+// el texto en línea medía menos de 24 px y dependía de la excepción de espaciado de 2.5.8.
+const LINK_CLASS = 'inline-flex min-h-10 items-center';
+
 export function SourceGallery({ sources }: SourceGalleryProps): ReactElement | null {
   const slides = collectSlides(sources);
 
@@ -69,7 +73,11 @@ export function SourceGallery({ sources }: SourceGalleryProps): ReactElement | n
               role="group"
               aria-roledescription="diapositiva"
               aria-labelledby={captionId}
-              className="basis-full shrink-0 snap-start"
+              // D.15 (F1, decisión 200): enfocable por programa, no por Tab. Sin esto el foco se
+              // queda en «Foto siguiente» al activar el enlace de fragmento. El contorno va hacia
+              // dentro porque la tira recorta lo que sobresale.
+              tabIndex={-1}
+              className="basis-full shrink-0 snap-start focus-visible:-outline-offset-2"
             >
               <div className="relative aspect-[4/3] overflow-hidden rounded-(--radius-panel) bg-surface-sunken">
                 <Image
@@ -84,8 +92,16 @@ export function SourceGallery({ sources }: SourceGalleryProps): ReactElement | n
                 {`Foto ${String(index + 1)} de ${String(slides.length)} · ${slide.label}`}
               </p>
               <div className="flex gap-4 text-dense">
-                {prev !== undefined ? <a href={`#${prev.id}`}>Foto anterior</a> : null}
-                {next !== undefined ? <a href={`#${next.id}`}>Foto siguiente</a> : null}
+                {prev !== undefined ? (
+                  <a href={`#${prev.id}`} className={LINK_CLASS}>
+                    Foto anterior
+                  </a>
+                ) : null}
+                {next !== undefined ? (
+                  <a href={`#${next.id}`} className={LINK_CLASS}>
+                    Foto siguiente
+                  </a>
+                ) : null}
               </div>
             </div>
           );

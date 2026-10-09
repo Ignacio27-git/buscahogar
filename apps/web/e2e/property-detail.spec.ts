@@ -100,6 +100,39 @@ test.describe('galería de la ficha sin JavaScript', () => {
 
 // D.12 (decisión 180): la lista de anuncios de origen es una comparación. P4 tiene un único
 // anuncio activo, P7 solo inactivos. La nota de agrupación se ve siempre; el aviso solo sin activos.
+// D.15 (F1 y F8, decisión 200) — foco y tamaño de los enlaces de la galería. Con JavaScript, para
+// leer `document.activeElement`; el comportamiento del fragmento es el mismo sin él.
+test.describe('galería de la ficha: foco y tamaño de objetivo (D.15)', () => {
+  test('el enlace de la galería mide al menos 24 px de alto en todos los anchos', async ({
+    page,
+  }) => {
+    await page.goto(GALLERY_ROUTE.path);
+    const links = page
+      .getByRole('region', { name: 'Fotos de la vivienda' })
+      .getByRole('link', { name: /^Foto (anterior|siguiente)$/ });
+    expect(await links.count()).toBeGreaterThan(0);
+    for (let index = 0; index < (await links.count()); index += 1) {
+      const box = await links.nth(index).boundingBox();
+      expect(box).not.toBeNull();
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(24);
+    }
+  });
+
+  test('Intro en «Foto siguiente» mueve el foco a la diapositiva 2', async ({ page }) => {
+    await page.goto(GALLERY_ROUTE.path);
+    const gallery = page.getByRole('region', { name: 'Fotos de la vivienda' });
+    const secondId = await gallery.getByRole('group').nth(1).getAttribute('id');
+    expect(secondId).not.toBeNull();
+
+    const next = gallery.getByRole('link', { name: 'Foto siguiente' });
+    await next.focus();
+    await page.keyboard.press('Enter');
+    await expect
+      .poll(() => page.evaluate(() => document.activeElement?.id ?? ''))
+      .toBe(secondId ?? '');
+  });
+});
+
 test.describe('comparación de anuncios de origen en la ficha', () => {
   test('P4, una sola fuente: una insignia «Más económico», la nota y ningún aviso', async ({
     page,

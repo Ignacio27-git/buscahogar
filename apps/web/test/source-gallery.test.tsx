@@ -127,3 +127,28 @@ describe('SourceGallery (D7/AR-11) — N imágenes, N=1 sin navegación colgante
     expect(html).not.toContain('foo');
   });
 });
+
+// D.15 (F1, R5, decisión 200) — un enlace de fragmento mueve el foco al destino solo si es
+// enfocable por programa; sin `tabindex="-1"` el foco se queda en «Foto siguiente».
+describe('SourceGallery D.15 — diapositivas enfocables por programa (F1)', () => {
+  it('cada diapositiva lleva tabindex="-1" (no entra en el orden de Tab)', () => {
+    const sources = [
+      makeSource({ listingId: 'l1', thumbnailUrl: 'https://img4.idealista.com/1.jpg' }),
+      makeSource({ listingId: 'l2', thumbnailUrl: 'https://img4.idealista.com/2.jpg' }),
+      makeSource({ listingId: 'l3', thumbnailUrl: 'https://img4.idealista.com/3.jpg' }),
+    ];
+    const html = renderToStaticMarkup(<SourceGallery sources={sources} />);
+
+    const slides = [...html.matchAll(/<div[^>]*aria-roledescription="diapositiva"[^>]*>/g)];
+    expect(slides).toHaveLength(3);
+    for (const [tag] of slides) {
+      expect(tag).toContain('tabindex="-1"');
+    }
+    expect(html).not.toMatch(/tabindex="0"/);
+  });
+
+  it('con una sola foto la diapositiva también es enfocable', () => {
+    const html = renderToStaticMarkup(<SourceGallery sources={[makeSource({ listingId: 'l1' })]} />);
+    expect(html).toMatch(/<div[^>]*aria-roledescription="diapositiva"[^>]*tabindex="-1"/);
+  });
+});
