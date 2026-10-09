@@ -61,11 +61,12 @@ function toReactNode(value: unknown): ReactNode {
   );
 }
 
-// El componente se invoca como función (sin pasar por el reconciliador): devuelve el árbol de
-// Playwright, que el puente convierte.
+// El componente se invoca dentro de un renderizado real de React (un componente envoltorio), porque
+// desde D.15 (decisión 203) usa `useRef`/`useEffect` para el foco y los ganchos necesitan
+// despachador. Devuelve el árbol de Playwright, que el puente convierte.
 function renderErrorPage(component: (props: ErrorBoundaryProps) => unknown): string {
   const props: ErrorBoundaryProps = { error: new Error('prueba'), retry: () => undefined };
-  return renderToStaticMarkup(toReactNode(component(props)));
+  return renderToStaticMarkup(createElement(() => toReactNode(component(props))));
 }
 
 interface ErrorBoundaryProps {
