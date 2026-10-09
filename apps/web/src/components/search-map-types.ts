@@ -24,4 +24,7 @@ export interface SearchMapProps {
   readonly polygon: PolygonRing | null;
   // Parámetros crudos de la URL: base de los href de dibujar y quitar zona.
   readonly baseParams: RawSearchParams;
+  // D.15 (F2, decisión 194): id del párrafo de ayuda de teclado que renderiza el servidor junto al
+  // mapa. El lienzo lo enlaza con `aria-describedby` en el contenedor de Leaflet.
+  readonly keyboardHelpId: string;
 }

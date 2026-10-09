@@ -53,7 +53,7 @@ test.describe('selector de tema', () => {
     await expect(inBanner(page).getByRole('button', { name: 'Claro', exact: true })).toBeVisible();
 
     await inBanner(page).getByRole('button', { name: 'Oscuro' }).click();
-    await expect(page.locator('html')).toHaveClass(/dark/);
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
     await expect(inBanner(page).getByRole('button', { name: 'Oscuro, activo' })).toBeVisible();
     await expect(inBanner(page).getByRole('button', { name: 'Sistema', exact: true })).toBeVisible();
     await expect(inBanner(page).getByRole('button', { name: 'Claro', exact: true })).toBeVisible();

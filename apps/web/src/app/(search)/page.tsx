@@ -75,6 +75,10 @@ const FILTERS_ALERT_ID = 'filters-alert';
 const CRITERIA_ALERT_ID = 'criteria-alert';
 const SEARCH_TEXT_ALERT_ID = 'search-text-alert';
 
+// D.15 (F2, decisión 194): id del texto de ayuda de teclado del mapa, que el lienzo enlaza con
+// `aria-describedby` en el contenedor de Leaflet. El texto se pinta en el servidor, visible.
+const MAP_KEYBOARD_HELP_ID = 'map-keyboard-help';
+
 function firstStringValue(value: string | string[] | undefined): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
@@ -448,12 +452,21 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
           {/* El marco es del servidor: el aviso de carga, el lienzo y el noscript
               comparten dimensiones, y sin JS el noscript queda dentro del marco. */}
           <div className="search-map__frame">
-            <SearchMap points={pointViews} polygon={criteria.polygon ?? null} baseParams={rawSearchParams} />
+            <SearchMap
+              points={pointViews}
+              polygon={criteria.polygon ?? null}
+              baseParams={rawSearchParams}
+              keyboardHelpId={MAP_KEYBOARD_HELP_ID}
+            />
             <noscript>
               <p>El mapa interactivo necesita JavaScript.</p>
               <a href={buildViewHref(rawSearchParams, 'list')}>Ver la lista de resultados</a>
             </noscript>
           </div>
+          <p id={MAP_KEYBOARD_HELP_ID} className="text-small text-ink-muted">
+            Con el mapa enfocado, usa las flechas para moverte y + o − para acercar o alejar. Con Tab llegas a cada
+            vivienda y con Intro abres su ventana.
+          </p>
           {/* SMV-9 (ODbL): atribución también en el HTML del servidor. */}
           <p>
             © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>

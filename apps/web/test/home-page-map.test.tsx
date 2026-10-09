@@ -674,3 +674,31 @@ describe('estado vacío con zona sin cubrir (D10)', () => {
     expect(listSection(html)).toContain('Quitar «Operación: Venta»');
   });
 });
+
+// D.15 (F2, R7, decisión 194) — ayuda de teclado del mapa, visible y en el HTML del servidor, a la
+// que apunta `aria-describedby` del contenedor de Leaflet (lo pone el lienzo en el cliente).
+describe('ayuda de teclado del mapa (D.15, F2)', () => {
+  it('el párrafo con id va tras el marco del mapa, con texto visible sobre flechas, zoom y marcadores', async () => {
+    mapResult(2);
+    const html = await render({});
+    const section = mapSection(html);
+    const frameEnd = section.indexOf('</noscript></div>');
+    const help = section.indexOf('<p id="map-keyboard-help"');
+    expect(frameEnd).toBeGreaterThan(-1);
+    expect(help).toBeGreaterThan(frameEnd);
+    const paragraph = /<p id="map-keyboard-help"[^>]*>([^<]*)<\/p>/.exec(section);
+    expect(paragraph?.[1]).toContain('flechas');
+    expect(paragraph?.[1]).toContain('Tab');
+    expect(paragraph?.[0]).not.toContain('sr-only');
+  });
+
+  it('el id viaja al mapa como `keyboardHelpId`, y sin mapa no hay ayuda', async () => {
+    mapResult(1);
+    const html = await render({ view: 'map' });
+    expect(propsOf(html)).toMatchObject({ keyboardHelpId: 'map-keyboard-help' });
+    expect(count(html, 'id="map-keyboard-help"')).toBe(1);
+
+    const rejected = await render({ view: 'satellite' });
+    expect(rejected).not.toContain('map-keyboard-help');
+  });
+});

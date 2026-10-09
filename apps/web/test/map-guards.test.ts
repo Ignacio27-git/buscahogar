@@ -343,3 +343,25 @@ describe('iconos del mapa (D.13b)', () => {
     expect(sheet).toMatch(/\.icon\s*\{[^}]*inline-size:\s*1rem/);
   });
 });
+
+// D.15 (F2, R7, decisión 194) — el contenedor de Leaflet es el elemento que recibe el foco; react-leaflet
+// no reenvía atributos ARIA, así que un efecto del lienzo los pone sobre `map.getContainer()`.
+describe('región del mapa: nombre y ayuda de teclado (D.15, F2)', () => {
+  it('el lienzo da al contenedor role=region, un nombre y la descripción que recibe por prop', () => {
+    const source = read(CANVAS);
+    expect(source).toMatch(/setAttribute\(\s*'role',\s*'region'\s*\)/);
+    expect(source).toMatch(/setAttribute\(\s*'aria-label',\s*'Mapa interactivo'\s*\)/);
+    expect(source).toMatch(/setAttribute\(\s*'aria-describedby',\s*keyboardHelpId\s*\)/);
+  });
+
+  it('el efecto devuelve el contenedor a su estado anterior al desmontar', () => {
+    const source = read(CANVAS);
+    expect(source).toMatch(/removeAttribute\(\s*'role'\s*\)/);
+    expect(source).toMatch(/removeAttribute\(\s*'aria-describedby'\s*\)/);
+  });
+
+  it('SearchMapProps declara keyboardHelpId y el lienzo sigue sin directiva de cliente', () => {
+    expect(read('components/search-map-types.ts')).toMatch(/readonly keyboardHelpId: string/);
+    expect(read(CANVAS)).not.toMatch(/^['"]use client['"]/m);
+  });
+});

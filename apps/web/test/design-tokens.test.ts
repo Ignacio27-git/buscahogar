@@ -654,3 +654,23 @@ describe('estado del selector de tema (D.15)', () => {
     expect(bloque).toContain("content: '' / ', activo'");
   });
 });
+
+// D.15 (F5, R10, decisión 197) — la dirección de la fila envuelve en lugar de recortarse con elipsis:
+// con el espaciado de texto de WCAG 1.4.12 la elipsis ocultaba parte de la dirección (el e2e
+// `a11y-states` lo comprobó en Docker a 320 px antes de este cambio).
+describe('dirección de la fila de resultado (D.15)', () => {
+  const bloques = findBlocks(parseCss(RAW_CSS)).filter((nodo) => nodo.prelude.trim() === '.result-row__address');
+
+  it('ninguna regla de la dirección usa nowrap ni elipsis', () => {
+    expect(bloques.length).toBeGreaterThan(0);
+    for (const bloque of bloques) {
+      const declaradas = declarations(bloque);
+      expect(declaradas.get('white-space')).not.toBe('nowrap');
+      expect(declaradas.has('text-overflow')).toBe(false);
+    }
+  });
+
+  it('una regla de la dirección permite partir palabras largas', () => {
+    expect(bloques.some((bloque) => declarations(bloque).get('overflow-wrap') === 'anywhere')).toBe(true);
+  });
+});

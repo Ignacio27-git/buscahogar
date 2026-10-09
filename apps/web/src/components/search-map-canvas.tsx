@@ -92,6 +92,28 @@ function AttributionLanguage(): null {
   return null;
 }
 
+// D.15 (F2, decisión 194) — el contenedor de Leaflet es lo que recibe el foco (tabindex 0) y no
+// tiene rol ni nombre; `react-leaflet` no reenvía atributos ARIA desde `MapContainer`. Se
+// ponen aquí, en el elemento que existe solo en el cliente, y se retiran al desmontar. La
+// descripción apunta al párrafo de ayuda que el servidor pinta visible junto al mapa.
+function ContainerSemantics({ keyboardHelpId }: { readonly keyboardHelpId: string }): null {
+  const map = useMap();
+
+  useEffect(() => {
+    const container = map.getContainer();
+    container.setAttribute('role', 'region');
+    container.setAttribute('aria-label', 'Mapa interactivo');
+    container.setAttribute('aria-describedby', keyboardHelpId);
+    return (): void => {
+      container.removeAttribute('role');
+      container.removeAttribute('aria-label');
+      container.removeAttribute('aria-describedby');
+    };
+  }, [map, keyboardHelpId]);
+
+  return null;
+}
+
 export default function SearchMapCanvas(props: SearchMapProps): ReactElement {
   const bounds = initialBounds(props);
   const view =
@@ -109,6 +131,7 @@ export default function SearchMapCanvas(props: SearchMapProps): ReactElement {
       />
       <InitialFrame bounds={bounds} />
       <AttributionLanguage />
+      <ContainerSemantics keyboardHelpId={props.keyboardHelpId} />
       <TileLayer url={OSM_TILE_URL_TEMPLATE} attribution={ATTRIBUTION} maxZoom={19} />
       {props.polygon !== null ? (
         <Polygon

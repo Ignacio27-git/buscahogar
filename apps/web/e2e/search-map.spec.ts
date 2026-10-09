@@ -475,6 +475,24 @@ test.describe('atribución en español (D.15, F7, WCAG 3.1.2)', () => {
   });
 });
 
+test.describe('región del mapa, nombre y ayuda de teclado (D.15, F2)', () => {
+  test.beforeEach(() => {
+    onlyProject('w1280-light');
+  });
+
+  test('el contenedor es una región con nombre, enfocable y descrita por la ayuda visible', async ({
+    page,
+  }) => {
+    await openRoute(page, route('map'));
+    const region = page.getByRole('region', { name: 'Mapa interactivo' });
+    await expect(region).toHaveAttribute('tabindex', '0');
+    const help = page.locator('#map-keyboard-help');
+    await expect(help).toBeVisible();
+    await expect(region).toHaveAccessibleDescription((await help.innerText()).trim());
+    expect(await help.innerText()).toContain('flechas');
+  });
+});
+
 test.describe('barra y mira (SMV-26, WCAG 2.5.8)', () => {
   test('botones de al menos 24 px, también durante el dibujo', async ({ page }) => {
     await openMapView(page);
