@@ -181,3 +181,24 @@ describe('ResultCard D.6b — enlace único (S10)', () => {
     expect(visibleText).toContain('Tipo no disponible');
   });
 });
+
+// D.15 (F6, R11, decisión 198) — el encabezado del resultado lleva más que el precio: la lista de
+// encabezados de un lector de pantalla ("12 000 €, 12 000 €...") no distinguía unos de otros.
+describe('ResultCard D.15 — encabezado con contexto (F6)', () => {
+  const headingOf = (html: string): string => /<h2[^>]*>([\s\S]*?)<\/h2>/.exec(html)?.[1] ?? '';
+
+  it('el h2 incluye el tipo y la operación tras el precio, en texto solo para lectores', () => {
+    const heading = headingOf(render({ propertyType: 'flat', operation: 'sale' }));
+    expect(heading).toContain('<span class="sr-only">, Piso · Venta</span>');
+    expect(heading.indexOf('100')).toBeLessThan(heading.indexOf('Piso'));
+  });
+
+  it('triangulación: «Casa · Alquiler» y las reservas cuando faltan los datos', () => {
+    expect(headingOf(render({ propertyType: 'house', operation: 'rent' }))).toContain(
+      ', Casa · Alquiler</span>'
+    );
+    expect(headingOf(render({ propertyType: null, operation: null }))).toContain(
+      ', Tipo no disponible · Operación no disponible</span>'
+    );
+  });
+});

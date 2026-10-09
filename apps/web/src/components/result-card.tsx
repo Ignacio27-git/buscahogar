@@ -47,6 +47,8 @@ export function ResultCard({ result, returnParams = [] }: ResultCardProps): Reac
   const thumbnail = resolveThumbnailSource(result.thumbnailUrl);
   const priceMissing = result.minPriceCents === null;
   const sourceCount = result.distinctSourceCount;
+  // D.15 (F6, decisión 198): una sola cadena para la línea visible y para el encabezado.
+  const kind = `${propertyTypeLabel(result.propertyType) ?? 'Tipo no disponible'} · ${operationLabel(result.operation) ?? 'Operación no disponible'}`;
 
   const content = (
     <>
@@ -65,13 +67,10 @@ export function ResultCard({ result, returnParams = [] }: ResultCardProps): Reac
       </div>
       <h2 className={priceMissing ? 'result-row__price result-row__price--missing' : 'result-row__price tabular-nums'}>
         {formatPriceCents(result.minPriceCents)}
+        <span className="sr-only">{`, ${kind}`}</span>
       </h2>
       <div className="result-row__facts">
-        <p className="result-row__kind">
-          {propertyTypeLabel(result.propertyType) ?? 'Tipo no disponible'}
-          {' · '}
-          {operationLabel(result.operation) ?? 'Operación no disponible'}
-        </p>
+        <p className="result-row__kind">{kind}</p>
         <p className="result-row__figures tabular-nums">
           {result.surfaceM2 !== null ? `${String(result.surfaceM2)} m²` : 'Superficie no disponible'}
           {result.rooms !== null ? ` · ${String(result.rooms)} hab.` : ''}
