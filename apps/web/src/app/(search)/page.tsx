@@ -40,6 +40,7 @@ import {
   formatListCount,
   formatMapCount,
   formatSearchIssue,
+  rejectedParamKeys,
 } from '@/lib/search-labels';
 import { pickSearchReturnParams } from '@/lib/search-return-params';
 import { resolveCoverageClientLimit } from '@/server/coverage-client';
@@ -67,6 +68,12 @@ interface HomePageProps {
 // autocompletado. Constante de servidor, nunca un parámetro de URL — mismo
 // principio que `PAGE_SIZE` en `packages/db/src/search.ts`.
 const ZONE_SUGGESTION_LIMIT = 10;
+
+// D.15 (F4, decisión 196): ids de las alertas de rechazo, a las que apuntan `aria-describedby` de
+// los campos rechazados. Una por rama de la página: la de la home, la del panel y la del texto.
+const FILTERS_ALERT_ID = 'filters-alert';
+const CRITERIA_ALERT_ID = 'criteria-alert';
+const SEARCH_TEXT_ALERT_ID = 'search-text-alert';
 
 function firstStringValue(value: string | string[] | undefined): string | undefined {
   return typeof value === 'string' ? value : undefined;
@@ -146,8 +153,10 @@ async function renderInterpretation(rawQ: string | string[]): Promise<ReactEleme
       <>
         <h1>Buscar vivienda</h1>
         <StepIndicator current={1} />
-        <SearchTextForm value={shown} />
-        <p role="alert">{message}</p>
+        <SearchTextForm value={shown} errorId={SEARCH_TEXT_ALERT_ID} />
+        <p id={SEARCH_TEXT_ALERT_ID} role="alert">
+          {message}
+        </p>
       </>
     );
   }
@@ -178,6 +187,7 @@ async function renderInterpretation(rawQ: string | string[]): Promise<ReactEleme
     ...interpretation.params,
     ...(selectedZone !== null ? { zone: selectedZone } : {}),
   });
+  const reviewIssues = validated.success ? [] : validated.error.issues;
 
   return (
     <>
@@ -190,9 +200,11 @@ async function renderInterpretation(rawQ: string | string[]): Promise<ReactEleme
         selectedZone={selectedZone}
         unrecognised={unrecognised}
         conflicts={interpretation.conflicts}
-        issues={validated.success ? [] : validated.error.issues.map(formatSearchIssue)}
+        issues={reviewIssues.map(formatSearchIssue)}
         criteria={validated.success ? validated.data : null}
         placeText={interpretation.placeText}
+        rejectedKeys={rejectedParamKeys(reviewIssues)}
+        alertId={CRITERIA_ALERT_ID}
       />
     </>
   );
@@ -235,9 +247,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
     ];
     // D.6a: la barra se pinta con lo recibido para poder corregirlo, pero no
     // reenvía como oculto ningún parámetro que el esquema haya rechazado.
-    const rejectedKeys = new Set<string>(
-      issues.flatMap((issue) => (typeof issue.path[0] === 'string' ? [issue.path[0]] : []))
-    );
+    const rejectedKeys = new Set<string>(rejectedParamKeys(issues));
     if (!viewParsed.success) {
       rejectedKeys.add('view');
     }
@@ -245,10 +255,10 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       <>
         <h1>Buscar vivienda</h1>
         <SearchTextForm value="" />
-        <p role="alert">
+        <p id={FILTERS_ALERT_ID} role="alert">
           Algún filtro no es válido; corrígelo abajo y vuelve a buscar. Detalle: {issues.map(formatSearchIssue).join(' ')}
         </p>
-        <FilterBar params={rawSearchParams} rejectedKeys={rejectedKeys} open />
+        <FilterBar params={rawSearchParams} rejectedKeys={rejectedKeys} alertId={FILTERS_ALERT_ID} open />
       </>
     );
   }

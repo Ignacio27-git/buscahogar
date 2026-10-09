@@ -36,6 +36,9 @@ export interface CriteriaFormProps {
   readonly criteria: PropertySearchCriteria | null;
   // Lugar tal como lo escribió la persona, o null si no nombró ninguno.
   readonly placeText: string | null;
+  // D.15 (F4, decisión 196): campos que el esquema rechazó y el id de la alerta que lo explica.
+  readonly rejectedKeys?: ReadonlySet<string> | undefined;
+  readonly alertId?: string | undefined;
 }
 
 const NO_ZONE_LABEL = 'Sin zona (cualquier municipio)';
@@ -110,7 +113,8 @@ function ZoneField(props: ZoneFieldProps): ReactElement {
 }
 
 export function CriteriaForm(props: CriteriaFormProps): ReactElement {
-  const { values, zoneChoices, selectedZone, unrecognised, conflicts, issues, criteria, placeText } = props;
+  const { values, zoneChoices, selectedZone, unrecognised, conflicts, issues, criteria, placeText, rejectedKeys, alertId } =
+    props;
   const zoneState = zoneStateOf(placeText, zoneChoices, selectedZone);
   const zonePending = zoneState === 'choose';
   // Una zona exacta cuenta como reconocida aunque no haya ningún otro criterio.
@@ -129,7 +133,7 @@ export function CriteriaForm(props: CriteriaFormProps): ReactElement {
         })}
       </p>
       {issues.length > 0 ? (
-        <p role="alert" className="nl-review__alert">
+        <p id={alertId} role="alert" className="nl-review__alert">
           <span className="nl-review__lead">Algún filtro no es válido; corrígelo abajo antes de buscar.</span> Detalle:{' '}
           {issues.join(' ')}
         </p>
@@ -175,6 +179,7 @@ export function CriteriaForm(props: CriteriaFormProps): ReactElement {
         <CriteriaFields
           values={values}
           idPrefix="criteria"
+          invalid={rejectedKeys !== undefined && alertId !== undefined ? { keys: rejectedKeys, errorId: alertId } : undefined}
           grouped={{
             zone: <ZoneField state={zoneState} placeText={placeText} zoneChoices={zoneChoices} selectedZone={selectedZone} />,
           }}

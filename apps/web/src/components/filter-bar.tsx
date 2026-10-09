@@ -37,6 +37,9 @@ export interface FilterBarProps {
   // visibles se prefijan con lo recibido para poder corregirlos, pero no se
   // reenvían como ocultos.
   readonly rejectedKeys?: ReadonlySet<string> | undefined;
+  // D.15 (F4, decisión 196): id de la alerta que explica los rechazos. Con él, los campos
+  // rechazados se declaran `aria-invalid` y se describen con esa alerta.
+  readonly alertId?: string | undefined;
   // Filtros de la bandeja que están aplicados (`countTrayFilters`). `undefined`
   // o 0: el resumen dice solo «Filtros», sin número.
   readonly activeCount?: number | undefined;
@@ -45,7 +48,7 @@ export interface FilterBarProps {
   readonly open?: boolean | undefined;
 }
 
-export function FilterBar({ params, rejectedKeys, activeCount, open }: FilterBarProps): ReactElement {
+export function FilterBar({ params, rejectedKeys, alertId, activeCount, open }: FilterBarProps): ReactElement {
   // El valor crudo que escribió el usuario, no el normalizado. Un valor repetido
   // (array) no prefija nada.
   const values: Partial<Record<NlParamKey, string>> = {};
@@ -75,7 +78,11 @@ export function FilterBar({ params, rejectedKeys, activeCount, open }: FilterBar
         {pickFilterBarContext(params, rejectedKeys).map(([name, value]) => (
           <input key={name} type="hidden" name={name} value={value} />
         ))}
-        <CriteriaFields values={values} idPrefix="filter" />
+        <CriteriaFields
+          values={values}
+          idPrefix="filter"
+          invalid={rejectedKeys !== undefined && alertId !== undefined ? { keys: rejectedKeys, errorId: alertId } : undefined}
+        />
         <button type="submit">Aplicar filtros</button>
       </form>
     </details>

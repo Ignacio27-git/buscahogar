@@ -434,3 +434,35 @@ describe('CriteriaFields — agrupación opcional (S3.1, S3.2)', () => {
     expect(renderToStaticMarkup(<CriteriaFields values={FIELD_VALUES} idPrefix="filter" />).replaceAll('filter-', 'criteria-')).toBe(flat);
   });
 });
+
+// D.15 (F4, R9, decisión 196) — un campo rechazado por el esquema se declara inválido y apunta a
+// la alerta única que explica por qué; los demás no llevan ni `aria-invalid` ni `aria-describedby`.
+describe('FilterBar D.15 — campos rechazados', () => {
+  const rejected = new Set(['minPrice', 'sort']);
+  const html = renderToStaticMarkup(
+    <FilterBar params={{ minPrice: 'abc', sort: 'x', maxPrice: '900' }} rejectedKeys={rejected} alertId="filter-alert" open />
+  );
+
+  it('el número y el desplegable rechazados llevan aria-invalid y la descripción de la alerta', () => {
+    const minPrice = findTag(html, 'input', 'name="minPrice"');
+    expect(minPrice).toContain('aria-invalid="true"');
+    expect(minPrice).toContain('aria-describedby="filter-alert"');
+    const sort = findTag(html, 'select', 'name="sort"');
+    expect(sort).toContain('aria-invalid="true"');
+    expect(sort).toContain('aria-describedby="filter-alert"');
+  });
+
+  it('un campo válido no lleva aria-invalid ni aria-describedby', () => {
+    const maxPrice = findTag(html, 'input', 'name="maxPrice"');
+    expect(maxPrice).toBeDefined();
+    expect(maxPrice).not.toContain('aria-invalid');
+    expect(maxPrice).not.toContain('aria-describedby');
+    expect(findTag(html, 'select', 'name="operation"')).not.toContain('aria-invalid');
+  });
+
+  it('sin rechazos (la barra normal) ningún campo lleva aria-invalid', () => {
+    expect(bar({ minPrice: '100' })).not.toContain('aria-invalid');
+    // `view` es un rechazo válido de la página pero no un campo de la barra.
+    expect(renderToStaticMarkup(<FilterBar params={{}} rejectedKeys={new Set(['view'])} alertId="filter-alert" />)).not.toContain('aria-invalid');
+  });
+});

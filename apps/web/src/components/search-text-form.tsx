@@ -8,7 +8,15 @@
 // un placeholder (desaparece al escribir y no es un nombre accesible).
 import type { ReactElement } from 'react';
 
-export function SearchTextForm({ value }: { readonly value: string }): ReactElement {
+// D.15 (F4, decisión 196): con `errorId` la caja de texto se declara inválida y, además de su
+// ayuda, la describe la alerta que explica el rechazo.
+export function SearchTextForm({
+  value,
+  errorId,
+}: {
+  readonly value: string;
+  readonly errorId?: string | undefined;
+}): ReactElement {
   return (
     <form role="search" method="get" action="/" className="search-text">
       <label htmlFor="search-text">Describe lo que buscas</label>
@@ -21,7 +29,8 @@ export function SearchTextForm({ value }: { readonly value: string }): ReactElem
         name="q"
         defaultValue={value}
         maxLength={200}
-        aria-describedby="search-text-help"
+        aria-describedby={errorId === undefined ? 'search-text-help' : `search-text-help ${errorId}`}
+        aria-invalid={errorId === undefined ? undefined : true}
       />
       <button type="submit">Convertir en filtros</button>
     </form>

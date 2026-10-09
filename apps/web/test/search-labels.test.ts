@@ -17,6 +17,7 @@ import {
   formatSearchIssue,
   operationLabel,
   propertyTypeLabel,
+  rejectedParamKeys,
   sourceLabel,
 } from '../src/lib/search-labels.js';
 
@@ -250,5 +251,22 @@ describe('formatSearchIssue y SEARCH_PARAM_LABELS', () => {
     expect(SEARCH_PARAM_LABELS.radius).toBe('Radio');
     expect(SEARCH_PARAM_LABELS.page).toBe('Página');
     expect(SEARCH_PARAM_LABELS.zone).toBe('Zona');
+  });
+});
+
+// D.15 (F4, R9, decisión 196) — qué campos rechazó el esquema, para marcarlos aria-invalid.
+describe('rejectedParamKeys (D.15)', () => {
+  it('devuelve la clave de primer segmento de cada problema, sin repetidos', () => {
+    const keys = rejectedParamKeys([
+      { path: ['minPrice'] },
+      { path: ['maxPrice'] },
+      { path: ['minPrice'] },
+    ]);
+    expect([...keys].sort()).toEqual(['maxPrice', 'minPrice']);
+  });
+
+  it('ignora los problemas sin camino o con segmento no textual', () => {
+    expect([...rejectedParamKeys([{ path: [] }, { path: [3] }, { path: ['sort'] }])]).toEqual(['sort']);
+    expect(rejectedParamKeys([]).size).toBe(0);
   });
 });

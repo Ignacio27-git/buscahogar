@@ -136,6 +136,18 @@ export function formatSearchIssue(issue: { readonly path: readonly PropertyKey[]
   return issue.message.charAt(0).toLocaleUpperCase('es-ES') + issue.message.slice(1);
 }
 
+// D.15 (F4, decisión 196) — claves de los parámetros que el esquema rechazó, para marcar sus campos
+// con `aria-invalid`. Cuenta el primer segmento textual del camino; un problema sin camino no
+// señala ningún campo. Compartido por la rama de parámetros inválidos y por el panel de `?q=`.
+export function rejectedParamKeys(issues: readonly { readonly path: readonly PropertyKey[] }[]): ReadonlySet<string> {
+  const keys = new Set<string>();
+  for (const issue of issues) {
+    const key = issue.path[0];
+    if (typeof key === 'string') keys.add(key);
+  }
+  return keys;
+}
+
 // D.6a — un filtro aplicado: la clave identifica qué quita su enlace
 // (`buildRemoveFilterHref`) y el rótulo es el nombre más el valor real.
 export interface AppliedFilter {

@@ -715,7 +715,7 @@ describe('panel de revisión: estructura (D.7, R3, R9)', () => {
   // S9.2 («la copia no cambia») queda SUPERSEDED por D8/D11: la copia cambia a tuteo con rótulos.
   it('D8: la rama de parámetros inválidos habla en tuteo, con rótulos y sin el texto antiguo', async () => {
     const html = await render({ minPrice: 'abc' });
-    expect(html).toContain('<p role="alert">Algún filtro no es válido; corrígelo abajo y vuelve a buscar. Detalle: Precio mínimo (€): escribe un importe en euros, con dos decimales como mucho.</p>');
+    expect(html).toContain('<p id="filters-alert" role="alert">Algún filtro no es válido; corrígelo abajo y vuelve a buscar. Detalle: Precio mínimo (€): escribe un importe en euros, con dos decimales como mucho.</p>');
     expect(html).not.toContain('No se pudo interpretar la búsqueda');
     expect(html).not.toMatch(/\bSe (ha|han|pudo|esperaba)\b/);
   });
@@ -725,5 +725,44 @@ describe('panel de revisión: estructura (D.7, R3, R9)', () => {
     expect(html).toContain('Precio mínimo (€): escribe un importe más pequeño.');
     expect(html).not.toContain('Invalid input');
     expectNoSideEffects();
+  });
+});
+
+// D.15 (F4, R9, decisión 196) — los campos rechazados llegan marcados a las dos ramas de la página.
+describe('campos rechazados: aria-invalid y descripción de la alerta (D.15, F4)', () => {
+  it('rama de parámetros inválidos: el campo rechazado apunta a la alerta y el válido no', async () => {
+    const html = await render({ minPrice: 'abc', maxPrice: '900' });
+    expect(html).toContain('id="filters-alert"');
+    const minPrice = findTag(html, 'input', 'name="minPrice"');
+    expect(minPrice).toContain('aria-invalid="true"');
+    expect(minPrice).toContain('aria-describedby="filters-alert"');
+    expect(findTag(html, 'input', 'name="maxPrice"')).not.toContain('aria-invalid');
+  });
+
+  it('rama ?q=: un rango invertido marca el campo nombrado y apunta a la alerta del panel', async () => {
+    const html = await render({ q: 'entre 900 y 600 euros' });
+    expect(html).toContain('id="criteria-alert"');
+    const minPrice = findTag(html, 'input', 'name="minPrice"');
+    expect(minPrice).toContain('aria-invalid="true"');
+    expect(minPrice).toContain('aria-describedby="criteria-alert"');
+    expect(findTag(html, 'input', 'name="minRooms"')).not.toContain('aria-invalid');
+  });
+
+  it('rama ?q= válida: ningún campo ni la caja de texto se declaran inválidos', async () => {
+    const html = await render({ q: 'piso en venta' });
+    expect(html).not.toContain('aria-invalid');
+  });
+
+  it('rama ?q= con texto rechazado: la caja de texto apunta a su alerta además de a su ayuda', async () => {
+    const html = await render({ q: '   ' });
+    const input = findTag(html, 'input', 'id="search-text"');
+    expect(input).toContain('aria-invalid="true"');
+    expect(input).toContain('aria-describedby="search-text-help search-text-alert"');
+    expect(html).toContain('id="search-text-alert"');
+  });
+
+  it('la caja de texto de la home no se declara inválida', async () => {
+    const html = await render({ minPrice: 'abc' });
+    expect(findTag(html, 'input', 'id="search-text"')).not.toContain('aria-invalid');
   });
 });
