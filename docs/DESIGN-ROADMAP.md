@@ -1360,7 +1360,7 @@ el estado vacío.
 
 # Bloque 6 — Pasadas transversales
 
-## [~] D.15 · Accesibilidad WCAG 2.2 AA
+## [x] D.15 · Accesibilidad WCAG 2.2 AA
 
 ```text
 Paso D.15 de docs/DESIGN-ROADMAP.md. Usa `impeccable audit`, `impeccable harden` e
@@ -1390,9 +1390,8 @@ Paso D.15 de docs/DESIGN-ROADMAP.md. Usa `impeccable audit`, `impeccable harden`
 - **Riesgos:** que la auditoría abra trabajo por encima de R9: si pasa, partir el paso.
 - **Tamaño:** M.
 - **Evidencia:** C10, C11, C12, C13, C14, C15, C38.
-- **Estado (2026-10-09): D.15 en curso, pendiente de verificación manual.** La parte automática está hecha; el paso sigue `[~]` y
-  se cierra cuando el responsable devuelva los resultados de la lista manual de abajo. Un punto que falle se corrige o entra en la
-  tabla de desviaciones antes de cerrar. Aplicada con SDD en diez unidades de trabajo y tres lotes (Engram `sdd/a11y-wcag22-d15/*`),
+- **Estado (2026-10-09): D.15 hecho.** Parte automática verificada y lista manual con 13 de 13 puntos aprobados por el responsable
+  (los puntos 11 y 13 fallaron en la primera pasada y se corrigieron dentro del paso). Aplicada con SDD en diez unidades de trabajo y tres lotes (Engram `sdd/a11y-wcag22-d15/*`),
   un solo PR con `size:exception` aceptado por el responsable. Decisiones 193-202. Commits: `cfa08d0` (puerta de lint), `5f8301b`
   (`.icon` única, atribución en español y tema activo), `9de2b22` (encabezado del resultado), `247f747` (galería), `ec63a62`
   (campos rechazados), `c7c023e` (región de mapa y dirección que no recorta), `89dba4c` (axe en estados dinámicos y objetivo del

@@ -110,6 +110,6 @@ métricas de uso, testimonios, cifras de cobertura ni acuerdos con portales.
 ## Accessibility & Inclusion
 
 Objetivo: WCAG 2.2 AA. La comprobación automática con axe (`wcag22aa`) corre desde el paso D.1 en
-todas las rutas, anchos y temas, y en los estados dinámicos desde D.15. La lista manual con lector
-de pantalla de D.15 está pendiente de resultados. Sin desplazamiento horizontal de la página a 320 px. Las atribuciones CC-BY
+todas las rutas, anchos y temas, y en los estados dinámicos desde D.15. La lista manual de D.15
+(teclado, lector de pantalla, zoom, reflujo, foco, objetivos y mensajes de estado) quedó aprobada con el Narrador de Windows. Sin desplazamiento horizontal de la página a 320 px. Las atribuciones CC-BY
 del IGN/CNIG y de OpenStreetMap siguen visibles y legibles.
