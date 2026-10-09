@@ -429,6 +429,18 @@
     inline-size: 7rem;
   }
 
+  /* Pista única «solo cifras» de los campos numéricos (D.15, decisión 204). En la barra ocupa una
+     línea propia encima de los campos; en el panel de `?q=` va dentro del grupo de precio. */
+  .field-hint {
+    color: var(--ink-muted);
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  .filter-bar > .field-hint {
+    flex-basis: 100%;
+  }
+
   /* Lista de resultados de la home (D.6b, decisión 155). Filas densas separadas por un filete
      de 1px, sin tarjetas ni sombras. La lista tiene una medida de 48rem alineada a la
      izquierda: a 1280px el precio queda cerca de los datos y el lado derecho queda libre

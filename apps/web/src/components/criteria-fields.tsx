@@ -26,6 +26,30 @@ function invalidProps(
     : {};
 }
 
+// D.15 (decisión 204) — `type="number"` descarta en silencio las letras que se teclean y nada se
+// lo decía a un lector de pantalla. Una sola pista visible por formulario (no seis repetidas), con
+// id derivado del prefijo y referenciada por `aria-describedby` desde los seis campos numéricos.
+const NUMERIC_HINT = 'Precio, superficie, habitaciones y baños: solo cifras.';
+
+function numericHintId(idPrefix: string): string {
+  return `${idPrefix}-numeric-hint`;
+}
+
+function NumericHint({ idPrefix }: { readonly idPrefix: string }): ReactElement {
+  return (
+    <p id={numericHintId(idPrefix)} className="field-hint">
+      {NUMERIC_HINT}
+    </p>
+  );
+}
+
+// Pista primero y alerta después, el mismo orden que el campo de texto libre (`search-text-help`
+// y su alerta): una sola convención en la app.
+function numberDescribedBy(idPrefix: string, field: NlParamKey, invalid: InvalidFields | undefined): string {
+  const hintId = numericHintId(idPrefix);
+  return invalid?.keys.has(field) === true ? `${hintId} ${invalid.errorId}` : hintId;
+}
+
 interface SelectFieldProps {
   readonly field: NlParamKey;
   readonly idPrefix: string;
@@ -70,6 +94,7 @@ function NumberField({ field, idPrefix, value, step, invalid }: NumberFieldProps
         min="0"
         step={step}
         {...invalidProps(field, invalid)}
+        aria-describedby={numberDescribedBy(idPrefix, field, invalid)}
       />
     </p>
   );
@@ -123,6 +148,7 @@ export function CriteriaFields({ values, idPrefix, grouped, invalid }: CriteriaF
           />
         </Group>
         <Group title="¿Cuánto quieres pagar?">
+          <NumericHint idPrefix={idPrefix} />
           <fieldset>
             <legend>Precio (€)</legend>
             <NumberField field="minPrice" idPrefix={idPrefix} invalid={invalid} value={values.minPrice} step="0.01" />
@@ -148,6 +174,7 @@ export function CriteriaFields({ values, idPrefix, grouped, invalid }: CriteriaF
   }
   return (
     <>
+      <NumericHint idPrefix={idPrefix} />
       <SelectField
         field="operation"
         idPrefix={idPrefix} invalid={invalid}

@@ -404,6 +404,53 @@ describe('AppliedFiltersSummary — variante de solo lectura (S2.1, S11.2)', () 
   });
 });
 
+// D.15 (decisión 204) — pista única «solo cifras» para los seis campos numéricos (`type="number"`:
+// Chrome descarta en silencio las letras y nada lo avisaba a un lector de pantalla). Una sola pista
+// visible por formulario, con id derivado del prefijo, referenciada por `aria-describedby`.
+describe('CriteriaFields — pista «solo cifras» (D.15, decisión 204)', () => {
+  const NUMBER_FIELDS = ['minPrice', 'maxPrice', 'minSurface', 'maxSurface', 'minRooms', 'minBathrooms'] as const;
+  const HINT = 'Precio, superficie, habitaciones y baños: solo cifras.';
+
+  it.each(['criteria', 'filter'])('%s: una sola pista visible con el texto acordado', (prefix) => {
+    const flat = renderToStaticMarkup(<CriteriaFields values={FIELD_VALUES} idPrefix={prefix} />);
+    expect(flat.match(new RegExp(`id="${prefix}-numeric-hint"`, 'g'))).toHaveLength(1);
+    expect(flat).toContain(`>${HINT}</p>`);
+    expect(flat).not.toMatch(/id="[^"]*-numeric-hint"[^>]*(hidden|sr-only)/);
+  });
+
+  it.each(['criteria', 'filter'])('%s: los seis campos numéricos apuntan a la pista y los desplegables no', (prefix) => {
+    const html = renderToStaticMarkup(<CriteriaFields values={FIELD_VALUES} idPrefix={prefix} />);
+    for (const field of NUMBER_FIELDS) {
+      expect(findTag(html, 'input', `name="${field}"`)).toContain(`aria-describedby="${prefix}-numeric-hint"`);
+    }
+    for (const field of ['operation', 'propertyType', 'sort', 'dir']) {
+      expect(findTag(html, 'select', `name="${field}"`)).not.toContain('aria-describedby');
+    }
+  });
+
+  it('agrupado: la pista se pinta una vez, en el grupo de precio, antes del primer número', () => {
+    const html = renderToStaticMarkup(
+      <CriteriaFields values={FIELD_VALUES} idPrefix="criteria" grouped={{ zone: <div /> }} />
+    );
+    expect(html.match(/id="criteria-numeric-hint"/g)).toHaveLength(1);
+    expect(html.indexOf('<h3>¿Cuánto quieres pagar?</h3>')).toBeLessThan(html.indexOf('id="criteria-numeric-hint"'));
+    expect(html.indexOf('id="criteria-numeric-hint"')).toBeLessThan(html.indexOf('name="minPrice"'));
+    expect(html.indexOf('id="criteria-numeric-hint"')).toBeLessThan(html.indexOf('<h3>¿De qué tamaño?</h3>'));
+  });
+
+  it('rechazado: la pista primero y la alerta después; sin rechazo, solo la pista', () => {
+    const html = renderToStaticMarkup(
+      <CriteriaFields
+        values={FIELD_VALUES}
+        idPrefix="criteria"
+        invalid={{ keys: new Set(['minRooms']), errorId: 'criteria-alert' }}
+      />
+    );
+    expect(findTag(html, 'input', 'name="minRooms"')).toContain('aria-describedby="criteria-numeric-hint criteria-alert"');
+    expect(findTag(html, 'input', 'name="minBathrooms"')).toContain('aria-describedby="criteria-numeric-hint"');
+  });
+});
+
 // D.7 (decisión 161, spec R3) — agrupación opcional de los campos.
 describe('CriteriaFields — agrupación opcional (S3.1, S3.2)', () => {
   const zoneSlot = <div data-slot="zone-slot" />;
@@ -446,7 +493,9 @@ describe('FilterBar D.15 — campos rechazados', () => {
   it('el número y el desplegable rechazados llevan aria-invalid y la descripción de la alerta', () => {
     const minPrice = findTag(html, 'input', 'name="minPrice"');
     expect(minPrice).toContain('aria-invalid="true"');
-    expect(minPrice).toContain('aria-describedby="filter-alert"');
+    // D.15 (decisión 204): la pista de «solo cifras» va primero, la alerta después (mismo orden que
+    // el campo de texto libre: ayuda y luego alerta).
+    expect(minPrice).toContain('aria-describedby="filter-numeric-hint filter-alert"');
     const sort = findTag(html, 'select', 'name="sort"');
     expect(sort).toContain('aria-invalid="true"');
     expect(sort).toContain('aria-describedby="filter-alert"');
@@ -456,7 +505,8 @@ describe('FilterBar D.15 — campos rechazados', () => {
     const maxPrice = findTag(html, 'input', 'name="maxPrice"');
     expect(maxPrice).toBeDefined();
     expect(maxPrice).not.toContain('aria-invalid');
-    expect(maxPrice).not.toContain('aria-describedby');
+    expect(maxPrice).toContain('aria-describedby="filter-numeric-hint"');
+    expect(maxPrice).not.toContain('filter-alert');
     expect(findTag(html, 'select', 'name="operation"')).not.toContain('aria-invalid');
   });
 

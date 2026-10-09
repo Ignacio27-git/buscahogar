@@ -735,7 +735,7 @@ describe('campos rechazados: aria-invalid y descripción de la alerta (D.15, F4)
     expect(html).toContain('id="filters-alert"');
     const minPrice = findTag(html, 'input', 'name="minPrice"');
     expect(minPrice).toContain('aria-invalid="true"');
-    expect(minPrice).toContain('aria-describedby="filters-alert"');
+    expect(minPrice).toContain('aria-describedby="filter-numeric-hint filters-alert"');
     expect(findTag(html, 'input', 'name="maxPrice"')).not.toContain('aria-invalid');
   });
 
@@ -744,7 +744,7 @@ describe('campos rechazados: aria-invalid y descripción de la alerta (D.15, F4)
     expect(html).toContain('id="criteria-alert"');
     const minPrice = findTag(html, 'input', 'name="minPrice"');
     expect(minPrice).toContain('aria-invalid="true"');
-    expect(minPrice).toContain('aria-describedby="criteria-alert"');
+    expect(minPrice).toContain('aria-describedby="criteria-numeric-hint criteria-alert"');
     expect(findTag(html, 'input', 'name="minRooms"')).not.toContain('aria-invalid');
   });
 
