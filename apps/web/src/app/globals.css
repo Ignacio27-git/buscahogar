@@ -282,15 +282,6 @@
     transform: none;
   }
 
-  /* Iconos dibujados (D.13b, ): miden 1em y heredan el color del texto. */
-  .icon {
-    display: inline-block;
-    inline-size: 1em;
-    block-size: 1em;
-    flex: none;
-    vertical-align: -0.125em;
-  }
-
   /* Iconos dibujados (D.13b, componente Icon): miden 1em y heredan el color del texto. */
   .icon {
     display: inline-block;
@@ -1549,5 +1540,14 @@
     font-weight: 600;
     border-color: var(--ink);
     box-shadow: inset 0 0 0 1px var(--ink);
+  }
+
+  /* D.15 (F3, decisión 195): el estado activo llega a la tecnología de apoyo sin hacer dinámica la
+     cabecera (147). Texto alternativo tras «/»: no se pinta (contenido vacío) y se añade al nombre
+     accesible como «Oscuro, activo». La coma sobrevive al recorte de espacios del nombre. */
+  .light .theme-selector [value='light']::after,
+  .dark .theme-selector [value='dark']::after,
+  :root:not(.light, .dark) .theme-selector [value='system']::after {
+    content: '' / ', activo';
   }
 }

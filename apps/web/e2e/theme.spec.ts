@@ -43,6 +43,22 @@ test.describe('selector de tema', () => {
     expect(await context.cookies()).toEqual([]);
   });
 
+  // D.15 (F3, decisión 195): el estado activo llega al árbol de accesibilidad por texto alternativo
+  // del CSS; la cabecera sigue estática (147), sin `aria-pressed` leído de la cookie.
+  test('el botón del tema activo se anuncia «activo» y los demás no', async ({ page }) => {
+    await page.goto(NOT_FOUND_PATH);
+    // Sin cookie rige el tema del sistema.
+    await expect(inBanner(page).getByRole('button', { name: 'Sistema, activo' })).toBeVisible();
+    await expect(inBanner(page).getByRole('button', { name: 'Oscuro', exact: true })).toBeVisible();
+    await expect(inBanner(page).getByRole('button', { name: 'Claro', exact: true })).toBeVisible();
+
+    await inBanner(page).getByRole('button', { name: 'Oscuro' }).click();
+    await expect(page.locator('html')).toHaveClass(/dark/);
+    await expect(inBanner(page).getByRole('button', { name: 'Oscuro, activo' })).toBeVisible();
+    await expect(inBanner(page).getByRole('button', { name: 'Sistema', exact: true })).toBeVisible();
+    await expect(inBanner(page).getByRole('button', { name: 'Claro', exact: true })).toBeVisible();
+  });
+
   test('GET /theme responde 405', async ({ request }) => {
     const response = await request.get('/theme');
     expect(response.status()).toBe(405);

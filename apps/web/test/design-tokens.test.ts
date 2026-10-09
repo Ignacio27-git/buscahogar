@@ -628,3 +628,29 @@ describe('cabecera de búsqueda y medida del aviso (D.13b)', () => {
     expect(declarations(findBlock(components(), '.coverage-notice')).get('max-inline-size')).toBe('48rem');
   });
 });
+
+// D.15 (F10, R13) — la regla `.icon` estaba duplicada (D.13b); una sola definición.
+describe('regla .icon (D.15)', () => {
+  it('globals.css define el selector .icon exactamente una vez', () => {
+    const definiciones = RAW_CSS.match(/^\s*\.icon\s*\{/gm) ?? [];
+    expect(definiciones).toHaveLength(1);
+  });
+});
+
+// D.15 (F3, R8, decisión 195) — el botón del tema activo anuncia «activo» a la tecnología de apoyo
+// mediante texto alternativo del contenido generado; la cabecera sigue siendo estática (147) y el
+// contenido visible no cambia (alternativa vacía a la izquierda de la barra).
+describe('estado del selector de tema (D.15)', () => {
+  const ACTIVOS: readonly (readonly [string, string])[] = [
+    ['light', ".light .theme-selector [value='light']::after"],
+    ['dark', ".dark .theme-selector [value='dark']::after"],
+    ['system', ":root:not(.light, .dark) .theme-selector [value='system']::after"],
+  ];
+
+  it.each(ACTIVOS)('el botón «%s» activo lleva texto alternativo «, activo»', (_tema, selector) => {
+    const regla = RAW_CSS.indexOf(selector);
+    expect(regla).toBeGreaterThan(-1);
+    const bloque = RAW_CSS.slice(regla, RAW_CSS.indexOf('}', regla));
+    expect(bloque).toContain("content: '' / ', activo'");
+  });
+});

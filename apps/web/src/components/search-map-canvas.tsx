@@ -18,6 +18,7 @@ import { useEffect } from 'react';
 import type { ReactElement } from 'react';
 import { MapContainer, Polygon, TileLayer, ZoomControl, useMap } from 'react-leaflet';
 
+import { stripPrefixTitles } from '@/lib/map-attribution';
 import { OSM_TILE_URL_TEMPLATE } from '@/lib/osm-tiles';
 
 import { ZOOM_IN_MARKUP, ZOOM_OUT_MARKUP } from './icon';
@@ -76,6 +77,21 @@ function InitialFrame({ bounds }: { readonly bounds: LatLngBoundsExpression | nu
   return null;
 }
 
+// D.15 (F7, decisión 199) — el prefijo de la atribución de Leaflet lleva un `title` en inglés. Se
+// reescribe el prefijo (Leaflet vuelve a pintar el control con él) en lugar de tocar el DOM, que
+// Leaflet regeneraría. El crédito, el enlace y la bandera quedan igual.
+function AttributionLanguage(): null {
+  const map = useMap();
+
+  useEffect(() => {
+    const control = map.attributionControl;
+    const prefix = control.options.prefix;
+    if (typeof prefix === 'string') control.setPrefix(stripPrefixTitles(prefix));
+  }, [map]);
+
+  return null;
+}
+
 export default function SearchMapCanvas(props: SearchMapProps): ReactElement {
   const bounds = initialBounds(props);
   const view =
@@ -92,6 +108,7 @@ export default function SearchMapCanvas(props: SearchMapProps): ReactElement {
         zoomOutText={ZOOM_OUT_MARKUP}
       />
       <InitialFrame bounds={bounds} />
+      <AttributionLanguage />
       <TileLayer url={OSM_TILE_URL_TEMPLATE} attribution={ATTRIBUTION} maxZoom={19} />
       {props.polygon !== null ? (
         <Polygon

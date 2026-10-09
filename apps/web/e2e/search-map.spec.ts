@@ -459,6 +459,22 @@ test.describe("dibujo por teclado (SMV-22', SMV-23 a SMV-25)", () => {
   });
 });
 
+test.describe('atribución en español (D.15, F7, WCAG 3.1.2)', () => {
+  test.beforeEach(() => {
+    onlyProject('w1280-light');
+  });
+
+  test('el control de atribución no lleva `title` ni texto en inglés', async ({ page }) => {
+    await openRoute(page, route('map'));
+    const attribution = page.locator('.leaflet-control-attribution');
+    await expect(attribution).toBeVisible();
+    await expect(attribution.locator('[title]')).toHaveCount(0);
+    await expect(attribution).not.toContainText('JavaScript library');
+    // El crédito de OpenStreetMap (ODbL) sigue visible.
+    await expect(attribution).toContainText('OpenStreetMap');
+  });
+});
+
 test.describe('barra y mira (SMV-26, WCAG 2.5.8)', () => {
   test('botones de al menos 24 px, también durante el dibujo', async ({ page }) => {
     await openMapView(page);
