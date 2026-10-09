@@ -1,11 +1,12 @@
 // ESLint (flat config) para apps/web.
 //
-// Combina TRES fuentes, en este orden:
+// Combina CUATRO fuentes, en este orden:
 //   1. strictTypeChecked de typescript-eslint más los bloques compartidos de
 //      @buscahogar/config. Es lo que garantiza que web se linte con el mismo
 //      rigor que packages/core y apps/ingestion.
 //   2. eslint-config-next/typescript, para la resolución de módulos de Next.
 //   3. @next/eslint-plugin-next, con sus rule-sets recommended y core-web-vitals.
+//   4. eslint-plugin-jsx-a11y (recommended) sobre src/**/*.tsx (D.15, decision 193).
 //
 // Next 16 elimina `next lint`: se ejecuta el CLI de ESLint directamente.
 //
@@ -15,6 +16,7 @@
 
 import nextPlugin from '@next/eslint-plugin-next';
 import nextTs from 'eslint-config-next/typescript';
+import jsxA11y from 'eslint-plugin-jsx-a11y';
 import tseslint from 'typescript-eslint';
 
 import { sharedBlocks, sharedIgnores } from '@buscahogar/config/eslint.config.mjs';
@@ -33,6 +35,14 @@ export default tseslint.config(
       ...nextPlugin.configs.recommended.rules,
       ...nextPlugin.configs['core-web-vitals'].rules,
     },
+  },
+  // Paso D.15 (decision 193): puerta de accesibilidad en JSX. Solo `src/**/*.tsx`;
+  // los specs de e2e y los ficheros de configuracion no llevan JSX. Va antes de
+  // los bloques compartidos para que estos prevalezcan.
+  {
+    name: 'jsx-a11y/recommended',
+    files: ['src/**/*.tsx'],
+    ...jsxA11y.flatConfigs.recommended,
   },
   // Al final, para que las reglas compartidas prevalezcan sobre las de Next.
   ...sharedBlocks(import.meta.dirname)

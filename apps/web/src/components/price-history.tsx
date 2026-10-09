@@ -133,6 +133,7 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
         className="price-history__scroll"
         role="region"
         aria-label="Tabla del histórico de precios"
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- foco por teclado de la región de desplazamiento: sin él una tabla ancha no se podría recorrer (2.1.1)
         tabIndex={0}
       >
         <table className="price-history__table" role="table">
@@ -140,6 +141,7 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
             Fechas en que nuestro barrido observó cada precio; no son fechas de publicación del
             portal.
           </caption>
+          {/* eslint-disable-next-line jsx-a11y/no-redundant-roles -- rol explícito: con `display` distinto de `table` algunos navegadores pierden la semántica de tabla (D.15) */}
           <thead role="rowgroup">
             <tr role="row">
               <th scope="col" role="columnheader">
@@ -156,10 +158,12 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
               </th>
             </tr>
           </thead>
+          {/* eslint-disable-next-line jsx-a11y/no-redundant-roles -- rol explícito: con `display` distinto de `table` algunos navegadores pierden la semántica de tabla (D.15) */}
           <tbody role="rowgroup">
             {history.series.flatMap((s, index) =>
               s.points.map((point, pointIndex) => (
                 <tr key={`${s.listingId}-${String(pointIndex)}`} role="row">
+                  {/* eslint-disable-next-line jsx-a11y/no-interactive-element-to-noninteractive-role -- rol de celda explícito por la pila de filas (D.15); un `td` con `display` distinto de `table-cell` pierde su semántica */}
                   <td role="cell" data-label="Fuente">
                     {labels[index]}
                     {withdrawnOf(s.status) ? (
@@ -169,10 +173,13 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
                       </>
                     ) : null}
                   </td>
+                  {/* eslint-disable-next-line jsx-a11y/no-interactive-element-to-noninteractive-role -- rol de celda explícito por la pila de filas (D.15); un `td` con `display` distinto de `table-cell` pierde su semántica */}
                   <td role="cell" data-label="Fecha" className="price-history__date">{formatUtcDate(point.capturedAt)}</td>
+                  {/* eslint-disable-next-line jsx-a11y/no-interactive-element-to-noninteractive-role -- rol de celda explícito por la pila de filas (D.15); un `td` con `display` distinto de `table-cell` pierde su semántica */}
                   <td role="cell" data-label="Precio" className="price-history__num price-history__price">
                     {formatPriceCents(point.priceCents)}
                   </td>
+                  {/* eslint-disable-next-line jsx-a11y/no-interactive-element-to-noninteractive-role -- rol de celda explícito por la pila de filas (D.15); un `td` con `display` distinto de `table-cell` pierde su semántica */}
                   <td role="cell" data-label="Variación" className="price-history__num">
                     {point.deltaCents === null ? (
                       <>
