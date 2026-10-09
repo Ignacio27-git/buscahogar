@@ -851,6 +851,14 @@
     gap: 0.5rem;
   }
 
+  /* Conmutador «Ver mapa» / «Ver lista» (D.15, WCAG 2.5.8): un enlace en línea medía 20 px de alto.
+     Caja de 40 px como el resto de enlaces de la app; el párrafo sigue oculto desde 64rem. */
+  .view-toggle a {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 2.5rem;
+  }
+
   /* Marco del mapa (D.8a): un hairline de la hoja, sin sombra. El aviso de carga ocupa el
      mismo marco que luego aloja el lienzo, así que montar el mapa no desplaza nada. Bajo
      64rem la altura sigue al viewport sin pasarse de él. */
