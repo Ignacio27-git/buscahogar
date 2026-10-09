@@ -3799,3 +3799,34 @@ ni axe, ni la revisión a ojo de las capturas lo señalaron (la nota de D.13 lle
 
 **Observación:** el suelo de oficio se lee antes de cada edición de interfaz, también en un paso que reutiliza un estilo existente:
 un precedente propio no lo valida.
+
+### 2026-10-09 — Fallos intermedios en la preparación y la aplicación de D.14
+
+**Contexto:** exploración, investigación, propuesta, diseño y aplicación de `global-states-d14`.
+
+**Categoría:** comportamiento del framework mal supuesto / mecanismo de una biblioteca descrito al revés / copy que contradice el
+contexto de uso.
+
+**Qué se generó mal:**
+
+1. La investigación no vio que un `loading.tsx` raíz envuelve a los layouts anidados: con él, la comprobación de existencia en el
+   layout de la ficha transmitiría ya con 200 y el 404 no sería un 404. Obligó a mover la home al grupo de rutas `(search)`.
+2. El diseño propuso `loading.tsx` en la home y en la ficha sin considerar el streaming sin JavaScript: sin JS el contenido real queda
+   en un `<div hidden id="S:n">` mientras suspende. El mitigante con `<noscript><style>` ocultaba el esqueleto pero no revelaba el
+   contenido (esqueleto 20/20 en la home y 19/20 en la ficha, seis pruebas e2e sin JS fallidas). Se descartó `loading.tsx` entero
+   (decisión 191, rechazada).
+3. La especificación atribuyó mal el mecanismo de Zod: el `error` de nivel de esquema lo heredan las comprobaciones que no llevan
+   mensaje propio (no es que «falte» el mensaje), y un `z.number()` encadenado devuelve su inglés por defecto ante un desbordamiento a
+   `Infinity` salvo que lleve un `error` explícito. Los mensajes quedaron mal repartidos hasta corregirlo con una tabla de pruebas
+   por clave.
+4. El copy de `error.tsx` suponía que había filtros aplicados («prueba con otros filtros») y usaba «dirección» para el enlace, que se
+   lee como dirección postal; además el identificador `dir` es una clave de la tabla de pruebas. Se reescribió («Algo ha fallado al
+   prepararla. Vuelve a intentarlo en un momento o regresa a la búsqueda.») y los mensajes de core dicen «enlace».
+
+**Cómo se detectó:** 1 en la propuesta; 2 en la puerta de diseño y el spike de la fase 0, que midió el comportamiento antes de
+construir; 3 al escribir la tabla de pruebas de la unidad 5 (73 pruebas en rojo); 4 en la puerta de la aplicación, al leer el texto en
+contexto.
+
+**Observación:** el comportamiento de streaming y de cascada de límites de Next se mide con un spike antes de diseñar sobre él; un
+mecanismo de biblioteca se comprueba con una prueba mínima antes de ponerlo en la especificación; y el copy se lee en el estado donde
+aparece, no solo en el caso feliz.

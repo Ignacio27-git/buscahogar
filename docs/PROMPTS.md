@@ -30,6 +30,25 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-09 — Estados globales: 404, error, vacío, parámetros inválidos y 429 (paso D.14, decisiones 186-192)
+
+**Tipo de tarea:** interfaz (páginas de estado, estado vacío), copy (parámetros inválidos, mensajes de core), proxy (429) y e2e
+**Forma de especificación:** SDD (explorar, investigar, proponer, especificar, diseñar, tareas y aplicar en nueve unidades; Engram
+`sdd/global-states-d14/*`), un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable con retoques, tras varias rondas de puerta. La investigación pasó por alto que un `loading.tsx` raíz envuelve
+a los layouts anidados (se detectó en la propuesta); el diseño propuso `loading.tsx` sin contar con el streaming sin JavaScript y el
+spike de la fase 0 lo descartó (decisión 191, rechazada); en la aplicación se corrigieron el copy de `error.tsx` (suponía filtros y
+usaba «dirección») y el mecanismo de Zod descrito en la especificación.
+
+**Prompt:** el del paso D.14 de `docs/DESIGN-ROADMAP.md`, literal: «Usa `impeccable harden` e `impeccable onboard` para el estado
+vacío. loading.tsx en / y en la ficha, con esqueletos hechos con tokens […]; error.tsx en la raíz […]; not-found.tsx en la raíz y en la
+ficha, con salida hacia la búsqueda; global-error.tsx con su propio `<html>` y `<body>` […]; resultados vacíos con orientación sobre qué
+cambiar; 429: una página mínima en español que conserva el estado 429 y sus cabeceras» — invocado vía `/gentle-sdd-new`.
+
+**Observación:** el prompt pedía `loading.tsx`, pero sin JavaScript el contenido de Next queda oculto en un `<div hidden>` mientras
+la carga transmite: un spike descartable antes de construir ahorró retirar el esqueleto después. Cuando una pieza depende de un
+comportamiento del framework que no se ha medido, la primera tarea es medirlo.
+
 ### 2026-10-08 — Correcciones de la auditoría del suelo de oficio (paso D.13b, decisiones 183-185)
 
 **Tipo de tarea:** interfaz (CSS base, iconos, ficha, cabecera de búsqueda), copy y dominio mínimo (tope de reintentos en core) + capturas

@@ -1299,7 +1299,7 @@ auditoría de D.0-D.13 (notas de este paso), en este orden:
 - **Tamaño real:** 1086 líneas añadidas y 172 borradas en código, tests y e2e (previstas ~805), sin documentación, las 98 capturas ni
   `axe-baseline.json`.
 
-## [ ] D.14 · Estados globales: carga, error, 404, vacío y 429
+## [x] D.14 · Estados globales: carga, error, 404, vacío y 429
 
 ```text
 Paso D.14 de docs/DESIGN-ROADMAP.md. Usa `impeccable harden` e `impeccable onboard` para
@@ -1338,6 +1338,23 @@ el estado vacío.
 - **Tamaño:** M.
 - **Evidencia:** C13, C20, C24, C28, C29, C30.
 - **Registro (134):** estados vacíos y error de parámetros en tuteo.
+- **Hecho (2026-10-09):** aplicada con SDD en nueve unidades (Engram `sdd/global-states-d14/*`), un solo PR con `size:exception`
+  aceptado por el responsable. Decisiones 186-192. Commits: `89db423` (cargador compartido y 404 en el layout de la ficha),
+  `c8870fb` (grupo `(search)`), `190bfee` (not-found, error, global-error, CSS autónomo), `2364480` (correcciones de copy), `3dc3d9a`
+  (estado vacío), `47bd9d2` (parámetros inválidos), `bf42304` (429), `3c84560` (e2e), `d45c966` (capturas) y el de documentación.
+- **Qué hay:** `app/not-found.tsx`, `app/error.tsx` y `app/global-error.tsx` (los dos últimos de cliente; lista de
+  `no-client-directive` en cuatro, decisión 186); `src/lib/standalone-page.ts` con el CSS autónomo; `app/properties/[listingId]/layout.tsx`
+  y `src/server/property-header.ts` (404 antes de transmitir, decisión 187); la home en `app/(search)/page.tsx` (188);
+  `src/server/rate-limit-page.ts` usado por `proxy.ts` (189); `components/empty-results.tsx` con tres tipos, `src/lib/empty-results.ts` y
+  la opción `keep` de `buildClearFiltersHref` (190); mensajes de core en español (`param-messages.ts`) y rótulos en
+  `src/lib/search-labels.ts` (192).
+- **Tests y comprobaciones:** core 920, db 310, ingestion 847 y web 1052 superados; `typecheck` y `lint` limpios; `impeccable detect
+  apps/web/src` sin hallazgos. e2e en Docker: `pnpm e2e:update` y `pnpm e2e` 641 superados y 565 omitidos (nuevos:
+  `global-states.spec.ts` con 404 de URL, ficha inexistente y malformada, 200 de la existente y contraste AA de la 429 en claro y oscuro;
+  `rate-limit.spec.ts` contra un segundo `webServer` en el puerto 3101). Cambian 18 capturas (`not-found-route`, `not-found-property` y
+  `home-filtered` por seis proyectos); `axe-baseline.json` no cambia.
+- **Playwright 1.63.0** arranca las entradas de `webServer` en orden: la primera construye `.next` y la segunda solo lo sirve.
+- **Tamaño real:** unas 1400 líneas entre código, tests y e2e, sin documentación ni capturas.
 
 ---
 
@@ -1618,3 +1635,10 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-08 | D.13b | Se aplicó la alternativa de filas apiladas del histórico (bajo 30rem, con `data-label` y roles ARIA explícitos) y hubo un commit más (`234158b`). | Sin `nowrap` la tabla de P7 seguía desbordando 8 px a 320 px; el e2e lo midió. |
 | 2026-10-08 | D.13b | El módulo de reintentos vive en `packages/core/src/coverage-jobs/`, no en `coverage/`. El chip de filtros aplicados cambió su hover a una clase CSS en la unidad 1 y no en la 2. | `.gitignore` ignora cualquier carpeta `coverage/`; el test de hover prohíbe la variante `hover:` desde la primera unidad. |
 | 2026-10-08 | D.13b | Paso nuevo entre D.13 y D.14 para corregir los 14 hallazgos de la auditoría de D.0-D.13 contra `craft-floor.md` de impeccable. | Solo D.3 había cargado el suelo de oficio; el responsable prefiere corregir antes de que D.14-D.17 se construyan sobre la base actual. |
+| 2026-10-09 | D.14 | Se descarta `loading.tsx` (ni en la home ni en la ficha) y con él el esqueleto, `LoadingState` y el CSS de mitigación (B3, decisión 191 rechazada). | Spike de la fase 0: sin JavaScript el contenido queda en `<div hidden id="S:n">`; el esqueleto salió en 20/20 peticiones de la home y 19/20 de la ficha, el contenido siguió oculto y fallaron seis pruebas e2e funcionales sin JS. |
+| 2026-10-09 | D.14 | La home pasa al grupo de rutas `app/(search)/page.tsx` (decisión 188) y se conserva aunque ya no haya `loading.tsx`. | Un `loading.tsx` raíz envuelve a los layouts anidados y daría 200 a un 404 de la ficha; el movimiento es inocuo y fija la estructura con un test. |
+| 2026-10-09 | D.14 | La ficha no tiene `not-found.tsx` propio: el `notFound()` de su `layout.tsx` se resuelve con el raíz (decisión 187). | El raíz mantiene el 404 y ya trae cabecera, pie y salida a la búsqueda; el e2e comprueba el estado HTTP. |
+| 2026-10-09 | D.14 | Desaparece la comprobación «el fallback de carga se ve con un retraso artificial». | No aplica tras descartar `loading.tsx`; sin esqueleto no hay fallback que ver. |
+| 2026-10-09 | D.14 | El estado vacío tiene un tercer tipo (`past-last-page`) además de «sin viviendas» y «filtros sin resultados», y el enlace de limpieza se llama «Quitar los demás filtros» cuando conserva zona o polígono (decisión 190). | Una página fuera de rango y un polígono vacío necesitan una salida distinta, y un mismo nombre para dos destinos incumple WCAG 3.2.4. |
+| 2026-10-09 | D.14 | Se incluye el Registro 134 completo: copy de parámetros inválidos en tuteo con rótulos y mensajes de `packages/core` en español (decisión 192), más un segundo `webServer` en el puerto 3101 para el e2e del 429. | Los mensajes de Zod llegaban en inglés a la pantalla y el limitador del proxy solo se puede ejercitar con tope 1 en un servidor aparte. |
+| 2026-10-09 | D.14 | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): unas 1400 líneas de código, tests y e2e, sin documentación ni capturas. | Los tests por tipo de estado vacío, la tabla de mensajes del núcleo y el e2e con segundo servidor pesaron más de lo previsto (~1185 tras descartar el esqueleto). No se recortó nada. |

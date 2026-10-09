@@ -5217,6 +5217,134 @@ cierre: `url(` está prohibido en `globals.css`. Una biblioteca de iconos: una d
 
 ---
 
+## 186 — Lista de componentes de cliente ampliada a cuatro y CSS autónomo para las páginas fuera del layout
+
+**Estado:** aceptada (D.14; enmienda la 113).
+
+**Decisión.** La lista cerrada de `no-client-directive.test.ts` pasa de dos a cuatro ficheros: `coverage-status.tsx`, `search-map.tsx`,
+`error.tsx` y `global-error.tsx`. Next exige que los límites de error sean componentes de cliente y ambos necesitan un manejador de
+reintento. `not-found.tsx` y `components/empty-results.tsx` siguen siendo de servidor. `global-error.tsx` sustituye al layout raíz cuando
+este falla y la página 429 la construye el proxy como cadena: ninguna cuelga de `globals.css`, así que comparten
+`src/lib/standalone-page.ts` (`STANDALONE_PAGE_CSS`), una copia mínima de los tokens de `:root` y `.dark` que sigue
+`prefers-color-scheme`. `test/standalone-page.test.ts` fija la paridad con `globals.css` y el contraste AA en ambos esquemas.
+
+**Alternativas descartadas.** Importar `globals.css` desde `global-error.tsx`: arrastra todo Tailwind y falla justo cuando falla su
+propio fichero. Dejar `global-error` con estilos en línea sueltos: dos copias de los colores sin test de paridad.
+
+**Motivo.** Una pantalla de error no puede depender de lo que ha fallado, y la copia de tokens, al ser pequeña y comprobada, no se
+desincroniza en silencio.
+
+---
+
+## 187 — La existencia de la ficha se comprueba en su layout con un cargador compartido y en caché
+
+**Estado:** aceptada (D.14; enmienda la 148).
+
+**Decisión.** `app/properties/[listingId]/layout.tsx` valida el parámetro con Zod, espera `loadPropertyHeader` (en
+`src/server/property-header.ts`, con `import 'server-only'` y `cache()` de React) y llama a `notFound()` antes de renderizar nada. La
+página y `generateMetadata` usan el mismo cargador, de modo que la consulta se hace una vez por petición. Un identificador malformado
+no llega a la base de datos. La ficha no tiene `not-found.tsx` propio: el `notFound()` de un layout se resuelve con el raíz, que
+mantiene el estado HTTP 404 (comprobado en `e2e/global-states.spec.ts`).
+
+**Alternativas descartadas.** `notFound()` solo en la página: con una frontera de suspense por encima, el 404 llegaría ya con el
+estado 200 enviado. Un `not-found.tsx` de la ficha: duplicaba el raíz sin aportar nada distinto.
+
+**Motivo.** El estado HTTP correcto exige decidir la existencia antes de transmitir, y una sola consulta compartida evita pagarla tres
+veces.
+
+---
+
+## 188 — La home vive en el grupo de rutas `(search)`
+
+**Estado:** aceptada (D.14).
+
+**Decisión.** `app/page.tsx` pasa a `app/(search)/page.tsx`. El grupo no cambia ninguna URL. Se hizo para poder dar a la búsqueda su propio
+límite de carga sin que un `loading.tsx` raíz envolviera también al layout de la ficha (un `loading.tsx` raíz es el fallback de todos los
+segmentos anidados, layouts incluidos, y volvería a dar 200 a un 404). Tras descartar `loading.tsx` (decisión 191) el grupo se
+conserva: la estructura queda fijada por `app-structure.test.ts`, que prohíbe cualquier `loading.tsx` bajo `app/`.
+
+**Alternativas descartadas.** Dejar la home en `app/page.tsx` y poner el `loading.tsx` en la raíz: rompe el 404 de la ficha. Revertir el
+movimiento al descartar `loading.tsx`: el grupo es inocuo y la estructura queda lista para D.16 si se decide un esqueleto.
+
+**Motivo.** Aislar el segmento de la búsqueda cuesta un movimiento de fichero y evita un fallo que el e2e solo vería en producción.
+
+---
+
+## 189 — Página 429 en HTML en español, construida como cadena por un módulo sin `server-only`
+
+**Estado:** aceptada (D.14).
+
+**Decisión.** `src/server/rate-limit-page.ts` exporta `buildRateLimitResponse(retryAfterSeconds)`, que devuelve cuerpo y cabeceras
+(`Content-Type: text/html; charset=utf-8`, `Retry-After`, `Cache-Control: no-store`) de una página en español con
+`STANDALONE_PAGE_CSS`. `proxy.ts` la alcanza fuera del grafo de componentes de servidor, así que el módulo no importa `server-only` ni
+`next/*` y usa imports relativos. `Retry-After` conserva el valor del limitador sin recortar; el texto visible lo redondea (mínimo
+1 segundo, minutos desde 60). Sin cabeceras `RateLimit-*`. Las cabeceras de `next.config` (CSP, HSTS) llegan a las respuestas del proxy;
+la CSP admite estilo en línea. El e2e usa un segundo `webServer` en el puerto 3101 con el limitador activo y tope 1.
+
+**Alternativas descartadas.** Renderizar la página con React desde el proxy: el proxy no puede montar componentes. Una ruta
+`/rate-limited` con redirección: perdería el estado 429 y su cabecera.
+
+**Motivo.** El estado 429 y sus cabeceras son el contrato con clientes y cachés; la página solo cambia lo que ve la persona.
+
+---
+
+## 190 — Estado vacío en tres tipos, precedencia y alcance de los filtros
+
+**Estado:** aceptada (D.14; decisiones D10 y D13 de la especificación).
+
+**Decisión.** `EmptyResults` distingue `unfiltered` (la base no tiene viviendas con ubicación), `filtered` (los filtros no dejan
+ninguna) y `past-last-page` (página fuera de rango). `selectEmptyResultsKind` aplica la precedencia en cuatro pasos y un polígono que se
+queda vacío no pinta el aviso de la lista. `scopeEmptyResultsFilters` se calcula una vez y deja fuera el polígono y la zona sin cobertura
+aplicada, de modo que ni el recuento de filtros ni los enlaces de quitar los mencionan. `buildClearFiltersHref(params, { keep })` admite
+conservar `zone`/`zoneQuery` o `polygon`. El enlace de limpieza se llama «Quitar todos los filtros» solo cuando no conserva nada (mismo
+destino que la barra de chips) y «Quitar los demás filtros» cuando conserva zona o polígono (WCAG 3.2.4, identificación coherente).
+
+**Alternativas descartadas.** Un único mensaje «sin resultados»: no orienta sobre qué cambiar. Quitar siempre la zona y el polígono al
+limpiar: borra una selección que la persona acaba de hacer. Mantener el mismo nombre para dos destinos distintos: incumple 3.2.4.
+
+**Motivo.** Cada vacío tiene una causa y una salida distinta, y el enlace debe llamarse por lo que hace.
+
+---
+
+## 191 — Mitigación sin JavaScript para un esqueleto de carga: RECHAZADA
+
+**Estado:** rechazada (D.14, fase 0, spike descartable).
+
+**Decisión.** No se añade ningún `loading.tsx`, `LoadingState`, `NO_JS_STREAM_CSS` ni CSS de esqueleto. Sin JavaScript, Next deja el
+contenido real de una ruta que suspende en un `<div hidden id="S:n">` hasta que un script lo mueve. El spike probó un `<noscript><style>`
+que ocultaba el esqueleto y revelaba el contenido: el esqueleto se ocultó, pero el contenido siguió oculto. Evidencia: el esqueleto
+apareció en 20/20 peticiones de la home y 19/20 de la ficha, el contenido quedó oculto en `S:n` y fallaron seis pruebas e2e funcionales
+sin JS. La causa del contenido oculto no se diagnosticó.
+
+**Alternativas descartadas.** Esqueleto con `noscript` y `!important`: no revela el contenido. Esqueleto solo con JavaScript: la
+aplicación funciona sin JS (filtros, tema, enlaces) y no debe degradarse. Diagnosticar el streaming de Next hasta el fondo: fuera del
+alcance de D.14.
+
+**Motivo.** Un esqueleto que deja la página en blanco para quien no tiene JavaScript es peor que no mostrar carga; la búsqueda local es
+rápida y la página sigue sin estado de carga hasta que D.16 lo reconsidere con evidencia.
+
+---
+
+## 192 — Parámetros inválidos con rótulos en español y mensajes del núcleo en español
+
+**Estado:** aceptada (D.14; amplía la 160 y el Registro 134).
+
+**Decisión.** Los mensajes de validación de `packages/core` pasan a español sin clave ni jerga (`schemas/param-messages.ts`:
+`REPEATED_VALUE`, `CHOOSE_OPTION`, y un mensaje explícito para cada comprobación, también el desbordamiento a `Infinity` de los números
+con tubería). `apps/web/src/lib/search-labels.ts` mapea cada parámetro a un rótulo (`SEARCH_PARAM_LABELS`) y `formatSearchIssue`
+antepone «Precio mínimo (€): …»; una clave desconocida o un camino vacío nunca muestra la clave técnica. El aviso de la página usa tuteo
+(«Algún filtro no es válido; corrígelo abajo y vuelve a buscar. Detalle: …») y sustituye a `describeIssue`. Los mensajes dicen «enlace» y
+no «dirección», que se lee como dirección postal. Zod 4: el `error` de nivel de esquema lo heredan las comprobaciones sin mensaje
+propio, y un `z.number()` encadenado devuelve inglés ante un desbordamiento si no lleva el suyo; por eso cada pieza lleva el suyo.
+
+**Alternativas descartadas.** Traducir en la web los mensajes en inglés de Zod: acopla la web a textos que cambian con la versión.
+Mostrar la clave del parámetro como rótulo: es jerga técnica.
+
+**Motivo.** El mensaje de un filtro inválido es lo único que la persona lee del núcleo; debe estar en su idioma y en el sitio donde lo
+corrige.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
