@@ -30,6 +30,32 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-09 — Accesibilidad WCAG 2.2 AA (paso D.15, decisiones 193-202)
+
+**Tipo de tarea:** auditoría y corrección de accesibilidad (interfaz, mapa, galería), configuración de lint y e2e
+**Forma de especificación:** SDD (explorar, proponer, especificar, diseñar, tareas y aplicar en tres lotes y diez unidades; Engram
+`sdd/a11y-wcag22-d15/*`), un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable con retoques. Hubo que mantener siete desactivaciones de `jsx-a11y` en `price-history.tsx` (el diseño
+preveía tres), corregir el conmutador «Ver mapa/Ver lista» (20 px de alto aunque axe pasaba; no estaba en el diseño), escribir un
+puente de prueba para renderizar `error.tsx` y `global-error.tsx` bajo el runtime JSX de Playwright y arreglar una expresión regular
+`\b` rota que se había confirmado en `5f8301b` (corregida en `c7c023e`). La lista manual con NVDA queda pendiente del responsable, así
+que el paso sigue en curso.
+
+**Prompt:** el del paso D.15 de `docs/DESIGN-ROADMAP.md`, literal: «Paso D.15 de docs/DESIGN-ROADMAP.md. Usa `impeccable audit`,
+`impeccable harden` e `impeccable adapt`.
+
+- axe con wcag22aa sin violaciones en todas las rutas, anchos y temas de la suite de D.1.
+- Lista de comprobación manual, anotada en las notas: recorrido completo con teclado; pasada breve con lector de pantalla; zoom al 200 %
+  y reflujo a 320 px; foco no tapado por la cabecera fija (2.4.11); objetivos de 24 px (2.5.8); dibujo sin arrastre (2.5.7); mensajes de
+  estado (4.1.3); mapa y galería.
+- Decide si se incorpora eslint-plugin-jsx-a11y, aplazado en la decisión 011.
+- Un solo lote de correcciones.»
+
+**Observación:** la línea base de axe ya estaba vacía, así que «cero violaciones» no era el trabajo real: lo eran los estados que axe
+nunca recorría (bandeja abierta, alertas, ventana emergente, páginas de error) y lo que axe no detecta (nombre y ayuda del mapa, foco de
+la galería, tema activo). La prueba de caja de 24 px encontró un fallo de 2.5.8 que axe daba por bueno. Medir antes de arreglar
+también eximió la mitad de F5 (etiquetas del mapa) sin cambiar código.
+
 ### 2026-10-09 — Estados globales: 404, error, vacío, parámetros inválidos y 429 (paso D.14, decisiones 186-192)
 
 **Tipo de tarea:** interfaz (páginas de estado, estado vacío), copy (parámetros inválidos, mensajes de core), proxy (429) y e2e

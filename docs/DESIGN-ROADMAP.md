@@ -1360,7 +1360,7 @@ el estado vacío.
 
 # Bloque 6 — Pasadas transversales
 
-## [ ] D.15 · Accesibilidad WCAG 2.2 AA
+## [~] D.15 · Accesibilidad WCAG 2.2 AA
 
 ```text
 Paso D.15 de docs/DESIGN-ROADMAP.md. Usa `impeccable audit`, `impeccable harden` e
@@ -1390,6 +1390,57 @@ Paso D.15 de docs/DESIGN-ROADMAP.md. Usa `impeccable audit`, `impeccable harden`
 - **Riesgos:** que la auditoría abra trabajo por encima de R9: si pasa, partir el paso.
 - **Tamaño:** M.
 - **Evidencia:** C10, C11, C12, C13, C14, C15, C38.
+- **Estado (2026-10-09): D.15 en curso, pendiente de verificación manual.** La parte automática está hecha; el paso sigue `[~]` y
+  se cierra cuando el responsable devuelva los resultados de la lista manual de abajo. Un punto que falle se corrige o entra en la
+  tabla de desviaciones antes de cerrar. Aplicada con SDD en diez unidades de trabajo y tres lotes (Engram `sdd/a11y-wcag22-d15/*`),
+  un solo PR con `size:exception` aceptado por el responsable. Decisiones 193-202. Commits: `cfa08d0` (puerta de lint), `5f8301b`
+  (`.icon` única, atribución en español y tema activo), `9de2b22` (encabezado del resultado), `247f747` (galería), `ec63a62`
+  (campos rechazados), `c7c023e` (región de mapa y dirección que no recorta), `89dba4c` (axe en estados dinámicos y objetivo del
+  conmutador), `d3def5a` (capturas) y el de documentación.
+- **Qué hay:**
+  - `eslint-plugin-jsx-a11y` 6.10.2, `recommended` en `error` sobre `src/**/*.tsx` (decisión 193). Carga en ESLint 10.9.1, así que no
+    hizo falta el plan B de seis reglas. Siete desactivaciones por línea justificadas, todas en `price-history.tsx`.
+  - F1 y F8, galería: las diapositivas aceptan foco programático y los enlaces miden 40 px (200). F2, mapa: región con nombre y
+    ayuda de teclado visible enlazada con `aria-describedby` (194). F3, tema activo anunciado con texto alternativo CSS (195). F4,
+    campos rechazados con `aria-invalid` y descripción de error (196). F5, la dirección del resultado ya no se recorta (197). F6,
+    encabezado del resultado con tipo y operación (198). F7, atribución solo en español (199). F10, regla `.icon` única.
+  - `e2e/a11y-states.spec.ts` (nuevo, decisión 201): axe con `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa` y `wcag22aa` y violaciones
+    igual a `[]` (sin línea base ni capturas) en bandeja abierta a 320 y 768, parámetros inválidos, `?q=` vacío y con zona a elegir,
+    `?zoneQuery=`, página 2, ventana emergente del mapa, `error.tsx`, 429 y `global-error` en claro y oscuro. Más la prueba de tamaño
+    de objetivo de «Ver mapa» y «Ver lista» (decisión 202).
+- **Tests y comprobaciones:** web 82 ficheros y 1082 tests superados; `typecheck` y `lint` limpios. e2e en Docker: 716 superados, 0
+  fallidos (616 omitidos por las guardas de proyecto). La suite axe de D.1 no da ninguna violación y `axe-baseline.json` no cambia
+  (sigue vacío). Todos los estados dinámicos pasaron axe a la primera, sin correcciones de código por axe.
+- **Capturas:** 62 PNG regenerados en Docker (decisión 138), todos por causas esperadas: (a) párrafo de ayuda del mapa en todas las
+  rutas de búsqueda a 1280 y en `map` a 320 y 768, y marco de `draw-frame` más bajo a 1280; (b) dirección que ahora se parte en las
+  rutas de lista a 320; (c) enlaces de la galería de 40 px en `detail-gallery`; (d) conmutador «Ver mapa/Ver lista» de 40 px a 320 y
+  768, que no estaba en la lista del diseño (ver desviaciones). No cambian `nl-query`, `detail`, `detail-history`, `detail-single`,
+  `not-found-*` ni `draw-frame` a 320.
+- **Tamaño real:** 934 líneas (872 añadidas, 62 borradas) en 30 ficheros de código, tests y lockfile, sin documentación ni PNG;
+  previstas ~700 antes del lockfile.
+- **Hallazgos para la memoria:** axe a cero no implica cumplir 2.5.8: el conmutador medía 20 px de alto y solo la prueba de caja lo
+  detectó. La lista manual sigue haciendo falta (C38).
+
+**Lista de comprobación manual** (la ejecuta el responsable; todos los puntos están **pendientes**). Columnas por navegador solo donde el
+resultado puede diferir; «Evidencia automática» enumera lo que ya cubren los tests, que no sustituye a la comprobación humana.
+
+| # | Criterio | Procedimiento | Evidencia automática | Chrome + NVDA | Firefox + NVDA | Notas |
+| - | -------- | ------------- | -------------------- | ------------- | -------------- | ----- |
+| 1 | Recorrido completo con teclado | Solo Tab, Mays+Tab, Intro, Espacio y flechas: home, filtros, bandeja, resultados, paginación, mapa (con y sin dibujar), ficha y galería; orden lógico, foco siempre visible y sin trampas | `a11y-states` y `filter-tray` cubren la bandeja; D.8b cubre el teclado del mapa | pendiente | pendiente | |
+| 2 | Pasada breve con lector de pantalla | NVDA: encabezados (H), regiones (D), enlaces y formularios en home, mapa y ficha; nombres y estados coherentes | Landmarks y `h1` únicos (`landmarks.spec.ts`); h2 con tipo y operación | pendiente | pendiente | |
+| 3 | Zoom al 200 % (1.4.4) | Ampliar al 200 % solo el texto y también la página; nada se recorta ni se solapa | Prueba de espaciado de texto (1.4.12) en `a11y-states` sobre `.map-price` y `.result-row__address` | pendiente | pendiente | |
+| 4 | Reflujo a 320 px (1.4.10) | Ventana de 320 px de ancho CSS, sin desplazamiento horizontal salvo tabla del histórico y mapa | `landmarks.spec.ts` (sin desbordamiento en todas las rutas) y axe a 320 | pendiente | pendiente | |
+| 5 | Foco no tapado (2.4.11) | Tabular por la ficha con la cabecera fija y el precio fijo; ningún foco queda oculto | `property-detail.spec.ts` (foco no tapado, ventana baja 1280x480) | pendiente | pendiente | |
+| 6 | Objetivos de 24 px (2.5.8) | Revisar enlaces y botones de cada ruta, incluidos «Ver mapa», «Ver lista» y la galería | Cajas de «Ver mapa/Ver lista» y de los enlaces de galería (`a11y-states`, `property-detail`); botones del dibujo (D.8b); axe `target-size` | pendiente | pendiente | |
+| 7 | Dibujo sin arrastre (2.5.7) | Dibujar una zona solo con teclado y, con ratón, sin arrastrar | Pruebas e2e de D.8b (dibujo por teclado, mira, botones de 24 px) | pendiente | pendiente | |
+| 8 | Mensajes de estado (4.1.3) | Alertas de parámetros inválidos, «resultados», error de bandeja y aviso de cobertura anunciados sin mover el foco | axe en los estados con alerta (`a11y-states`) | pendiente | pendiente | F11: el `role="status"` del aviso de cobertura se renderiza en el servidor y puede no anunciarse al cargar; comprobar también el refresco acotado. Limitación documentada, solo se registra |
+| 9 | Mapa: teclado y ayuda | Tab hasta la región «Mapa interactivo»; NVDA lee su nombre y la descripción con el texto de ayuda; flechas y +/- mueven y amplían | Región con nombre, `tabindex` 0 y descripción accesible (`search-map.spec.ts`) | pendiente | pendiente | F2. F9: hasta 500 paradas de tabulación en marcadores (`MAP_POINT_CAP`); solo se registra la molestia, no se corrige en D.15 |
+| 10 | Galería: foco | Foto siguiente/anterior con Intro: el foco pasa a la diapositiva destino y NVDA la lee | Diapositivas con `tabindex="-1"` (unitario) y `document.activeElement` (`property-detail.spec.ts`) | pendiente | pendiente | F1 |
+| 11 | Foco tras error o reintento | Provocar `error.tsx` y «Reintentar»; el foco acaba en un lugar sensato y el cambio se anuncia | axe sobre `error.tsx` y `global-error` (`a11y-states`) | pendiente | pendiente | F12 |
+| 12 | Tema activo anunciado | En el selector de tema, NVDA dice «Sistema, activo» (o el tema vigente) y los demás sin «activo» | `theme.spec.ts` (nombre accesible con y sin cookie) | pendiente | pendiente | F3, decisión 195 |
+| 13 | Campos rechazados | Con `?minPrice=abc`, NVDA anuncia «no válido» y la descripción del error en el campo | Pruebas unitarias de `aria-invalid` y `aria-describedby`; axe en el estado inválido | pendiente | pendiente | F4 |
+
+Al volver los resultados: se rellenan las celdas con aprobado, fallado o notas, se corrigen o desvían los fallos y se cierra el paso.
 
 ---
 
@@ -1642,3 +1693,11 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-09 | D.14 | El estado vacío tiene un tercer tipo (`past-last-page`) además de «sin viviendas» y «filtros sin resultados», y el enlace de limpieza se llama «Quitar los demás filtros» cuando conserva zona o polígono (decisión 190). | Una página fuera de rango y un polígono vacío necesitan una salida distinta, y un mismo nombre para dos destinos incumple WCAG 3.2.4. |
 | 2026-10-09 | D.14 | Se incluye el Registro 134 completo: copy de parámetros inválidos en tuteo con rótulos y mensajes de `packages/core` en español (decisión 192), más un segundo `webServer` en el puerto 3101 para el e2e del 429. | Los mensajes de Zod llegaban en inglés a la pantalla y el limitador del proxy solo se puede ejercitar con tope 1 en un servidor aparte. |
 | 2026-10-09 | D.14 | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): unas 1400 líneas de código, tests y e2e, sin documentación ni capturas. | Los tests por tipo de estado vacío, la tabla de mensajes del núcleo y el e2e con segundo servidor pesaron más de lo previsto (~1185 tras descartar el esqueleto). No se recortó nada. |
+| 2026-10-09 | D.15 | Un solo PR que supera las 800 líneas (`size:exception`, aceptado por el responsable): 934 líneas de código, tests y lockfile (872 añadidas y 62 borradas), sin contar la documentación ni las 62 capturas. | La previsión era ~700 antes del lockfile; el espec de estados dinámicos, el puente de JSX y la corrección del conmutador pesaron más. No se recortó nada. |
+| 2026-10-09 | D.15 | F5 queda con exención parcial: las etiquetas de precio del mapa (`.map-price`) pasaron la prueba de espaciado de texto (1.4.12) y no se tocan; la dirección del resultado (`.result-row__address`) sí se recortaba a 320 px y se corrige con `overflow-wrap: anywhere`. Enmienda la decisión 197. | La tarea condicionaba el arreglo a que la prueba fallase primero; en el mapa no falló, así que no hay cambio que justificar. |
+| 2026-10-09 | D.15 | `price-history.tsx` lleva siete desactivaciones de `jsx-a11y` por línea y no tres: `tabIndex` de la región, `thead` y `tbody` con rol redundante y cuatro `td role="cell"`. El responsable confirmó mantenerlas. | La alternativa apilada de D.13b necesita los roles de tabla explícitos (decisión 193) y `td role="cell"` es un falso positivo de la regla. |
+| 2026-10-09 | D.15 | «Ver mapa» y «Ver lista» medían 20 px de alto a 320 y 768 aunque axe pasaba; se corrigen con `min-block-size: 2.5rem` (decisión 202). No estaba en el diseño y añade una causa más al cambio de capturas a 320 y 768. | La prueba de caja de la tarea R3 falló en rojo: axe no marcó un enlace en línea de 20 px. |
+| 2026-10-09 | D.15 | `a11y-states.spec.ts` convierte el árbol que Playwright devuelve al importar `error.tsx` y `global-error.tsx` en elementos de React con el puente de prueba `toReactNode` antes de `renderToStaticMarkup`. | Playwright impone su propio runtime JSX (`jsxImportSource`): los componentes devuelven nodos `__pw_type` y `react-dom/server` lanza «Objects are not valid as a React child». Se sigue escaneando el marcado real. |
+| 2026-10-09 | D.15 | La prueba de `draw-frame` de `search-map.spec.ts` mueve el ratón a (0, 0) antes de la captura. | El corrimiento de maquetación por el conmutador dejó el puntero parado sobre el enlace de atribución de OSM y el subrayado `:hover` cambiaba 81 px a 320 px. Con el ratón fuera, la captura coincide con la original. |
+| 2026-10-09 | D.15 | 62 capturas regeneradas en Docker (decisión 138): 22 a 1280 (ayuda del mapa y marco de `draw-frame`; galería), 20 a 320 y 20 a 768 (conmutador, dirección y ayuda). | Causas de la lista del diseño más el conmutador de 40 px; el resto de capturas, incluidas `nl-query`, `detail*`, `not-found-*` y `draw-frame` a 320, no cambia. |
+| 2026-10-09 | D.15 | El paso queda `[~]` y no `[x]`: la lista manual con NVDA (13 puntos) la ejecuta el responsable. T1.4 (comentario en `site-header.tsx`) no se hizo. | El criterio de cierre exige resultados humanos que el agente no puede dar; T1.4 era opcional y no cambia comportamiento. |

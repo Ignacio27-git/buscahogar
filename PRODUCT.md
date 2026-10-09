@@ -59,8 +59,9 @@ Disponible hoy:
 - Histórico de precios en la ficha: gráfico escalonado por anuncio y tabla accesible, con las
   fechas en que nuestro barrido observó cada precio.
 
-Planificado, todavía no construido (no se presenta como existente): ubicación aproximada en la
-ficha (D.11) y comparativa entre fuentes (D.12).
+- Ubicación aproximada en la ficha: mapa estático con un círculo de 500 m, sin punto exacto.
+- Comparativa entre fuentes en la ficha: cada anuncio con su precio, estado y la marca «Más
+  económico» entre los activos.
 
 Restricciones:
 
@@ -108,6 +109,7 @@ métricas de uso, testimonios, cifras de cobertura ni acuerdos con portales.
 
 ## Accessibility & Inclusion
 
-Objetivo: WCAG 2.2 AA. La comprobación automática con axe (`wcag22aa`) empieza en el paso D.1,
-todavía no construido. Sin desplazamiento horizontal de la página a 320 px. Las atribuciones CC-BY
+Objetivo: WCAG 2.2 AA. La comprobación automática con axe (`wcag22aa`) corre desde el paso D.1 en
+todas las rutas, anchos y temas, y en los estados dinámicos desde D.15. La lista manual con lector
+de pantalla de D.15 está pendiente de resultados. Sin desplazamiento horizontal de la página a 320 px. Las atribuciones CC-BY
 del IGN/CNIG y de OpenStreetMap siguen visibles y legibles.

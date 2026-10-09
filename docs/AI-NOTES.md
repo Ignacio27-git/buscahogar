@@ -3830,3 +3830,39 @@ contexto.
 **Observación:** el comportamiento de streaming y de cascada de límites de Next se mide con un spike antes de diseñar sobre él; un
 mecanismo de biblioteca se comprueba con una prueba mínima antes de ponerlo en la especificación; y el copy se lee en el estado donde
 aparece, no solo en el caso feliz.
+
+---
+
+### 2026-10-09 — Fallos intermedios en el diseño y la aplicación de D.15
+
+**Contexto:** diseño y aplicación de `a11y-wcag22-d15` (accesibilidad WCAG 2.2 AA) en `apps/web`.
+
+**Categoría:** código correcto en apariencia pero incorrecto / suposición sobre una herramienta sin comprobar / test que valida lo
+equivocado.
+
+**Qué se generó mal:**
+
+1. Un script de Python con `heredoc` sin comillas convirtió la `\b` de una expresión regular de `e2e/theme.spec.ts` en un retroceso
+   (carácter de control). Se confirmó en `5f8301b` y solo lo detectó Docker; se corrigió en `c7c023e`.
+2. Los ficheros de documentación y de código quedaron con finales de línea mezclados (CRLF y LF) tras ediciones por script, con
+   `autocrlf=true`.
+3. Se supuso que Playwright podía importar `error.tsx` y `global-error.tsx` y pintarlos con `react-dom/server`. Playwright impone su
+   propio runtime JSX (`jsxImportSource`): los componentes devuelven nodos `__pw_type` y `renderToStaticMarkup` lanzaba «Objects are
+   not valid as a React child». Hizo falta un puente de prueba (`toReactNode`) que convierte esos nodos en elementos de React.
+4. El diseño y la especificación daban por cumplido 2.5.8 para «Ver mapa» y «Ver lista» porque axe pasaba. La prueba de caja los midió
+   en 20 px de alto a 320 y 768 px: axe no marca un enlace en línea de ese tamaño. Se corrigió con `min-block-size: 2.5rem`
+   (decisión 202).
+5. La diferencia de 81 px en `draw-frame` a 320 px se tomó al principio por un cambio de producto (un subrayado nuevo). Era el puntero
+   parado sobre el enlace de atribución de OSM, que el corrimiento de maquetación del conmutador dejó bajo el ratón (`:hover`). Se
+   resolvió con `page.mouse.move(0, 0)` antes de la captura y la captura coincide con la original.
+6. El diseño previó tres desactivaciones de `jsx-a11y` en `price-history.tsx`; la puerta de lint real exigió siete (región, `thead`,
+   `tbody` y cuatro `td role="cell"`).
+7. Una segunda ejecución de `pnpm e2e run` borra `apps/web/test-results` (`outputDir`) y se perdieron los artefactos de diferencias de
+   la primera.
+
+**Cómo se detectó:** 1 en Docker, con el e2e de tema; 2 al revisar los ficheros tocados; 3 con el primer test del espec de estados; 4 con la prueba
+de caja escrita en rojo antes del arreglo; 5 al abrir las diferencias de la captura; 6 al correr `pnpm --filter web lint`; 7 al volver a
+buscar las diferencias.
+
+**Observación:** que axe pase no prueba un criterio de tamaño, y el número de excepciones de una regla se mide con el lint real, no se
+estima en el diseño. Una diferencia de captura se explica (puntero, desplazamiento) antes de atribuirla al producto.

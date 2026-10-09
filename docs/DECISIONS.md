@@ -221,6 +221,10 @@ de `typescript-eslint`, que son las que importan en este proyecto.
 `eslint-plugin-jsx-a11y`. Se reevalúa al introducir componentes de UI reales (paso 1.11),
 cuando exista una versión de `eslint-plugin-react` compatible con ESLint 10 o se decida
 usar `@next/eslint-plugin-next` como única fuente. Ver `AI-NOTES.md`.
+
+**Enmendada por la 193** (D.15): `eslint-plugin-jsx-a11y` se incorpora como dependencia directa y corre en `src/**/*.tsx`.
+`eslint-plugin-react` sigue fuera.
+
 **Nota (revisión 2026-09-04).** En la primera versión de esta decisión, `apps/web` dejó de
 reexportar además la configuración compartida de `packages/config`, quedando con un
 conjunto de reglas más laxo que el resto del monorepo. Eso incumplía el requisito del paso
@@ -5342,6 +5346,172 @@ Mostrar la clave del parámetro como rótulo: es jerga técnica.
 
 **Motivo.** El mensaje de un filtro inválido es lo único que la persona lee del núcleo; debe estar en su idioma y en el sitio donde lo
 corrige.
+
+---
+
+## 193 — `eslint-plugin-jsx-a11y` adoptado con la configuración `recommended` en `error`
+
+**Estado:** aceptada (D.15; enmienda la 011).
+
+**Decisión.** `eslint-plugin-jsx-a11y` 6.10.2 es dependencia directa de desarrollo de `apps/web` (fijada, sin rango) y
+`eslint.config.mjs` añade, antes de los bloques compartidos, `{ files: ['src/**/*.tsx'], ...jsxA11y.flatConfigs.recommended }`. Un
+`lint` real lo comprobó: el plugin carga y corre en ESLint 10.9.1 aunque su rango de pares llegue solo a ESLint 9, así que no hizo falta
+el plan B de las seis reglas de Next. Las reglas no corren sobre `e2e/` (lo comprueba `test/eslint-a11y-config.test.ts`). El
+`lockfile` cambia en 3 líneas y `package.json` en 1. Hay siete desactivaciones por línea, todas en `price-history.tsx` y con motivo:
+`tabIndex` de la región con desplazamiento propio, `thead` y `tbody` con rol explícito, y cuatro `td role="cell"`. Esos roles hacen falta
+en la alternativa apilada del histórico, que cambia el `display` de la tabla, y `td role="cell"` es un falso positivo de la regla. Cualquier otro hallazgo se corrigió en el código.
+
+**Alternativas descartadas.** `eslint-config-next/core-web-vitals`: arrastra `eslint-plugin-react`, que rompe en ESLint 10 (decisión
+011). La configuración `strict` del plugin: más estricta que lo que exige el paso, sin evidencia de que haga falta. Solo las seis reglas de Next
+como `error`: era el plan B, innecesario porque el plugin completo funciona. Suprimir los siete avisos con una desactivación global del
+fichero: oculta cualquier hallazgo futuro.
+
+**Motivo.** Cierra el aplazamiento de la 011 con un coste de siete líneas justificadas y una puerta de lint que evita regresiones de
+accesibilidad en el marcado.
+
+---
+
+## 194 — Región de mapa con nombre y ayuda de teclado visible
+
+**Estado:** aceptada (D.15, F2).
+
+**Decisión.** Un hijo `ContainerSemantics` de `SearchMapCanvas` (dentro de `search-map-canvas.tsx`, sin fichero de cliente nuevo; el
+allowlist de `no-client-directive` sigue en cuatro) usa `useMap` y asigna `role="region"`, `aria-label="Mapa interactivo"` y
+`aria-describedby` a `map.getContainer()`. El párrafo de ayuda (`<p id="map-keyboard-help">`) lo renderiza el servidor tras el marco en
+`app/(search)/page.tsx` y su id llega por la prop nueva `SearchMapProps.keyboardHelpId`. El texto es visible para todos.
+
+**Alternativas descartadas.** Pasar las propiedades a `MapContainer`: react-leaflet no reenvía `aria-*`. Un `div` envoltorio con la
+semántica: el elemento que recibe el foco es el contenedor de Leaflet. Ayuda solo en un `title`: no se ve ni se lee de forma fiable.
+
+**Motivo.** La descripción debe estar en el elemento que toma el foco; la ayuda visible sin JavaScript cumple el principio 4. Cambia las
+capturas de las rutas con mapa.
+
+---
+
+## 195 — Tema activo anunciado con texto alternativo de CSS
+
+**Estado:** aceptada (D.15, F3).
+
+**Decisión.** Las reglas `.light .theme-selector [value='light']::after` (y las de `dark` y `system`) fijan `content: '' / ', activo'`.
+El nombre accesible pasa a «Sistema, activo» y los botones inactivos no cambian. No hay cambio visual y la cabecera sigue siendo estática.
+
+**Alternativas descartadas.** `aria-pressed` leído de la cookie: hace dinámica la cabecera y rompe la decisión 147. Un script de
+cliente: añadiría un quinto fichero al allowlist. Texto visible «(activo)»: cambia el diseño del selector.
+
+**Motivo.** La coma inicial sobrevive al recorte de espacios del cálculo de nombre; Playwright 1.63 interpreta el texto alternativo tras
+`/`. Un lector de pantalla debe saber qué tema está activo sin mover la cabecera a modo dinámico.
+
+---
+
+## 196 — Campos rechazados con `aria-invalid` y descripción del error existente
+
+**Estado:** aceptada (D.15, F4).
+
+**Decisión.** Cada campo cuyo parámetro rechaza la validación lleva `aria-invalid="true"` y `aria-describedby` apuntando a la única
+alerta que ya existe, ahora con id (`filters-alert`, `criteria-alert`, `search-text-alert`). El ayudante compartido
+`rejectedParamKeys(issues)` de `lib/search-labels.ts` lo calculan las dos ramas de la página y llega a `FilterBar` y `CriteriaForm`
+como `rejectedKeys` y a `CriteriaFields` como `invalid`; `SearchTextForm` acepta `errorId`. La validación con Zod no cambia.
+
+**Alternativas descartadas.** Mensaje en línea por campo: duplica el texto de la alerta y agranda el cambio. Marcar todos los campos
+cuando hay alerta: el lector no sabría cuál corregir.
+
+**Motivo.** Una sola fuente de texto de error, y WCAG 3.3.1 y 1.3.1 piden que el campo en fallo se identifique de forma programática.
+
+---
+
+## 197 — Dirección del resultado que se parte en lugar de recortarse
+
+**Estado:** aceptada (D.15, F5; la parte del mapa queda exenta).
+
+**Decisión.** `.result-row__address` usa `overflow-wrap: anywhere` en lugar de `nowrap` con puntos suspensivos, de modo que el texto
+completo se ve a 320 px y con espaciado de texto del usuario. La mitad del mapa (etiquetas `.map-price` de tamaño fijo 96×24) se
+exime: la prueba de espaciado 1.4.12 pasó sin cambios, así que `map-cluster-layer.tsx` y `search-map-canvas.css` no se tocan. La
+prueba se escribió antes y falló solo para la dirección.
+
+**Alternativas descartadas.** Etiquetas del mapa con tamaño al contenido (`iconSize: undefined`, `translate`, `min-block-size`):
+estaba en el diseño, pero sin fallo que lo justifique es cambio sin evidencia. Una caja fija más grande: sigue recortando con más
+zoom o espaciado.
+
+**Motivo.** WCAG 1.4.4 y 1.4.12: ningún contenido se pierde. La exención está registrada en la tabla de desviaciones.
+
+---
+
+## 198 — Encabezado del resultado con tipo y operación
+
+**Estado:** aceptada (D.15, F6).
+
+**Decisión.** El `h2` de `result-card.tsx` es el precio visible más `<span class="sr-only">, {tipo · operación}</span>`. La cadena del
+tipo se construye una vez y alimenta también la línea visible.
+
+**Alternativas descartadas.** Reordenar la jerarquía visual para que el tipo encabece: quita el protagonismo al precio (principio 1).
+`aria-label` en el `h2`: sustituye al contenido visible y desalinea el nombre.
+
+**Motivo.** Quien navega por encabezados oye qué es cada resultado. Coste aceptado: el tipo se repite en el nombre del enlace.
+
+---
+
+## 199 — Atribución de Leaflet solo en español
+
+**Estado:** aceptada (D.15, F7).
+
+**Decisión.** El ayudante puro `stripPrefixTitles` (`src/lib/map-attribution.ts`) quita los atributos `title` del prefijo de Leaflet y
+un efecto `AttributionLanguage` lo aplica con `attributionControl.setPrefix(...)` al montar el mapa. No queda ningún `title` en
+`.leaflet-control-attribution` ni texto de prefijo en inglés (WCAG 3.1.2).
+
+**Alternativas descartadas.** Quitar el crédito de Leaflet o la bandera: es una atribución y debe seguir visible. Parchear el DOM tras renderizar:
+Leaflet lo reescribe. Un `replace` en línea sin ayudante: no se podía probar en unitario.
+
+**Motivo.** Sin cambio visual y con la regla comprobada por una prueba e2e (sin `[title]` en inglés).
+
+---
+
+## 200 — Diapositivas de la galería enfocables y enlaces de 40 px
+
+**Estado:** aceptada (D.15, F1 y F8).
+
+**Decisión.** Las diapositivas de `source-gallery.tsx` llevan `tabIndex={-1}` y `focus-visible:-outline-offset-2` (el contenedor con
+desplazamiento recorta los contornos exteriores) para que el enlace de fragmento mueva el foco a la diapositiva destino. Los enlaces
+de la galería son `inline-flex min-h-10 items-center`.
+
+**Alternativas descartadas.** Dejar el foco en el enlace de origen, que acaba fuera de la vista tras desplazar. Cumplir solo el mínimo
+de 24 px: el convenio de cabecera y ventana emergente es de 40 px.
+
+**Motivo.** El foco sigue al contenido (2.4.3) y los objetivos no dependen de la excepción de espaciado de 2.5.8.
+
+---
+
+## 201 — Axe sobre estados dinámicos sin línea base ni capturas
+
+**Estado:** aceptada (D.15).
+
+**Decisión.** `e2e/a11y-states.spec.ts` ejecuta axe con `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa` y `wcag22aa` y exige que la
+lista de violaciones sea `[]`. No usa `toHaveScreenshot` ni escribe en `axe-baseline.json`. Cubre bandeja abierta (320 y 768),
+parámetros inválidos, `?q=` vacío y con zona a elegir, `?zoneQuery=`, página 2, ventana emergente, `error.tsx`, la página 429 y
+`global-error` (claro y oscuro). `error.tsx` se inyecta con `renderToStaticMarkup` en el `<main>` de `/no-existe` para conservar el
+cascarón y el CSS reales; el 429 y `global-error` usan `setContent`. Playwright impone su runtime JSX al importar `.tsx`, así que
+un puente de prueba (`toReactNode`) convierte sus nodos en elementos de React; el marcado escaneado es el real. También mide el
+tamaño de «Ver mapa» y «Ver lista» (decisión 202).
+
+**Alternativas descartadas.** Una ruta de error solo para tests: código de producción que existe por la prueba. Añadir estos estados a
+la línea base: una línea base admite violaciones, y aquí el criterio es cero. Escanear una copia estática del HTML de las páginas de
+error: no usaría el CSS ni el cascarón reales.
+
+**Motivo.** La suite de D.1 solo recorre estados estáticos; los dinámicos eran el hueco real tras comprobar que la línea base estaba
+vacía. Todos pasaron a la primera.
+
+---
+
+## 202 — Conmutador «Ver mapa/Ver lista» con altura mínima de 40 px
+
+**Estado:** aceptada (D.15, 2.5.8; no estaba en el diseño).
+
+**Decisión.** `.view-toggle a` pasa a `display: inline-flex; align-items: center; min-block-size: 2.5rem`. Solo CSS: el marcado que
+verifican los tests no cambia. A 1280 px el conmutador sigue oculto (`display: none` desde 64rem) y la prueba lo comprueba.
+
+**Alternativas descartadas.** Añadir una clase de utilidad de Tailwind al enlace: toca el marcado cubierto por los tests unitarios y
+repite el valor. Confiar en axe: lo midió en verde con un enlace en línea de 20 px de alto, y la prueba de caja lo desmintió.
+
+**Motivo.** La prueba de caja de 24×24 falló en rojo a 320 y 768 px. Cambia las capturas de esas rutas (16 px por página).
 
 ---
 
