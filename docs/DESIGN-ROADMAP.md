@@ -1422,14 +1422,15 @@ Paso D.15 de docs/DESIGN-ROADMAP.md. Usa `impeccable audit`, `impeccable harden`
   lo recibe al montarse y `main#contenido` lo recupera tras un reintento si se perdió (203; `global-error` solo al montarse). El
   punto 13 (F4) falló porque nada decía que los campos numéricos solo admiten cifras: pista única visible enlazada con
   `aria-describedby` (204). Web 83 ficheros y 1102 tests; e2e en Docker 716 superados tras regenerar 24 PNG (bandeja abierta a 1280 en
-  10 rutas por 2 temas y `nl-query` en 3 anchos por 2 temas); `axe-baseline.json` sigue vacío. Los dos puntos quedan pendientes de que
-  el responsable los vuelva a comprobar.
+  10 rutas por 2 temas y `nl-query` en 3 anchos por 2 temas); `axe-baseline.json` sigue vacío. El responsable volvió a comprobar los
+  dos puntos con el Narrador: aprobados.
 - **Tamaño real:** 934 líneas (872 añadidas, 62 borradas) en 30 ficheros de código, tests y lockfile, sin documentación ni PNG;
   previstas ~700 antes del lockfile.
 - **Hallazgos para la memoria:** axe a cero no implica cumplir 2.5.8: el conmutador medía 20 px de alto y solo la prueba de caja lo
   detectó. La lista manual sigue haciendo falta (C38).
 
-**Lista de comprobación manual** (la ejecuta el responsable; todos los puntos están **pendientes**). «Evidencia automática»
+**Lista de comprobación manual** (la ejecuta el responsable; resultado: **13 de 13 aprobados**, los puntos 11 y 13 tras las
+correcciones de las decisiones 203 y 204). «Evidencia automática»
 enumera lo que ya cubren los tests, que no sustituye a la comprobación humana. Lector de pantalla: Narrador de Windows en Chrome
 (NVDA no se pudo instalar en la máquina del responsable; ver desviaciones).
 
@@ -1439,15 +1440,15 @@ enumera lo que ya cubren los tests, que no sustituye a la comprobación humana. 
 | 2 | Pasada breve con lector de pantalla | Narrador: encabezados, regiones, enlaces y formularios en home, mapa y ficha; nombres y estados coherentes | Landmarks y `h1` únicos (`landmarks.spec.ts`); h2 con tipo y operación | aprobado | No he detectado nignún problema |
 | 3 | Zoom al 200 % (1.4.4) | Ampliar al 200 % solo el texto y también la página; nada se recorta ni se solapa | Prueba de espaciado de texto (1.4.12) en `a11y-states` sobre `.map-price` y `.result-row__address` | aprobado | Todo se visualiza correctamente |
 | 4 | Reflujo a 320 px (1.4.10) | Ventana de 320 px de ancho CSS, sin desplazamiento horizontal salvo tabla del histórico y mapa | `landmarks.spec.ts` (sin desbordamiento en todas las rutas) y axe a 320 | aprobado | Ventana a 320px sin scroll lateral salvo la interacción con el mapa |
-| 5 | Foco no tapado (2.4.11) | Tabular por la ficha con la cabecera fija y el precio fijo; ningún foco queda oculto | `property-detail.spec.ts` (foco no tapado, ventana baja 1280x480) | notas | El precio si permanece fijo cuando scrolleo hacia abajo, pero nada más |
-| 6 | Objetivos de 24 px (2.5.8) | Revisar enlaces y botones de cada ruta, incluidos «Ver mapa», «Ver lista» y la galería | Cajas de «Ver mapa/Ver lista» y de los enlaces de galería (`a11y-states`, `property-detail`); botones del dibujo (D.8b); axe `target-size` | notas | Todo funciona bien, pero la galería no puedo usarla ya que no hay imágenes en los resultados obtenidos |
+| 5 | Foco no tapado (2.4.11) | Tabular por la ficha con la cabecera fija y el precio fijo; ningún foco queda oculto | `property-detail.spec.ts` (foco no tapado, ventana baja 1280x480) | aprobado | Todo bien |
+| 6 | Objetivos de 24 px (2.5.8) | Revisar enlaces y botones de cada ruta, incluidos «Ver mapa», «Ver lista» y la galería | Cajas de «Ver mapa/Ver lista» y de los enlaces de galería (`a11y-states`, `property-detail`); botones del dibujo (D.8b); axe `target-size` | aprobado | Todo funciona bien |
 | 7 | Dibujo sin arrastre (2.5.7) | Dibujar una zona solo con teclado y, con ratón, sin arrastrar | Pruebas e2e de D.8b (dibujo por teclado, mira, botones de 24 px) | aprobado | Funciona bien |
 | 8 | Mensajes de estado (4.1.3) | Alertas de parámetros inválidos, «resultados», error de bandeja y aviso de cobertura anunciados sin mover el foco | axe en los estados con alerta (`a11y-states`) | aprobado | F11: el `role="status"` del aviso de cobertura se renderiza en el servidor y puede no anunciarse al cargar; comprobar también el refresco acotado. Limitación documentada, solo se registra. Todo bien |
 | 9 | Mapa: teclado y ayuda | Tab hasta la región «Mapa interactivo»; el Narrador lee su nombre y la descripción con el texto de ayuda; flechas y +/- mueven y amplían | Región con nombre, `tabindex` 0 y descripción accesible (`search-map.spec.ts`) | aprobado | F2. F9: hasta 500 paradas de tabulación en marcadores (`MAP_POINT_CAP`); solo se registra la molestia, no se corrige en D.15. Lo que yo he revisado funciona bien |
-| 10 | Galería: foco | Foto siguiente/anterior con Intro: el foco pasa a la diapositiva destino y el Narrador la lee | Diapositivas con `tabindex="-1"` (unitario) y `document.activeElement` (`property-detail.spec.ts`) | notas | F1. Los resultados no tienen imágenes |
-| 11 | Foco tras error o reintento | Provocar `error.tsx` y «Reintentar»; el foco acaba en un lugar sensato y el cambio se anuncia | axe sobre `error.tsx` y `global-error` (`a11y-states`) | notas | F12. Al recargar aparece la pantalla de error pero el narrador no describe que ha pasado y no se sitúa el foco en el botón de reintentar. Corregido en `0bd0094` (decisión 203); pendiente de que el responsable lo vuelva a comprobar |
+| 10 | Galería: foco | Foto siguiente/anterior con Intro: el foco pasa a la diapositiva destino y el Narrador la lee | Diapositivas con `tabindex="-1"` (unitario) y `document.activeElement` (`property-detail.spec.ts`) | aprobado | F1. |
+| 11 | Foco tras error o reintento | Provocar `error.tsx` y «Reintentar»; el foco acaba en un lugar sensato y el cambio se anuncia | axe sobre `error.tsx` y `global-error` (`a11y-states`) | aprobado | F12. Al recargar aparece la pantalla de error pero el narrador no describe que ha pasado y no se sitúa el foco en el botón de reintentar. Corregido en `0bd0094` (decisión 203); el responsable lo volvió a comprobar con el Narrador y queda aprobado |
 | 12 | Tema activo anunciado | En el selector de tema, el Narrador dice «Sistema, activo» (o el tema vigente) y los demás sin «activo» | `theme.spec.ts` (nombre accesible con y sin cookie) | aprobado | F3, decisión 195. Funciona bien |
-| 13 | Campos rechazados | Con `?minPrice=abc`, el Narrador anuncia «no válido» y la descripción del error en el campo | Pruebas unitarias de `aria-invalid` y `aria-describedby`; axe en el estado inválido | fallado | F4. El narrador deletrea lo que tecleo pero nunca indica que en ese campo no se pueden escribir carácteres que no sean numéricos. Corregido en `810fa58` (decisión 204); pendiente de que el responsable lo vuelva a comprobar |
+| 13 | Campos rechazados | Con `?minPrice=abc`, el Narrador anuncia «no válido» y la descripción del error en el campo | Pruebas unitarias de `aria-invalid` y `aria-describedby`; axe en el estado inválido | aprobado | F4. El narrador deletrea lo que tecleo pero nunca indica que en ese campo no se pueden escribir carácteres que no sean numéricos. Corregido en `810fa58` (decisión 204); el responsable lo volvió a comprobar con el Narrador y queda aprobado |
 
 Al volver los resultados: se rellenan las celdas con aprobado, fallado o notas, se corrigen o desvían los fallos y se cierra el paso.
 
