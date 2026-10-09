@@ -10,6 +10,10 @@ import { assertE2eWebDatabaseUrl } from '@buscahogar/db/e2e';
 // contenedor y fija un origen exacto para el guard de red (`network-policy.ts`).
 const APP_PORT = 3100;
 const APP_ORIGIN = `http://127.0.0.1:${String(APP_PORT)}`;
+// D.14 (decisión 189): segundo servidor con el limitador del proxy activo y tope 1, solo para
+// `e2e/rate-limit.spec.ts`. El de 3100 lo deja desactivado (sin `CLIENT_IP_HEADER`).
+const LIMITED_PORT = 3101;
+const LIMITED_ORIGIN = `http://127.0.0.1:${String(LIMITED_PORT)}`;
 
 // El proceso de Playwright NUNCA debe tener la credencial de propietario: el
 // webServer hereda `process.env` (`{...DEFAULT_ENV, ...process.env, ...env}`,
@@ -67,24 +71,51 @@ export default defineConfig({
     deviceScaleFactor: 1,
   },
   projects,
-  webServer: {
-    // `next build && next start`, no `next dev`: sin overlay de desarrollo y con la
-    // CSP de producción (decisión 136). `reuseExistingServer: false`: un
-    // `dev:web` contra la base de desarrollo nunca debe reutilizarse.
-    command: `pnpm exec next build && pnpm exec next start --hostname 127.0.0.1 --port ${String(APP_PORT)}`,
-    url: APP_ORIGIN,
-    reuseExistingServer: false,
-    timeout: 240_000,
-    env: {
-      DATABASE_URL: webDatabaseUrl,
-      // Las credenciales de escritura acotadas se anulan aunque el entorno las
-      // heredase: el e2e solo lee (decisión 135), y la ruta `?q=` no escribe (decisión 122).
-      WEB_DATABASE_URL: '',
-      WEB_COVERAGE_DATABASE_URL: '',
-      // D.13 (decisión 181): las rutas `?zone=` leen el tope diario de zonas nuevas, que la página
-      // exige y nunca inventa. Con 1, el job pendiente sembrado «hoy» ya lo agota y la zona sin
-      // job (`coverage-cap`) muestra el aviso del tope global sin intentar escribir.
-      NEW_ZONES_DAILY_CAP: '1',
+  // Playwright arranca las entradas en orden: la primera construye `.next` y la segunda solo lo
+  // sirve (`next start` sin `next build`).
+  webServer: [
+    {
+      // `next build && next start`, no `next dev`: sin overlay de desarrollo y con la
+      // CSP de producción (decisión 136). `reuseExistingServer: false`: un
+      // `dev:web` contra la base de desarrollo nunca debe reutilizarse.
+      command: `pnpm exec next build && pnpm exec next start --hostname 127.0.0.1 --port ${String(APP_PORT)}`,
+      url: APP_ORIGIN,
+      reuseExistingServer: false,
+      timeout: 240_000,
+      env: {
+        DATABASE_URL: webDatabaseUrl,
+        // Las credenciales de escritura acotadas se anulan aunque el entorno las
+        // heredase: el e2e solo lee (decisión 135), y la ruta `?q=` no escribe (decisión 122).
+        WEB_DATABASE_URL: '',
+        WEB_COVERAGE_DATABASE_URL: '',
+        // D.13 (decisión 181): las rutas `?zone=` leen el tope diario de zonas nuevas, que la página
+        // exige y nunca inventa. Con 1, el job pendiente sembrado «hoy» ya lo agota y la zona sin
+        // job (`coverage-cap`) muestra el aviso del tope global sin intentar escribir.
+        NEW_ZONES_DAILY_CAP: '1',
+        // El limitador por IP queda desactivado en este servidor (decisión 078): el resto del e2e
+        // no debe toparse con un 429.
+        CLIENT_IP_HEADER: '',
+      },
     },
-  },
+    {
+      // D.14 (decisión 189): mismo build, limitador activo con tope 1 por ventana larga. Valores de
+      // prueba, no secretos. La URL de disponibilidad es `/icon.svg`, que el matcher del proxy
+      // excluye: comprobar que el servidor está listo no consume el cupo.
+      command: `pnpm exec next start --hostname 127.0.0.1 --port ${String(LIMITED_PORT)}`,
+      url: `${LIMITED_ORIGIN}/icon.svg`,
+      reuseExistingServer: false,
+      timeout: 60_000,
+      env: {
+        DATABASE_URL: webDatabaseUrl,
+        WEB_DATABASE_URL: '',
+        WEB_COVERAGE_DATABASE_URL: '',
+        NEW_ZONES_DAILY_CAP: '1',
+        CLIENT_IP_HEADER: 'x-e2e-client-ip',
+        CLIENT_IP_HMAC_KEY: 'e2e-only-hmac-key-not-a-secret-0123456789',
+        COVERAGE_PER_CLIENT_DAILY_CAP: '100',
+        PROXY_RATE_LIMIT_MAX: '1',
+        PROXY_RATE_LIMIT_WINDOW_SECONDS: '3600',
+      },
+    },
+  ],
 });

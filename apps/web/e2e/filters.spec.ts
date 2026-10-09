@@ -59,7 +59,16 @@ test.describe('barra de filtros y filtros aplicados', () => {
     for (const name of names) {
       expect(name).toMatch(/^Quitar filtro: /);
     }
-    await expect(page.getByRole('link', { name: 'Quitar todos los filtros' })).toBeVisible();
+    // D.14: esta ruta no devuelve resultados, así que el estado vacío ofrece el mismo enlace con el
+    // mismo nombre y destino que la barra (WCAG 3.2.4): uno en la barra y otro en los resultados.
+    const clearAll = page.getByRole('link', { name: 'Quitar todos los filtros' });
+    await expect(clearAll).toHaveCount(2);
+    await expect(clearAll.first()).toBeVisible();
+    await expect(
+      page.getByRole('region', { name: 'Resultados', exact: true }).getByRole('link', {
+        name: 'Quitar todos los filtros',
+      })
+    ).toHaveAttribute('href', '/');
   });
 
   test('sin filtros no hay chips ni «Quitar todos», pero el recuento sigue', async ({ page }) => {
