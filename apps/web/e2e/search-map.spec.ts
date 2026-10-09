@@ -536,6 +536,11 @@ test.describe('barra y mira (SMV-26, WCAG 2.5.8)', () => {
     await openMapView(page);
     await startDrawing(page);
     await drawTriangle(page);
+    // D.15: el puntero queda donde hizo clic «Dibujar zona»; al desplazarse la página para capturar
+    // el marco, un cambio de altura anterior (el conmutador de 40 px) lo dejó sobre el enlace de la
+    // atribución y la captura recogía su subrayado de `:hover`. Fuera del marco, el estado no depende
+    // del diseño de la página.
+    await page.mouse.move(0, 0);
     await expect(page.locator('.search-map__frame')).toHaveScreenshot('draw-frame.png', {
       animations: 'disabled',
     });
