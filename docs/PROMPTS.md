@@ -39,7 +39,10 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 preveía tres), corregir el conmutador «Ver mapa/Ver lista» (20 px de alto aunque axe pasaba; no estaba en el diseño), escribir un
 puente de prueba para renderizar `error.tsx` y `global-error.tsx` bajo el runtime JSX de Playwright y arreglar una expresión regular
 `\b` rota que se había confirmado en `5f8301b` (corregida en `c7c023e`). La lista manual queda pendiente del responsable, con el
-Narrador de Windows en vez de NVDA (no se pudo instalar), así que el paso sigue en curso.
+Narrador de Windows en vez de NVDA (no se pudo instalar), así que el paso sigue en curso. **Tras la pasada manual** fallaron dos
+puntos (error sin anuncio ni foco; campos numéricos sin aviso de «solo cifras») y se corrigieron en un lote de remediación
+(decisiones 203 y 204, commits `0bd0094` y `810fa58`), con la opción elegida por el responsable; pendientes de que los vuelva a
+comprobar.
 
 **Prompt:** el del paso D.15 de `docs/DESIGN-ROADMAP.md`, literal: «Paso D.15 de docs/DESIGN-ROADMAP.md. Usa `impeccable audit`,
 `impeccable harden` e `impeccable adapt`.

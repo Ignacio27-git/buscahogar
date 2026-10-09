@@ -5515,6 +5515,46 @@ repite el valor. Confiar en axe: lo midió en verde con un enlace en línea de 2
 
 ---
 
+## 203 — Foco al título de la página de error al montarse y a `main` tras reintentar
+
+**Estado:** aceptada (D.15, F12; hallazgo de la pasada manual con el Narrador, punto 11).
+
+**Decisión.** `error.tsx` y `global-error.tsx` mueven el foco a su `<h1>` (`tabIndex={-1}` y `ref`, enfocado en un efecto al montarse):
+el lector lee «No hemos podido cargar esta página» y el siguiente Tab llega a «Reintentar». En `error.tsx`, al desmontarse tras un
+reintento con éxito, el foco vuelve a `main#contenido` (destino del enlace «Saltar al contenido») solo si se perdió
+(`document.activeElement` es `body`, la raíz o `null`). En `global-error.tsx` solo se hace la parte del montaje: al reintentar,
+esa frontera sustituye a todo el documento y `main#contenido` aún no existe cuando se desmonta. La lógica vive en
+`src/lib/error-focus.ts` (funciones puras, sin DOM) para probarla en vitest; el título no pinta contorno propio, igual que `main`
+(`focus-visible:outline-hidden`, y la misma regla en `STANDALONE_PAGE_CSS`). No se añade ningún fichero de cliente: el allowlist sigue en 4.
+
+**Alternativas descartadas.** Foco en «Reintentar»: salta el título, así que el lector no dice qué ha pasado. `role="alert"` sin mover
+el foco: se anuncia, pero el foco queda perdido en `body` y el Tab siguiente empieza desde la cabecera.
+
+**Motivo.** El diseño clasificó F12 como «comprobar a mano» y la auditoría estática no vio que `error.tsx` no gestionaba el foco; el
+Narrador no anunciaba nada y el foco no estaba en ningún sitio.
+
+---
+
+## 204 — Una pista visible «solo cifras» para los campos numéricos
+
+**Estado:** aceptada (D.15, F4; hallazgo de la pasada manual con el Narrador, punto 13).
+
+**Decisión.** `CriteriaFields` pinta una sola pista, «Precio, superficie, habitaciones y baños: solo cifras.», con id
+`<prefijo>-numeric-hint` y `aria-describedby` en los seis campos `type="number"`. En la barra de filtros va en una línea propia encima
+de los campos; en el panel de `?q=`, al principio del grupo «¿Cuánto quieres pagar?». Una sola pista y no seis: repetirla seis veces
+saturaba el formulario y el lector la leería en cada campo con el mismo texto. Con un campo rechazado el orden es pista primero y
+alerta después (`filter-numeric-hint filter-alert`), el mismo que ya usa el campo de texto libre (`search-text-help` y su alerta, 196):
+una sola convención. Los desplegables solo se describen con la alerta. Sigue siendo Server Component puro.
+
+**Alternativas descartadas.** `type="text"` con `pattern` y validación nativa: pierde el teclado numérico y el control de pasos, y
+cambia el comportamiento del envío. Solo registrar el límite en la documentación: el usuario del lector seguiría sin saber por qué no
+se escribe una letra.
+
+**Motivo.** Chrome descarta en silencio las letras en `type="number"` y el Narrador solo deletreaba lo tecleado. Cambia las
+capturas donde la bandeja está abierta (1280 px) y `nl-query` (24 PNG).
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

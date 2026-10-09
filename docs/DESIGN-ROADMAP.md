@@ -1396,7 +1396,9 @@ Paso D.15 de docs/DESIGN-ROADMAP.md. Usa `impeccable audit`, `impeccable harden`
   un solo PR con `size:exception` aceptado por el responsable. Decisiones 193-202. Commits: `cfa08d0` (puerta de lint), `5f8301b`
   (`.icon` única, atribución en español y tema activo), `9de2b22` (encabezado del resultado), `247f747` (galería), `ec63a62`
   (campos rechazados), `c7c023e` (región de mapa y dirección que no recorta), `89dba4c` (axe en estados dinámicos y objetivo del
-  conmutador), `d3def5a` (capturas) y el de documentación.
+  conmutador), `d3def5a` (capturas) y el de documentación. Correcciones tras la lista manual (decisiones 203 y 204): `0bd0094` (foco
+  al título de `error.tsx` y `global-error.tsx`), `810fa58` (pista «solo cifras»), `3910193` (puente de prueba dentro de un renderizado
+  real, porque los componentes ya usan ganchos), `8053ac6` (24 capturas) y el de documentación.
 - **Qué hay:**
   - `eslint-plugin-jsx-a11y` 6.10.2, `recommended` en `error` sobre `src/**/*.tsx` (decisión 193). Carga en ESLint 10.9.1, así que no
     hizo falta el plan B de seis reglas. Siete desactivaciones por línea justificadas, todas en `price-history.tsx`.
@@ -1416,6 +1418,12 @@ Paso D.15 de docs/DESIGN-ROADMAP.md. Usa `impeccable audit`, `impeccable harden`
   rutas de lista a 320; (c) enlaces de la galería de 40 px en `detail-gallery`; (d) conmutador «Ver mapa/Ver lista» de 40 px a 320 y
   768, que no estaba en la lista del diseño (ver desviaciones). No cambian `nl-query`, `detail`, `detail-history`, `detail-single`,
   `not-found-*` ni `draw-frame` a 320.
+- **Correcciones tras la lista manual (Narrador):** el punto 11 (F12) falló porque `error.tsx` no gestionaba el foco: ahora el título
+  lo recibe al montarse y `main#contenido` lo recupera tras un reintento si se perdió (203; `global-error` solo al montarse). El
+  punto 13 (F4) falló porque nada decía que los campos numéricos solo admiten cifras: pista única visible enlazada con
+  `aria-describedby` (204). Web 83 ficheros y 1102 tests; e2e en Docker 716 superados tras regenerar 24 PNG (bandeja abierta a 1280 en
+  10 rutas por 2 temas y `nl-query` en 3 anchos por 2 temas); `axe-baseline.json` sigue vacío. Los dos puntos quedan pendientes de que
+  el responsable los vuelva a comprobar.
 - **Tamaño real:** 934 líneas (872 añadidas, 62 borradas) en 30 ficheros de código, tests y lockfile, sin documentación ni PNG;
   previstas ~700 antes del lockfile.
 - **Hallazgos para la memoria:** axe a cero no implica cumplir 2.5.8: el conmutador medía 20 px de alto y solo la prueba de caja lo
@@ -1437,9 +1445,9 @@ enumera lo que ya cubren los tests, que no sustituye a la comprobación humana. 
 | 8 | Mensajes de estado (4.1.3) | Alertas de parámetros inválidos, «resultados», error de bandeja y aviso de cobertura anunciados sin mover el foco | axe en los estados con alerta (`a11y-states`) | aprobado | F11: el `role="status"` del aviso de cobertura se renderiza en el servidor y puede no anunciarse al cargar; comprobar también el refresco acotado. Limitación documentada, solo se registra. Todo bien |
 | 9 | Mapa: teclado y ayuda | Tab hasta la región «Mapa interactivo»; el Narrador lee su nombre y la descripción con el texto de ayuda; flechas y +/- mueven y amplían | Región con nombre, `tabindex` 0 y descripción accesible (`search-map.spec.ts`) | aprobado | F2. F9: hasta 500 paradas de tabulación en marcadores (`MAP_POINT_CAP`); solo se registra la molestia, no se corrige en D.15. Lo que yo he revisado funciona bien |
 | 10 | Galería: foco | Foto siguiente/anterior con Intro: el foco pasa a la diapositiva destino y el Narrador la lee | Diapositivas con `tabindex="-1"` (unitario) y `document.activeElement` (`property-detail.spec.ts`) | notas | F1. Los resultados no tienen imágenes |
-| 11 | Foco tras error o reintento | Provocar `error.tsx` y «Reintentar»; el foco acaba en un lugar sensato y el cambio se anuncia | axe sobre `error.tsx` y `global-error` (`a11y-states`) | notas | F12. Al recargar aparece la pantalla de error pero el narrador no describe que ha pasado y no se sitúa el foco en el botón de reintentar |
+| 11 | Foco tras error o reintento | Provocar `error.tsx` y «Reintentar»; el foco acaba en un lugar sensato y el cambio se anuncia | axe sobre `error.tsx` y `global-error` (`a11y-states`) | notas | F12. Al recargar aparece la pantalla de error pero el narrador no describe que ha pasado y no se sitúa el foco en el botón de reintentar. Corregido en `0bd0094` (decisión 203); pendiente de que el responsable lo vuelva a comprobar |
 | 12 | Tema activo anunciado | En el selector de tema, el Narrador dice «Sistema, activo» (o el tema vigente) y los demás sin «activo» | `theme.spec.ts` (nombre accesible con y sin cookie) | aprobado | F3, decisión 195. Funciona bien |
-| 13 | Campos rechazados | Con `?minPrice=abc`, el Narrador anuncia «no válido» y la descripción del error en el campo | Pruebas unitarias de `aria-invalid` y `aria-describedby`; axe en el estado inválido | fallado | F4. El narrador deletrea lo que tecleo pero nunca indica que en ese campo no se pueden escribir carácteres que no sean numéricos |
+| 13 | Campos rechazados | Con `?minPrice=abc`, el Narrador anuncia «no válido» y la descripción del error en el campo | Pruebas unitarias de `aria-invalid` y `aria-describedby`; axe en el estado inválido | fallado | F4. El narrador deletrea lo que tecleo pero nunca indica que en ese campo no se pueden escribir carácteres que no sean numéricos. Corregido en `810fa58` (decisión 204); pendiente de que el responsable lo vuelva a comprobar |
 
 Al volver los resultados: se rellenan las celdas con aprobado, fallado o notas, se corrigen o desvían los fallos y se cierra el paso.
 
@@ -1702,4 +1710,5 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-09 | D.15 | La prueba de `draw-frame` de `search-map.spec.ts` mueve el ratón a (0, 0) antes de la captura. | El corrimiento de maquetación por el conmutador dejó el puntero parado sobre el enlace de atribución de OSM y el subrayado `:hover` cambiaba 81 px a 320 px. Con el ratón fuera, la captura coincide con la original. |
 | 2026-10-09 | D.15 | 62 capturas regeneradas en Docker (decisión 138): 22 a 1280 (ayuda del mapa y marco de `draw-frame`; galería), 20 a 320 y 20 a 768 (conmutador, dirección y ayuda). | Causas de la lista del diseño más el conmutador de 40 px; el resto de capturas, incluidas `nl-query`, `detail*`, `not-found-*` y `draw-frame` a 320, no cambia. |
 | 2026-10-09 | D.15 | El paso queda `[~]` y no `[x]`: la lista manual con NVDA (13 puntos) la ejecuta el responsable. T1.4 (comentario en `site-header.tsx`) no se hizo. | El criterio de cierre exige resultados humanos que el agente no puede dar; T1.4 era opcional y no cambia comportamiento. |
+| 2026-10-09 | D.15 | Tras la lista manual, los puntos 11 y 13 fallaron y se corrigen dentro del paso (decisiones 203 y 204): foco al título de las páginas de error y pista «solo cifras». `a11y-states.spec.ts` renderiza ahora los componentes dentro de un envoltorio de React real porque usan ganchos. 24 capturas más regeneradas en Docker (decisión 138). | Son fallos del paso, no trabajo nuevo; el cierre exige que el responsable los vuelva a comprobar. La auditoría estática no vio la falta de gestión del foco (F12 estaba clasificado «comprobar a mano»). |
 | 2026-10-09 | D.15 | La lista manual se ejecuta con el Narrador de Windows en Chrome en vez de NVDA, con una sola columna en lugar de las dos previstas por navegador. | NVDA no se pudo instalar en la máquina del responsable; el Narrador viene integrado en Windows y cubre el mismo criterio sin instalación. |

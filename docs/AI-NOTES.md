@@ -3833,6 +3833,24 @@ aparece, no solo en el caso feliz.
 
 ---
 
+### 2026-10-09 — F12 clasificado «comprobar a mano» y la falta de foco en `error.tsx` no se vio (D.15)
+
+**Contexto:** la pasada manual de D.15 con el Narrador encontró que, al aparecer la página de error, no se anunciaba nada y el foco no
+estaba en ningún sitio (punto 11).
+
+**Categoría:** omisión de la auditoría / suposición sin comprobar.
+
+**Qué se generó mal:** el diseño y la exploración clasificaron F12 como «comprobar a mano» y la auditoría estática no abrió
+`error.tsx` para ver que no tenía ninguna gestión del foco, algo que se leía en el propio código. axe sobre el marcado de la página
+de error pasaba, así que la evidencia automática daba una falsa seguridad. Se corrigió con foco al título al montarse (decisión 203).
+Además, las imágenes de la galería solo existen dentro de la imagen de Docker de e2e: el responsable no pudo probar la galería en una
+pasada local (puntos 6 y 10) y hubo que dejar copias temporales de los PNG fuera de git.
+
+**Observación:** «comprobar a mano» no exime de leer el código que se puede leer; y un criterio que dependa de datos de prueba que solo
+viven en el contenedor hay que anunciarlo antes de pedir una pasada manual.
+
+---
+
 ### 2026-10-09 — Fallos intermedios en el diseño y la aplicación de D.15
 
 **Contexto:** diseño y aplicación de `a11y-wcag22-d15` (accesibilidad WCAG 2.2 AA) en `apps/web`.
