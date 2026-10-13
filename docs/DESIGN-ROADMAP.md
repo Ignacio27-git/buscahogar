@@ -1502,7 +1502,7 @@ Paso D.16 de docs/DESIGN-ROADMAP.md. Usa las skills emil-design-eng y animate (o
 
 ---
 
-## [ ] D.17 · Pulido final y DESIGN.md
+## [x] D.17 · Pulido final y DESIGN.md
 
 ```text
 Paso D.17 de docs/DESIGN-ROADMAP.md. Usa `impeccable critique`, `impeccable polish` e
@@ -1533,6 +1533,34 @@ Paso D.17 de docs/DESIGN-ROADMAP.md. Usa `impeccable critique`, `impeccable poli
 - **Riesgos:** que el pulido se convierta en un rediseño; limitarlo a un lote.
 - **Tamaño:** S-M.
 - **Evidencia:** C36, C37.
+- **Estado (2026-10-13): D.17 hecho.** Aplicada con SDD (Engram `sdd/design-polish-d17/*`) en siete commits de un solo PR con
+  `size:exception` aceptado por el responsable: `2a74779` (cobertura e2e de las páginas autónomas), `2ada7eb` (lote de pulido),
+  `23a1978` (tokens sin uso), `79630db` (objetivos de 40 px de la cabecera), `5a6f589` (marco del mapa vacío alineado), `38d6f0f`
+  (`DESIGN.md` y sidecar) y el de documentación. Decisiones 209-216.
+- **Crítica:** 28/40 (Buena), con dos agentes aislados (revisión de las capturas y detector más inyección en el navegador). El detector
+  salió limpio; sus dos falsos positivos (relleno justo del marco de Leaflet y texto tapado de la bandeja cerrada) se descartaron. El informe cerrado
+  se conserva en `apps/web/.impeccable/critique/2026-10-13T11-25-45Z__src-app.md`.
+- **Lote de pulido (B1-B9):** B1 chip de zona sin datos con rótulo; B2 barra de filtros con relleno de acento en «Aplicar filtros», alto
+  fijo y pista «solo cifras»; B3 sobre el mapa solo el recuento y los avisos en un pie; B4 insignia «Disponible en N fuentes» más fuerte
+  que «1 fuente»; B5 panel único de cobertura con etiqueta de estado; B6 indicador de pasos sin cambios (se documentó); B7 cabecera
+  compacta; B8 revisión en lenguaje natural con los radios agrupados; B9 estados de anuncio unificados. Más tres detalles P3 en ficheros ya tocados: hueco
+  «Sin foto» con un 5 % de tinta, subrayado como tercera señal del tema activo y cabeceras numéricas alineadas a la derecha.
+- **Tokens retirados:** seis (`--success`, `--color-success`, `--z-base`, `--z-overlay`, `--color-focus` y `--color-danger`).
+- **Capturas:** 120 de referencia (102 más 18 de las páginas autónomas). Respecto a la cobertura autónoma (`2a74779`), 108 cambiaron (revisadas
+  una a una por seis revisores aislados), incluidas las 34 que se regeneraron otra vez a 320 al corregir la cabecera y las dos de
+  `home-filtered` a 1280 al alinear el mapa. La suite Docker completa pasa con axe a cero.
+- **Inyección solo en Docker:** `error-boundary` y `global-error` se capturan con rutas inyectadas en la imagen de e2e (decisión 209); la
+  429, con un cubo del limitador por proyecto (decisión 210). Nada de esto existe en `src/app`.
+- **`DESIGN.md` y `.impeccable/design.json`:** derivados de `globals.css`, con `test/design-md.test.ts` como espejo (decisión 216).
+- **Fuentes del e2e:** la imagen Docker solo tiene WenQuanYi Zen Hei en regular, así que las capturas pintan los pesos 600 y 700 como
+  400. Es una limitación del entorno de capturas, no de la aplicación; no se corrige en este paso.
+- **Seguimientos (no entran en D.17):** el orden junto al recuento; la caja de lenguaje natural compitiendo con los filtros en las
+  páginas de resultados; la lista vacía para zonas sin cubrir; el texto «Ordenar por / Sentido: Cualquiera»; el chip duplicado en el
+  estado vacío (decisión 190); la columna de precios desigual («1180 €» frente a «185.000 €»); el ancho del gráfico del histórico;
+  páginas autónomas sin el nombre del producto; la bandeja de filtros arriba y los chips como fila desplazable en móvil (C6); fechas de
+  la ficha que parecen contradictorias (revisar si es la semilla o la lógica); «Filtros N» no cuenta el radio (decisión 154); la cabecera
+  aún ocupa dos filas a 320; la etiqueta «Precio más bajo» frente a «Más económico»; y el chip de zona más largo, cerca de
+  desbordar a 320.
 
 ---
 
@@ -1733,3 +1761,8 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-13 | D.16 | Un solo PR de 1.257 líneas cambiadas con `size:exception` (1.089 de código y tests y 168 de documentación, medidas con `git diff --shortstat e8236f2`) frente al presupuesto de 800, concedido por el responsable. | La previsión era ~770 y se quedó corta en el test de tokens (+246 sobre 95), el del parche (+294 sobre 150) y el espec e2e (+239 sobre 125). No se recortó ningún test. |
 | 2026-10-13 | D.16 | El espec e2e usa `w320-light` para el ancho móvil y no 390. | No hay proyecto de 390: los anchos del e2e son 320, 768 y 1280, y 320 ya está por debajo de 64rem. |
 | 2026-10-13 | D.16 | El test de contrato de Leaflet lee el fichero de `require.resolve('leaflet')` y no el campo `module`. | Leaflet 1.9.4 no declara `module` en su `package.json`; el diseño lo daba por existente y se corrigió al conciliar las tareas. |
+| 2026-10-13 | D.17 | Se añade `.impeccable/design.json` (sidecar de `impeccable document`) además de `DESIGN.md`. | La hoja de ruta solo pedía `DESIGN.md`; el sidecar guarda lo que el frontmatter no admite (rampas, sombras, movimiento, puntos de ruptura y componentes con HTML y CSS) y alimenta el panel de impeccable. Va comprobado por el mismo test de paridad (decisión 216). |
+| 2026-10-13 | D.17 | Se añaden 18 capturas de las páginas autónomas (`error-boundary`, `global-error` y 429, seis proyectos cada una): de 102 a 120. | Decisión del responsable: eran las únicas páginas sin cobertura visual y copian los tokens a mano (decisiones 209 y 210). |
+| 2026-10-13 | D.17 | Cambia el orden: la cobertura de las páginas autónomas va antes de la crítica y no después del pulido. | Así la crítica ve las tres páginas con capturas reales y no se estrena una base de capturas nueva después de revisar. |
+| 2026-10-13 | D.17 | Siete commits en lugar de los cinco previstos: dos correcciones (objetivos de 40 px de la cabecera, decisión 200; y marco del mapa vacío alineado) y el commit de `DESIGN.md` separado del de documentación. | El lote B7 bajó la cabecera a 32 px contra la decisión 200 y se revirtió en la puerta del orquestador. La revisión captura a captura de `home-filtered` encontró que la frase del mapa vacío bajaba el marco 32 px respecto a la lista. |
+| 2026-10-13 | D.17 | Un solo PR con `size:exception` aceptado por el responsable frente al presupuesto de 800 líneas. | El trabajo cohesivo (pulido, tokens, `DESIGN.md`, sidecar, test de paridad y documentación) no se parte sin dejar commits que no se sostienen solos; no se recortó ningún test ni comentario. |

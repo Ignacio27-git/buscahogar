@@ -189,6 +189,10 @@ días son una elección del proyecto y viven como constantes en `policy.ts`.
   editable (el envío lleva `form=criteria`): no ejecuta la búsqueda ni toca cobertura, señales ni
   cuota. El lugar se resuelve contra nuestra base de datos (`suggestZones`, solo lectura) y solo una
   coincidencia exacta selecciona la zona. Decisiones 120-124.
+- El sistema visual está documentado en `DESIGN.md` (raíz) y `.impeccable/design.json`, derivados de `globals.css`; `test/design-md.test.ts`
+  comprueba que no se desvían (decisión 216).
+- Las rutas de error solo para e2e se inyectan en tiempo de build únicamente dentro de la imagen Docker de e2e, desde
+  `apps/web/e2e/inject/`, y nunca existen en `src/app`; un test de frontera lo vigila (decisión 209).
 - No se usan TanStack Query ni Zustand en la ruta principal.
 - Imágenes remotas servidas mediante la optimización de imágenes de Next; no se almacenan.
 

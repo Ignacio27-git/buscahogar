@@ -31,7 +31,7 @@ const CSS_PATH = join(SRC_DIR, 'app', 'globals.css');
 const RAW_CSS = readFileSync(CSS_PATH, 'utf8');
 const ROOT = parseCss(RAW_CSS);
 
-/** Los 14 tokens de color vigentes (D.17, decisión 209: `--success` se retiró por no usarse). */
+/** Los 14 tokens de color vigentes (D.17, decisión 212: `--success` se retiró por no usarse). */
 const COLOR_TOKENS = [
   'surface',
   'surface-raised',

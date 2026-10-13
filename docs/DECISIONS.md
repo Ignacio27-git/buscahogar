@@ -5640,6 +5640,147 @@ no es movimiento que explique un cambio de estado y rompería «solo `transform`
 
 ---
 
+## 209 — Las rutas de error solo para e2e se inyectan en la build de Docker, nunca en `src/app`
+
+**Estado:** aceptada (D.17).
+
+**Decisión.** `Dockerfile.e2e` copia `apps/web/e2e/inject/app/` a `apps/web/src/app/` justo antes de `next build`, con una guarda
+`test ! -e` para no pisar nada. La carpeta contiene `e2e-only/error-boundary/page.tsx` (lanza al renderizar, `force-dynamic`),
+`e2e-only/global-error/page.tsx` (no pinta nada) y `template.tsx` (de cliente; lanza solo en `/e2e-only/global-error`). La plantilla
+raíz queda por encima del límite de error raíz (Layout, Template, ErrorBoundary), así que lo que lanza solo lo recoge
+`global-error.tsx`. `test/e2e-injection-boundary.test.ts` fija la frontera: ni `src/app/template.*` ni `src/app/e2e-only` existen en el
+árbol versionado, ninguna fuente de `src` menciona `e2e/inject` ni `E2E_ONLY`, y solo `Dockerfile.e2e` se refiere a `e2e/inject`. La build
+de producción hecha en el anfitrión no tiene `/e2e-only` en `.next/app-path-routes-manifest.json`.
+
+**Alternativas descartadas.** Una ruta de prueba versionada en `src/app` protegida por una variable de entorno: existiría en la build de
+producción y D.15 ya había renunciado a ella (decisión 201). Renderizar los componentes con `react-dom/server` en un test: no es la página
+servida con su CSS real, que es lo que se captura. Un parámetro de consulta que fuerce el fallo: sería un camino de fallo en producción.
+
+**Motivo.** Es la única forma de capturar `error.tsx` y `global-error.tsx` tal como las sirve Next sin que nada de prueba llegue al
+artefacto de producción, y el test de frontera lo hace comprobable.
+
+---
+
+## 210 — Dieciocho capturas de las páginas autónomas, con un cubo del limitador por proyecto
+
+**Estado:** aceptada (D.17); la pidió el responsable antes de la crítica.
+
+**Decisión.** `error.tsx`, `global-error.tsx` y la página 429 se capturan en los seis proyectos (3 anchos por 2 temas): 18 capturas nuevas,
+de 102 a 120 en total. La 429 sale del segundo servidor (puerto 3101, limitador activo con tope 1, decisión 189) y cada proyecto envía su
+propia cabecera `x-e2e-client-ip` (rango de documentación 198.51.100.x, cuatro direcciones reservadas por proyecto para los reintentos),
+de modo que ninguno comparte cubo con otro. El espec comprueba además que `matchMedia` devuelve el esquema esperado, que el `body` no es
+transparente y que axe no da ninguna violación.
+
+**Alternativas descartadas.** Reiniciar el servidor 3101 entre proyectos: es lento y el estado del limitador es global al proceso. Capturar
+un solo proyecto: no cubriría los tres anchos ni el tema oscuro del CSS autónomo de `standalone-page.ts`. No capturarlas: ese CSS es una
+copia de `globals.css` que podía romperse sin que nada lo viera.
+
+**Motivo.** Son las tres páginas que no cuelgan de ninguna ruta de `ROUTES` y la única copia manual de los tokens del sistema.
+
+---
+
+## 211 — Una sola palabra para el estado de un anuncio
+
+**Estado:** aceptada (D.17); texto aprobado por el responsable.
+
+**Decisión.** Un anuncio se muestra como «Disponible» o «No disponible» en toda la ficha, con `listingStatusLabel`
+(`src/lib/listing-status.ts`): solo el valor exacto `'active'` es disponible, igual que el SQL, y cualquier otro estado (inactivo, retirado
+o desconocido) es no disponible. Antes la fila de la fuente decía «Retirado» y la insignia del histórico «(no disponible)». Se eligió la
+palabra que ya dominaba en el código y en los tests. Solo cambian los estados: «Ordenar por» y «Sentido: Cualquiera» no se tocan.
+
+**Alternativas descartadas.** «Retirado» como palabra única: solo describe uno de los estados y un anuncio inactivo o de estado
+desconocido no está retirado. Mantener las tres palabras: nombra con textos distintos el mismo estado en la misma página. Distinguir
+retirado de inactivo: el producto no hace esa distinción hoy.
+
+**Motivo.** El mismo estado debe leerse igual en la cabecera, en la lista de fuentes y en el histórico.
+
+---
+
+## 212 — Retirada de seis tokens sin uso
+
+**Estado:** aceptada (D.17).
+
+**Decisión.** Se eliminan de `globals.css` `--success` (en los tres bloques de tema), `--color-success`, `--z-base`, `--z-overlay` y las
+utilidades `--color-focus` y `--color-danger`. Se conservan las variables `--focus` y `--danger`, que sí se usan con `var()` (anillo de
+foco y borde de los paneles de alerta). Quedan 14 tokens de color y tres capas z (`map-controls`, `sticky-header`, `toast`).
+`design-tokens.test.ts` se ajusta (14 colores, `focus` y `danger` fuera de las utilidades, pares de contraste sin `success`, z
+reducida) y su snapshot pierde las seis filas.
+
+**Alternativas descartadas.** Conservarlos por si hicieran falta: `DESIGN.md` documentaría tokens que ningún componente usa y el test de
+contraste seguiría comprobando pares inertes. Retirar también `--focus` y `--danger`: se usan en el CSS base y en los avisos.
+
+**Motivo.** Un sistema de diseño documentado debe contener solo lo que usa; el resto es deuda que el documento heredaría.
+
+---
+
+## 213 — Zona sin datos: chip marcado y rótulo de la lista, con el comportamiento intacto
+
+**Estado:** aceptada (D.17); texto aprobado por el responsable.
+
+**Decisión.** Cuando la zona pedida existe pero aún no tiene datos y no se aplica (D10), el chip dice «Zona: <Municipio> · sin datos
+todavía» (`ZONE_UNAPPLIED_SUFFIX` en `search-labels.ts`) y sigue siendo quitable, y sobre la lista aparece el rótulo «Mientras tanto,
+viviendas de todos los municipios» (`.search-results__caption`) cuando hay resultados. La búsqueda se comporta exactamente igual que
+antes: la zona sigue sin aplicarse hasta que tenga datos.
+
+**Alternativas descartadas.** Aplicar la zona y dejar la lista vacía: cambia el comportamiento y queda como seguimiento. Ocultar el chip:
+el usuario vería viviendas de otros municipios sin saber por qué.
+
+**Motivo.** La crítica señaló que el chip afirmaba una zona que la lista no respetaba; basta decirlo con texto sin cambiar la lógica.
+
+---
+
+## 214 — Estado de la cobertura con etiqueta de texto y un único panel
+
+**Estado:** aceptada (D.17).
+
+**Decisión.** El aviso de la actualización de una zona lleva una etiqueta de texto con el estado del trabajo («En cola», «En curso»,
+«Terminada», «Fallida») con borde `rule-control`, y vive dentro de un único `.coverage-panel` junto con la frase de refresco automático y,
+al final, el enlace «Comprobar de nuevo». El aviso sigue siendo la región viva y el panel toma el borde `danger` solo cuando es una alerta.
+
+**Alternativas descartadas.** Distinguir el estado solo con color o con un icono: no se distingue sin color. Un indicador de progreso
+animado: sería movimiento nuevo fuera de las decisiones 205-208. Paneles anidados (aviso dentro de un panel): nunca se anidan cajas.
+
+**Motivo.** El estado no puede depender solo del color y el enlace de recarga debe quedar al final, donde se lee la acción.
+
+---
+
+## 215 — La cabecera se compacta por debajo de 30rem sin reducir los objetivos de 40 px
+
+**Estado:** aceptada (D.17); confirma la decisión 200.
+
+**Decisión.** Por debajo de 30rem solo se reducen el relleno vertical y el hueco entre filas (`max-[30rem]:py-2` y
+`max-[30rem]:gap-y-0`). Los cinco objetivos de la cabecera (marca, «Buscar» y los tres botones del tema) siguen midiendo 40 px
+(`min-h-10`) a todos los anchos, y `layout-shell.test.ts` lo fija. Un primer intento los bajó a 32 px y se revirtió en la puerta del
+orquestador. El selector de tema sigue en una segunda fila a 320 px: queda como seguimiento.
+
+**Alternativas descartadas.** Objetivos de 32 px bajo 30rem: cumplen 2.5.8, pero contradicen el criterio de 40 px que la decisión 200
+fijó para toda la cabecera. Un menú desplegable para el tema: sería un componente de cliente nuevo y la cabecera es estática (147).
+
+**Motivo.** Recuperar altura sin tocar el contrato táctil de la app.
+
+---
+
+## 216 — `DESIGN.md` y su sidecar: formato, idioma y derivación comprobada por un test
+
+**Estado:** aceptada (D.17).
+
+**Decisión.** `DESIGN.md` en la raíz sigue el formato de la especificación (frontmatter con colores, tipografía, radios, espaciado y
+componentes, y las ocho secciones canónicas con sus encabezados en inglés); la prosa, los nombres y la narrativa van en español, por la
+regla de documentación del proyecto. `.impeccable/design.json` (esquema 2) guarda lo que el frontmatter no admite: rampas tonales, sombras,
+movimiento, puntos de ruptura, escala z, anillo de foco, componentes con HTML y CSS, y la narrativa. Los valores se copian literalmente de
+`globals.css` (el hex sigue siendo hex y el OKLCH, OKLCH; `accent` se llama `primary` y los valores oscuros llevan el sufijo `-dark`).
+`test/design-md.test.ts` compara como texto cada valor con la hoja final y comprueba los ocho encabezados y el sidecar; lee el frontmatter
+con un análisis plano propio (acepta comillas simples y dobles, porque Prettier las normaliza). Norte creativo «La Hoja del Mapa
+Topográfico» y nombres de color (Azul de hidrografía, Siena de trama, Tinta de plancha, Filete de marco) confirmados por el responsable.
+
+**Alternativas descartadas.** Redactarlo desde `DESIGN-ROADMAP.md` o desde las intenciones: se desvía del código entregado. Hacer de un
+fichero de tokens la fuente y generar el CSS: cambia la fuente de verdad, que ya es `globals.css`. Añadir una dependencia de YAML: el
+frontmatter es plano y no merece una dependencia.
+
+**Motivo.** Un documento de diseño solo sirve a los agentes si no puede desviarse en silencio del código; el test lo garantiza.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

@@ -1,4 +1,4 @@
-// D.17 (decisión 211; spec standalone-page-visual-coverage) — capturas y axe de las tres páginas
+// D.17 (decisión 210; spec standalone-page-visual-coverage) — capturas y axe de las tres páginas
 // que no cuelgan de ninguna ruta de `ROUTES`: `error.tsx`, `global-error.tsx` y la 429 del proxy.
 // 3 páginas x 6 proyectos = 18 baselines. Las dos primeras se activan de verdad con rutas
 // inyectadas SOLO en la imagen Docker (`e2e/inject/app`, decisión 209); la 429 sale del segundo

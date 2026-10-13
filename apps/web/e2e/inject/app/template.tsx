@@ -1,6 +1,6 @@
 'use client';
 
-// D.17 (decisión 210) — SOLO e2e: `Dockerfile.e2e` copia este fichero a `src/app/` antes de
+// D.17 (decisión 209) — SOLO e2e: `Dockerfile.e2e` copia este fichero a `src/app/` antes de
 // `next build`; no existe en el árbol versionado ni en la build de producción (guard:
 // `test/e2e-injection-boundary.test.ts`). La plantilla raíz queda por encima del límite de error
 // raíz (Layout > Template > ErrorBoundary), así que un fallo lanzado aquí solo lo recoge

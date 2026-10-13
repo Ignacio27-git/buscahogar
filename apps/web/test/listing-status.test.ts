@@ -1,4 +1,4 @@
-// D.17 (B9, decisión 209) — una sola palabra para el estado de un anuncio en toda la ficha: la
+// D.17 (B9, decisión 211) — una sola palabra para el estado de un anuncio en toda la ficha: la
 // fila de la fuente y la insignia del histórico dicen lo mismo del mismo estado.
 import { describe, expect, it } from 'vitest';
 

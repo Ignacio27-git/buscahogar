@@ -17,7 +17,7 @@
 // sale de `listingStatusLabel` (la insignia «(no disponible)» por fila desaparece, ya
 // lo dice «Estado») y una nota fija recuerda que la agrupación es una estimación.
 //
-// D.17 (B9, decisión 209): un anuncio retirado dice «No disponible», como uno inactivo y como la
+// D.17 (B9, decisión 211): un anuncio retirado dice «No disponible», como uno inactivo y como la
 // insignia del histórico; «Retirado» desaparece.
 import type { ReactElement } from 'react';
 

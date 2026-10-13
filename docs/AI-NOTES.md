@@ -3912,3 +3912,39 @@ buscar las diferencias.
 
 **Observación:** que axe pase no prueba un criterio de tamaño, y el número de excepciones de una regla se mide con el lint real, no se
 estima en el diseño. Una diferencia de captura se explica (puntero, desplazamiento) antes de atribuirla al producto.
+
+---
+
+### 2026-10-13 — Fallos intermedios en la preparación y la aplicación de D.17
+
+**Contexto:** crítica, pulido, cobertura e2e de las páginas autónomas y `DESIGN.md` de `apps/web` (`design-polish-d17`).
+
+**Categoría:** contradicción con una regla del proyecto / verificación incompleta o afirmada sin comprobar / suposición sobre una
+herramienta sin comprobar / referencias cruzadas inconsistentes / incumplimiento del idioma.
+
+**Qué se generó mal:**
+
+1. El lote B7 redujo los objetivos de la cabecera a 32 px bajo 30rem, contra la decisión 200 (40 px en toda la cabecera). Lo detectó el
+   orquestador en la puerta y se revirtió (`79630db`): solo se compactan el relleno y el hueco entre filas.
+2. La revisión captura a captura se dio dos veces por completa cuando no lo era: primero 56 de 108 y luego por límites de medios. Hubo que
+   rehacerla con seis revisores aislados, cada uno con su familia de capturas.
+3. Un validador afirmó que las 18 capturas autónomas «no cambian», y era falso: `error-boundary` se pinta dentro del layout, con la
+   cabecera, y cambió con el lote. La comprobación real fue una diferencia de píxeles por familia, no la lectura del diff.
+4. El texto de la tarea decía `pnpm --filter … vitest run`, que no existe: el orden correcto es `pnpm --filter … exec vitest run`.
+5. En el código se citó «decisión 209» para tres temas distintos (inyección de rutas e2e, estados de anuncio y tokens retirados) antes de
+   que `docs/DECISIONS.md` se escribiera. Se renumeró cada referencia al cerrar el paso (209 inyección, 210 capturas autónomas, 211
+   estados, 212 tokens).
+6. El informe de la crítica de `impeccable` y sus preguntas se entregaron al responsable por primera vez en inglés, contra la regla de
+   documentación y respuesta en español del proyecto.
+7. La corrección final de `home-filtered` salió de la revisión captura a captura: la frase del mapa vacío entre el recuento y el marco
+   bajaba el mapa 32 px respecto a la lista, contra la regla «sobre el mapa solo el recuento». Ni los tests de estructura ni axe lo veían.
+8. Prettier convierte las comillas dobles del frontmatter YAML de `DESIGN.md` en simples. El análisis plano del test solo admitía
+   comillas dobles y 24 casos fallaron al formatear; se corrigió el análisis para aceptar las dos.
+
+**Cómo se detectó:** 1 en la puerta del orquestador con un test de ancho; 2 al contar las capturas revisadas contra las 108 cambiadas; 3 con
+la diferencia de píxeles; 4 al ejecutar el comando; 5 al buscar `decisión 2` en el código antes de numerar; 6 al releer el informe; 7 al
+abrir la captura esperada, la obtenida y la diferencia de cada fallo; 8 al ejecutar el test tras formatear.
+
+**Observación:** un criterio ya decidido (40 px) y una regla de idioma tienen que viajar con la tarea. Una revisión visual «una a una» se
+mide por el recuento de capturas abiertas, no por lo que afirma el revisor. Las referencias a decisiones se numeran contra el registro,
+no de memoria.

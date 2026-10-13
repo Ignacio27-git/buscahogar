@@ -1,4 +1,4 @@
-// D.17 (B9, decisión 209) — rótulo del estado de un anuncio. Una sola palabra para el mismo estado
+// D.17 (B9, decisión 211) — rótulo del estado de un anuncio. Una sola palabra para el mismo estado
 // en toda la ficha (la fila de la fuente y la insignia del histórico): antes un anuncio retirado era
 // «Retirado» en una y «(no disponible)» en la otra. «No disponible» era ya la palabra dominante
 // (cabecera de la ficha, anuncios inactivos y estados desconocidos).

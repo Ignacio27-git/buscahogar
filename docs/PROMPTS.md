@@ -30,6 +30,32 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-13 — Pulido final y DESIGN.md (paso D.17, decisiones 209-216)
+
+**Tipo de tarea:** interfaz (un lote de pulido tras una crítica), tokens, cobertura e2e de las páginas autónomas y documentación del
+sistema de diseño
+**Forma de especificación:** SDD (explorar, investigar, proponer, especificar, diseñar, tareas y aplicar en tres lotes; Engram
+`sdd/design-polish-d17/*`) con dos puertas del orquestador: la crítica de `impeccable` con dos agentes y `document` con el Norte creativo
+y los nombres de color confirmados por el responsable. Un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable con retoques. El lote redujo los objetivos de la cabecera a 32 px contra la decisión 200 y se revirtió en la
+puerta. La revisión captura a captura se dio dos veces por incompleta (56 de 108, y luego por límites de medios) y la rehicieron seis
+revisores aislados. Una corrección posterior alineó el marco del mapa vacío con la lista (`home-filtered`). El informe de la crítica y sus
+preguntas se entregaron primero en inglés.
+
+**Prompt:** el del paso D.17 de `docs/DESIGN-ROADMAP.md`, literal: «Paso D.17 de docs/DESIGN-ROADMAP.md. Usa `impeccable critique`,
+`impeccable polish` e `impeccable document`.
+
+- Crítica y pulido de todas las pantallas a los tres anchos y en ambos temas, con un solo lote de correcciones.
+- DESIGN.md en la raíz, derivado del código entregado (tokens reales de globals.css y componentes), no de intenciones.
+- Elimina estilos y tokens sin uso.
+- Regenera en Docker las capturas de referencia finales y revisa su diferencia una a una.
+- Actualiza la sección «Capa web» de docs/ARCHITECTURE.md si ha cambiado algo estructural.»
+
+**Observación:** la crítica puntuó 28/40 y casi todo el valor estuvo en tres cosas que un detector no ve: la zona sin datos que el chip
+presentaba como aplicada, el mismo estado de un anuncio con tres palabras y un marco de mapa desalineado. Dos lecciones de proceso: la
+revisión de capturas «una a una» no se puede delegar en un solo agente con muchas imágenes (se pierde cobertura sin avisar) y un criterio
+ya decidido (40 px, decisión 200) tiene que viajar con la tarea o un lote lo contradice.
+
 ### 2026-10-13 — Movimiento (paso D.16, decisiones 205-208)
 
 **Tipo de tarea:** interfaz (tokens y transiciones CSS), mapa (opciones de Leaflet y parche del teclado), pruebas estáticas, unitarias y e2e
