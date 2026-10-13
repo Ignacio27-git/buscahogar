@@ -857,6 +857,22 @@ describe('pie del mapa (D.17, B3)', () => {
     expect(mapSection(html)).toContain(APPROX);
   });
 
+  // D.17 (A, correccion de la revision por captura): con 0 puntos la frase del vacio tampoco
+  // empuja el marco; va en el pie, para que el mapa quede alineado con la primera caja de la lista.
+  it.each([
+    { name: 'filtrado', params: { operation: 'sale' }, sentence: 'Ninguna vivienda con ubicación coincide con tu búsqueda.' },
+    { name: 'sin filtros', params: {}, sentence: 'Todavía no hay viviendas con ubicación.' },
+  ])('mapa vacío $name: la frase del vacío va en el pie y no entre el recuento y el marco', async ({ params, sentence }) => {
+    mapResult(0);
+    const section = mapSection(await render(params));
+    const frame = section.indexOf('<div class="search-map__frame">');
+    expect(section.slice(0, frame)).not.toContain(sentence);
+    expect(section.slice(0, frame)).toContain('<p class="font-semibold tabular-nums">');
+    const notes = section.slice(section.indexOf('</noscript></div>'));
+    expect(notes).toContain(sentence);
+    expect(notes).toContain('class="search-map__notes"');
+  });
+
   it('con puntos truncados, «Mostrando N de M» sigue junto al recuento, sobre el mapa', async () => {
     mapResult(2, 5);
     const section = mapSection(await render({}));

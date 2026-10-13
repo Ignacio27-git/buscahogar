@@ -454,8 +454,6 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
               Mostrando {points.length} de {total}
             </p>
           ) : null}
-          {mapEmptyKind === 'filtered' ? <p>Ninguna vivienda con ubicación coincide con tu búsqueda.</p> : null}
-          {mapEmptyKind === 'unfiltered' ? <p>Todavía no hay viviendas con ubicación.</p> : null}
           {/* El marco es del servidor: el aviso de carga, el lienzo y el noscript
               comparten dimensiones, y sin JS el noscript queda dentro del marco. */}
           <div className="search-map__frame">
@@ -472,6 +470,10 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
           </div>
           {/* D.17 (B3): sobre el mapa solo va el recuento; los avisos, con la ayuda de teclado, en un pie. */}
           <div className="search-map__notes">
+            {/* El vacío del mapa va aquí y no entre el recuento y el marco: así el marco queda alineado con la
+                primera caja de la lista también sin viviendas con ubicación. */}
+            {mapEmptyKind === 'filtered' ? <p>Ninguna vivienda con ubicación coincide con tu búsqueda.</p> : null}
+            {mapEmptyKind === 'unfiltered' ? <p>Todavía no hay viviendas con ubicación.</p> : null}
             <p id={MAP_KEYBOARD_HELP_ID}>
               Con el mapa enfocado, usa las flechas para moverte y + o − para acercar o alejar. Con Tab llegas a cada
               vivienda y con Intro abres su ventana.
