@@ -50,10 +50,11 @@ particularidades de la API de la fuente).
 
 1. El diseño pedía comprobar las cadenas de la API privada de Leaflet en el fichero de `require.resolve('leaflet')` y también en el
    campo `module` del paquete «lo que envía el empaquetador». Leaflet 1.9.4 no declara `module` en su `package.json`; el test habría
-   leído un campo `undefined`. Se corrigió al conciliar las tareas (R1): solo se lee `dist/leaflet-src.js`.
-2. Un `heredoc` de Python convirtió `\b` en tres expresiones regulares de `map-guards.test.ts` en retrocesos (carácter de control),
+   leído un campo `undefined`. Se corrigió al conciliar las tareas (R1): se lee el fichero que devuelve
+   `require.resolve('leaflet')` (`dist/leaflet-src.js`) y, con ruta explícita, `dist/leaflet-src.esm.js`.
+2. Un `heredoc` y un `sed` del shell convirtieron `\b` en tres expresiones regulares de `map-guards.test.ts` en retrocesos (carácter de control),
    el mismo fallo ya anotado en D.15. Las dos guardas nuevas fallaban con «expected … to match» aunque el código era correcto.
-3. El espec e2e comparaba los tokens como `100ms`, `250ms` y `200ms`; el build de Next minimiza los tiempos de las propiedades
+3. El spec e2e comparaba los tokens como `100ms`, `250ms` y `200ms`; el build de Next minimiza los tiempos de las propiedades
    personalizadas a `.1s`, `.25s` y `.2s` y la primera ejecución completa en Docker falló en esa aserción.
 4. La estimación del diseño (~730 líneas) quedó en 1.089 de código y tests: se subestimaron los tests de tokens y del parche.
 
