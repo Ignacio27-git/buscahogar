@@ -5555,6 +5555,91 @@ capturas donde la bandeja está abierta (1280 px) y `nl-query` (24 PNG).
 
 ---
 
+## 205 — Sin transiciones de vista (view transitions)
+
+**Estado:** aceptada (D.16).
+
+**Decisión.** No se usa `@view-transition`, `document.startViewTransition` ni `<ViewTransition>` de React. Los filtros de la búsqueda
+viven en la URL y cada cambio es una navegación: animarlas todas añadiría movimiento a una acción que se repite muchas veces por sesión
+y el brief pide que nada se anime por acciones repetidas. Una prueba estática (`design-tokens.test.ts`) prohíbe `@view-transition` y `@starting-style` en
+el CSS del proyecto.
+
+**Alternativas descartadas.** `@view-transition { navigation: auto }` (entre documentos): no funciona en Firefox y pondría a la
+navegación habitual un fundido que el resto de navegadores no tendría. `<ViewTransition>` de React: en Next 16.3.4 no pide ninguna
+opción de `next.config` (se comprobó en `node_modules/next/dist/docs/01-app/02-guides/view-transitions.md`), así que el descarte no es
+técnico sino de producto: el beneficio sería un cruce de pantallas en una herramienta de uso frecuente y tocaría la estructura de
+las páginas sin que ninguna pantalla lo pida.
+
+**Motivo.** El brief de D.16 permitía evaluarlas «solo si no exigen» cliente ni flag; aunque no exigen flag, no aportan nada que
+justifique el movimiento extra.
+
+---
+
+## 206 — Movimiento de Leaflet siempre apagado y parche privado del teclado
+
+**Estado:** aceptada (D.16).
+
+**Decisión.** El `MapContainer` fija `zoomAnimation={false}`, `fadeAnimation={false}` y `markerZoomAnimation={false}` y el grupo de
+clústeres se crea con `animate: false`, siempre y sin depender de `prefers-reduced-motion`. Las flechas del teclado llaman a
+`map.panBy(offset)` sin opciones y hacen un desplazamiento animado por JavaScript de 0,25 s que ninguna de esas opciones ni el CSS
+detienen. `src/components/map-instant-keyboard.ts` (`makeKeyboardInstant`, módulo puro con importación solo de tipos) envuelve el
+`_onKeyDown` privado del manejador de teclado de Leaflet: durante cada pulsación `panBy` y `setZoom` reciben `{ animate: false }` y se
+restauran en un `finally`. Se desactiva y se vuelve a activar el manejador alrededor del cambio, y si el mapa ya tenía el foco se
+vuelve a enlazar (`_addHooks`), porque `enable()` solo engancha el `keydown` del documento al siguiente foco. Si falta `keyboard` o
+`_onKeyDown` no hace nada. Un componente `InstantKeyboard` del lienzo lo monta con un efecto y lo deshace al desmontar. `leaflet` queda
+fijado en `1.9.4` exacto en `apps/web/package.json`, y un test de contrato comprueba el fichero que devuelve `require.resolve('leaflet')`
+(`dist/leaflet-src.js`), no el campo `module`, que leaflet no declara.
+
+**Alternativas descartadas.** Parchear `L.Map.prototype.panBy` de forma global: cambiaría también el `autoPan` del popup, `fitBounds` y la
+inercia del arrastre, que quedan fuera del alcance (son movimientos de puntero o del sistema, no de teclado repetido). Apagar solo con
+`prefers-reduced-motion`: la regla «nada se anima por teclado repetido» vale para todos. Una hoja que anule las transiciones del CSS de
+Leaflet: el pan de teclado es JavaScript, no CSS, y no se tocan hojas de terceros (la hoja propia va la última, decisión 165).
+
+**Motivo.** Es la única forma de cumplir el brief sin una biblioteca nueva, a costa de depender de una API privada: de ahí el pin exacto
+y el test de contrato que falla en voz alta si una versión de Leaflet cambia la mecánica.
+
+---
+
+## 207 — Con movimiento reducido los tiempos valen 0s; salida con ease-in
+
+**Estado:** aceptada (D.16).
+
+**Decisión.** Los tres tiempos (`--duration-feedback` 100 ms, `--duration-panel-enter` 250 ms, `--duration-panel-exit` 200 ms) se ponen a
+`0s` dentro de `@media (prefers-reduced-motion: reduce)`, en una regla sin capa entre `@theme static` y `@layer base` para ganar a la
+capa del tema. Un solo interruptor: todo consumidor de los tokens se vuelve instantáneo sin reglas por elemento. Los tokens de curva son
+`--ease-enter` (`cubic-bezier(0.23, 1, 0.32, 1)`, familia ease-out) y `--ease-exit` (`cubic-bezier(0.3, 0, 1, 1)`, la curva de aceleración
+estándar de Material 3, familia ease-in); los nombres evitan `--ease-in` y `--ease-out`, que son de Tailwind. Las transiciones se
+escriben con propiedades largas (`transition-property`, `-duration`, `-timing-function`, `-behavior`), nunca con la abreviatura.
+
+**Alternativas descartadas.** Un fundido más suave en vez de cero (la skill de animación aconseja «más suave, no cero»): el brief pide
+quitar todo movimiento no esencial y las capturas del paso D.1 se toman con movimiento reducido, así que cero es la opción que las deja
+idénticas. `ease-in-cubic` para la salida (el consejo de las skills es no usar ease-in): se aceptó ease-in porque el brief lo exige, con
+la variante de Material 3 por ser la de menor espera inicial a 200 ms. Reglas `transition: none` por elemento: duplican el interruptor.
+
+**Motivo.** Un único punto de control para la reducción de movimiento y una excepción documentada frente a las skills.
+
+---
+
+## 208 — La pulsación escala solo con puntero; los botones del tema quedan fuera
+
+**Estado:** aceptada (D.16).
+
+**Decisión.** `transform: scale(0.97)` se aplica en `:active:not(:focus-visible)` a todo `button`, al resumen de la bandeja
+(`.filter-tray > summary`) y a los chips (`.applied-filters__chip`); la base declara `transition-property: transform` con
+`--duration-feedback` y `--ease-enter`, de modo que soltar también tiene tiempo. El teclado nunca escala (Espacio deja el botón
+`:active` sin transformarlo) y un clic de ratón sobre un elemento que ya muestra `:focus-visible` tampoco: es una limitación aceptada
+que quita la diferencia entre Chrome y Firefox, que no marca `:active` con Espacio. Los tres botones del selector de tema se excluyen con
+`button:not(.theme-selector button)`: son `<button type="submit">` de un formulario que recarga la página, así que la animación no se
+vería y su estado ya se distingue por peso y borde. Los colores de `:hover` y `:focus` siguen siendo instantáneos.
+
+**Alternativas descartadas.** `:active` a secas: el teclado repetido animaría el botón, contra el brief. Una clase en el selector de tema o
+`transform: none` en sus reglas: la exclusión en el selector no deja a esos botones ni transición. Transicionar color o fondo del `:hover`:
+no es movimiento que explique un cambio de estado y rompería «solo `transform` y `opacity`».
+
+**Motivo.** El movimiento solo responde a un gesto de puntero, nunca a una acción repetida de teclado.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

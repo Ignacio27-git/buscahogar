@@ -30,6 +30,33 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-13 — Movimiento (paso D.16, decisiones 205-208)
+
+**Tipo de tarea:** interfaz (tokens y transiciones CSS), mapa (opciones de Leaflet y parche del teclado), pruebas estáticas, unitarias y e2e
+**Forma de especificación:** SDD (explorar, investigar, proponer, especificar, diseñar, tareas y aplicar en dos lotes; Engram
+`sdd/motion-d16/*`), un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable con retoques. El diseño daba por existente el campo `module` del `package.json` de Leaflet para el test de
+contrato (no lo declara; se corrigió al conciliar las tareas y el test lee el fichero de `require.resolve`). Un script con `heredoc`
+volvió a convertir `\b` de unas expresiones regulares en retrocesos y se detectó con la guarda en rojo. El espec e2e comparaba `100ms`
+y el build minimiza a `.1s`. La previsión de ~770 líneas se quedó en 1.089 de código y tests más la documentación.
+
+**Prompt:** el del paso D.16 de `docs/DESIGN-ROADMAP.md`, literal: «Paso D.16 de docs/DESIGN-ROADMAP.md. Usa las skills emil-design-eng y
+animate (o `impeccable animate`). Movimiento sobrio: es una herramienta de uso frecuente.
+
+- Solo CSS, sin bibliotecas de animación. Tokens de duración en globals.css: unos 100 ms para respuesta, 200-300 ms para paneles y la
+  bandeja, nunca más de 400 ms. ease-out al entrar y ease-in al salir. Solo transform y opacity.
+- @starting-style para la bandeja y los <details>.
+- prefers-reduced-motion quita todo movimiento no esencial.
+- Nada se anima en respuesta a acciones de teclado repetidas.
+- Transiciones de vista: evalúalas solo si no exigen un componente de cliente ni un flag experimental en Next 16.3.4 (compruébalo en
+  node_modules/next/dist/docs). Las transiciones entre documentos no funcionan en Firefox.»
+
+**Observación:** el brief pedía `@starting-style` y la investigación empírica mostró que solo sirve para fundir al cargar una bandeja
+renderizada abierta, así que se omitió (desviación registrada). Lo difícil no era el CSS sino el teclado del mapa: el pan por flechas es
+JavaScript de Leaflet y solo se apaga envolviendo una función privada, lo que obligó a fijar la versión y a escribir un test de contrato.
+Una prueba e2e escrita después de la implementación se demuestra en rojo revirtiendo temporalmente la implementación, no suponiendo que
+falla.
+
 ### 2026-10-09 — Accesibilidad WCAG 2.2 AA (paso D.15, decisiones 193-202)
 
 **Tipo de tarea:** auditoría y corrección de accesibilidad (interfaz, mapa, galería), configuración de lint y e2e

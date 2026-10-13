@@ -1453,7 +1453,7 @@ Al volver los resultados: se rellenan las celdas con aprobado, fallado o notas, 
 
 ---
 
-## [ ] D.16 · Movimiento
+## [x] D.16 · Movimiento
 
 ```text
 Paso D.16 de docs/DESIGN-ROADMAP.md. Usa las skills emil-design-eng y animate (o
@@ -1485,6 +1485,26 @@ Paso D.16 de docs/DESIGN-ROADMAP.md. Usa las skills emil-design-eng y animate (o
 - **Riesgos:** inestabilidad de las capturas; R4 si alguna transición pidiera JS.
 - **Tamaño:** S-M.
 - **Evidencia:** C33, C39, C40, C41, C42, C43.
+- **Estado (2026-10-13): D.16 hecho.** Aplicada con SDD (Engram `sdd/motion-d16/*`) en cinco commits de un solo PR con `size:exception`
+  aceptado por el responsable: `b0f4837` (tokens y transiciones CSS), `20cd3fd` (parche de teclado de Leaflet), `6b5bd3a` (opciones del
+  mapa), `ec537ff` (espec e2e de movimiento) y el de documentación. Decisiones 205-208. Sin capturas nuevas ni regeneradas: las de la
+  suite de D.1 salen idénticas con movimiento reducido.
+- **Qué se hizo:** cinco tokens en `@theme static` (100/250/200 ms y dos curvas); la bandeja funde por debajo de 64rem con
+  `::details-content` (opacidad, `translateY(-0.5rem)` y `content-visibility` con `allow-discrete`) dentro del `@supports` existente;
+  pulsación `scale(0.97)` solo con puntero; movimiento reducido pone los tres tiempos a `0s`; Leaflet siempre sin animaciones y con el
+  teclado instantáneo.
+- **Sonda de `::details-content`:** `getComputedStyle(el, '::details-content')` resuelve el pseudoelemento en Chromium (se leen opacidad,
+  transformación y propiedades de transición), así que la bandeja se prueba con estilo calculado y estados finales, nunca con
+  `getAnimations()` (no lista esas transiciones). El build minimiza `100ms` a `.1s`: el espec compara milisegundos.
+- **Cómo se demostró el rojo del e2e:** el espec se escribió después de la implementación; para ver que falla de verdad se restauró
+  temporalmente `globals.css`, el lienzo y la capa de clústeres al estado previo al paso (`git checkout e8236f2 -- …`), se ejecutó en
+  Docker (6 fallos de 10: tokens vacíos, sin transición en la pulsación, `transition-property: all` y pan animado) y se volvió a `HEAD`
+  sin dejar cambios.
+- **Verificación:** vitest de `apps/web` 84 ficheros y 1.162 tests (antes 83 y 1.102); `tsc` y `eslint` limpios; suite Docker completa
+  sin capturas modificadas ni regeneradas.
+- **Pendiente conocido:** la inercia del arrastre, el `autoPan` del popup y `fitBounds` de Leaflet no se
+  tocan a propósito (decisión 206). Safari/WebKit corta la salida de la bandeja (se queda en el estado cerrado sin fundido) y Firefox no
+  marca `:active` con Espacio: ambos se comprobaron en la investigación y se aceptan como degradación.
 
 ---
 
@@ -1712,3 +1732,10 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-09 | D.15 | El paso queda `[~]` y no `[x]`: la lista manual con NVDA (13 puntos) la ejecuta el responsable. T1.4 (comentario en `site-header.tsx`) no se hizo. | El criterio de cierre exige resultados humanos que el agente no puede dar; T1.4 era opcional y no cambia comportamiento. |
 | 2026-10-09 | D.15 | Tras la lista manual, los puntos 11 y 13 fallaron y se corrigen dentro del paso (decisiones 203 y 204): foco al título de las páginas de error y pista «solo cifras». `a11y-states.spec.ts` renderiza ahora los componentes dentro de un envoltorio de React real porque usan ganchos. 24 capturas más regeneradas en Docker (decisión 138). | Son fallos del paso, no trabajo nuevo; el cierre exige que el responsable los vuelva a comprobar. La auditoría estática no vio la falta de gestión del foco (F12 estaba clasificado «comprobar a mano»). |
 | 2026-10-09 | D.15 | La lista manual se ejecuta con el Narrador de Windows en Chrome en vez de NVDA, con una sola columna en lugar de las dos previstas por navegador. | NVDA no se pudo instalar en la máquina del responsable; el Narrador viene integrado en Windows y cubre el mismo criterio sin instalación. |
+| 2026-10-13 | D.16 | No se usa `@starting-style` para la bandeja y los `<details>`, que el brief pedía. | Una bandeja renderizada abierta en el servidor se fundiría al cargar la página; la investigación (C3) mostró que es su único efecto. El fundido al abrir y cerrar funciona sin él. |
+| 2026-10-13 | D.16 | Tests nuevos pese al «ninguno nuevo previsto»: reglas estáticas de CSS y de las opciones del mapa, pruebas unitarias y de contrato del parche de teclado (`map-instant-keyboard.test.ts`) y un espec e2e de movimiento en Chromium (`e2e/motion.spec.ts`, sin capturas). | La barrera de `design-tokens.test.ts` prohibía los tokens de movimiento y el pan de teclado de Leaflet solo se puede probar con un mapa real. |
+| 2026-10-13 | D.16 | Los botones del selector de tema se excluyen de la pulsación con escala (decisión 208). | Son envíos de formulario que recargan la página: la animación no se vería. |
+| 2026-10-13 | D.16 | La escala de pulsación usa `:active:not(:focus-visible)` y no `:active` a secas (decisión 208). | El brief pide que nada se anime por acciones de teclado repetidas; Firefox además no marca `:active` con Espacio. |
+| 2026-10-13 | D.16 | Un solo PR de 1.257 líneas cambiadas con `size:exception` (1.089 de código y tests y 168 de documentación, medidas con `git diff --shortstat e8236f2`) frente al presupuesto de 800, concedido por el responsable. | La previsión era ~770 y se quedó corta en el test de tokens (+246 sobre 95), el del parche (+294 sobre 150) y el espec e2e (+239 sobre 125). No se recortó ningún test. |
+| 2026-10-13 | D.16 | El espec e2e usa `w320-light` para el ancho móvil y no 390. | No hay proyecto de 390: los anchos del e2e son 320, 768 y 1280, y 320 ya está por debajo de 64rem. |
+| 2026-10-13 | D.16 | El test de contrato de Leaflet lee el fichero de `require.resolve('leaflet')` y no el campo `module`. | Leaflet 1.9.4 no declara `module` en su `package.json`; el diseño lo daba por existente y se corrigió al conciliar las tareas. |

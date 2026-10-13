@@ -40,6 +40,33 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-13 — Contrato de Leaflet sobre un campo inexistente y regex `\b` rota otra vez (paso D.16)
+
+**Contexto:** diseño y aplicación del movimiento (D.16): test de contrato del parche de teclado de Leaflet y guardas de `map-guards.test.ts`.
+
+**Categoría:** suposición sobre una herramienta sin comprobar / código que compilaba pero no hacía lo correcto.
+
+**Qué ocurrió:**
+
+1. El diseño pedía comprobar las cadenas de la API privada de Leaflet en el fichero de `require.resolve('leaflet')` y también en el
+   campo `module` del paquete «lo que envía el empaquetador». Leaflet 1.9.4 no declara `module` en su `package.json`; el test habría
+   leído un campo `undefined`. Se corrigió al conciliar las tareas (R1): solo se lee `dist/leaflet-src.js`.
+2. Un `heredoc` de Python convirtió `\b` en tres expresiones regulares de `map-guards.test.ts` en retrocesos (carácter de control),
+   el mismo fallo ya anotado en D.15. Las dos guardas nuevas fallaban con «expected … to match» aunque el código era correcto.
+3. El espec e2e comparaba los tokens como `100ms`, `250ms` y `200ms`; el build de Next minimiza los tiempos de las propiedades
+   personalizadas a `.1s`, `.25s` y `.2s` y la primera ejecución completa en Docker falló en esa aserción.
+4. La estimación del diseño (~730 líneas) quedó en 1.089 de código y tests: se subestimaron los tests de tokens y del parche.
+
+**Cómo se detectó:** 1 al leer el `package.json` instalado al escribir las tareas; 2 al ver el fallo de una guarda recién puesta en
+verde (se imprimió la línea con `cat -A` y aparecía `^H`); 3 en la ejecución del espec dentro de Docker; 4 midiendo el diff antes de
+continuar.
+
+**Coste:** unos 20 minutos entre todos, más una parada para pedir el `size:exception`.
+
+**Observación:** una expresión regular con `\b` no se escribe nunca por un script de shell, sino con la herramienta de edición. Un
+contrato sobre un paquete de terceros se comprueba contra el `package.json` instalado, no contra lo que se recuerda de él. Un valor que
+pasa por el build (CSS minimizado) se compara en la forma que llega al navegador.
+
 ### 2026-10-06 — «Disponible en N fuentes» contaba anuncios, también los no activos (paso D.9)
 
 **Contexto:** resumen de la ficha (`PropertySummary`), diseñado en D.0 y aplicado en D.9.
