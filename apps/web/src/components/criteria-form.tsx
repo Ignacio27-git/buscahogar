@@ -173,7 +173,6 @@ export function CriteriaForm(props: CriteriaFormProps): ReactElement {
         </div>
       ) : null}
       {criteria !== null ? <AppliedFiltersSummary criteria={criteria} zoneName={zoneName} /> : null}
-      <p className="nl-review__hint">La búsqueda no empieza hasta que pulses «Buscar».</p>
       <form method="get" action="/" className="criteria-form">
         <input type="hidden" name="form" value={CRITERIA_FORM_MARKER} />
         <CriteriaFields
@@ -184,9 +183,13 @@ export function CriteriaForm(props: CriteriaFormProps): ReactElement {
             zone: <ZoneField state={zoneState} placeText={placeText} zoneChoices={zoneChoices} selectedZone={selectedZone} />,
           }}
         />
-        <button type="submit" className="criteria-form__submit">
-          Buscar
-        </button>
+        {/* D.17 (B8): el aviso se lee junto al botón que lo provoca, no suelto sobre el formulario. */}
+        <div className="criteria-form__actions">
+          <button type="submit" className="criteria-form__submit">
+            Buscar
+          </button>
+          <p className="nl-review__hint">La búsqueda no empieza hasta que pulses «Buscar».</p>
+        </div>
       </form>
     </section>
   );

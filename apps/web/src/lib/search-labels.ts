@@ -167,12 +167,22 @@ function formatRadius(radiusMeters: number): string {
     : `A ${formatNumber(radiusMeters)} m de un punto`;
 }
 
+// D.17 (B1) — sufijo del chip de una zona que no se aplicó porque aún no hay datos suyos: la
+// búsqueda sigue mostrando todos los municipios y el chip no debe aparentar un filtro activo.
+export const ZONE_UNAPPLIED_SUFFIX = ' · sin datos todavía';
+
+export interface DescribeAppliedFiltersOptions {
+  // `false` cuando la zona existe pero no se aplicó (sin cobertura). Por defecto, aplicada.
+  readonly zoneApplied?: boolean;
+}
+
 // Describe `criteria` (lo que pidió el usuario), NUNCA `effectiveCriteria`: esa
 // añade `geo` derivado de una zona cubierta y produciría un chip de radio que
 // el usuario no escribió. Orden = orden de la barra, y la zona geográfica al final.
 export function describeAppliedFilters(
   criteria: PropertySearchCriteria,
-  zoneName: string | null
+  zoneName: string | null,
+  { zoneApplied = true }: DescribeAppliedFiltersOptions = {}
 ): readonly AppliedFilter[] {
   const filters: AppliedFilter[] = [];
   const add = (key: AppliedFilterKey, label: string): void => {
@@ -187,7 +197,11 @@ export function describeAppliedFilters(
   if (criteria.maxSurfaceM2 !== undefined) add('maxSurface', `Superficie hasta ${formatNumber(criteria.maxSurfaceM2)} m²`);
   if (criteria.minRooms !== undefined) add('minRooms', `Habitaciones: ${String(criteria.minRooms)} o más`);
   if (criteria.minBathrooms !== undefined) add('minBathrooms', `Baños: ${String(criteria.minBathrooms)} o más`);
-  if (criteria.zone !== undefined) add('zone', zoneName !== null ? `Zona: ${zoneName}` : `Zona INE ${criteria.zone}`);
+  if (criteria.zone !== undefined) {
+    // Sin nombre resuelto la zona no existe y su aviso ya lo explica: el sufijo solo marca una zona conocida.
+    const unapplied = !zoneApplied && zoneName !== null ? ZONE_UNAPPLIED_SUFFIX : '';
+    add('zone', zoneName !== null ? `Zona: ${zoneName}${unapplied}` : `Zona INE ${criteria.zone}`);
+  }
   if (criteria.polygon !== undefined) add('polygon', 'Zona dibujada');
   if (criteria.geo !== undefined) add('geo', formatRadius(criteria.geo.radiusMeters));
   return filters;

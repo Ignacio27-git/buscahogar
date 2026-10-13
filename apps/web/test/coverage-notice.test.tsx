@@ -195,6 +195,33 @@ describe('CoverageNotice — fecha de inicio solo si existe', () => {
   });
 });
 
+// D.17 (B5): el estado del job no depende solo del color del borde; una etiqueta de texto lo repite
+// de forma visible. Va oculta a la tecnología de apoyo porque el título de la región viva ya lo dice.
+describe('CoverageNotice — etiqueta de estado del job (D.17, B5)', () => {
+  it.each([
+    ['pending', 'En cola'],
+    ['running', 'En curso'],
+    ['done', 'Terminada'],
+    ['failed', 'Fallida'],
+  ] as const)('el job %s lleva la etiqueta «%s», oculta a la tecnología de apoyo', (status, label) => {
+    const html = render({ kind: 'job', municipality: MUNICIPALITY, status, startedAt: null, retriesLeft: true });
+
+    expect(html).toContain(`<span class="coverage-notice__state" aria-hidden="true">${label}</span>`);
+    expect(html.match(/coverage-notice__state/g)).toHaveLength(1);
+  });
+
+  it('las variantes que no son un job no llevan etiqueta de estado', () => {
+    for (const variant of [
+      { kind: 'registered-without-job', municipality: MUNICIPALITY },
+      { kind: 'not-sweepable', municipality: MUNICIPALITY },
+      { kind: 'outside-polygon' },
+      { kind: 'unknown-zone' },
+    ] as const) {
+      expect(render(variant)).not.toContain('coverage-notice__state');
+    }
+  });
+});
+
 describe('noticeForOutcome', () => {
   const NOW = new Date('2026-10-08T12:05:00Z');
 

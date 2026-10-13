@@ -576,7 +576,7 @@ describe('controles base y superficies del navegador (D.13b)', () => {
   });
 
   it('ni el botón de la caja de texto ni el de criterios redeclaran el relleno', () => {
-    const submit = declarations(findBlock(components(), '.criteria-form__submit'));
+    const submit = declarations(findBlock(components(), '.criteria-form__submit, .filter-bar__submit'));
     const texto = declarations(findBlock(components(), '.search-text button'));
     expect([...submit.keys(), ...texto.keys()].filter((name) => /^padding/.test(name))).toEqual([]);
   });
@@ -595,7 +595,7 @@ describe('controles base y superficies del navegador (D.13b)', () => {
   it('button:active tiene estilo de pulsado y el primario mezcla el 12% de tinta (oklab)', () => {
     expect(baseRule('button:active').get('background-color')).toBe('var(--surface-sunken)');
     expect(RAW_CSS).toMatch(/color-mix\(in oklab, var\(--accent\), var\(--ink\) 12%\)/);
-    const active = declarations(findBlock(components(), '.criteria-form__submit:active'));
+    const active = declarations(findBlock(components(), '.criteria-form__submit:active, .filter-bar__submit:active'));
     expect(active.get('background-color')).toContain('color-mix(in oklab');
   });
 

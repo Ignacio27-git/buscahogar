@@ -89,7 +89,7 @@ describe('SourceList (D3/D6, AR-5) — cada fuente con su propio precio y enlace
   it.each([
     ['active', 'Disponible'],
     ['inactive', 'No disponible'],
-    ['removed', 'Retirado'],
+    ['removed', 'No disponible'],
     ['pending-review', 'No disponible'],
     ['toString', 'No disponible'],
   ])('el estado «%s» se muestra como «%s»', (status, label) => {
@@ -98,13 +98,14 @@ describe('SourceList (D3/D6, AR-5) — cada fuente con su propio precio y enlace
     expect(html).toMatch(new RegExp(`<dt>Estado</dt><dd[^>]*>${label}</dd>`));
   });
 
-  it('un anuncio retirado sigue en la lista y ya no lleva la insignia «(no disponible)»', () => {
+  it('un anuncio retirado sigue en la lista, con el mismo estado que uno inactivo y sin insignia entre paréntesis', () => {
     const sources = [makeSource({ listingId: 'a' }), makeSource({ listingId: 'b', status: 'removed' })];
     const html = renderToStaticMarkup(<SourceList sources={sources} />);
 
     expect(rowsOf(html)).toHaveLength(2);
     expect(html).not.toContain('(no disponible)');
-    expect(html).toMatch(/<dt>Estado<\/dt><dd[^>]*>Retirado<\/dd>/);
+    expect(html).toMatch(/<dt>Estado<\/dt><dd[^>]*>No disponible<\/dd>/);
+    expect(html).not.toContain('Retirado');
   });
 
   it('N=1 renderiza exactamente una fila, sin mensaje de degradación', () => {

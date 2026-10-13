@@ -72,6 +72,25 @@ describe('describeAppliedFilters — rótulos y orden (spec "Applied-filter chip
     expect(labels({ zone: '28079' }, null)).toEqual(['Zona INE 28079']);
   });
 
+  // D.17 (B1): una zona sin datos no se aplica; el chip lo dice en vez de aparentar un filtro activo.
+  it('zona sin datos todavía: el rótulo lo dice y la clave sigue siendo la de la zona', () => {
+    expect(describeAppliedFilters(criteria({ zone: '28065' }), 'Getafe', { zoneApplied: false })).toEqual([
+      { key: 'zone', label: 'Zona: Getafe · sin datos todavía' },
+    ]);
+    expect(describeAppliedFilters(criteria({ zone: '28074' }), 'Leganés', { zoneApplied: false })[0]?.label).toBe(
+      'Zona: Leganés · sin datos todavía'
+    );
+  });
+
+  it('zona aplicada (por defecto) o sin nombre resuelto: el rótulo no cambia', () => {
+    expect(describeAppliedFilters(criteria({ zone: '28065' }), 'Getafe', { zoneApplied: true })[0]?.label).toBe(
+      'Zona: Getafe'
+    );
+    expect(describeAppliedFilters(criteria({ zone: '28079' }), null, { zoneApplied: false })[0]?.label).toBe(
+      'Zona INE 28079'
+    );
+  });
+
   it('polígono dibujado: «Zona dibujada»', () => {
     expect(labels({ polygon: '40.4,-3.7;40.4,-3.6;40.5,-3.6' })).toEqual(['Zona dibujada']);
   });
@@ -266,6 +285,12 @@ describe('FilterBar — bandeja (S16, S17)', () => {
     }
   });
 
+  // D.17 (B2): «Aplicar filtros» es la acción principal de la barra y se pinta como tal.
+  it('el envío de la barra es el botón principal, con el texto «Aplicar filtros»', () => {
+    const html = tray();
+    expect(html).toMatch(/<button type="submit" class="filter-bar__submit">Aplicar filtros<\/button>/);
+  });
+
   it('S17: `open` abre la bandeja y sin recuento no hay número', () => {
     const html = renderToStaticMarkup(<FilterBar params={{ minPrice: 'abc' }} rejectedKeys={new Set(['minPrice'])} open />);
     expect(html).toMatch(/^<details class="filter-tray" open="">/);
@@ -310,6 +335,32 @@ function chips(params: Record<string, string>, zoneName: string | null = null, c
     <AppliedFilters criteria={criteria(params)} params={params} zoneName={zoneName} count={count} />
   );
 }
+
+describe('AppliedFilters — zona sin datos (D.17, B1)', () => {
+  it('con `zoneApplied={false}` el chip lleva «sin datos todavía» y sigue siendo un enlace que quita la zona', () => {
+    const params = { zone: '28074', operation: 'rent' };
+    const html = renderToStaticMarkup(
+      <AppliedFilters criteria={criteria(params)} params={params} zoneName="Leganés" count="3 resultados" zoneApplied={false} />
+    );
+    expect(html).toContain('Zona: Leganés · sin datos todavía');
+    expect(html).toContain('href="/?operation=rent"');
+    expect(html).toContain('Operación: Alquiler');
+    expect(html).not.toContain('Operación: Alquiler · sin datos');
+  });
+
+  it('sin la propiedad, o con zona aplicada, el chip es el de siempre', () => {
+    const params = { zone: '28074' };
+    for (const html of [
+      renderToStaticMarkup(<AppliedFilters criteria={criteria(params)} params={params} zoneName="Leganés" count="3 resultados" />),
+      renderToStaticMarkup(
+        <AppliedFilters criteria={criteria(params)} params={params} zoneName="Leganés" count="3 resultados" zoneApplied />
+      ),
+    ]) {
+      expect(html).toContain('Zona: Leganés');
+      expect(html).not.toContain('sin datos todavía');
+    }
+  });
+});
 
 describe('AppliedFilters — spec "Applied-filter chips" y "Clear all"', () => {
   it('sin filtros: el recuento sigue, pero no hay lista ni sección ni «Quitar todos»', () => {
@@ -426,6 +477,14 @@ describe('CriteriaFields — pista «solo cifras» (D.15, decisión 204)', () =>
     for (const field of ['operation', 'propertyType', 'sort', 'dir']) {
       expect(findTag(html, 'select', `name="${field}"`)).not.toContain('aria-describedby');
     }
+  });
+
+  // D.17 (B2): en la barra plana la pista queda pegada a los campos numéricos, no suelta encima.
+  it.each(['criteria', 'filter'])('%s plano: la pista va tras los baños y antes del orden', (prefix) => {
+    const flat = renderToStaticMarkup(<CriteriaFields values={FIELD_VALUES} idPrefix={prefix} />);
+    const hint = flat.indexOf(`id="${prefix}-numeric-hint"`);
+    expect(hint).toBeGreaterThan(flat.indexOf('name="minBathrooms"'));
+    expect(hint).toBeLessThan(flat.indexOf('name="sort"'));
   });
 
   it('agrupado: la pista se pinta una vez, en el grupo de precio, antes del primer número', () => {

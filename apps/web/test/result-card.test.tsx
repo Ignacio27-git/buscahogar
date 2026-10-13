@@ -60,6 +60,17 @@ describe('ResultCard (D4/D9, AR-4) — enlace condicionado al ancla', () => {
     expect(html).not.toContain('<a ');
   });
 
+  // D.17 (B4): la evidencia de agregación pesa más que «1 fuente»; el texto no cambia.
+  it.each([
+    [2, 'result-row__badge result-row__badge--multi'],
+    [3, 'result-row__badge result-row__badge--multi'],
+    [1, 'result-row__badge'],
+  ])('con %i fuentes la insignia lleva la clase «%s»', (sources, classes) => {
+    const html = renderToStaticMarkup(<ResultCard result={makeResult({ distinctSourceCount: sources })} />);
+
+    expect(html).toContain(`<p class="${classes}">Disponible en ${String(sources)} `);
+  });
+
   it('el texto "Disponible en N fuentes" no cambia en ninguna de las dos ramas', () => {
     const linked = renderToStaticMarkup(
       <ResultCard result={makeResult({ anchorListingId: 'bbbbbbbb-0000-0000-0000-000000000002', distinctSourceCount: 2 })} />

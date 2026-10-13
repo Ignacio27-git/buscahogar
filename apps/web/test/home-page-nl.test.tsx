@@ -766,3 +766,19 @@ describe('campos rechazados: aria-invalid y descripción de la alerta (D.15, F4)
     expect(findTag(html, 'input', 'id="search-text"')).not.toContain('aria-invalid');
   });
 });
+
+// D.17 (B8) — el aviso de que no se busca todavía se lee junto al botón que lo provoca.
+describe('panel de revisión: aviso junto al botón (D.17, B8)', () => {
+  it('«La búsqueda no empieza hasta que pulses «Buscar»» va dentro del formulario, tras el botón', async () => {
+    const html = await render({ q: 'piso en venta' });
+    const formStart = html.indexOf('class="criteria-form"');
+    expect(formStart).toBeGreaterThan(-1);
+    const form = html.slice(formStart);
+    const button = form.indexOf('>Buscar</button>');
+    const hint = form.indexOf('La búsqueda no empieza hasta que pulses «Buscar».');
+    expect(button).toBeGreaterThan(-1);
+    expect(hint).toBeGreaterThan(button);
+    expect(hint).toBeLessThan(form.indexOf('</form>'));
+    expect(html.split('La búsqueda no empieza hasta que pulses «Buscar».')).toHaveLength(2);
+  });
+});

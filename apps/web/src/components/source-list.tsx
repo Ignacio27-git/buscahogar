@@ -14,8 +14,11 @@
 // D.12 (decisión 180): la lista es una comparación. `compareSourceListings` (core)
 // decide qué anuncios fijan el precio; aquí solo se pinta su resultado, nunca a
 // partir del número de fuentes. Cada fila muestra sus datos con etiqueta, el estado
-// sale de un `Record` tipado (la insignia «(no disponible)» por fila desaparece, ya
+// sale de `listingStatusLabel` (la insignia «(no disponible)» por fila desaparece, ya
 // lo dice «Estado») y una nota fija recuerda que la agrupación es una estimación.
+//
+// D.17 (B9, decisión 209): un anuncio retirado dice «No disponible», como uno inactivo y como la
+// insignia del histórico; «Retirado» desaparece.
 import type { ReactElement } from 'react';
 
 import { compareSourceListings } from '@buscahogar/core';
@@ -23,27 +26,13 @@ import type { PropertyDetailSource } from '@buscahogar/db';
 
 import { formatUtcDate } from '@/lib/format-date';
 import { formatPriceCents } from '@/lib/format-price';
+import { listingStatusLabel } from '@/lib/listing-status';
 import { sourceLabel } from '@/lib/search-labels';
 
 import { Icon } from './icon';
 
 export interface SourceListProps {
   readonly sources: readonly PropertyDetailSource[];
-}
-
-const LISTING_STATUS_LABELS: Record<'active' | 'inactive' | 'removed', string> = {
-  active: 'Disponible',
-  inactive: 'No disponible',
-  removed: 'Retirado',
-};
-
-// Un estado que el tipo no contempla se trata como no disponible, igual que el SQL
-// solo considera activo el valor exacto `'active'`. `Object.hasOwn` evita que una
-// clave heredada como `toString` salga como etiqueta.
-function statusLabel(status: string): string {
-  return Object.hasOwn(LISTING_STATUS_LABELS, status)
-    ? LISTING_STATUS_LABELS[status as keyof typeof LISTING_STATUS_LABELS]
-    : LISTING_STATUS_LABELS.inactive;
 }
 
 const HIGHLIGHT_BY_MODE = {
@@ -98,7 +87,7 @@ export function SourceList({ sources }: SourceListProps): ReactElement {
                 </div>
                 <div>
                   <dt>Estado</dt>
-                  <dd>{statusLabel(source.status)}</dd>
+                  <dd>{listingStatusLabel(source.status)}</dd>
                 </div>
               </dl>
             </li>

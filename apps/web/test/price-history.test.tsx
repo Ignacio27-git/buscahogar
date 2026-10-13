@@ -102,7 +102,19 @@ describe('PriceHistory', () => {
     expect(html).toContain(`−${formatPriceCents(1000)} (−1,1 %)`);
   });
 
-  it('«(no disponible)» solo en anuncios no activos', () => {
+  // D.17 (P3): las cabeceras numéricas se alinean como sus celdas (a la derecha).
+  it('«Precio» y «Variación» llevan la clase numérica; «Fuente» y «Fecha», no', () => {
+    const html = render(TWO_LISTINGS);
+
+    for (const name of ['Precio', 'Variación']) {
+      expect(html).toMatch(new RegExp(`<th[^>]*class="price-history__num"[^>]*>${name}</th>`));
+    }
+    for (const name of ['Fuente', 'Fecha']) {
+      expect(html).toMatch(new RegExp(`<th(?![^>]*price-history__num)[^>]*>${name}</th>`));
+    }
+  });
+
+  it('«No disponible» solo en anuncios no activos', () => {
     const html = render([
       obs('a', 'idealista', 90000, '2026-07-01T10:00:00Z', 'removed'),
       obs('a', 'idealista', 85000, '2026-08-01T10:00:00Z', 'removed'),
@@ -110,13 +122,14 @@ describe('PriceHistory', () => {
       obs('b', 'kyero', 87000, '2026-09-10T10:00:00Z'),
     ]);
 
-    expect(html.match(/\(no disponible\)/g)?.length).toBeGreaterThanOrEqual(1);
+    expect(html.match(/>No disponible</g)?.length).toBeGreaterThanOrEqual(1);
+    expect(html).not.toContain('(no disponible)');
     const kyeroRows = [...html.matchAll(/<tr role="row">([\s\S]*?)<\/tr>/g)]
       .map((m) => m[1] ?? '')
       .filter((row) => row.includes('Kyero'));
     expect(kyeroRows.length).toBeGreaterThan(0);
     for (const row of kyeroRows) {
-      expect(row).not.toContain('(no disponible)');
+      expect(row).not.toContain('No disponible');
     }
   });
 

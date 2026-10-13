@@ -10,6 +10,7 @@ import type { PropertyPriceObservation } from '@buscahogar/db';
 
 import { formatUtcDate } from '@/lib/format-date';
 import { formatPriceCents, formatPriceChange } from '@/lib/format-price';
+import { UNAVAILABLE_LABEL } from '@/lib/listing-status';
 import {
   buildPriceChart,
   chartAriaLabel,
@@ -117,9 +118,7 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
                     <path className="price-chart__marker" d={markerPath(s.styleIndex, 12, 6)} />
                   </svg>
                   <span>{s.label}</span>
-                  {s.withdrawn ? (
-                    <span className="price-history__badge">(no disponible)</span>
-                  ) : null}
+                  {s.withdrawn ? <span className="price-history__badge">{UNAVAILABLE_LABEL}</span> : null}
                 </li>
               ))}
             </ul>
@@ -150,10 +149,10 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
               <th scope="col" role="columnheader">
                 Fecha
               </th>
-              <th scope="col" role="columnheader">
+              <th scope="col" role="columnheader" className="price-history__num">
                 Precio
               </th>
-              <th scope="col" role="columnheader">
+              <th scope="col" role="columnheader" className="price-history__num">
                 Variación
               </th>
             </tr>
@@ -169,7 +168,7 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
                     {withdrawnOf(s.status) ? (
                       <>
                         {' '}
-                        <span className="price-history__badge">(no disponible)</span>
+                        <span className="price-history__badge">{UNAVAILABLE_LABEL}</span>
                       </>
                     ) : null}
                   </td>

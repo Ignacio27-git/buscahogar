@@ -69,10 +69,12 @@ describe('CSS de la vista dividida — SMV-16', () => {
 describe('CSS del marco del mapa — SMV-18', () => {
   const frameStart = CSS.search(/\.search-map__frame\s*\{/);
 
-  it('el marco usa el hairline y la superficie de la hoja, sin sombra ni colores nuevos', () => {
+  // D.17 (P3): el filete del marco usa el borde de control; con --rule se perdía sobre las teselas
+  // beige del tema claro (el oscuro sí lo mostraba).
+  it('el marco usa el hairline de control y la superficie de la hoja, sin sombra ni colores nuevos', () => {
     expect(frameStart).toBeGreaterThan(-1);
     const frame = blockAfter(CSS, frameStart);
-    expect(frame).toContain('border: 1px solid var(--rule)');
+    expect(frame).toContain('border: 1px solid var(--rule-control)');
     expect(frame).toContain('background-color: var(--surface)');
     expect(frame).not.toMatch(/box-shadow|#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
   });

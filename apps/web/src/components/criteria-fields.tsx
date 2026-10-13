@@ -174,7 +174,6 @@ export function CriteriaFields({ values, idPrefix, grouped, invalid }: CriteriaF
   }
   return (
     <>
-      <NumericHint idPrefix={idPrefix} />
       <SelectField
         field="operation"
         idPrefix={idPrefix} invalid={invalid}
@@ -199,6 +198,8 @@ export function CriteriaFields({ values, idPrefix, grouped, invalid }: CriteriaF
       </fieldset>
       <NumberField field="minRooms" idPrefix={idPrefix} invalid={invalid} value={values.minRooms} step="1" />
       <NumberField field="minBathrooms" idPrefix={idPrefix} invalid={invalid} value={values.minBathrooms} step="1" />
+      {/* D.17 (B2): la pista queda pegada a los campos numéricos, no suelta encima de toda la barra. */}
+      <NumericHint idPrefix={idPrefix} />
       <SelectField
         field="sort"
         idPrefix={idPrefix} invalid={invalid}

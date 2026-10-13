@@ -77,7 +77,10 @@ export function ResultCard({ result, returnParams = [] }: ResultCardProps): Reac
           {result.bathrooms !== null ? ` · ${formatBathrooms(result.bathrooms)}` : ''}
         </p>
         {result.address !== null ? <p className="result-row__address">{result.address}</p> : null}
-        <p className="result-row__badge">{`Disponible en ${String(sourceCount)} ${sourceCount === 1 ? 'fuente' : 'fuentes'}`}</p>
+        {/* D.17 (B4): con dos o más fuentes la insignia pesa más: es la evidencia de la agregación. */}
+        <p className={sourceCount > 1 ? 'result-row__badge result-row__badge--multi' : 'result-row__badge'}>
+          {`Disponible en ${String(sourceCount)} ${sourceCount === 1 ? 'fuente' : 'fuentes'}`}
+        </p>
       </div>
     </>
   );

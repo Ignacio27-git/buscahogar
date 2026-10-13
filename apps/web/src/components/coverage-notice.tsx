@@ -81,6 +81,8 @@ interface NoticeCopy {
   readonly role: 'status' | 'alert';
   readonly title: string;
   readonly detail: ReactNode;
+  // D.17 (B5): etiqueta corta del estado de un job; el borde de color no es la única señal.
+  readonly stateLabel?: string;
 }
 
 function resetTime(resetsAt: Date): ReactElement {
@@ -159,18 +161,21 @@ function jobCopy(variant: Extract<CoverageNoticeVariant, { kind: 'job' }>): Noti
         role: 'status',
         title: `La actualización de ${variant.municipality} está en cola.`,
         detail: 'Las viviendas aparecerán en esta lista cuando termine.',
+        stateLabel: 'En cola',
       };
     case 'running':
       return {
         role: 'status',
         title: `La actualización de ${variant.municipality} está en curso.`,
         detail: `${started} Las viviendas aparecerán en esta lista cuando termine.`.trim(),
+        stateLabel: 'En curso',
       };
     case 'done':
       return {
         role: 'status',
         title: `La actualización de ${variant.municipality} ha terminado.`,
         detail: `${started} Pulsa «Comprobar de nuevo» si aún no ves sus viviendas.`.trim(),
+        stateLabel: 'Terminada',
       };
     case 'failed':
       return {
@@ -181,6 +186,7 @@ function jobCopy(variant: Extract<CoverageNoticeVariant, { kind: 'job' }>): Noti
             ? 'Lo volveremos a intentar más tarde; pulsa «Comprobar de nuevo» dentro de un rato.'
             : 'No lo volveremos a intentar de forma automática. Mientras tanto, prueba con un municipio cercano.'
         } ${started}`.trim(),
+        stateLabel: 'Fallida',
       };
   }
 }
@@ -190,10 +196,21 @@ export function CoverageNotice({
 }: {
   readonly variant: CoverageNoticeVariant;
 }): ReactElement {
-  const { role, title, detail } = copyFor(variant);
+  const { role, title, detail, stateLabel } = copyFor(variant);
   return (
     <div className="coverage-notice" role={role} aria-atomic="true">
-      <p className="coverage-notice__title">{title}</p>
+      <p className="coverage-notice__title">
+        {title}
+        {/* Oculta a la tecnología de apoyo: el título de esta región viva ya dice el estado. */}
+        {stateLabel !== undefined ? (
+          <>
+            {' '}
+            <span className="coverage-notice__state" aria-hidden="true">
+              {stateLabel}
+            </span>
+          </>
+        ) : null}
+      </p>
       <p className="coverage-notice__detail">{detail}</p>
     </div>
   );

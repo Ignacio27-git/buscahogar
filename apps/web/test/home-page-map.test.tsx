@@ -702,3 +702,165 @@ describe('ayuda de teclado del mapa (D.15, F2)', () => {
     expect(rejected).not.toContain('map-keyboard-help');
   });
 });
+
+// D.17 (B1) — una zona sin datos no se aplica (D10): la lista muestra todos los municipios, y el chip
+// y un rótulo sobre la lista lo dicen en vez de aparentar un filtro activo.
+describe('zona sin datos todavía: chip y rótulo de la lista (D.17, B1)', () => {
+  const CAPTION = 'Mientras tanto, viviendas de todos los municipios';
+  const CHIP = 'Zona: Leganés · sin datos todavía';
+  const geometry = {
+    zoneId: 'zone-1',
+    ineCode: '28074',
+    municipality: 'Leganés',
+    state: 'uncovered',
+    centroid: { latitude: 40.33, longitude: -3.76 },
+    sweepRadiusM: 4500,
+  };
+
+  function withResults(): void {
+    searchPropertiesMock.mockResolvedValue({
+      results: [makeListResult(0), makeListResult(1)],
+      hasNextPage: false,
+    });
+    mapResult(2);
+  }
+
+  function uncovered(): void {
+    resolveZoneGeometryMock.mockResolvedValue(geometry);
+    resolveNewZonesDailyCapMock.mockReturnValue(10);
+    resolveCoverageClientLimitMock.mockResolvedValue(null);
+    resolveCoverageForZoneMock.mockResolvedValue({ kind: 'not-sweepable' });
+  }
+
+  it('zona sin cubrir con resultados: chip marcado y rótulo una vez, antes de la primera fila', async () => {
+    withResults();
+    uncovered();
+    const html = await render({ zone: '28074' });
+    expect(html).toContain(CHIP);
+    expect(count(html, CAPTION)).toBe(1);
+    const list = listSection(html);
+    expect(list).toContain(CAPTION);
+    expect(list.indexOf(CAPTION)).toBeLessThan(list.indexOf('class="result-list"'));
+    expect(mapSection(html)).not.toContain(CAPTION);
+  });
+
+  it('el chip sigue siendo un enlace que quita la zona', async () => {
+    withResults();
+    uncovered();
+    const html = await render({ zone: '28074', operation: 'sale' });
+    expect(html).toContain('href="/?operation=sale"');
+    expect(html).toContain(CHIP);
+  });
+
+  it('zona cubierta con resultados: ni chip marcado ni rótulo', async () => {
+    withResults();
+    resolveZoneGeometryMock.mockResolvedValue({ ...geometry, state: 'covered' });
+    const html = await render({ zone: '28074' });
+    expect(html).toContain('Zona: Leganés');
+    expect(html).not.toContain('sin datos todavía');
+    expect(html).not.toContain(CAPTION);
+  });
+
+  it('zona desconocida con resultados: el aviso ya lo explica, sin rótulo ni chip marcado', async () => {
+    withResults();
+    resolveZoneGeometryMock.mockResolvedValue(null);
+    const html = await render({ zone: '00000' });
+    expect(html).toContain('Zona INE 00000');
+    expect(html).not.toContain('sin datos todavía');
+    expect(html).not.toContain(CAPTION);
+  });
+
+  it('zona sin cubrir y sin resultados: el chip se marca y el estado vacío no lleva el rótulo', async () => {
+    uncovered();
+    const html = await render({ zone: '28074' });
+    expect(html).toContain(CHIP);
+    expect(html).not.toContain(CAPTION);
+  });
+});
+
+// D.17 (B5) — el aviso de actualización de la zona es un solo panel: el estado, la frase de
+// refresco automático y, al final, el enlace de recarga.
+describe('panel de actualización de la zona (D.17, B5)', () => {
+  const geometry = {
+    zoneId: 'zone-1',
+    ineCode: '28074',
+    municipality: 'Leganés',
+    state: 'uncovered',
+    centroid: { latitude: 40.33, longitude: -3.76 },
+    sweepRadiusM: 4500,
+  };
+
+  async function renderOutcome(outcome: unknown): Promise<string> {
+    resolveZoneGeometryMock.mockResolvedValue(geometry);
+    resolveNewZonesDailyCapMock.mockReturnValue(10);
+    resolveCoverageClientLimitMock.mockResolvedValue(null);
+    resolveCoverageForZoneMock.mockResolvedValue(outcome);
+    return render({ zone: '28074' });
+  }
+
+  function panelOf(html: string): string {
+    const start = html.indexOf('<section aria-label="Actualización de la zona"');
+    if (start === -1) {
+      throw new Error('Falta el panel de actualización');
+    }
+    return html.slice(start, html.indexOf('</section>', start));
+  }
+
+  const job = {
+    kind: 'registered',
+    job: { status: 'pending', attempts: 0, requestedAt: new Date('2026-10-08T12:00:00Z'), startedAt: null, error: null },
+  };
+
+  it('con job: aviso, frase de refresco y enlace de recarga al final, todo dentro del panel', async () => {
+    const panel = panelOf(await renderOutcome(job));
+    const notice = panel.indexOf('class="coverage-notice"');
+    const status = panel.indexOf('data-testid="coverage-status"');
+    const link = panel.indexOf(RELOAD_LINK);
+    expect(notice).toBeGreaterThan(-1);
+    expect(status).toBeGreaterThan(notice);
+    expect(link).toBeGreaterThan(status);
+    expect(panel.slice(link + RELOAD_LINK.length)).not.toMatch(/<(a|p)[ >]/);
+    expect(panel).toContain('class="coverage-panel"');
+  });
+
+  it('sin job: aviso y enlace de recarga al final, sin frase de refresco', async () => {
+    const panel = panelOf(await renderOutcome({ kind: 'registered', job: null }));
+    expect(panel.indexOf(RELOAD_LINK)).toBeGreaterThan(panel.indexOf('class="coverage-notice"'));
+    expect(panel).not.toContain('data-testid="coverage-status"');
+  });
+});
+
+// D.17 (B3) — sobre el mapa solo va el recuento; los avisos viajan en el pie, tras el marco.
+describe('pie del mapa (D.17, B3)', () => {
+  const COUNT_CAVEAT = 'Este recuento puede diferir del total de la lista';
+  const APPROX = 'Las posiciones del mapa pueden ser aproximadas.';
+
+  it('antes del marco solo está el recuento; los dos avisos van tras el marco, con la ayuda de teclado', async () => {
+    mapResult(2);
+    const section = mapSection(await render({}));
+    const frame = section.indexOf('<div class="search-map__frame">');
+    const before = section.slice(0, frame);
+    expect(before).toContain('2 viviendas con ubicación coinciden');
+    expect(before).not.toContain(COUNT_CAVEAT);
+    expect(before).not.toContain(APPROX);
+    const notes = section.slice(section.indexOf('</noscript></div>'));
+    expect(notes).toContain('id="map-keyboard-help"');
+    expect(notes).toContain(COUNT_CAVEAT);
+    expect(notes).toContain(APPROX);
+    expect(notes).toContain('class="search-map__notes"');
+  });
+
+  it('con polígono no hay aviso de diferencia de recuento, pero sí el de posiciones', async () => {
+    mapResult(2);
+    const html = await render({ polygon: POLYGON });
+    expect(html).not.toContain(COUNT_CAVEAT);
+    expect(mapSection(html)).toContain(APPROX);
+  });
+
+  it('con puntos truncados, «Mostrando N de M» sigue junto al recuento, sobre el mapa', async () => {
+    mapResult(2, 5);
+    const section = mapSection(await render({}));
+    const before = section.slice(0, section.indexOf('<div class="search-map__frame">'));
+    expect(before).toContain('Mostrando 2 de 5');
+  });
+});

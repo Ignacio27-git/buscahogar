@@ -333,17 +333,24 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
     }
   }
 
+  // D.17 (B5): un solo panel. El aviso (región viva), la frase de refresco automático y, al final, el
+  // enlace de recarga; el orden del DOM es el visual y no queda hueco entre el panel y «Ver mapa».
   const coverageSection =
     coverageVariant === null ? null : isReloadable(coverageVariant) ? (
-      <section aria-label="Actualización de la zona">
+      <section aria-label="Actualización de la zona" className="coverage-panel">
         <CoverageNotice variant={coverageVariant} />
-        <a href={buildCurrentHref(rawSearchParams)}>Comprobar de nuevo</a>
         {coverageJob !== null ? <CoverageStatus job={coverageJob} /> : null}
+        <p className="coverage-panel__reload">
+          <a href={buildCurrentHref(rawSearchParams)}>Comprobar de nuevo</a>
+        </p>
       </section>
     ) : (
       <CoverageNotice variant={coverageVariant} />
     );
 
+  // D.17 (B6): los pasos «Describe · Revisa · Busca» solo se muestran en la home sin parámetros y en
+  // la revisión de `?q=`: son el recorrido del texto libre. Con una búsqueda ya hecha (filtros, zona,
+  // mapa) la persona ya salió de ese recorrido y el indicador sería ruido sobre los resultados.
   const header = (
     <>
       <h1>Buscar vivienda</h1>
@@ -407,6 +414,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
           params={rawSearchParams}
           zoneName={zoneName}
           count={formatListCount(results.length, criteria.page, hasNextPage)}
+          zoneApplied={!zoneUnapplied}
         />
         {/* DAS-11: región compartida; con polígono las dos consultas dan el mismo
             total, así que M === 0 vale también en páginas posteriores de la lista. */}
@@ -414,6 +422,11 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       </div>
       <div className="search-results" data-view={view}>
         <section aria-label="Resultados" className="search-results__list">
+          {/* D.17 (B1): la zona existe pero aún no tiene datos y no se aplicó (D10): la lista no es de
+              esa zona. Con una zona desconocida el aviso ya lo explica; sin resultados, el estado vacío. */}
+          {zoneUnapplied && zoneName !== null && results.length > 0 ? (
+            <p className="search-results__caption">Mientras tanto, viviendas de todos los municipios</p>
+          ) : null}
           {results.length === 0 ? (
             listEmptyKind !== null ? (
               <EmptyResults
@@ -436,11 +449,6 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
         </section>
         <section aria-label="Mapa de resultados" className="search-results__map">
           <p className="font-semibold tabular-nums">{formatMapCount(total)}</p>
-          {criteria.polygon === undefined ? (
-            <p>
-              Este recuento puede diferir del total de la lista: las viviendas sin ubicación no aparecen en el mapa.
-            </p>
-          ) : null}
           {truncated ? (
             <p>
               Mostrando {points.length} de {total}
@@ -448,7 +456,6 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
           ) : null}
           {mapEmptyKind === 'filtered' ? <p>Ninguna vivienda con ubicación coincide con tu búsqueda.</p> : null}
           {mapEmptyKind === 'unfiltered' ? <p>Todavía no hay viviendas con ubicación.</p> : null}
-          <p>Las posiciones del mapa pueden ser aproximadas.</p>
           {/* El marco es del servidor: el aviso de carga, el lienzo y el noscript
               comparten dimensiones, y sin JS el noscript queda dentro del marco. */}
           <div className="search-map__frame">
@@ -463,10 +470,19 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
               <a href={buildViewHref(rawSearchParams, 'list')}>Ver la lista de resultados</a>
             </noscript>
           </div>
-          <p id={MAP_KEYBOARD_HELP_ID} className="text-small text-ink-muted">
-            Con el mapa enfocado, usa las flechas para moverte y + o − para acercar o alejar. Con Tab llegas a cada
-            vivienda y con Intro abres su ventana.
-          </p>
+          {/* D.17 (B3): sobre el mapa solo va el recuento; los avisos, con la ayuda de teclado, en un pie. */}
+          <div className="search-map__notes">
+            <p id={MAP_KEYBOARD_HELP_ID}>
+              Con el mapa enfocado, usa las flechas para moverte y + o − para acercar o alejar. Con Tab llegas a cada
+              vivienda y con Intro abres su ventana.
+            </p>
+            <p>Las posiciones del mapa pueden ser aproximadas.</p>
+            {criteria.polygon === undefined ? (
+              <p>
+                Este recuento puede diferir del total de la lista: las viviendas sin ubicación no aparecen en el mapa.
+              </p>
+            ) : null}
+          </div>
           {/* SMV-9 (ODbL): atribución también en el HTML del servidor. */}
           <p>
             © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>

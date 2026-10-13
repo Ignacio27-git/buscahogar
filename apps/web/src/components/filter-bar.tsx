@@ -83,7 +83,9 @@ export function FilterBar({ params, rejectedKeys, alertId, activeCount, open }: 
           idPrefix="filter"
           invalid={rejectedKeys !== undefined && alertId !== undefined ? { keys: rejectedKeys, errorId: alertId } : undefined}
         />
-        <button type="submit">Aplicar filtros</button>
+        <button type="submit" className="filter-bar__submit">
+          Aplicar filtros
+        </button>
       </form>
     </details>
   );

@@ -307,9 +307,9 @@
     padding-inline: calc(var(--spacing) * 4);
     background-color: var(--surface-raised);
     color: var(--ink);
-    border: 1px solid var(--rule-control);
+    border: 2px solid var(--ink);
     border-radius: var(--radius-control);
-    box-shadow: var(--shadow-overlay);
+    box-shadow: var(--shadow-raised);
     font-weight: 600;
     transform: translateY(-200%);
   }
@@ -504,6 +504,17 @@
     font-size: var(--text-body);
   }
 
+  /* D.17 (B2): alto fijo para que desplegables, números y botón compartan línea de base. Sin relleno
+     vertical, así el texto del control no se recorta aunque el espaciado de texto (1.4.12) crezca. */
+  .filter-bar input:not([type='hidden']),
+  .filter-bar select,
+  .filter-bar button,
+  .criteria-group input:not([type='radio']),
+  .criteria-group select {
+    block-size: 2.5rem;
+    padding-block: 0;
+  }
+
   .filter-bar input[type='number'],
   .criteria-group input[type='number'] {
     inline-size: 7rem;
@@ -517,7 +528,8 @@
     line-height: var(--text-dense--line-height);
   }
 
-  .filter-bar > .field-hint {
+  .filter-bar > .field-hint,
+  .criteria-group > .field-hint {
     flex-basis: 100%;
   }
 
@@ -559,7 +571,9 @@
     align-self: start;
     aspect-ratio: 4 / 3;
     overflow: hidden;
-    background-color: var(--surface-sunken);
+    /* D.17 (P3): un tinte de la tinta sobre la superficie, así el hueco sin foto es más claro que la
+       página en oscuro (con --surface-sunken quedaba más oscuro) y se ve igual de suave en claro. */
+    background-color: color-mix(in oklab, var(--surface), var(--ink) 5%);
     border-radius: var(--radius-control);
     color: var(--ink-muted);
     font-size: var(--text-small);
@@ -606,16 +620,25 @@
     overflow-wrap: anywhere;
   }
 
+  /* D.17 (B4): «1 fuente» es una línea tenue sin caja; «Disponible en N fuentes» (N >= 2) es la
+     evidencia de la agregación y pesa más: borde de tinta, peso 600 y cifras tabulares. La distinción
+     no depende del color: borde y peso. */
   .result-row__badge {
     inline-size: fit-content;
     max-inline-size: 100%;
     margin-block-start: 0.25rem;
-    padding-inline: 0.375rem;
-    border: 1px solid var(--rule-control);
-    border-radius: var(--radius-control);
     color: var(--ink-muted);
     font-size: var(--text-small);
     line-height: var(--text-small--line-height);
+  }
+
+  .result-row__badge--multi {
+    padding-inline: 0.375rem;
+    border: 1px solid var(--ink);
+    border-radius: var(--radius-control);
+    color: var(--ink);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
 
   /* Un único enlace por fila. El foco visible es el global; el resalte solo se aplica con
@@ -865,9 +888,12 @@
     flex-basis: 100%;
   }
 
+  /* D.17 (B8): las opciones de zona van agrupadas a la izquierda (antes, dos columnas de 16rem las
+     separaban ~390px) y envuelven en cuanto no caben. */
   .zone-field__choices {
-    columns: 16rem;
-    column-gap: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 1.5rem;
   }
 
   .zone-field__choices > p {
@@ -875,13 +901,22 @@
     align-items: center;
     gap: 0.5rem;
     min-block-size: 2.5rem;
-    break-inside: avoid;
   }
 
-  .criteria-form__submit {
+  /* D.17 (B8): el botón y el aviso de que la búsqueda aún no empieza, juntos. */
+  .criteria-form__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+  }
+
+  /* Botón principal: el de «Buscar» del panel de ?q= y el de «Aplicar filtros» de la barra (D.17,
+     B2). */
+  .criteria-form__submit,
+  .filter-bar__submit {
     min-block-size: 2.5rem;
     font-size: var(--text-body);
-    align-self: flex-start;
     background-color: var(--accent);
     color: var(--ink-on-accent);
     border-color: var(--accent);
@@ -889,13 +924,15 @@
   }
 
   /* Primario: mezcla del acento con la tinta (sin token nuevo); pulsado un poco más oscuro. */
-  .criteria-form__submit:active {
+  .criteria-form__submit:active,
+  .filter-bar__submit:active {
     background-color: color-mix(in oklab, var(--accent), var(--ink) 20%);
     border-color: color-mix(in oklab, var(--accent), var(--ink) 20%);
   }
 
   @media (hover: hover) and (pointer: fine) {
-    .criteria-form__submit:hover {
+    .criteria-form__submit:hover,
+    .filter-bar__submit:hover {
       background-color: color-mix(in oklab, var(--accent), var(--ink) 12%);
       border-color: color-mix(in oklab, var(--accent), var(--ink) 12%);
     }
@@ -943,6 +980,26 @@
     gap: 0.5rem;
   }
 
+  /* D.17 (B1): rótulo sobre la lista cuando la zona pedida aún no tiene datos y se muestran todos los
+     municipios. Misma voz que la nota de los avisos. */
+  .search-results__caption {
+    margin-block: 0;
+    color: var(--ink-muted);
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  /* D.17 (B3): pie del mapa. Ayuda de teclado y avisos de recuento y de posiciones, juntos y en
+     texto pequeño; el aviso de las posiciones aproximadas es visible, no solo de lectores. */
+  .search-map__notes {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    line-height: var(--text-small--line-height);
+  }
+
   /* Conmutador «Ver mapa» / «Ver lista» (D.15, WCAG 2.5.8): un enlace en línea medía 20 px de alto.
      Caja de 40 px como el resto de enlaces de la app; el párrafo sigue oculto desde 64rem. */
   .view-toggle a {
@@ -957,7 +1014,7 @@
   .search-map__frame {
     position: relative;
     block-size: clamp(20rem, 70dvh, 40rem);
-    border: 1px solid var(--rule);
+    border: 1px solid var(--rule-control);
     background-color: var(--surface);
   }
 
@@ -1008,6 +1065,19 @@
       flex: 1;
       min-block-size: 24rem;
       block-size: auto;
+    }
+
+    /* D.17 (B3): sobre el mapa solo queda el recuento (una línea más el hueco de la columna); la lista
+       baja lo mismo, así que su primer filete y el borde superior del marco quedan a la misma altura. */
+    .search-results__list > .result-list {
+      margin-block-start: calc(var(--text-body--line-height) + 0.5rem);
+    }
+
+    /* Con el rótulo de zona sin datos sobre la lista (una línea densa) el filete sigue alineado. */
+    .search-results__caption + .result-list {
+      margin-block-start: calc(
+        var(--text-body--line-height) + 0.5rem - var(--text-dense--line-height)
+      );
     }
 
     .view-toggle {
@@ -1167,6 +1237,60 @@
     font-size: var(--text-dense);
     line-height: var(--text-dense--line-height);
     color: var(--ink-muted);
+  }
+
+  /* D.17 (B5): etiqueta del estado de un job. El borde de color no es la única señal; sin movimiento. */
+  .coverage-notice__state {
+    display: inline-block;
+    padding-inline: 0.375rem;
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+    font-size: var(--text-small);
+    line-height: var(--text-small--line-height);
+    font-weight: 400;
+    vertical-align: 0.125em;
+  }
+
+  /* D.17 (B5): panel único de la actualización de la zona. Aviso (región viva), frase de refresco y,
+     al final, el enlace de recarga. El aviso pierde su caja dentro del panel (nunca paneles anidados) y
+     el panel toma su borde de peligro cuando el aviso es una alerta. */
+  .coverage-panel {
+    max-inline-size: 48rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-panel);
+    color: var(--ink);
+  }
+
+  .coverage-panel:has(> .coverage-notice[role='alert']) {
+    border-color: var(--danger);
+  }
+
+  .coverage-panel > .coverage-notice {
+    max-inline-size: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .coverage-panel > p {
+    margin: 0.25rem 0 0;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
+  .coverage-panel > .coverage-panel__reload {
+    margin-block-start: 0.5rem;
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    color: var(--ink);
+  }
+
+  .coverage-panel__reload a {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 2rem;
   }
 
   /* D.14: estado vacío de la lista en el mismo panel de 1px. Título y detalle como el aviso de
@@ -1640,6 +1764,9 @@
     font-weight: 600;
     border-color: var(--ink);
     box-shadow: inset 0 0 0 1px var(--ink);
+    /* D.17 (P3): una tercera señal que no es color ni solo borde. */
+    text-decoration-line: underline;
+    text-underline-offset: 0.2em;
   }
 
   /* D.15 (F3, decisión 195): el estado activo llega a la tecnología de apoyo sin hacer dinámica la
