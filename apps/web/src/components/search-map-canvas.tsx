@@ -24,6 +24,7 @@ import { OSM_TILE_URL_TEMPLATE } from '@/lib/osm-tiles';
 import { ZOOM_IN_MARKUP, ZOOM_OUT_MARKUP } from './icon';
 import { MapClusterLayer } from './map-cluster-layer';
 import { MapDrawControl } from './map-draw-control';
+import { makeKeyboardInstant } from './map-instant-keyboard';
 import type { SearchMapProps } from './search-map-types';
 
 // Decisión 112 (enmendada por la 179): el host de teselas vive en `lib/osm-tiles.ts`.
@@ -114,6 +115,17 @@ function ContainerSemantics({ keyboardHelpId }: { readonly keyboardHelpId: strin
   return null;
 }
 
+// D.16 (decisión 206) — pan y zoom con las teclas sin animación. Las opciones de `MapContainer`
+// apagan las animaciones de zoom y de fundido; el desplazamiento por teclado solo se hace
+// instantáneo envolviendo el manejador privado, y ese parche vive en `map-instant-keyboard.ts`.
+function InstantKeyboard(): null {
+  const map = useMap();
+
+  useEffect(() => makeKeyboardInstant(map), [map]);
+
+  return null;
+}
+
 export default function SearchMapCanvas(props: SearchMapProps): ReactElement {
   const bounds = initialBounds(props);
   const view =
@@ -122,7 +134,15 @@ export default function SearchMapCanvas(props: SearchMapProps): ReactElement {
       : { center: SPAIN_CENTER, zoom: SPAIN_ZOOM };
 
   return (
-    <MapContainer {...view} className="search-map__canvas" scrollWheelZoom zoomControl={false}>
+    <MapContainer
+      {...view}
+      className="search-map__canvas"
+      scrollWheelZoom
+      zoomControl={false}
+      zoomAnimation={false}
+      fadeAnimation={false}
+      markerZoomAnimation={false}
+    >
       <ZoomControl
         zoomInTitle="Acercar"
         zoomOutTitle="Alejar"
@@ -132,6 +152,7 @@ export default function SearchMapCanvas(props: SearchMapProps): ReactElement {
       <InitialFrame bounds={bounds} />
       <AttributionLanguage />
       <ContainerSemantics keyboardHelpId={props.keyboardHelpId} />
+      <InstantKeyboard />
       <TileLayer url={OSM_TILE_URL_TEMPLATE} attribution={ATTRIBUTION} maxZoom={19} />
       {props.polygon !== null ? (
         <Polygon

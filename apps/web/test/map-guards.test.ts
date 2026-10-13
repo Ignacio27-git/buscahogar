@@ -22,7 +22,16 @@ const TILE_MODULE = 'lib/osm-tiles.ts';
 // D.8a (decisión 165): hoja de reglas propia del mapa, sin literales de color.
 const MAP_STYLESHEET = 'components/search-map-canvas.css';
 const DRAW_STATE = 'components/draw-polygon-state.ts';
-const MAP_FILES = [WRAPPER, CANVAS, 'components/map-cluster-layer.tsx', 'components/map-draw-control.tsx'] as const;
+// D.16 (decisión 206): parche del teclado de Leaflet, en un módulo propio y puro para que el
+// lienzo nunca mencione las APIs de teclado (SMV-23). Entra en MAP_FILES y hereda sus guardas.
+const KEYBOARD_PATCH = 'components/map-instant-keyboard.ts';
+const MAP_FILES = [
+  WRAPPER,
+  CANVAS,
+  'components/map-cluster-layer.tsx',
+  'components/map-draw-control.tsx',
+  KEYBOARD_PATCH,
+] as const;
 // Marcado de servidor de la sección de mapa (atribución en el HTML del servidor).
 const SERVER_MARKUP = 'app/(search)/page.tsx';
 // D.11 (decisión 179): mapa estático de la ficha. Va FUERA de MAP_FILES a propósito: SMV-22
@@ -263,10 +272,21 @@ describe("teclado acotado al control de dibujo (SMV-22', SMV-23)", () => {
     expect(source).toMatch(/removeEventListener\(\s*'keydown'/);
   });
 
+  // D.16: el teclado también se admite en el parche de Leaflet (módulo propio). El lienzo, que solo
+  // lo monta, no debe mencionar `keydown`, `onKeyDown` ni `_onKeyDown` ni siquiera en comentarios.
   it('ningún otro módulo del mapa ni la hoja contiene teclado', () => {
-    for (const relative of MAP_FILES.filter((entry) => entry !== DRAW_CONTROL)) {
+    for (const relative of MAP_FILES.filter((entry) => entry !== DRAW_CONTROL && entry !== KEYBOARD_PATCH)) {
       expect(read(relative), relative).not.toMatch(KEY_API);
     }
+    expect(read(MAP_STYLESHEET)).not.toMatch(KEY_API);
+    expect(read(CANVAS)).not.toMatch(/keydown|onKeyDown|_onKeyDown/i);
+  });
+
+  it('el parche del teclado no escucha eventos: solo envuelve el manejador privado de Leaflet', () => {
+    const source = read(KEYBOARD_PATCH);
+    expect(source).toContain('_onKeyDown');
+    expect(source.replaceAll('_onKeyDown', '')).not.toMatch(KEY_API);
+    expect(source).not.toMatch(/addEventListener|removeEventListener|\bdocument\b|\bwindow\b/);
   });
 
   it('sin escucha en document ni window', () => {
@@ -363,5 +383,31 @@ describe('región del mapa: nombre y ayuda de teclado (D.15, F2)', () => {
   it('SearchMapProps declara keyboardHelpId y el lienzo sigue sin directiva de cliente', () => {
     expect(read('components/search-map-types.ts')).toMatch(/readonly keyboardHelpId: string/);
     expect(read(CANVAS)).not.toMatch(/^['"]use client['"]/m);
+  });
+});
+
+// D.16 (decisiones 205-208; MM-1, MM-2, MM-8) — el movimiento de Leaflet va siempre apagado.
+describe('movimiento del mapa apagado (D.16, decisión 206)', () => {
+  it.each(['zoomAnimation', 'fadeAnimation', 'markerZoomAnimation'])(
+    'el MapContainer declara %s={false}',
+    (option) => {
+      expect(read(CANVAS)).toContain(`${option}={false}`);
+    }
+  );
+
+  it('el lienzo monta <InstantKeyboard /> y usa makeKeyboardInstant del módulo del parche', () => {
+    const source = read(CANVAS);
+    expect(source).toContain('<InstantKeyboard />');
+    expect(source).toMatch(/import \{[^}]*\bmakeKeyboardInstant\b[^}]*\} from '\.\/map-instant-keyboard'/);
+  });
+
+  it('el grupo de clústeres se crea con animate: false', () => {
+    expect(read('components/map-cluster-layer.tsx')).toMatch(/markerClusterGroup\(\{[^}]*\banimate:\s*false\b/s);
+  });
+
+  it('no se activa worldCopyJump ni se anima ninguna otra capa por opción', () => {
+    for (const relative of MAP_FILES) {
+      expect(read(relative), relative).not.toContain('worldCopyJump');
+    }
   });
 });

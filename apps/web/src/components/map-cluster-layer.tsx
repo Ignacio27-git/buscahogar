@@ -87,7 +87,7 @@ export function MapClusterLayer({
   useEffect(() => {
     // Una sola vez por efecto: el mapa no pagina, así que sin `page` (decisión 171).
     const returnParams = pickSearchReturnParams(baseParams, { includePage: false });
-    const group = L.markerClusterGroup({ iconCreateFunction: buildClusterIcon });
+    const group = L.markerClusterGroup({ iconCreateFunction: buildClusterIcon, animate: false });
     for (const point of points) {
       const icon = L.divIcon({
         html: buildPriceLabel(point.priceLabel),
