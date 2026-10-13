@@ -2,11 +2,10 @@ import type { ReactElement } from 'react';
 
 import { SHELL_CONTAINER } from './shell-container';
 
-// D.17 (B7): bajo 30rem la cabecera se compacta. A 320 px el selector pasa a una segunda fila y con
-// objetivos de 40 px la cabecera medía ~112 px en todas las páginas; con 32 px (por encima del mínimo
-// de 24 de WCAG 2.5.8) y menos relleno vertical mide ~80 px. Desde 30rem, 40 px como siempre.
-const THEME_BUTTON = 'min-h-10 text-dense max-[30rem]:min-h-8 max-[30rem]:py-1';
-const HEADER_LINK = 'inline-flex min-h-10 items-center max-[30rem]:min-h-8';
+// D.17 (B7): bajo 30rem la cabecera se compacta solo en el relleno y el hueco entre filas. Los
+// objetivos siguen midiendo 40 px (decisión 200) a todos los anchos; un test lo fija.
+const THEME_BUTTON = 'min-h-10 text-dense';
+const HEADER_LINK = 'inline-flex min-h-10 items-center';
 
 // Selector de tema (D.4, decisión 144; movido aquí en D.5). Server Component sin
 // JavaScript: un formulario POST a `/theme` que guarda la cookie y vuelve a la

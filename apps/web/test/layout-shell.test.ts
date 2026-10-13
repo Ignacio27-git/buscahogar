@@ -133,3 +133,25 @@ describe('Escaneo estático de src/ (R2, R5)', () => {
     expect(existsSync(join(SRC_DIR, 'version.ts'))).toBe(false);
   });
 });
+
+// D.17 (decisión 200) — el convenio de la cabecera es de 40 px (2.5rem) en todos los anchos: ningún
+// enlace ni botón de la cabecera baja de `min-h-10`, tampoco bajo 30rem.
+describe('Cabecera: objetivos de 40 px a todos los anchos (decisión 200)', () => {
+  const header = html.slice(html.indexOf('<header'), html.indexOf('</header>'));
+  const targets = [...header.matchAll(/<(?:a|button)\b[^>]*>/g)].map((match) => match[0]);
+
+  it('hay enlaces y botones, y todos llevan min-h-10', () => {
+    expect(targets).toHaveLength(5);
+    for (const target of targets) {
+      expect(target).toMatch(/class="[^"]*\bmin-h-10\b/);
+    }
+  });
+
+  it('ningún objetivo reduce su alto con una variante de ancho (max-[…]:min-h-*, max-[…]:h-*)', () => {
+    for (const target of targets) {
+      expect(target).not.toMatch(/max-\[[^\]]+\]:(?:min-h|h)-/);
+    }
+    const source = readFileSync(join(SRC_DIR, 'components', 'site-header.tsx'), 'utf8');
+    expect(source).not.toMatch(/max-\[[^\]]+\]:(?:min-h|h)-/);
+  });
+});
