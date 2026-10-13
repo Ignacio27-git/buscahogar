@@ -435,9 +435,6 @@ oscuro según el sistema.
   | claro | danger | surface | #b6322d sobre #ffffff | 6.03 | 4.5 | cumple |
   | claro | danger | surface-raised | #b6322d sobre #ffffff | 6.03 | 4.5 | cumple |
   | claro | danger | surface-sunken | #b6322d sobre #f6f5f2 | 5.53 | 4.5 | cumple |
-  | claro | success | surface | #2b7440 sobre #ffffff | 5.71 | 4.5 | cumple |
-  | claro | success | surface-raised | #2b7440 sobre #ffffff | 5.71 | 4.5 | cumple |
-  | claro | success | surface-sunken | #2b7440 sobre #f6f5f2 | 5.24 | 4.5 | cumple |
   | claro | ink | selection | #1c1f22 sobre #cce0f9 | 12.30 | 4.5 | cumple |
   | claro | ink-on-accent | accent | #ffffff sobre #1f5fa8 | 6.44 | 4.5 | cumple |
   | claro | rule-control | surface | #81878b sobre #ffffff | 3.64 | 3 | cumple |
@@ -460,9 +457,6 @@ oscuro según el sistema.
   | oscuro | danger | surface | #f07f77 sobre #131719 | 6.88 | 4.5 | cumple |
   | oscuro | danger | surface-raised | #f07f77 sobre #1b2023 | 6.27 | 4.5 | cumple |
   | oscuro | danger | surface-sunken | #f07f77 sobre #0a0e10 | 7.39 | 4.5 | cumple |
-  | oscuro | success | surface | #69c27e sobre #131719 | 8.26 | 4.5 | cumple |
-  | oscuro | success | surface-raised | #69c27e sobre #1b2023 | 7.53 | 4.5 | cumple |
-  | oscuro | success | surface-sunken | #69c27e sobre #0a0e10 | 8.88 | 4.5 | cumple |
   | oscuro | ink | selection | #e6e4df sobre #1f446b | 7.88 | 4.5 | cumple |
   | oscuro | ink-on-accent | accent | #131719 sobre #6aa9ed | 7.31 | 4.5 | cumple |
   | oscuro | rule-control | surface | #6e767b sobre #131719 | 3.90 | 3 | cumple |

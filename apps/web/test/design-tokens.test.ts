@@ -31,7 +31,7 @@ const CSS_PATH = join(SRC_DIR, 'app', 'globals.css');
 const RAW_CSS = readFileSync(CSS_PATH, 'utf8');
 const ROOT = parseCss(RAW_CSS);
 
-/** Los 15 tokens de color de la spec design-tokens. */
+/** Los 14 tokens de color vigentes (D.17, decisión 209: `--success` se retiró por no usarse). */
 const COLOR_TOKENS = [
   'surface',
   'surface-raised',
@@ -44,14 +44,13 @@ const COLOR_TOKENS = [
   'ink-on-accent',
   'focus',
   'danger',
-  'success',
   'selection',
   'hatch',
   'shadow-color',
 ] as const;
 
-/** Tokens que NO se exponen como utilidad de color (decisión 141). */
-const NOT_UTILITIES = ['hatch', 'selection', 'shadow-color'] as const;
+/** Tokens que NO se exponen como utilidad de color (decisión 141; D.17: `focus` y `danger` solo se usan con `var()`). */
+const NOT_UTILITIES = ['hatch', 'selection', 'shadow-color', 'focus', 'danger'] as const;
 const UTILITY_TOKENS = COLOR_TOKENS.filter(
   (name) => !(NOT_UTILITIES as readonly string[]).includes(name)
 );
@@ -61,7 +60,7 @@ const TEXT_MIN = 4.5;
 const NON_TEXT_MIN = 3;
 
 const PAIRS: ContrastPair[] = [
-  ...(['ink', 'ink-muted', 'accent', 'danger', 'success'] as const).flatMap((fg) =>
+  ...(['ink', 'ink-muted', 'accent', 'danger'] as const).flatMap((fg) =>
     SURFACES.map((bg) => ({ fg, bg, min: TEXT_MIN }))
   ),
   { fg: 'ink', bg: 'selection', min: TEXT_MIN },
@@ -224,7 +223,7 @@ describe('estructura de globals.css (spec design-tokens)', () => {
 });
 
 describe('paridad de los tres bloques de tema (spec «Semantic colour token set»)', () => {
-  it('los tres bloques declaran exactamente los 15 tokens de color', () => {
+  it('los tres bloques declaran exactamente los 14 tokens de color', () => {
     const { root, dark, media } = themeBlocks();
     for (const [nombre, bloque] of [
       [':root', root],
@@ -340,10 +339,20 @@ describe('mapeo a Tailwind (spec «Tailwind mapping» y «Hatch is not a utility
     expect(mappedTokens().get(`--color-${name}`)).toBe(`var(--${name})`);
   });
 
-  it('hatch, selection y shadow-color no son utilidades de color', () => {
+  it('hatch, selection, shadow-color, focus y danger no son utilidades de color', () => {
+    expect(NOT_UTILITIES).toHaveLength(5);
     for (const name of NOT_UTILITIES) {
       expect(mappedTokens().has(`--color-${name}`), `--color-${name}`).toBe(false);
     }
+  });
+
+  it('D.17: --success y --color-success ya no existen en ningún bloque', () => {
+    const { root, dark, media } = themeBlocks();
+    for (const bloque of [root, dark, media]) {
+      expect(customProperties(bloque).has('--success')).toBe(false);
+    }
+    expect(mappedTokens().has('--color-success')).toBe(false);
+    expect(RAW_CSS).not.toContain('--success');
   });
 
   it('ninguna entrada de @theme inline referencia --hatch', () => {
@@ -399,16 +408,10 @@ describe('tokens estáticos (spec «System font stack», «Type roles», «Spaci
     expect(tokens.get('--radius-panel')).toBeDefined();
   });
 
-  it('la escala z es exactamente base, map-controls, sticky-header, overlay y toast, ascendente', () => {
+  it('la escala z es exactamente map-controls, sticky-header y toast, ascendente', () => {
     const tokens = staticTokens();
     const z = [...tokens].filter(([name]) => name.startsWith('--z-'));
-    expect(z.map(([name]) => name)).toEqual([
-      '--z-base',
-      '--z-map-controls',
-      '--z-sticky-header',
-      '--z-overlay',
-      '--z-toast',
-    ]);
+    expect(z.map(([name]) => name)).toEqual(['--z-map-controls', '--z-sticky-header', '--z-toast']);
     const values = z.map(([, value]) => Number.parseInt(value, 10));
     for (let i = 1; i < values.length; i += 1) {
       expect(values[i]).toBeGreaterThan(values[i - 1] ?? Number.POSITIVE_INFINITY);
