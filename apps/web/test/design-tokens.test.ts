@@ -431,13 +431,6 @@ describe('tokens estáticos (spec «System font stack», «Type roles», «Spaci
     }
   });
 
-  it('no declara tokens de movimiento (llegan en D.16)', () => {
-    const tokens = staticTokens();
-    const all = [...tokens.keys(), ...customProperties(ROOT).keys()];
-    const motion = all.filter((name) => /^--(ease|animate|duration|default-transition)/.test(name));
-    expect(motion).toEqual([]);
-  });
-
   it('no sobrescribe --spacing (base de 0,25rem de Tailwind)', () => {
     const spacingOverride = /--spacing\s*:/;
     // El patrón detecta una sobrescritura real, así que su ausencia en el fichero significa algo.
@@ -672,5 +665,244 @@ describe('dirección de la fila de resultado (D.15)', () => {
 
   it('una regla de la dirección permite partir palabras largas', () => {
     expect(bloques.some((bloque) => declarations(bloque).get('overflow-wrap') === 'anywhere')).toBe(true);
+  });
+});
+
+// D.16 (specs motion-tokens MT-1..MT-10 y ui-motion-surfaces UM-1..UM-10, decisiones 205-208) — sustituye a
+// la guarda de D.3 que prohibía cualquier token de movimiento. El movimiento es solo CSS con
+// tokens: transiciones escritas con longhands, solo `transform`, `opacity` y `content-visibility`,
+// y un único interruptor de movimiento reducido que pone las tres duraciones a 0s.
+describe('movimiento (D.16)', () => {
+  const MAP_CSS_RAW = readFileSync(join(SRC_DIR, 'components', 'search-map-canvas.css'), 'utf8');
+  const STYLESHEETS: Array<[string, string]> = [
+    ['globals.css', RAW_CSS],
+    ['search-map-canvas.css', MAP_CSS_RAW],
+  ];
+  const REDUCE = '@media (prefers-reduced-motion: reduce)';
+  const ALLOWED_PROPERTIES = ['transform', 'opacity', 'content-visibility'];
+  const DURATION_TOKENS = ['--duration-feedback', '--duration-panel-enter', '--duration-panel-exit'];
+  const EASE_TOKENS = ['--ease-enter', '--ease-exit'];
+
+  interface Located {
+    node: CssNode;
+    inReduce: boolean;
+  }
+
+  /** Todos los nodos de una hoja, marcando los que cuelgan del bloque de movimiento reducido. */
+  function locate(css: string): Located[] {
+    const walk = (node: CssNode, inReduce: boolean): Located[] => [
+      { node, inReduce },
+      ...node.children.flatMap((child) =>
+        walk(child, inReduce || child.prelude.replace(/\s+/g, ' ') === REDUCE)
+      ),
+    ];
+    return walk(parseCss(css), false);
+  }
+
+  /** Valores (separados por comas de primer nivel) de cada declaración con ese nombre. */
+  function entriesOf(css: string, name: string): Array<{ values: string[]; inReduce: boolean }> {
+    return locate(css).flatMap(({ node, inReduce }) =>
+      node.declarations
+        .filter(([property]) => property === name)
+        .map(([, value]) => ({
+          values: value.split(/,(?![^(]*\))/).map((part) => part.trim()),
+          inReduce,
+        }))
+    );
+  }
+
+  const stripComments = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const toMs = (value: string): number =>
+    value.endsWith('ms') ? Number.parseFloat(value) : Number.parseFloat(value) * 1000;
+
+  const tokens = (): Map<string, string> =>
+    new Map(
+      [...declarations(findBlock(ROOT, '@theme static'))].map(([name, value]) => [
+        name,
+        normalizeValue(value),
+      ])
+    );
+
+  describe('tokens (MT-1..MT-3, S-MT-1, S-MT-2)', () => {
+    it('declara exactamente los cinco tokens con sus valores en @theme static', () => {
+      const all = tokens();
+      expect(all.get('--duration-feedback')).toBe('100ms');
+      expect(all.get('--duration-panel-enter')).toBe('250ms');
+      expect(all.get('--duration-panel-exit')).toBe('200ms');
+      expect(all.get('--ease-enter')).toBe('cubic-bezier(0.23, 1, 0.32, 1)');
+      expect(all.get('--ease-exit')).toBe('cubic-bezier(0.3, 0, 1, 1)');
+      const motion = [...all.keys()].filter((name) => /^--(ease|animate|duration)/.test(name));
+      expect(motion.sort()).toEqual([...DURATION_TOKENS, ...EASE_TOKENS].sort());
+    });
+
+    it('no declara --ease-in ni --ease-out (nombres de Tailwind)', () => {
+      expect(RAW_CSS.match(/--ease-(in|out)(?![\w-])\s*:/g)).toBeNull();
+      expect(RAW_CSS).toMatch(/--ease-enter\s*:/);
+    });
+
+    it('las duraciones están en (0, 400] ms y la salida es más corta que la entrada', () => {
+      const all = tokens();
+      for (const name of DURATION_TOKENS) {
+        const ms = toMs(all.get(name) ?? 'NaN');
+        expect(ms, name).toBeGreaterThan(0);
+        expect(ms, name).toBeLessThanOrEqual(400);
+      }
+      expect(toMs(all.get('--duration-panel-exit') ?? 'NaN')).toBeLessThan(
+        toMs(all.get('--duration-panel-enter') ?? 'NaN')
+      );
+    });
+  });
+
+  describe('movimiento reducido (MT-7, UM-9)', () => {
+    it('un bloque sin capa, entre @theme static y @layer base, pone las tres duraciones a 0s', () => {
+      const names = ROOT.children.map((child) => child.prelude.replace(/\s+/g, ' '));
+      const reduce = names.indexOf(REDUCE);
+      expect(reduce).toBeGreaterThan(-1);
+      expect(reduce).toBeGreaterThan(names.indexOf('@theme static'));
+      expect(reduce).toBeLessThan(names.indexOf('@layer base'));
+      const rule = findBlock(findBlock(ROOT, REDUCE), ':root');
+      expect(rule.declarations).toEqual(DURATION_TOKENS.map((name) => [name, '0s']));
+    });
+  });
+
+  describe.each(STYLESHEETS)('hoja %s (MT-4..MT-6, S-MT-3..5, S-UM-8)', (_name, css) => {
+    it('no usa el atajo `transition`', () => {
+      const shorthand = locate(css).flatMap(({ node }) =>
+        node.declarations.filter(([property]) => /^(-webkit-)?transition$/.test(property))
+      );
+      expect(shorthand).toEqual([]);
+    });
+
+    it('transition-duration usa solo var(--duration-*) (0s solo en el bloque reducido)', () => {
+      for (const { values, inReduce } of entriesOf(css, 'transition-duration')) {
+        for (const value of values) {
+          const valid = /^var\(--duration-[a-z-]+\)$/.test(value) || (inReduce && value === '0s');
+          expect(valid, value).toBe(true);
+        }
+      }
+    });
+
+    it('transition-timing-function usa solo var(--ease-*)', () => {
+      for (const { values } of entriesOf(css, 'transition-timing-function')) {
+        for (const value of values) expect(value).toMatch(/^var\(--ease-[a-z-]+\)$/);
+      }
+    });
+
+    it('transition-property solo nombra transform, opacity y content-visibility', () => {
+      for (const { values } of entriesOf(css, 'transition-property')) {
+        for (const value of values) expect(ALLOWED_PROPERTIES).toContain(value);
+      }
+    });
+
+    it('no declara animation*, @keyframes, @starting-style, @view-transition ni scroll suave', () => {
+      const text = stripComments(css);
+      const animations = locate(css).flatMap(({ node }) =>
+        node.declarations.filter(([property]) => property.startsWith('animation'))
+      );
+      expect(animations).toEqual([]);
+      expect(text).not.toMatch(/@keyframes|@starting-style|@view-transition/);
+      expect(text).not.toMatch(/scroll-behavior\s*:\s*smooth/);
+    });
+
+    it('ninguna transición anima block-size ni height (UM-5)', () => {
+      for (const { values } of entriesOf(css, 'transition-property')) {
+        expect(values.join(' ')).not.toMatch(/block-size|height/);
+      }
+    });
+  });
+
+  it('el escáner no es decorativo: globals.css declara longhands y un literal sí se detectaría', () => {
+    expect(entriesOf(RAW_CSS, 'transition-duration').length).toBeGreaterThanOrEqual(3);
+    expect(entriesOf(RAW_CSS, 'transition-property').length).toBeGreaterThanOrEqual(3);
+    expect(entriesOf('a { transition-duration: 200ms }', 'transition-duration')[0]?.values).toEqual([
+      '200ms',
+    ]);
+  });
+
+  describe('sin utilidades de movimiento de Tailwind en los componentes (MT-4)', () => {
+    const MOTION_CLASS = /^(transition(-.+)?|duration-.+|ease-.+|animate-.+|delay-.+)$/;
+    const isMotionClass = (token: string): boolean =>
+      MOTION_CLASS.test(token.split(':').pop() ?? token);
+
+    it('el detector reconoce las clases con variante y deja pasar las demás', () => {
+      expect(isMotionClass('sm:transition-colors')).toBe(true);
+      expect(isMotionClass('duration-200')).toBe(true);
+      expect(isMotionClass('hover:animate-spin')).toBe(true);
+      expect(isMotionClass('flex')).toBe(false);
+    });
+
+    it('ningún className de src/**/*.tsx contiene una', () => {
+      const files = listSourceFiles(SRC_DIR).filter((file) => file.endsWith('.tsx'));
+      expect(files.length).toBeGreaterThan(0);
+      const found: string[] = [];
+      for (const file of files) {
+        const text = readFileSync(file, 'utf8');
+        for (const match of text.matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\}|\{'([^']*)'\})/g)) {
+          const classes = (match[1] ?? match[2] ?? match[3] ?? '').split(/\s+/);
+          found.push(...classes.filter(isMotionClass));
+        }
+      }
+      expect(found).toEqual([]);
+    });
+  });
+
+  describe('pulsación (UM-6, UM-8, UM-10)', () => {
+    const SCALE_SELECTORS = [
+      'button:not(.theme-selector button):active:not(:focus-visible)',
+      '.filter-tray > summary:active:not(:focus-visible)',
+      '.applied-filters__chip:active:not(:focus-visible)',
+    ];
+    const BASE_SELECTORS = [
+      'button:not(.theme-selector button)',
+      '.filter-tray > summary',
+      '.applied-filters__chip',
+    ];
+    const nodes = (): CssNode[] => locate(RAW_CSS).map(({ node }) => node);
+    const ruleFor = (selector: string): CssNode[] =>
+      nodes().filter((node) => normalizeSelector(node.prelude) === selector);
+
+    it.each(SCALE_SELECTORS)('«%s» escala entre 0,95 y 0,99', (selector) => {
+      const rules = ruleFor(selector);
+      expect(rules).toHaveLength(1);
+      const transform = declarations(rules[0] as CssNode).get('transform') ?? '';
+      const match = /^scale\((0\.\d+)\)$/.exec(transform);
+      expect(match, transform).not.toBeNull();
+      const factor = Number.parseFloat(match?.[1] ?? 'NaN');
+      expect(factor).toBeGreaterThanOrEqual(0.95);
+      expect(factor).toBeLessThanOrEqual(0.99);
+    });
+
+    it('toda regla con scale() es una de las tres de pulsación (con :active:not(:focus-visible))', () => {
+      const scaled = nodes().filter((node) =>
+        node.declarations.some(([name, value]) => name === 'transform' && value.includes('scale('))
+      );
+      expect(scaled.map((node) => normalizeSelector(node.prelude)).sort()).toEqual(
+        [...SCALE_SELECTORS].sort()
+      );
+    });
+
+    it.each(BASE_SELECTORS)('«%s» declara el estado base con longhands y tokens', (selector) => {
+      const rules = ruleFor(selector).filter((node) => declarations(node).has('transition-property'));
+      expect(rules).toHaveLength(1);
+      const declared = declarations(rules[0] as CssNode);
+      expect(declared.get('transition-property')).toBe('transform');
+      expect(declared.get('transition-duration')).toBe('var(--duration-feedback)');
+      expect(declared.get('transition-timing-function')).toBe('var(--ease-enter)');
+    });
+
+    it('los botones del selector de tema no escalan ni transicionan (ninguna regla propia)', () => {
+      const themeRules = nodes().filter((node) =>
+        /\.theme-selector/.test(node.prelude.replace(/:not\([^)]*\)/g, ''))
+      );
+      expect(themeRules.length).toBeGreaterThan(0);
+      for (const rule of themeRules) {
+        const names = rule.declarations.map(([name]) => name);
+        expect(names.filter((name) => /^(transform|transition)/.test(name)), rule.prelude).toEqual([]);
+      }
+    });
+  });
+
+  it('sin comentarios obsoletos de «el movimiento llega en D.16» (MT-10)', () => {
+    expect(RAW_CSS).not.toMatch(/movimiento llega en D\.16/);
   });
 });

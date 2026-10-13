@@ -139,6 +139,27 @@
 
   --shadow-raised: 0 1px 2px 0 var(--shadow-color), 0 2px 6px -1px var(--shadow-color);
   --shadow-overlay: 0 4px 8px -2px var(--shadow-color), 0 12px 24px -4px var(--shadow-color);
+
+  /* Movimiento (D.16, decisiones 205-208). Duraciones: respuesta a la pulsación, entrada y salida
+     de la bandeja (la salida es más corta que la entrada). Curvas: salida suave para lo que entra o
+     se suelta, aceleración corta para lo que sale (M3 standard-accelerate). Los nombres evitan
+     `--ease-in` y `--ease-out`, que son de Tailwind. */
+  --duration-feedback: 100ms;
+  --duration-panel-enter: 250ms;
+  --duration-panel-exit: 200ms;
+  --ease-enter: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 1, 1);
+}
+
+/* Único interruptor de movimiento reducido (decisión 207): las tres duraciones pasan a 0s y todo
+   consumidor queda instantáneo sin reglas por componente. Sin capa, para ganar al `@layer theme`
+   donde Tailwind emite los tokens de `@theme static`. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-feedback: 0s;
+    --duration-panel-enter: 0s;
+    --duration-panel-exit: 0s;
+  }
 }
 
 @layer base {
@@ -243,6 +264,20 @@
     border-color: var(--ink);
   }
 
+  /* Respuesta de pulsación (D.16, decisión 208): solo con puntero. `:not(:focus-visible)` evita que
+     una pulsación de teclado (Espacio, Intro) escale el botón, y `:not(.theme-selector button)`
+     deja fuera los tres botones del selector de tema, cuyo envío recarga la página. El estado base
+     declara la transición para que también la suelta tenga duración. El color no transiciona. */
+  button:not(.theme-selector button) {
+    transition-property: transform;
+    transition-duration: var(--duration-feedback);
+    transition-timing-function: var(--ease-enter);
+  }
+
+  button:not(.theme-selector button):active:not(:focus-visible) {
+    transform: scale(0.97);
+  }
+
   @media (hover: hover) and (pointer: fine) {
     button:hover {
       background-color: var(--surface-sunken);
@@ -259,7 +294,8 @@
    de 1px sobre el borde de 1px), sin desplazar el diseño. */
 @layer components {
   /* Enlace de salto (D.5, decisión 147). Fuera de pantalla hasta recibir el foco; sin
-     transición (el movimiento llega en D.16) y sin capa nueva: reutiliza --z-toast. */
+     transición (aparece al instante al recibir el foco, decisión 208) y sin capa nueva:
+     reutiliza --z-toast. */
   .skip-link {
     position: fixed;
     top: calc(var(--spacing) * 2);
@@ -329,6 +365,17 @@
     border-color: var(--ink);
   }
 
+  /* Misma respuesta de pulsación que los botones (D.16, decisión 208). */
+  .filter-tray > summary {
+    transition-property: transform;
+    transition-duration: var(--duration-feedback);
+    transition-timing-function: var(--ease-enter);
+  }
+
+  .filter-tray > summary:active:not(:focus-visible) {
+    transform: scale(0.97);
+  }
+
   @media (hover: hover) and (pointer: fine) {
     .filter-tray > summary:hover {
       background-color: var(--surface-sunken);
@@ -338,6 +385,16 @@
   /* Chip de filtro aplicado: mismo trato que el resto de controles (pulsado y hover fino). */
   .applied-filters__chip:active {
     background-color: var(--surface-sunken);
+  }
+
+  .applied-filters__chip {
+    transition-property: transform;
+    transition-duration: var(--duration-feedback);
+    transition-timing-function: var(--ease-enter);
+  }
+
+  .applied-filters__chip:active:not(:focus-visible) {
+    transform: scale(0.97);
   }
 
   @media (hover: hover) and (pointer: fine) {
@@ -367,6 +424,29 @@
      navegador entiende `::details-content`: sin él, ocultar el resumen dejaría la bandeja
      cerrada e inalcanzable. Fuera de este bloque la bandeja es siempre un desplegable. */
   @supports selector(::details-content) {
+    /* D.16 (decisión 205): por debajo de 64rem el contenido se desvanece y baja 0,5rem al abrir. El
+       contenido solo se oculta (`content-visibility`, discreto) al terminar la salida, y
+       `allow-discrete` vive en la regla cerrada para valer en ambos sentidos. Las propiedades y
+       el `transition-behavior` de la regla abierta se heredan de la cerrada por cascada. Sin
+       `@starting-style`: una bandeja abierta desde el servidor no se desvanece al cargar. */
+    @media (width < 64rem) {
+      .filter-tray::details-content {
+        opacity: 0;
+        transform: translateY(-0.5rem);
+        transition-property: opacity, transform, content-visibility;
+        transition-duration: var(--duration-panel-exit);
+        transition-timing-function: var(--ease-exit);
+        transition-behavior: allow-discrete;
+      }
+
+      .filter-tray[open]::details-content {
+        opacity: 1;
+        transform: none;
+        transition-duration: var(--duration-panel-enter);
+        transition-timing-function: var(--ease-enter);
+      }
+    }
+
     @media (width >= 64rem) {
       .filter-tray > summary {
         display: none;
@@ -540,7 +620,7 @@
 
   /* Un único enlace por fila. El foco visible es el global; el resalte solo se aplica con
      puntero fino (en táctil el :hover se queda pegado) y :active da respuesta al toque. Sin
-     transiciones: el movimiento llega en D.16. */
+     transiciones: la fila no se mueve (D.16, decisión 208). */
   .result-row__link {
     color: var(--ink);
     text-decoration-line: none;
