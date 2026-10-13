@@ -1,5 +1,5 @@
 // Paso D.1b (spec visual-regression-suite R9, S9.1-S9.3) — una captura de
-// página completa por ruta y proyecto (6 x 6 = 36). Los baselines solo se
+// página completa por ruta y proyecto (16 x 6 = 96). Los baselines solo se
 // generan dentro del contenedor Docker (decisión 136).
 import { expect, test } from './fixtures';
 import { openRoute, ROUTES } from './routes';

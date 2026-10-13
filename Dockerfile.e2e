@@ -31,6 +31,15 @@ RUN pnpm install --frozen-lockfile --offline
 RUN mkdir -p apps/web/public/e2e-fixtures \
     && cp apps/web/e2e/assets/gallery-1.png apps/web/e2e/assets/gallery-2.png apps/web/public/e2e-fixtures/
 
+# D.17 (decisión 209): páginas de prueba que lanzan (`error.tsx`, `global-error.tsx`) y la
+# plantilla raíz que activa la segunda. Viven en `apps/web/e2e/inject/app` y se copian a
+# `src/app` SOLO en esta imagen, antes de `next build`. El `test ! -e` falla la build si el
+# árbol versionado ya contiene alguno de ellos (la guardia contraria está en
+# `apps/web/test/e2e-injection-boundary.test.ts`).
+RUN test ! -e apps/web/src/app/template.tsx \
+    && test ! -e apps/web/src/app/e2e-only \
+    && cp -r apps/web/e2e/inject/app/. apps/web/src/app/
+
 # Se invoca con `sh` para no depender del bit de ejecución del fichero (Windows).
 ENTRYPOINT ["sh", "/app/apps/web/e2e/docker-entrypoint.sh"]
 CMD ["run"]
