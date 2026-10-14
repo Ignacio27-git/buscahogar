@@ -3,6 +3,10 @@
 // (la CSP no los admite): el SVG sale de números ya calculados en
 // `lib/price-chart.ts` y los trazos y colores los pone el CSS por clase. La tabla
 // es la fuente de verdad; el gráfico solo existe si algún precio cambió.
+//
+// D.18 (decisión 222): el gráfico son dos SVG del servidor, compacto (288 × 160) y ancho (544 × 192),
+// del mismo modelo. Cada uno se ve a 1:1 y el CSS enseña uno u otro con una consulta de contenedor
+// (`.price-chart`), sin JavaScript. El `display:none` del oculto lo saca del árbol de accesibilidad.
 import type { ReactElement } from 'react';
 
 import { derivePriceHistory } from '@buscahogar/core';
@@ -11,18 +15,61 @@ import type { PropertyPriceObservation } from '@buscahogar/db';
 import { formatUtcDate } from '@/lib/format-date';
 import { formatPriceCents, formatPriceChange } from '@/lib/format-price';
 import { UNAVAILABLE_LABEL } from '@/lib/listing-status';
-import {
-  buildPriceChart,
-  chartAriaLabel,
-  labelSeries,
-  markerPath,
-  GRID_X2,
-  X_LABEL_Y,
-  Y_LABEL_X,
-} from '@/lib/price-chart';
+import { buildPriceChart, chartAriaLabel, labelSeries, markerPath } from '@/lib/price-chart';
+import type { ChartLayout, ChartSeriesInput, PriceChartModel } from '@/lib/price-chart';
 
 export interface PriceHistoryProps {
   readonly observations: readonly PropertyPriceObservation[];
+}
+
+interface ChartPlotProps {
+  readonly layout: ChartLayout;
+  readonly model: PriceChartModel;
+}
+
+function ChartPlot({ layout, model }: ChartPlotProps): ReactElement {
+  return (
+    <svg
+      className={`price-chart__plot price-chart__plot--${layout}`}
+      viewBox={model.viewBox}
+      role="img"
+      aria-label={chartAriaLabel(model.series.length)}
+    >
+      {model.yLabels.map((label) => (
+        <g key={`y-${String(label.y)}`}>
+          <line className="price-chart__grid" x1={model.gridX1} x2={model.gridX2} y1={label.y} y2={label.y} />
+          <text
+            className="price-chart__label"
+            x={model.yLabelX}
+            y={label.y}
+            textAnchor="end"
+            dominantBaseline="middle"
+          >
+            {label.text}
+          </text>
+        </g>
+      ))}
+      {model.xLabels.map((label) => (
+        <text
+          key={`x-${String(label.x)}`}
+          className="price-chart__label"
+          x={label.x}
+          y={model.xLabelY}
+          textAnchor={label.anchor}
+        >
+          {label.text}
+        </text>
+      ))}
+      {model.series.map((s) => (
+        <g key={s.key} className={`price-chart__series price-chart__series--${String(s.styleIndex)}`}>
+          {s.linePath !== null ? <path className="price-chart__line" d={s.linePath} /> : null}
+          {s.markerPaths.map((d, i) => (
+            <path key={`${s.key}-${String(i)}`} className="price-chart__marker" d={d} />
+          ))}
+        </g>
+      ))}
+    </svg>
+  );
 }
 
 export function PriceHistory({ observations }: PriceHistoryProps): ReactElement | null {
@@ -34,16 +81,14 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
   const labels = labelSeries(history.series.map((s) => s.sourceKey));
   const withdrawnOf = (status: string): boolean => status !== 'active';
 
-  const model = history.unchanged
-    ? null
-    : buildPriceChart(
-        history.series.map((s, index) => ({
-          key: s.listingId,
-          label: labels[index] ?? '',
-          withdrawn: withdrawnOf(s.status),
-          points: s.points,
-        }))
-      );
+  const chartInput: readonly ChartSeriesInput[] = history.series.map((s, index) => ({
+    key: s.listingId,
+    label: labels[index] ?? '',
+    withdrawn: withdrawnOf(s.status),
+    points: s.points,
+  }));
+  const compactModel = history.unchanged ? null : buildPriceChart(chartInput, 'compact');
+  const wideModel = history.unchanged ? null : buildPriceChart(chartInput, 'wide');
 
   return (
     <section className="price-history" aria-labelledby="historico-de-precios">
@@ -53,60 +98,13 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
           {`Primer precio observado el ${formatUtcDate(history.firstObservedAt)}; aún sin cambios`}
         </p>
       ) : null}
-      {model !== null ? (
+      {compactModel !== null && wideModel !== null ? (
         <figure className="price-chart">
-          <svg
-            className="price-chart__plot"
-            viewBox={model.viewBox}
-            role="img"
-            aria-label={chartAriaLabel(model.series.length)}
-          >
-            {model.yLabels.map((label) => (
-              <g key={`y-${String(label.y)}`}>
-                <line
-                  className="price-chart__grid"
-                  x1={Y_LABEL_X + 8}
-                  x2={GRID_X2}
-                  y1={label.y}
-                  y2={label.y}
-                />
-                <text
-                  className="price-chart__label"
-                  x={Y_LABEL_X}
-                  y={label.y}
-                  textAnchor="end"
-                  dominantBaseline="middle"
-                >
-                  {label.text}
-                </text>
-              </g>
-            ))}
-            {model.xLabels.map((label) => (
-              <text
-                key={`x-${String(label.x)}`}
-                className="price-chart__label"
-                x={label.x}
-                y={X_LABEL_Y}
-                textAnchor={label.anchor}
-              >
-                {label.text}
-              </text>
-            ))}
-            {model.series.map((s) => (
-              <g
-                key={s.key}
-                className={`price-chart__series price-chart__series--${String(s.styleIndex)}`}
-              >
-                {s.linePath !== null ? <path className="price-chart__line" d={s.linePath} /> : null}
-                {s.markerPaths.map((d, i) => (
-                  <path key={`${s.key}-${String(i)}`} className="price-chart__marker" d={d} />
-                ))}
-              </g>
-            ))}
-          </svg>
+          <ChartPlot layout="compact" model={compactModel} />
+          <ChartPlot layout="wide" model={wideModel} />
           <figcaption>
             <ul className="price-chart__legend">
-              {model.series.map((s) => (
+              {compactModel.series.map((s) => (
                 <li key={s.key} className="price-chart__legend-item">
                   <svg
                     className={`price-chart__swatch price-chart__series price-chart__series--${String(s.styleIndex)}`}

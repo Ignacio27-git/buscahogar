@@ -14,8 +14,19 @@ export interface ChartSeriesInput {
   readonly points: readonly { readonly capturedAt: Date; readonly priceCents: number }[];
 }
 
+// D.18 (decisión 222) — el mismo modelo se dibuja en dos diseños, cada uno a escala 1:1 para que el
+// texto no se encoja: `compact` (288 × 160, columna a 320 px) y `wide` (544 × 192 = 34rem). El CSS
+// enseña uno u otro con una consulta de contenedor; ambos SVG salen del servidor.
+export type ChartLayout = 'compact' | 'wide';
+
 export interface PriceChartModel {
   readonly viewBox: string;
+  // Posiciones fijas que usa el componente: fechas en `xLabelY`, precios a la izquierda del área
+  // útil (`yLabelX`), rejilla hasta `gridX2`.
+  readonly xLabelY: number;
+  readonly yLabelX: number;
+  readonly gridX1: number;
+  readonly gridX2: number;
   readonly yLabels: readonly { readonly y: number; readonly text: string }[];
   readonly xLabels: readonly {
     readonly x: number;
@@ -32,23 +43,18 @@ export interface PriceChartModel {
   }[];
 }
 
-// Ancho 288 = columna de contenido a 320 px (viewport menos 2 × 16): el svg se muestra a 1:1 y
-// los rótulos de 12px no se reducen por debajo de --text-small.
-const WIDTH = 288;
-const HEIGHT = 160;
+const LAYOUTS = {
+  compact: { width: 288, height: 160 },
+  wide: { width: 544, height: 192 },
+} as const satisfies Record<ChartLayout, { readonly width: number; readonly height: number }>;
+
 const PAD_TOP = 12;
 const PAD_RIGHT = 12;
 const PAD_BOTTOM = 28;
 const PAD_LEFT = 72;
-const PLOT_LEFT = PAD_LEFT;
-const PLOT_RIGHT = WIDTH - PAD_RIGHT;
-const PLOT_TOP = PAD_TOP;
-const PLOT_BOTTOM = HEIGHT - PAD_BOTTOM;
-// Posición fija de los rótulos (la usa el componente): fechas en y = 152, precios a la izquierda del área útil.
-export const X_LABEL_Y = HEIGHT - 8;
-export const Y_LABEL_X = PLOT_LEFT - 8;
-// Borde derecho de la rejilla: el componente lo usa en vez de un 308 fijo.
-export const GRID_X2 = PLOT_RIGHT;
+// Un rótulo de fecha («dd/mm/aaaa» a 12px) mide unos 70 de ancho; entre dos rótulos queda un hueco.
+const X_LABEL_WIDTH = 70;
+const X_LABEL_GAP = 8;
 const MARKER_RADIUS = 3;
 const STYLE_COUNT = 4;
 
@@ -77,7 +83,31 @@ export function markerPath(styleIndex: number, cx: number, cy: number): string {
   }
 }
 
-export function buildPriceChart(series: readonly ChartSeriesInput[]): PriceChartModel {
+interface XLabel {
+  readonly x: number;
+  readonly text: string;
+  readonly anchor: 'start' | 'middle' | 'end';
+}
+
+function labelExtent(label: XLabel): readonly [number, number] {
+  if (label.anchor === 'start') return [label.x, label.x + X_LABEL_WIDTH];
+  if (label.anchor === 'end') return [label.x - X_LABEL_WIDTH, label.x];
+  return [label.x - X_LABEL_WIDTH / 2, label.x + X_LABEL_WIDTH / 2];
+}
+
+function overlaps(a: XLabel, b: XLabel): boolean {
+  const [aLeft, aRight] = labelExtent(a);
+  const [bLeft, bRight] = labelExtent(b);
+  return aLeft < bRight + X_LABEL_GAP && bLeft < aRight + X_LABEL_GAP;
+}
+
+export function buildPriceChart(series: readonly ChartSeriesInput[], layout: ChartLayout): PriceChartModel {
+  const { width, height } = LAYOUTS[layout];
+  const plotLeft = PAD_LEFT;
+  const plotRight = width - PAD_RIGHT;
+  const plotTop = PAD_TOP;
+  const plotBottom = height - PAD_BOTTOM;
+
   const prices = series.flatMap((s) => s.points.map((p) => p.priceCents));
   const times = series.flatMap((s) => s.points.map((p) => p.capturedAt.getTime()));
   const lo = Math.min(...prices);
@@ -91,15 +121,15 @@ export function buildPriceChart(series: readonly ChartSeriesInput[]): PriceChart
   const domainLo = lo - pad;
   const domainHi = hi + pad;
   const domainSpan = domainHi - domainLo;
-  const plotHeight = PLOT_BOTTOM - PLOT_TOP;
-  const plotWidth = PLOT_RIGHT - PLOT_LEFT;
+  const plotHeight = plotBottom - plotTop;
+  const plotWidth = plotRight - plotLeft;
 
   const yOf = (priceCents: number): number =>
-    round1(PLOT_TOP + ((domainHi - priceCents) / domainSpan) * plotHeight);
+    round1(plotTop + ((domainHi - priceCents) / domainSpan) * plotHeight);
   const xOf = (time: number): number =>
     tMax === tMin
-      ? round1(PLOT_LEFT + plotWidth / 2)
-      : round1(PLOT_LEFT + ((time - tMin) / (tMax - tMin)) * plotWidth);
+      ? round1(plotLeft + plotWidth / 2)
+      : round1(plotLeft + ((time - tMin) / (tMax - tMin)) * plotWidth);
 
   const yLabels =
     hi === lo
@@ -109,16 +139,35 @@ export function buildPriceChart(series: readonly ChartSeriesInput[]): PriceChart
           { y: yOf(lo), text: formatPriceCents(lo) },
         ];
 
-  const xLabels: PriceChartModel['xLabels'] =
+  // Rótulos del eje de tiempo por prioridad: inicio, fin y la primera captura de cada serie que
+  // empieza después (en orden de fecha, no de entrada). Un candidato que solapa con uno ya aceptado
+  // se descarta; dos series que empiezan el mismo día comparten rótulo porque la segunda solapa.
+  const xLabels: XLabel[] =
     tMax === tMin
       ? [{ x: xOf(tMin), text: formatUtcDate(new Date(tMin)), anchor: 'middle' }]
       : [
-          { x: PLOT_LEFT, text: formatUtcDate(new Date(tMin)), anchor: 'start' },
-          { x: PLOT_RIGHT, text: formatUtcDate(new Date(tMax)), anchor: 'end' },
+          { x: plotLeft, text: formatUtcDate(new Date(tMin)), anchor: 'start' },
+          { x: plotRight, text: formatUtcDate(new Date(tMax)), anchor: 'end' },
         ];
+  if (tMax !== tMin) {
+    const starts = series
+      .flatMap((s) => (s.points[0] === undefined ? [] : [s.points[0].capturedAt.getTime()]))
+      .filter((time) => time > tMin)
+      .sort((a, b) => a - b);
+    for (const time of starts) {
+      const candidate: XLabel = { x: xOf(time), text: formatUtcDate(new Date(time)), anchor: 'middle' };
+      if (!xLabels.some((accepted) => overlaps(accepted, candidate))) {
+        xLabels.push(candidate);
+      }
+    }
+  }
 
   return {
-    viewBox: `0 0 ${String(WIDTH)} ${String(HEIGHT)}`,
+    viewBox: `0 0 ${String(width)} ${String(height)}`,
+    xLabelY: height - 8,
+    yLabelX: plotLeft - 8,
+    gridX1: plotLeft,
+    gridX2: plotRight,
     yLabels,
     xLabels,
     series: series.map((s, index) => {

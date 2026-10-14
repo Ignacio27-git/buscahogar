@@ -49,7 +49,10 @@ describe('PriceHistory', () => {
   it('con cambios: un svg role=img con nombre accesible y una leyenda por serie', () => {
     const html = render(TWO_LISTINGS);
 
-    expect(html.match(/<svg[^>]*role="img"/g)).toHaveLength(1);
+    // D.18 (decisión 222): dos SVG del mismo modelo (compacto y ancho); el CSS enseña uno.
+    expect(html.match(/<svg[^>]*role="img"/g)).toHaveLength(2);
+    expect(html.match(/<svg[^>]*price-chart__plot--compact[^>]*viewBox="0 0 288 160"/g)).toHaveLength(1);
+    expect(html.match(/<svg[^>]*price-chart__plot--wide[^>]*viewBox="0 0 544 192"/g)).toHaveLength(1);
     expect(html).toContain(`aria-label="${chartAriaLabel(2)}"`);
     expect(html).toContain('price-chart__series--0');
     expect(html).toContain('price-chart__series--1');
@@ -150,7 +153,8 @@ describe('PriceHistory', () => {
       obs('b', 'kyero', 87000, '2026-09-10T10:00:00Z'),
     ]);
 
-    expect(html.match(/<path[^>]*class="price-chart__line/g)).toHaveLength(1);
+    // Solo la serie «b» tiene línea; se dibuja una vez en cada uno de los dos SVG (D.18).
+    expect(html.match(/<path[^>]*class="price-chart__line/g)).toHaveLength(2);
     expect(html).toContain('Idealista');
   });
 

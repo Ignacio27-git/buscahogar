@@ -1398,15 +1398,38 @@
     color: var(--ink-muted);
   }
 
+  /* D.18 (decisión 222) — dos SVG del mismo modelo, cada uno a 1:1 (el texto de 12px no se encoge).
+     El compacto (288 × 160, máximo 24rem) es el de partida; desde 34rem de contenedor se enseña el
+     ancho (544 × 192 = 34rem) y se oculta el compacto. `display:none` lo saca del árbol de
+     accesibilidad: solo hay un gráfico con nombre a la vez. */
   .price-chart {
     margin: 0 0 1rem;
+    container-type: inline-size;
   }
 
   .price-chart__plot {
     display: block;
     inline-size: 100%;
-    max-inline-size: 24rem;
     block-size: auto;
+  }
+
+  .price-chart__plot--compact {
+    max-inline-size: 24rem;
+  }
+
+  .price-chart__plot--wide {
+    display: none;
+    max-inline-size: 34rem;
+  }
+
+  @container (inline-size >= 34rem) {
+    .price-chart__plot--compact {
+      display: none;
+    }
+
+    .price-chart__plot--wide {
+      display: block;
+    }
   }
 
   .price-chart__grid {
