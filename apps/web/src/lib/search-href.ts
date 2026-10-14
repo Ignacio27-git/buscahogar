@@ -154,10 +154,11 @@ export function buildRemoveFilterHref(params: RawSearchParams, filter: AppliedFi
 // «Quitar todos»: conserva solo la vista y la ordenación.
 const KEPT_ON_CLEAR = ['view', 'sort', 'dir'] as const;
 
-// D.14 (N2) — claves extra que el estado vacío puede conservar: la zona sin aplicar (D10) y el
-// polígono sin viviendas (D13) explican el vacío, así que «Quitar los demás filtros» no los borra.
-// La barra de filtros aplicados llama sin opciones y sigue quitándolos.
-export type ClearKeepKey = 'polygon' | 'zone' | 'zoneQuery';
+// D.14 (N2) — clave extra que el estado vacío puede conservar: el polígono sin viviendas (D13)
+// explica el vacío, así que «Quitar los demás filtros» no lo borra. La barra de filtros aplicados
+// llama sin opciones y sigue quitándolo. D.18 (decisión 224): la zona con centroide y radio siempre
+// se aplica, ya no hay zona «sin aplicar» que conservar, y la clave se reduce al polígono.
+export type ClearKeepKey = 'polygon';
 
 export function buildClearFiltersHref(
   params: RawSearchParams,

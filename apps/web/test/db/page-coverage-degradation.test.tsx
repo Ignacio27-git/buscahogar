@@ -11,7 +11,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vite
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import type { Database } from '@buscahogar/db';
-import { consumeClientQuota, geographyPointWkt, locations, sources, zones } from '@buscahogar/db';
+import { consumeClientQuota, geographyPointWkt, locations, properties, sources, zones } from '@buscahogar/db';
 import { registerCoverageJob } from '@buscahogar/db';
 
 import { connectTestDb, truncateAll } from '../helpers/db-client.js';
@@ -240,6 +240,81 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     const html = await renderHome({ zone: '00000' });
     expect(html).toContain('El enlace lleva un municipio que no existe.');
     expect(html).not.toContain('>Comprobar de nuevo</a>');
+  });
+
+  // D.18 (decisión 224) — una zona con centroide y radio SIEMPRE aplica su filtro geográfico, esté o no
+  // cubierta; una zona inlocalizable no consulta nada. Dos viviendas: una dentro del radio de barrido
+  // (4500 m) de la zona y otra a más de 100 km.
+  async function seedNearAndFar(centre: { latitude: number; longitude: number }): Promise<void> {
+    await db.insert(properties).values([
+      { activeListingCount: 1, location: { x: centre.longitude, y: centre.latitude + 0.005 } },
+      { activeListingCount: 1, location: { x: centre.longitude, y: centre.latitude + 1.5 } },
+    ]);
+  }
+
+  it('D.18: zona SIN cubrir con centroide y radio: solo salen las viviendas de su radio, en lista y mapa', async () => {
+    const ineCode = randomIneCode();
+    const centre = { latitude: 37.1, longitude: -3.6 };
+    const { zoneId } = await insertMunicipality(db, {
+      ineCode,
+      municipality: 'Zona Sin Cubrir',
+      searchName: 'zona sin cubrir',
+      centroid: centre,
+    });
+    const [sourceRow] = await db.select({ id: sources.id }).from(sources);
+    if (!sourceRow) throw new Error('sin source');
+    // Con el job ya registrado la página no escribe nada: solo lee el estado.
+    await registerCoverageJob(db, zoneId, sourceRow.id);
+    await seedNearAndFar(centre);
+
+    const html = await renderHome({ zone: ineCode });
+    expect(html).toContain('1 resultado');
+    expect(html).not.toContain('2 resultados');
+    expect(html).toContain('1 vivienda con ubicación coincide');
+    expect(html).toContain('Zona: Zona Sin Cubrir');
+    expect(html).not.toContain('sin datos todavía');
+    expect(html).not.toContain('Mientras tanto');
+    // El aviso de cobertura sigue explicando el estado de la zona.
+    expect(html).toContain('La actualización de Zona Sin Cubrir está en cola.');
+  });
+
+  it('D.18: zona cubierta con centroide y radio: el mismo filtro geográfico', async () => {
+    const ineCode = randomIneCode();
+    const centre = { latitude: 37.1, longitude: -3.6 };
+    await insertMunicipality(db, {
+      ineCode,
+      municipality: 'Zona Cubierta Geo',
+      searchName: 'zona cubierta geo',
+      state: 'covered',
+      centroid: centre,
+    });
+    await seedNearAndFar(centre);
+
+    const html = await renderHome({ zone: ineCode });
+    expect(html).toContain('1 resultado');
+    expect(html).not.toContain('2 resultados');
+    expect(html).not.toContain('coverage-notice');
+  });
+
+  it('D.18: zona SIN centroide (inlocalizable): no consulta, lista vacía y su aviso, aunque haya viviendas', async () => {
+    const ineCode = randomIneCode();
+    await insertMunicipality(db, { ineCode, municipality: 'Sin Centroide Geo', searchName: 'sin centroide geo' });
+    await seedNearAndFar({ latitude: 37.1, longitude: -3.6 });
+
+    const html = await renderHome({ zone: ineCode });
+    expect(html).toContain('0 resultados');
+    expect(html).toContain('0 viviendas con ubicación coinciden');
+    expect(html).toContain('Todavía no hay viviendas de Sin Centroide Geo.');
+    expect(html).not.toContain('result-list');
+  });
+
+  it('D.18: zona desconocida: lista vacía y su aviso, nunca una búsqueda sin zona', async () => {
+    await seedNearAndFar({ latitude: 37.1, longitude: -3.6 });
+
+    const html = await renderHome({ zone: '00000' });
+    expect(html).toContain('El enlace lleva un municipio que no existe.');
+    expect(html).toContain('0 resultados');
+    expect(html).not.toContain('2 resultados');
   });
 
   it('CR-10/DD-19: ?zoneQuery= renderiza sugerencias JUNTO a los resultados existentes, en la MISMA respuesta', async () => {

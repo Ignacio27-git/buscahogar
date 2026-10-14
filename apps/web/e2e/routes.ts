@@ -56,12 +56,15 @@ export const ROUTES: readonly E2eRoute[] = [
   // cuatro estados de job y el tope global se ven sin escribir en la base (decisión 135): el
   // servidor e2e no tiene credencial de escritura, así que ninguna ruta llega a registrar nada.
   // El tope por cliente (V3) necesita escribir y solo se prueba en unitarias.
+  // D.18 (decisión 224): una zona con centroide y radio siempre se aplica. Solo `pending` tiene
+  // viviendas dentro de su radio (4 km); `running`, `done`, `failed` y `cap` quedan a más de 5 km de
+  // la siembra y `not-sweepable` (Parla) no tiene centroide, así que no consulta nada: mapa vacío.
   { name: 'coverage-pending', path: coverageZonePath('pending'), map: 'markers' },
-  { name: 'coverage-running', path: coverageZonePath('running'), map: 'markers' },
-  { name: 'coverage-done', path: coverageZonePath('done'), map: 'markers' },
-  { name: 'coverage-failed', path: coverageZonePath('failed'), map: 'markers' },
-  { name: 'coverage-not-sweepable', path: coverageZonePath('notSweepable'), map: 'markers' },
-  { name: 'coverage-cap', path: coverageZonePath('cap'), map: 'markers' },
+  { name: 'coverage-running', path: coverageZonePath('running'), map: 'empty' },
+  { name: 'coverage-done', path: coverageZonePath('done'), map: 'empty' },
+  { name: 'coverage-failed', path: coverageZonePath('failed'), map: 'empty' },
+  { name: 'coverage-not-sweepable', path: coverageZonePath('notSweepable'), map: 'empty' },
+  { name: 'coverage-cap', path: coverageZonePath('cap'), map: 'empty' },
   { name: 'not-found-route', path: '/no-existe', map: 'none' },
   { name: 'not-found-property', path: `/properties/${E2E_MISSING_LISTING_ID}`, map: 'none' },
 ];

@@ -46,10 +46,13 @@ test.describe('bandeja de filtros a 320px (S19)', () => {
     await expect(page.getByLabel('Operación')).toBeFocused();
   });
 
-  test('el número de filtros activos se anuncia y no cuenta orden ni zona', async ({ page }) => {
-    await page.goto('/?operation=sale&maxPrice=300000&sort=price');
-    await expect(traySummary(page)).toContainText('2');
+  // D.18 (decisión 226): «Filtros N» cuenta los mismos filtros que los chips, la zona incluida; el
+  // orden no es un filtro.
+  test('el número de filtros activos se anuncia, cuenta la zona y no cuenta el orden', async ({ page }) => {
+    await page.goto('/?operation=sale&maxPrice=300000&sort=price&zone=28074');
+    await expect(traySummary(page)).toContainText('3');
     await expect(traySummary(page).locator('.sr-only')).toHaveText(' activos');
+    await expect(page.getByRole('region', { name: 'Filtros aplicados' }).getByRole('link')).toHaveCount(3);
   });
 
   test('parámetros inválidos: la bandeja llega abierta y sin número', async ({ page }) => {

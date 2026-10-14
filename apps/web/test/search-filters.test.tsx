@@ -80,23 +80,18 @@ describe('describeAppliedFilters — rótulos y orden (spec "Applied-filter chip
     expect(labels({ zone: '28079' }, null)).toEqual(['Zona INE 28079']);
   });
 
-  // D.17 (B1): una zona sin datos no se aplica; el chip lo dice en vez de aparentar un filtro activo.
-  it('zona sin datos todavía: el rótulo lo dice y la clave sigue siendo la de la zona', () => {
-    expect(describeAppliedFilters(criteria({ zone: '28065' }), 'Getafe', { zoneApplied: false })).toEqual([
-      { key: 'zone', label: 'Zona: Getafe · sin datos todavía' },
+  // D.18 (decisión 224): la zona con centroide y radio siempre se aplica; el chip es siempre el mismo
+  // y nunca lleva el sufijo «· sin datos todavía» de D.17.
+  it('el chip de zona es siempre «Zona: {municipio}», sin sufijo, y la clave es la de la zona', () => {
+    expect(describeAppliedFilters(criteria({ zone: '28065' }), 'Getafe')).toEqual([
+      { key: 'zone', label: 'Zona: Getafe' },
     ]);
-    expect(describeAppliedFilters(criteria({ zone: '28074' }), 'Leganés', { zoneApplied: false })[0]?.label).toBe(
-      'Zona: Leganés · sin datos todavía'
-    );
+    expect(describeAppliedFilters(criteria({ zone: '28074' }), 'Leganés')[0]?.label).toBe('Zona: Leganés');
+    expect(labels({ zone: '28074', operation: 'rent' }, 'Leganés').join('|')).not.toContain('sin datos');
   });
 
-  it('zona aplicada (por defecto) o sin nombre resuelto: el rótulo no cambia', () => {
-    expect(describeAppliedFilters(criteria({ zone: '28065' }), 'Getafe', { zoneApplied: true })[0]?.label).toBe(
-      'Zona: Getafe'
-    );
-    expect(describeAppliedFilters(criteria({ zone: '28079' }), null, { zoneApplied: false })[0]?.label).toBe(
-      'Zona INE 28079'
-    );
+  it('sin nombre resuelto el rótulo es «Zona INE {código}»', () => {
+    expect(describeAppliedFilters(criteria({ zone: '28079' }), null)[0]?.label).toBe('Zona INE 28079');
   });
 
   it('polígono dibujado: «Zona dibujada»', () => {
@@ -344,29 +339,16 @@ function chips(params: Record<string, string>, zoneName: string | null = null, c
   );
 }
 
-describe('AppliedFilters — zona sin datos (D.17, B1)', () => {
-  it('con `zoneApplied={false}` el chip lleva «sin datos todavía» y sigue siendo un enlace que quita la zona', () => {
+describe('AppliedFilters — zona (D.18, decisión 224)', () => {
+  it('el chip de zona es un enlace que quita la zona y nunca lleva sufijo', () => {
     const params = { zone: '28074', operation: 'rent' };
     const html = renderToStaticMarkup(
-      <AppliedFilters criteria={criteria(params)} params={params} zoneName="Leganés" count="3 resultados" zoneApplied={false} />
+      <AppliedFilters criteria={criteria(params)} params={params} zoneName="Leganés" count="3 resultados" />
     );
-    expect(html).toContain('Zona: Leganés · sin datos todavía');
+    expect(html).toContain('Zona: Leganés');
     expect(html).toContain('href="/?operation=rent"');
     expect(html).toContain('Operación: Alquiler');
-    expect(html).not.toContain('Operación: Alquiler · sin datos');
-  });
-
-  it('sin la propiedad, o con zona aplicada, el chip es el de siempre', () => {
-    const params = { zone: '28074' };
-    for (const html of [
-      renderToStaticMarkup(<AppliedFilters criteria={criteria(params)} params={params} zoneName="Leganés" count="3 resultados" />),
-      renderToStaticMarkup(
-        <AppliedFilters criteria={criteria(params)} params={params} zoneName="Leganés" count="3 resultados" zoneApplied />
-      ),
-    ]) {
-      expect(html).toContain('Zona: Leganés');
-      expect(html).not.toContain('sin datos todavía');
-    }
+    expect(html).not.toContain('sin datos todavía');
   });
 });
 

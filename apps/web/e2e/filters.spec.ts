@@ -71,6 +71,22 @@ test.describe('barra de filtros y filtros aplicados', () => {
     ).toHaveAttribute('href', '/');
   });
 
+  // D.18 (decisión 225, C-11): el estado vacío filtrado no repite los chips; una frase que remite a
+  // ellos y una sola acción siempre visible.
+  test('el estado vacío filtrado tiene la frase y una sola acción, sin enlaces por filtro', async ({
+    page,
+  }) => {
+    await openRoute(page, route('home-filtered'));
+    const results = page.getByRole('region', { name: 'Resultados', exact: true });
+    await expect(results.getByText('Ninguna vivienda coincide con tu búsqueda.')).toBeVisible();
+    await expect(
+      results.getByText('Los filtros aplicados están arriba; pulsa uno para quitarlo')
+    ).toBeVisible();
+    await expect(results.getByRole('link')).toHaveCount(1);
+    await expect(results.getByRole('link', { name: 'Quitar todos los filtros' })).toBeVisible();
+    await expect(results.getByRole('link', { name: /^Quitar «/ })).toHaveCount(0);
+  });
+
   test('sin filtros no hay chips ni «Quitar todos», pero el recuento sigue', async ({ page }) => {
     await openRoute(page, route('home'));
     await expect(page.getByRole('region', { name: 'Filtros aplicados' })).toHaveCount(0);

@@ -450,11 +450,12 @@ describe('bandeja de filtros en la home (D.6b, S15-S17, S21, S22)', () => {
     return /<summary[^>]*>(.*?)<\/summary>/s.exec(html)?.[1] ?? '';
   }
 
-  it('rama válida: cerrada y con el recuento de filtros de la bandeja (sort y zona no cuentan)', async () => {
+  it('rama válida: cerrada y con el recuento de los chips, zona incluida (sort no cuenta; D.18)', async () => {
     resolveZoneGeometryMock.mockResolvedValue(null);
     const html = await render({ operation: 'sale', maxPrice: '300000', sort: 'price', zone: '28079' });
     expect(html).toMatch(/<details class="filter-tray"><summary/);
-    expect(summaryOf(html)).toMatch(/>2<span class="sr-only"> activos<\/span>/);
+    // operación + precio máximo + zona: tres chips, tres filtros (decisión 226).
+    expect(summaryOf(html)).toMatch(/>3<span class="sr-only"> activos<\/span>/);
   });
 
   it('rama válida sin filtros: sin número', async () => {

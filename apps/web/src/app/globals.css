@@ -968,15 +968,6 @@
     gap: 0.5rem;
   }
 
-  /* D.17 (B1): rótulo sobre la lista cuando la zona pedida aún no tiene datos y se muestran todos los
-     municipios. Misma voz que la nota de los avisos. */
-  .search-results__caption {
-    margin-block: 0;
-    color: var(--ink-muted);
-    font-size: var(--text-dense);
-    line-height: var(--text-dense--line-height);
-  }
-
   /* D.17 (B3): pie del mapa. Ayuda de teclado y avisos de recuento y de posiciones, juntos y en
      texto pequeño; el aviso de las posiciones aproximadas es visible, no solo de lectores. */
   .search-map__notes {
@@ -1059,13 +1050,6 @@
        baja lo mismo, así que su primer filete y el borde superior del marco quedan a la misma altura. */
     .search-results__list > .result-list {
       margin-block-start: calc(var(--text-body--line-height) + 0.5rem);
-    }
-
-    /* Con el rótulo de zona sin datos sobre la lista (una línea densa) el filete sigue alineado. */
-    .search-results__caption + .result-list {
-      margin-block-start: calc(
-        var(--text-body--line-height) + 0.5rem - var(--text-dense--line-height)
-      );
     }
 
     .view-toggle {
@@ -1282,7 +1266,7 @@
   }
 
   /* D.14: estado vacío de la lista en el mismo panel de 1px. Título y detalle como el aviso de
-     cobertura; las acciones son enlaces reales en lista, con el área táctil de los chips. */
+     cobertura; la acción es un enlace real. */
   .empty-results {
     max-inline-size: 48rem;
     margin: 0 0 0.75rem;
@@ -1301,18 +1285,14 @@
     color: var(--ink-muted);
   }
 
-  .empty-results__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem 1rem;
+  /* D.18 (decisión 225): una sola acción, en su propio párrafo, con el objetivo de 40px de toda la app. */
+  .empty-results__action {
     margin: 0.5rem 0 0;
-    padding: 0;
-    list-style: none;
   }
 
-  .empty-results__actions a {
+  .empty-results__action a {
     display: inline-flex;
-    min-block-size: 2rem;
+    min-block-size: 2.5rem;
     align-items: center;
     overflow-wrap: anywhere;
   }

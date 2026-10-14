@@ -35,7 +35,7 @@ import {
   canonicalizeFormSubmission,
 } from '@/lib/search-href';
 import {
-  countTrayFilters,
+  countAppliedFilters,
   describeAppliedFilters,
   formatListCount,
   formatMapCount,
@@ -287,10 +287,12 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
   // ROADMAP 1.13 Unit D — resolución de zona y de cobertura. `criteria.zone`
   // y cualquiera de lat/lng/radius son mutuamente excluyentes (CR-6, ya
   // rechazado más arriba si ambos llegaran juntos), así que `criteria.geo`
-  // solo puede venir de una zona resuelta y CUBIERTA — para cualquier otro
-  // caso (no cubierta, sin centroide, tope agotado, desconocida) la
-  // búsqueda se degrada a un resultado sin filtro geográfico, nunca a cero
-  // resultados silenciosos (D6).
+  // solo puede venir de una zona resuelta.
+  //
+  // D.18 (decisión 224, reemplaza la 213 y enmienda la 190): una zona con centroide Y radio de
+  // barrido SIEMPRE se aplica (`effectiveCriteria.geo`), cubierta o no; la resolución de cobertura
+  // no cambia y solo decide el aviso. Una zona inlocalizable (desconocida, o sin centroide o sin
+  // radio) no consulta nada: lista vacía y su aviso. Antes degradaba a una búsqueda sin zona.
   // D.13 (decisión 181): un único `now` por petición; el aviso lo muestra
   // `CoverageNotice` (única región viva) y el enlace de recarga solo aparece
   // donde recargar puede cambiar el estado.
@@ -300,6 +302,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
   let effectiveCriteria = criteria;
   // Nombre del municipio ya resuelto para el chip de zona: sin consulta nueva.
   let zoneName: string | null = null;
+  let zoneUnlocatable = false;
 
   if (criteria.zone !== undefined) {
     const zoneGeometry = await resolveZoneGeometry(db, criteria.zone);
@@ -307,29 +310,34 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
 
     if (zoneGeometry === null) {
       coverageVariant = { kind: 'unknown-zone' };
-    } else if (zoneGeometry.state === 'covered' && zoneGeometry.centroid !== null) {
-      await recordDemandSignal(zoneGeometry);
-      effectiveCriteria = {
-        ...criteria,
-        geo: {
-          lon: zoneGeometry.centroid.longitude,
-          lat: zoneGeometry.centroid.latitude,
-          radiusMeters: zoneGeometry.sweepRadiusM ?? 0,
-        },
-      };
+      zoneUnlocatable = true;
     } else {
       await recordDemandSignal(zoneGeometry);
-      const newZonesDailyCap = resolveNewZonesDailyCap();
-      // ROADMAP 1.15 (security-hardening, diseño decisión 079): resuelto
-      // ANTES de resolveCoverageForZone — cuando el limitador por cliente
-      // está deshabilitado (D1a), devuelve `null` sin llamar a
-      // `next/headers` en absoluto (validador notes obs #263).
-      const clientLimit = await resolveCoverageClientLimit();
-      const outcome = await resolveCoverageForZone(db, getCoverageDb, zoneGeometry, newZonesDailyCap, clientLimit);
-      // spec #261 (D6): el tope por cliente es un resultado DISTINTO del global;
-      // `noticeForOutcome` los mantiene separados.
-      coverageVariant = noticeForOutcome(outcome, zoneGeometry.municipality, now);
-      coverageJob = outcome.kind === 'registered' ? outcome.job : null;
+      if (!(zoneGeometry.state === 'covered' && zoneGeometry.centroid !== null)) {
+        const newZonesDailyCap = resolveNewZonesDailyCap();
+        // ROADMAP 1.15 (security-hardening, diseño decisión 079): resuelto
+        // ANTES de resolveCoverageForZone — cuando el limitador por cliente
+        // está deshabilitado (D1a), devuelve `null` sin llamar a
+        // `next/headers` en absoluto (validador notes obs #263).
+        const clientLimit = await resolveCoverageClientLimit();
+        const outcome = await resolveCoverageForZone(db, getCoverageDb, zoneGeometry, newZonesDailyCap, clientLimit);
+        // spec #261 (D6): el tope por cliente es un resultado DISTINTO del global;
+        // `noticeForOutcome` los mantiene separados.
+        coverageVariant = noticeForOutcome(outcome, zoneGeometry.municipality, now);
+        coverageJob = outcome.kind === 'registered' ? outcome.job : null;
+      }
+      if (zoneGeometry.centroid !== null && zoneGeometry.sweepRadiusM !== null) {
+        effectiveCriteria = {
+          ...criteria,
+          geo: {
+            lon: zoneGeometry.centroid.longitude,
+            lat: zoneGeometry.centroid.latitude,
+            radiusMeters: zoneGeometry.sweepRadiusM,
+          },
+        };
+      } else {
+        zoneUnlocatable = true;
+      }
     }
   }
 
@@ -356,7 +364,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       <h1>Buscar vivienda</h1>
       {isPlainHome ? <StepIndicator current={1} /> : null}
       <SearchTextForm value="" />
-      <FilterBar params={rawSearchParams} activeCount={countTrayFilters(criteria)} />
+      <FilterBar params={rawSearchParams} activeCount={countAppliedFilters(criteria)} />
       {suggestions !== null ? <ZoneSuggestions suggestions={suggestions} rawSearchParams={rawSearchParams} /> : null}
       {coverageSection}
       <p className="view-toggle">
@@ -372,22 +380,23 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
   // dos secciones. `view` solo decide, por CSS bajo 64rem, cuál se ve; desde 64rem
   // se ven ambas. Todo el texto de la sección del mapa se renderiza en el
   // servidor, así que el recuento y los avisos existen sin JS.
-  const [{ results, hasNextPage }, { points, total, truncated }] = await Promise.all([
-    searchProperties(db, effectiveCriteria),
-    searchMapPoints(db, effectiveCriteria),
-  ]);
+  // D.18 (decisión 224): una zona inlocalizable no consulta nada; el vacío lo explica su aviso.
+  const [{ results, hasNextPage }, { points, total, truncated }] = zoneUnlocatable
+    ? [
+        { results: [], hasNextPage: false },
+        { points: [], total: 0, truncated: false },
+      ]
+    : await Promise.all([searchProperties(db, effectiveCriteria), searchMapPoints(db, effectiveCriteria)]);
   // D.9 (decisión 171): una sola vez; las filas llevan los parámetros de la búsqueda
   // (con `page`) a la ficha. Los puntos del mapa siguen planos: el popup los añade en el cliente.
   const returnParams = pickSearchReturnParams(rawSearchParams, { includePage: true });
   // D.14 (decisión 190): qué explica cada sección vacía. Con un polígono las dos consultas dan el
-  // mismo total; una zona sin cubrir no se aplicó (D10). El alcance se calcula una vez y lo
-  // comparten la lista y el mapa.
+  // mismo total. El alcance se calcula una vez y lo comparten la lista y el mapa. D.18 (224): la
+  // zona es un filtro más; solo el polígono vacío se acota.
   const polygonEmpty = criteria.polygon !== undefined && total === 0;
-  const zoneUnapplied = criteria.zone !== undefined && effectiveCriteria.geo === undefined;
   const emptyScope = scopeEmptyResultsFilters({
     filters: describeAppliedFilters(criteria, zoneName),
     polygonEmpty,
-    zoneUnapplied,
   });
   const listEmptyKind =
     results.length === 0
@@ -414,7 +423,6 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
           params={rawSearchParams}
           zoneName={zoneName}
           count={formatListCount(results.length, criteria.page, hasNextPage)}
-          zoneApplied={!zoneUnapplied}
         />
         {/* DAS-11: región compartida; con polígono las dos consultas dan el mismo
             total, así que M === 0 vale también en páginas posteriores de la lista. */}
@@ -422,19 +430,9 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       </div>
       <div className="search-results" data-view={view}>
         <section aria-label="Resultados" className="search-results__list">
-          {/* D.17 (B1): la zona existe pero aún no tiene datos y no se aplicó (D10): la lista no es de
-              esa zona. Con una zona desconocida el aviso ya lo explica; sin resultados, el estado vacío. */}
-          {zoneUnapplied && zoneName !== null && results.length > 0 ? (
-            <p className="search-results__caption">Mientras tanto, viviendas de todos los municipios</p>
-          ) : null}
           {results.length === 0 ? (
             listEmptyKind !== null ? (
-              <EmptyResults
-                kind={listEmptyKind}
-                params={rawSearchParams}
-                filters={emptyScope.filters}
-                keepOnClear={emptyScope.keepOnClear}
-              />
+              <EmptyResults kind={listEmptyKind} params={rawSearchParams} keepOnClear={emptyScope.keepOnClear} />
             ) : null
           ) : (
             <ul className="result-list">

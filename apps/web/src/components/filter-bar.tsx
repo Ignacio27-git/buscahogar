@@ -40,7 +40,7 @@ export interface FilterBarProps {
   // D.15 (F4, decisión 196): id de la alerta que explica los rechazos. Con él, los campos
   // rechazados se declaran `aria-invalid` y se describen con esa alerta.
   readonly alertId?: string | undefined;
-  // Filtros de la bandeja que están aplicados (`countTrayFilters`). `undefined`
+  // Filtros aplicados, los mismos que los chips (`countAppliedFilters`). `undefined`
   // o 0: el resumen dice solo «Filtros», sin número.
   readonly activeCount?: number | undefined;
   // Bandeja abierta de inicio: la rama de parámetros inválidos, para que se

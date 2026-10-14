@@ -8,10 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import { EmptyResults } from '../src/components/empty-results.js';
 import { buildFirstPageHref } from '../src/lib/search-href.js';
-import type { AppliedFilter } from '../src/lib/search-labels.js';
 
-const OPERATION: AppliedFilter = { key: 'operation', label: 'Operación: Venta' };
-const TYPE: AppliedFilter = { key: 'propertyType', label: 'Tipo: Piso' };
 const IMPERSONAL = /\bSe (ha|han|pudo|produjo|encontraron)\b/;
 const POLYGON = '40.4,-3.7;40.4,-3.6;40.5,-3.6;40.5,-3.7';
 
@@ -23,35 +20,37 @@ function linkNames(html: string): string[] {
   return [...html.matchAll(/<a [^>]*>([\s\S]*?)<\/a>/g)].map((match) => text(match[1] ?? ''));
 }
 
+// D.18 (decisión 225, C-11): el vacío filtrado ya no repite los chips. Estado, la frase que remite a
+// los chips de arriba y UNA acción siempre visible. Sin lista de «Quitar «X»».
 describe('EmptyResults — filtered', () => {
   const params = { operation: 'sale', propertyType: 'flat', view: 'map', sort: 'price', page: '1' };
-  const html = renderToStaticMarkup(
-    <EmptyResults kind="filtered" params={params} filters={[OPERATION, TYPE]} keepOnClear={[]} />
-  );
+  const html = renderToStaticMarkup(<EmptyResults kind="filtered" params={params} keepOnClear={[]} />);
 
-  it('guía en tuteo y un enlace «Quitar» por filtro con su destino', () => {
+  it('estado, frase que remite a los chips y exactamente un enlace, en tuteo', () => {
     expect(text(html)).toContain('Ninguna vivienda coincide con tu búsqueda.');
-    expect(text(html)).toContain('Prueba a quitar alguno de estos filtros:');
-    expect(html).toContain('href="/?propertyType=flat&amp;view=map&amp;sort=price"');
-    expect(html).toContain('href="/?operation=sale&amp;view=map&amp;sort=price"');
-    expect(linkNames(html)).toEqual([
-      'Quitar «Operación: Venta»',
-      'Quitar «Tipo: Piso»',
-      'Quitar todos los filtros',
-    ]);
+    expect(text(html)).toContain('Los filtros aplicados están arriba; pulsa uno para quitarlo');
+    expect(text(html)).not.toContain('Prueba a quitar alguno de estos filtros');
+    expect(linkNames(html)).toEqual(['Quitar todos los filtros']);
     expect(text(html)).not.toMatch(IMPERSONAL);
   });
 
-  it('«Quitar todos los filtros» sin nada que conservar apunta a view y sort', () => {
-    expect(html).toContain('href="/?view=map&amp;sort=price">Quitar todos los filtros</a>');
+  it('no repite los chips: ningún enlace «Quitar «…»»', () => {
+    expect(html).not.toContain('Quitar «');
+    expect(html).not.toContain('Operación: Venta');
   });
 
-  it('con un solo filtro no ofrece «Quitar todos»', () => {
-    const one = renderToStaticMarkup(
-      <EmptyResults kind="filtered" params={{ operation: 'sale' }} filters={[OPERATION]} keepOnClear={[]} />
+  it('«Quitar todos los filtros» sin nada que conservar apunta a view y sort, dentro de su párrafo', () => {
+    expect(html).toContain(
+      '<p class="empty-results__action"><a href="/?view=map&amp;sort=price">Quitar todos los filtros</a></p>'
     );
+    expect(html).not.toContain('empty-results__actions');
+  });
 
-    expect(linkNames(one)).toEqual(['Quitar «Operación: Venta»']);
+  it('con un solo filtro también ofrece la acción (C-11: siempre visible)', () => {
+    const one = renderToStaticMarkup(<EmptyResults kind="filtered" params={{ operation: 'sale' }} keepOnClear={[]} />);
+
+    expect(linkNames(one)).toEqual(['Quitar todos los filtros']);
+    expect(one).toContain('href="/"');
   });
 
   it('no declara un rol vivo: el aviso de cobertura es la única región', () => {
@@ -59,51 +58,31 @@ describe('EmptyResults — filtered', () => {
   });
 });
 
-describe('EmptyResults — enlace de limpieza que conserva polígono o zona (WCAG 3.2.4)', () => {
+describe('EmptyResults — acción que conserva el polígono (WCAG 3.2.4)', () => {
   const params = { view: 'map', polygon: POLYGON, operation: 'sale', propertyType: 'flat' };
 
   it('con polígono conservado se llama «Quitar los demás filtros» y mantiene el polígono', () => {
-    const html = renderToStaticMarkup(
-      <EmptyResults kind="filtered" params={params} filters={[OPERATION, TYPE]} keepOnClear={['polygon']} />
-    );
+    const html = renderToStaticMarkup(<EmptyResults kind="filtered" params={params} keepOnClear={['polygon']} />);
     const encoded = new URLSearchParams({ polygon: POLYGON }).toString();
 
-    expect(linkNames(html)).toContain('Quitar los demás filtros');
-    expect(linkNames(html)).not.toContain('Quitar todos los filtros');
+    expect(linkNames(html)).toEqual(['Quitar los demás filtros']);
     expect(html).toContain(`href="/?view=map&amp;${encoded.replaceAll('&', '&amp;')}">Quitar los demás filtros</a>`);
+    expect(html).toContain('<p class="empty-results__action">');
   });
 
-  it('con zona sin aplicar conservada mantiene zone y zoneQuery', () => {
+  it('con un solo filtro más el polígono sigue habiendo una acción', () => {
     const html = renderToStaticMarkup(
-      <EmptyResults
-        kind="filtered"
-        params={{ zone: '28079', zoneQuery: 'mad', operation: 'sale', propertyType: 'flat' }}
-        filters={[OPERATION, TYPE]}
-        keepOnClear={['zone', 'zoneQuery']}
-      />
+      <EmptyResults kind="filtered" params={{ polygon: POLYGON, operation: 'sale' }} keepOnClear={['polygon']} />
     );
 
-    expect(html).toContain('href="/?zone=28079&amp;zoneQuery=mad">Quitar los demás filtros</a>');
-  });
-
-  it('el polígono no cuenta para el umbral: con un solo filtro acotado no hay enlace de limpieza', () => {
-    const html = renderToStaticMarkup(
-      <EmptyResults
-        kind="filtered"
-        params={{ polygon: POLYGON, operation: 'sale' }}
-        filters={[OPERATION]}
-        keepOnClear={['polygon']}
-      />
-    );
-
-    expect(linkNames(html)).toEqual(['Quitar «Operación: Venta»']);
+    expect(linkNames(html)).toEqual(['Quitar los demás filtros']);
   });
 });
 
 describe('EmptyResults — unfiltered y past-last-page', () => {
   it('unfiltered: mensaje propio, sin enlaces', () => {
     const html = renderToStaticMarkup(
-      <EmptyResults kind="unfiltered" params={{}} filters={[]} keepOnClear={[]} />
+      <EmptyResults kind="unfiltered" params={{}} keepOnClear={[]} />
     );
 
     expect(text(html)).toContain('Todavía no hay viviendas.');
@@ -115,12 +94,7 @@ describe('EmptyResults — unfiltered y past-last-page', () => {
 
   it('past-last-page: enlace a la primera página sin `page` y con los filtros', () => {
     const html = renderToStaticMarkup(
-      <EmptyResults
-        kind="past-last-page"
-        params={{ operation: 'sale', page: '99' }}
-        filters={[OPERATION]}
-        keepOnClear={[]}
-      />
+      <EmptyResults kind="past-last-page" params={{ operation: 'sale', page: '99' }} keepOnClear={[]} />
     );
 
     expect(text(html)).toContain('Esta página ya no tiene viviendas.');

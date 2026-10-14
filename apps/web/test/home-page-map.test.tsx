@@ -410,7 +410,7 @@ describe('vista de mapa — estados vacío y de error (SMV-13, DAS-11)', () => {
   // D.14 (D13) — polígono sin viviendas MÁS otro filtro: el aviso y la guía `filtered`, que
   // nunca ofrece quitar el polígono.
   it.each([{ view: 'list' }, { view: 'map' }, {}])(
-    'polígono, operación=sale y M=0 con %j: aviso una vez y guía filtered sin quitar el polígono',
+    'polígono, operación=sale y M=0 con %j: aviso una vez y guía filtered con una sola acción que conserva el polígono',
     async (params) => {
       mapResult(0);
       const html = await render({ ...params, polygon: POLYGON, operation: 'sale' });
@@ -420,10 +420,10 @@ describe('vista de mapa — estados vacío y de error (SMV-13, DAS-11)', () => {
       expect(count(html, 'Ninguna vivienda con ubicación coincide con tu búsqueda.')).toBe(1);
       expect(listSection(html)).toContain('Ninguna vivienda coincide con tu búsqueda.');
       expect(mapSection(html)).toContain('Ninguna vivienda con ubicación coincide con tu búsqueda.');
-      expect(count(html, 'Quitar «Operación: Venta»')).toBe(1);
-      expect(count(html, 'Quitar «Zona dibujada»')).toBe(0);
-      expect(listSection(html)).not.toContain('Quitar todos');
-      expect(listSection(html)).not.toContain('Quitar los demás');
+      // D.18 (decisión 225): una sola acción que conserva el polígono; ningún «Quitar «…»» por filtro.
+      expect(count(html, 'Quitar «')).toBe(0);
+      expect(count(listSection(html), 'Quitar los demás filtros')).toBe(1);
+      expect(listSection(html)).not.toContain('Quitar todos los filtros');
     }
   );
 
@@ -614,9 +614,10 @@ describe('avisos de cobertura de la página (D.13)', () => {
   });
 });
 
-// D.14 (D10) — zona sin aplicar: el aviso de cobertura explica la zona; la guía solo habla de los
-// demás filtros y nunca ofrece quitar la zona.
-describe('estado vacío con zona sin cubrir (D10)', () => {
+// D.18 (decisión 225, enmienda la 190) — estado vacío filtrado: estado, la frase que remite a los
+// chips y UNA acción siempre visible. La zona es un filtro aplicado más (decisión 224), así que
+// «Quitar todos los filtros» también la quita; el aviso de cobertura explica la causa.
+describe('estado vacío filtrado con una sola acción (D.18)', () => {
   const geometry = {
     zoneId: 'zone-1',
     ineCode: '28074',
@@ -625,6 +626,7 @@ describe('estado vacío con zona sin cubrir (D10)', () => {
     centroid: { latitude: 40.33, longitude: -3.76 },
     sweepRadiusM: 4500,
   };
+  const SENTENCE = 'Los filtros aplicados están arriba; pulsa uno para quitarlo';
 
   async function renderUncovered(extra: Record<string, string>): Promise<string> {
     resolveZoneGeometryMock.mockResolvedValue(geometry);
@@ -635,34 +637,41 @@ describe('estado vacío con zona sin cubrir (D10)', () => {
     return render({ zone: '28074', ...extra });
   }
 
-  it('zona + operación: aviso y guía filtered con «Quitar» solo para la operación', async () => {
+  it('zona + operación: aviso, estado, frase y una sola acción «Quitar todos los filtros» que quita también la zona', async () => {
     const html = await renderUncovered({ operation: 'sale' });
     expect(count(html, 'Todavía no hay viviendas de Leganés.')).toBe(1);
     expect(count(html, 'role="status"')).toBe(1);
-    expect(listSection(html)).toContain('Ninguna vivienda coincide con tu búsqueda.');
+    const list = listSection(html);
+    expect(list).toContain('Ninguna vivienda coincide con tu búsqueda.');
+    expect(list).toContain(SENTENCE);
     expect(mapSection(html)).toContain('Ninguna vivienda con ubicación coincide con tu búsqueda.');
-    expect(listSection(html)).toContain('Quitar «Operación: Venta»');
-    expect(html).not.toContain('Quitar «Zona');
-    expect(listSection(html)).not.toContain('Quitar todos');
+    expect(list).toContain('<p class="empty-results__action"><a href="/">Quitar todos los filtros</a></p>');
+    expect(list).not.toContain('Quitar «');
+    expect(count(list, '>Quitar')).toBe(1);
   });
 
-  it('zona + dos filtros: «Quitar los demás filtros» conserva zone y zoneQuery', async () => {
-    const html = await renderUncovered({ operation: 'sale', propertyType: 'flat', zoneQuery: 'lega' });
-    expect(listSection(html)).toContain(
-      'href="/?zone=28074&amp;zoneQuery=lega">Quitar los demás filtros</a>'
-    );
-    expect(html).not.toContain('Quitar «Zona');
-  });
-
-  it('zona sola: aviso y estado sin filtros (unfiltered), sin enlaces «Quitar» en la guía', async () => {
+  it('zona sola: sigue siendo un filtro, así que el vacío es filtered y la acción quita la zona', async () => {
     const html = await renderUncovered({});
     expect(count(html, 'role="status"')).toBe(1);
-    expect(listSection(html)).toContain('Todavía no hay viviendas.');
-    expect(mapSection(html)).toContain('Todavía no hay viviendas con ubicación.');
-    expect(listSection(html)).not.toContain('Quitar');
+    const list = listSection(html);
+    expect(list).toContain('Ninguna vivienda coincide con tu búsqueda.');
+    expect(list).toContain('<a href="/">Quitar todos los filtros</a>');
+    expect(list).not.toContain('Todavía no hay viviendas.');
   });
 
-  it('zona cubierta con filtros: filtered con la zona entre los filtros y sin aviso de cobertura', async () => {
+  it('con filtros conserva view y sort en la acción, y la zona se quita', async () => {
+    const html = await renderUncovered({ operation: 'sale', propertyType: 'flat', view: 'map', sort: 'price' });
+    expect(listSection(html)).toContain('href="/?view=map&amp;sort=price">Quitar todos los filtros</a>');
+  });
+
+  it('polígono sin viviendas con otro filtro: la acción se llama «Quitar los demás filtros» y conserva el polígono', async () => {
+    const html = await render({ polygon: POLYGON, operation: 'sale' });
+    const encoded = new URLSearchParams({ polygon: POLYGON }).toString().replaceAll('&', '&amp;');
+    expect(listSection(html)).toContain(`href="/?${encoded}">Quitar los demás filtros</a>`);
+    expect(count(listSection(html), '>Quitar')).toBe(1);
+  });
+
+  it('zona cubierta con filtros: filtered, sin aviso de cobertura y con una sola acción', async () => {
     resolveZoneGeometryMock.mockResolvedValue({ ...geometry, state: 'covered' });
     resolveCoverageForZoneMock.mockResolvedValue({ kind: 'covered' });
     resolveNewZonesDailyCapMock.mockReturnValue(10);
@@ -670,8 +679,8 @@ describe('estado vacío con zona sin cubrir (D10)', () => {
     const html = await render({ zone: '28074', operation: 'sale' });
     expect(html).not.toContain('coverage-notice');
     expect(listSection(html)).toContain('Ninguna vivienda coincide con tu búsqueda.');
-    expect(listSection(html)).toContain('Quitar «Zona: Leganés»');
-    expect(listSection(html)).toContain('Quitar «Operación: Venta»');
+    expect(listSection(html)).toContain(SENTENCE);
+    expect(count(listSection(html), '>Quitar')).toBe(1);
   });
 });
 
@@ -703,11 +712,11 @@ describe('ayuda de teclado del mapa (D.15, F2)', () => {
   });
 });
 
-// D.17 (B1) — una zona sin datos no se aplica (D10): la lista muestra todos los municipios, y el chip
-// y un rótulo sobre la lista lo dicen en vez de aparentar un filtro activo.
-describe('zona sin datos todavía: chip y rótulo de la lista (D.17, B1)', () => {
+// D.18 (decisión 224, replaza la 213 y enmienda la 190) — una zona con centroide y radio de barrido
+// SIEMPRE se aplica, cubierta o no: sin sufijo en el chip ni rótulo sobre la lista. Una zona
+// inlocalizable (desconocida, sin centroide o sin radio) no consulta nada: lista vacía y su aviso.
+describe('zona siempre aplicada (D.18, decisión 224)', () => {
   const CAPTION = 'Mientras tanto, viviendas de todos los municipios';
-  const CHIP = 'Zona: Leganés · sin datos todavía';
   const geometry = {
     zoneId: 'zone-1',
     ineCode: '28074',
@@ -716,6 +725,7 @@ describe('zona sin datos todavía: chip y rótulo de la lista (D.17, B1)', () =>
     centroid: { latitude: 40.33, longitude: -3.76 },
     sweepRadiusM: 4500,
   };
+  const GEO = { lon: -3.76, lat: 40.33, radiusMeters: 4500 };
 
   function withResults(): void {
     searchPropertiesMock.mockResolvedValue({
@@ -725,23 +735,39 @@ describe('zona sin datos todavía: chip y rótulo de la lista (D.17, B1)', () =>
     mapResult(2);
   }
 
-  function uncovered(): void {
-    resolveZoneGeometryMock.mockResolvedValue(geometry);
+  function uncovered(overrides: Record<string, unknown> = {}): void {
+    resolveZoneGeometryMock.mockResolvedValue({ ...geometry, ...overrides });
     resolveNewZonesDailyCapMock.mockReturnValue(10);
     resolveCoverageClientLimitMock.mockResolvedValue(null);
     resolveCoverageForZoneMock.mockResolvedValue({ kind: 'not-sweepable' });
   }
 
-  it('zona sin cubrir con resultados: chip marcado y rótulo una vez, antes de la primera fila', async () => {
+  function callCriteria(mock: typeof searchPropertiesMock): { geo?: unknown } {
+    return mock.mock.calls[0]?.[1] as { geo?: unknown };
+  }
+
+  it.each([
+    ['uncovered', 'sin cubrir'],
+    ['covered', 'cubierta'],
+  ])('zona %s (%s) con centroide y radio: las dos consultas reciben el geo de la zona', async (state) => {
+    withResults();
+    uncovered({ state });
+    await render({ zone: '28074' });
+    expect(searchPropertiesMock).toHaveBeenCalledTimes(1);
+    expect(searchMapPointsMock).toHaveBeenCalledTimes(1);
+    expect(callCriteria(searchPropertiesMock).geo).toEqual(GEO);
+    expect(callCriteria(searchMapPointsMock).geo).toEqual(GEO);
+  });
+
+  it('zona sin cubrir con resultados: chip sin sufijo, sin rótulo y con su aviso de cobertura', async () => {
     withResults();
     uncovered();
     const html = await render({ zone: '28074' });
-    expect(html).toContain(CHIP);
-    expect(count(html, CAPTION)).toBe(1);
-    const list = listSection(html);
-    expect(list).toContain(CAPTION);
-    expect(list.indexOf(CAPTION)).toBeLessThan(list.indexOf('class="result-list"'));
-    expect(mapSection(html)).not.toContain(CAPTION);
+    expect(html).toContain('Zona: Leganés');
+    expect(html).not.toContain('sin datos todavía');
+    expect(html).not.toContain(CAPTION);
+    expect(html).not.toContain('search-results__caption');
+    expect(html).toContain('Todavía no hay viviendas de Leganés.');
   });
 
   it('el chip sigue siendo un enlace que quita la zona', async () => {
@@ -749,32 +775,53 @@ describe('zona sin datos todavía: chip y rótulo de la lista (D.17, B1)', () =>
     uncovered();
     const html = await render({ zone: '28074', operation: 'sale' });
     expect(html).toContain('href="/?operation=sale"');
-    expect(html).toContain(CHIP);
+    expect(html).toContain('Zona: Leganés');
   });
 
-  it('zona cubierta con resultados: ni chip marcado ni rótulo', async () => {
+  it('zona cubierta con resultados: ni sufijo ni rótulo ni aviso', async () => {
     withResults();
-    resolveZoneGeometryMock.mockResolvedValue({ ...geometry, state: 'covered' });
+    uncovered({ state: 'covered' });
+    resolveCoverageForZoneMock.mockResolvedValue({ kind: 'covered' });
     const html = await render({ zone: '28074' });
     expect(html).toContain('Zona: Leganés');
     expect(html).not.toContain('sin datos todavía');
     expect(html).not.toContain(CAPTION);
+    expect(html).not.toContain('coverage-notice');
   });
 
-  it('zona desconocida con resultados: el aviso ya lo explica, sin rótulo ni chip marcado', async () => {
+  it.each([
+    ['sin centroide', { centroid: null }],
+    ['sin radio de barrido', { sweepRadiusM: null }],
+  ])('zona %s: no consulta nada, la lista queda vacía y su aviso la explica', async (_name, overrides) => {
+    withResults();
+    uncovered(overrides);
+    const html = await render({ zone: '28074' });
+    expect(searchPropertiesMock).not.toHaveBeenCalled();
+    expect(searchMapPointsMock).not.toHaveBeenCalled();
+    expect(html).toContain('Zona: Leganés');
+    expect(html).toContain('0 resultados');
+    expect(html).toContain('0 viviendas con ubicación coinciden');
+    expect(html).toContain('Todavía no hay viviendas de Leganés.');
+    expect(html).not.toContain('result-list');
+  });
+
+  it('zona desconocida: no consulta nada, lista vacía y el aviso de municipio inexistente', async () => {
     withResults();
     resolveZoneGeometryMock.mockResolvedValue(null);
     const html = await render({ zone: '00000' });
+    expect(searchPropertiesMock).not.toHaveBeenCalled();
+    expect(searchMapPointsMock).not.toHaveBeenCalled();
     expect(html).toContain('Zona INE 00000');
-    expect(html).not.toContain('sin datos todavía');
-    expect(html).not.toContain(CAPTION);
+    expect(html).toContain('El enlace lleva un municipio que no existe.');
+    expect(html).toContain('0 resultados');
+    expect(html).not.toContain('result-list');
   });
 
-  it('zona sin cubrir y sin resultados: el chip se marca y el estado vacío no lleva el rótulo', async () => {
-    uncovered();
-    const html = await render({ zone: '28074' });
-    expect(html).toContain(CHIP);
-    expect(html).not.toContain(CAPTION);
+  it('una zona inlocalizable con otros filtros sigue sin consultar: no degrada a una búsqueda sin zona', async () => {
+    withResults();
+    resolveZoneGeometryMock.mockResolvedValue(null);
+    await render({ zone: '00000', operation: 'sale' });
+    expect(searchPropertiesMock).not.toHaveBeenCalled();
   });
 });
 

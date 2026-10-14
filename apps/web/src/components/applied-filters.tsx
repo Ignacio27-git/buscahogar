@@ -23,19 +23,18 @@ export interface AppliedFiltersProps {
   readonly zoneName: string | null;
   // Texto del recuento, ya formateado (`formatListCount` / `formatMapCount`).
   readonly count: string;
-  // D.17 (B1): `false` si la zona del criterio no se aplicó (aún sin datos); su chip lo dice.
-  readonly zoneApplied?: boolean;
 }
 
-// Exportado: el estado vacío (D.14) usa el mismo umbral para ofrecer «Quitar los demás filtros».
-export const CLEAR_ALL_THRESHOLD = 2;
+// «Quitar todos» aparece desde dos filtros. D.18 (decisión 225): privado; el estado vacío ya no lo
+// usa porque su única acción se muestra siempre.
+const CLEAR_ALL_THRESHOLD = 2;
 
 // D.7 (decisión 159) — forma común del chip interactivo y del de solo lectura. El
 // interactivo debe seguir produciendo, byte a byte, la clase de D.6a (lo fija un test).
 const CHIP_SHAPE = 'inline-flex min-h-8 max-w-full items-center gap-1 rounded-control [overflow-wrap:anywhere]';
 
-export function AppliedFilters({ criteria, params, zoneName, count, zoneApplied = true }: AppliedFiltersProps): ReactElement {
-  const filters = describeAppliedFilters(criteria, zoneName, { zoneApplied });
+export function AppliedFilters({ criteria, params, zoneName, count }: AppliedFiltersProps): ReactElement {
+  const filters = describeAppliedFilters(criteria, zoneName);
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
       <p className="font-semibold tabular-nums">{count}</p>

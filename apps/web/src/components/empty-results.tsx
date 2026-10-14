@@ -1,21 +1,19 @@
-// D.14 (decisión 190) — estado vacío de la lista y del mapa, en tres tipos. Server Component
-// puro: cada acción es un `href` real, así que funciona sin JavaScript.
+// D.14 (decisión 190) y D.18 (decisión 225) — estado vacío de la lista y del mapa, en tres tipos.
+// Server Component puro: cada acción es un `href` real, así que funciona sin JavaScript.
 //
 // Sin rol vivo: el aviso de cobertura es la única región `status`/`alert` (decisión 160) y este
-// bloque nunca nombra la causa. Recibe los filtros YA acotados (`scopeEmptyResultsFilters`), de
-// modo que nunca ofrece quitar el polígono vacío ni una zona que no se aplicó.
+// bloque nunca nombra la causa. El vacío filtrado no repite los chips (C-11): estado, una frase que
+// remite a los chips de arriba y UNA acción siempre visible. Los filtros ya acotados
+// (`scopeEmptyResultsFilters`) solo deciden el tipo; aquí basta saber si hay algo que conservar.
 import type { ReactElement } from 'react';
 
-import { CLEAR_ALL_THRESHOLD } from '@/components/applied-filters';
 import type { EmptyResultsKind } from '@/lib/empty-results';
-import { buildClearFiltersHref, buildFirstPageHref, buildRemoveFilterHref } from '@/lib/search-href';
+import { buildClearFiltersHref, buildFirstPageHref } from '@/lib/search-href';
 import type { ClearKeepKey, RawSearchParams } from '@/lib/search-href';
-import type { AppliedFilter } from '@/lib/search-labels';
 
 export interface EmptyResultsProps {
   readonly kind: EmptyResultsKind;
   readonly params: RawSearchParams;
-  readonly filters: readonly AppliedFilter[];
   readonly keepOnClear: readonly ClearKeepKey[];
 }
 
@@ -37,7 +35,7 @@ function Panel({
   );
 }
 
-export function EmptyResults({ kind, params, filters, keepOnClear }: EmptyResultsProps): ReactElement {
+export function EmptyResults({ kind, params, keepOnClear }: EmptyResultsProps): ReactElement {
   if (kind === 'unfiltered') {
     return (
       <Panel
@@ -52,31 +50,23 @@ export function EmptyResults({ kind, params, filters, keepOnClear }: EmptyResult
         title="Esta página ya no tiene viviendas."
         detail="Los resultados de tu búsqueda terminan antes de esta página."
       >
-        <ul className="empty-results__actions">
-          <li>
-            <a href={buildFirstPageHref(params)}>Ir a la primera página</a>
-          </li>
-        </ul>
+        <p className="empty-results__action">
+          <a href={buildFirstPageHref(params)}>Ir a la primera página</a>
+        </p>
       </Panel>
     );
   }
-  // WCAG 3.2.4: dos enlaces con el mismo nombre deben llevar al mismo sitio. El de la barra de
-  // filtros quita también el polígono o la zona; si este los conserva, se llama distinto.
+  // WCAG 3.2.4: dos enlaces con el mismo nombre deben llevar al mismo sitio. El de la fila de chips
+  // quita también el polígono; si este lo conserva, se llama distinto.
   const clearName = keepOnClear.length > 0 ? 'Quitar los demás filtros' : 'Quitar todos los filtros';
   return (
-    <Panel title="Ninguna vivienda coincide con tu búsqueda." detail="Prueba a quitar alguno de estos filtros:">
-      <ul className="empty-results__actions">
-        {filters.map((filter) => (
-          <li key={filter.key}>
-            <a href={buildRemoveFilterHref(params, filter.key)}>Quitar «{filter.label}»</a>
-          </li>
-        ))}
-        {filters.length >= CLEAR_ALL_THRESHOLD ? (
-          <li>
-            <a href={buildClearFiltersHref(params, { keep: keepOnClear })}>{clearName}</a>
-          </li>
-        ) : null}
-      </ul>
+    <Panel
+      title="Ninguna vivienda coincide con tu búsqueda."
+      detail="Los filtros aplicados están arriba; pulsa uno para quitarlo."
+    >
+      <p className="empty-results__action">
+        <a href={buildClearFiltersHref(params, { keep: keepOnClear })}>{clearName}</a>
+      </p>
     </Panel>
   );
 }

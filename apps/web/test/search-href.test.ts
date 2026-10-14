@@ -2,6 +2,7 @@
 // búsqueda: vista, zona dibujada, quitar zona y selección de zona.
 import { describe, expect, it } from 'vitest';
 
+import type { ClearKeepKey } from '../src/lib/search-href.js';
 import {
   buildClearAreaHref,
   buildClearFiltersHref,
@@ -207,10 +208,15 @@ describe('buildClearFiltersHref — D.6a "Clear all"', () => {
       page: '4',
     };
 
-    it('conserva la zona y su consulta tras view, sort y dir', () => {
-      expect(buildClearFiltersHref(params, { keep: ['zone', 'zoneQuery'] })).toBe(
-        '/?view=map&sort=price&dir=asc&zone=28079&zoneQuery=mad'
-      );
+    // D.18 (decisión 224): una zona con centroide y radio siempre se aplica, así que ya no hay zona
+    // «sin aplicar» que conservar. `ClearKeepKey` se reduce a `'polygon'` (lo comprueba tsc).
+    it('solo admite conservar el polígono: la zona y su consulta ya no son una clave válida', () => {
+      // @ts-expect-error — `zone` dejó de ser un `ClearKeepKey` (decisión 224)
+      const kept = buildClearFiltersHref(params, { keep: ['zone', 'zoneQuery'] });
+      // En ejecución la función sigue copiando lo que se le pida; el tipo es la barrera.
+      expect(kept).toBe('/?view=map&sort=price&dir=asc&zone=28079&zoneQuery=mad');
+      const keys: readonly ClearKeepKey[] = ['polygon'];
+      expect(keys).toEqual(['polygon']);
     });
 
     it('conserva el polígono codificado', () => {

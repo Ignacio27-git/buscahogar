@@ -6,10 +6,10 @@ import type { PropertySearchCriteria } from '@buscahogar/core';
 import { describe, expect, it } from 'vitest';
 
 import {
-  TRAY_FILTER_KEYS,
   SEARCH_PARAM_LABELS,
   SOURCE_LABELS,
-  countTrayFilters,
+  countAppliedFilters,
+  describeAppliedFilters,
   describeInterpretationStatus,
   floorLabel,
   formatClusterUnit,
@@ -49,14 +49,16 @@ describe('propertyTypeLabel / operationLabel — S1, S2 (decisión 134)', () => 
   });
 });
 
-describe('countTrayFilters — S15 (decisión 154)', () => {
+// D.18 (decisión 226, reemplaza la 154) — «Filtros N» cuenta los mismos filtros que los chips: una
+// sola fuente (`describeAppliedFilters`), zona y polígono incluidos.
+describe('countAppliedFilters — decisión 226', () => {
   it('sin filtros, cero', () => {
-    expect(countTrayFilters(criteria({}))).toBe(0);
+    expect(countAppliedFilters(criteria({}))).toBe(0);
   });
 
-  it('los ocho filtros de la bandeja suman ocho', () => {
+  it('los ocho filtros escalares suman ocho', () => {
     expect(
-      countTrayFilters(
+      countAppliedFilters(
         criteria({
           operation: 'sale',
           propertyType: 'flat',
@@ -69,21 +71,27 @@ describe('countTrayFilters — S15 (decisión 154)', () => {
         })
       )
     ).toBe(8);
-    expect(TRAY_FILTER_KEYS).toHaveLength(8);
   });
 
   it('sort y dir no cuentan', () => {
-    expect(countTrayFilters(criteria({ sort: 'price', dir: 'asc' }))).toBe(0);
+    expect(countAppliedFilters(criteria({ sort: 'price', dir: 'asc' }))).toBe(0);
   });
 
-  it('zona, polígono y punto con radio no cuentan', () => {
-    expect(countTrayFilters(criteria({ zone: '28065' }))).toBe(0);
-    expect(countTrayFilters(criteria({ polygon: '40.4,-3.7;40.4,-3.6;40.5,-3.6' }))).toBe(0);
-    expect(countTrayFilters(criteria({ lat: '40.4', lng: '-3.7', radius: '500' }))).toBe(0);
+  it('zona, polígono y punto con radio cuentan uno cada uno', () => {
+    expect(countAppliedFilters(criteria({ zone: '28065' }))).toBe(1);
+    expect(countAppliedFilters(criteria({ polygon: '40.4,-3.7;40.4,-3.6;40.5,-3.6' }))).toBe(1);
+    expect(countAppliedFilters(criteria({ lat: '40.4', lng: '-3.7', radius: '500' }))).toBe(1);
   });
 
-  it('mezcla: operación, precio máximo, orden y zona cuentan 2', () => {
-    expect(countTrayFilters(criteria({ operation: 'sale', maxPrice: '300000', sort: 'price', zone: '28065' }))).toBe(2);
+  it('mezcla: operación, precio máximo, orden y zona cuentan 3', () => {
+    expect(countAppliedFilters(criteria({ operation: 'sale', maxPrice: '300000', sort: 'price', zone: '28065' }))).toBe(3);
+  });
+
+  it('coincide con el número de chips que pinta describeAppliedFilters', () => {
+    const mixed = criteria({ operation: 'rent', minRooms: '2', polygon: '40.4,-3.7;40.4,-3.6;40.5,-3.6' });
+
+    expect(countAppliedFilters(mixed)).toBe(describeAppliedFilters(mixed, null).length);
+    expect(countAppliedFilters(mixed)).toBe(3);
   });
 });
 

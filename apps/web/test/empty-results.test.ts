@@ -10,32 +10,32 @@ const TYPE: AppliedFilter = { key: 'propertyType', label: 'Tipo: Piso' };
 const ZONE: AppliedFilter = { key: 'zone', label: 'Zona INE 28079' };
 const POLYGON: AppliedFilter = { key: 'polygon', label: 'Zona dibujada' };
 
+// D.18 (decisión 224, enmienda la 190): una zona con centroide y radio siempre se aplica, así que el
+// alcance solo trata el polígono vacío. Una zona deja de ser «sin aplicar» y se puede quitar.
 describe('scopeEmptyResultsFilters', () => {
   it('quita el polígono vacío y lo conserva al limpiar', () => {
-    expect(
-      scopeEmptyResultsFilters({ filters: [OPERATION, POLYGON], polygonEmpty: true, zoneUnapplied: false })
-    ).toEqual({ filters: [OPERATION], keepOnClear: ['polygon'] });
+    expect(scopeEmptyResultsFilters({ filters: [OPERATION, POLYGON], polygonEmpty: true })).toEqual({
+      filters: [OPERATION],
+      keepOnClear: ['polygon'],
+    });
   });
 
-  it('quita la zona sin aplicar y conserva zone y zoneQuery al limpiar', () => {
-    expect(
-      scopeEmptyResultsFilters({ filters: [ZONE, OPERATION, TYPE], polygonEmpty: false, zoneUnapplied: true })
-    ).toEqual({ filters: [OPERATION, TYPE], keepOnClear: ['zone', 'zoneQuery'] });
+  it('no toca la zona: es un filtro aplicado más, también con polígono vacío', () => {
+    expect(scopeEmptyResultsFilters({ filters: [ZONE, OPERATION, TYPE], polygonEmpty: false })).toEqual({
+      filters: [ZONE, OPERATION, TYPE],
+      keepOnClear: [],
+    });
+    expect(scopeEmptyResultsFilters({ filters: [ZONE, POLYGON, OPERATION], polygonEmpty: true })).toEqual({
+      filters: [ZONE, OPERATION],
+      keepOnClear: ['polygon'],
+    });
   });
 
-  it('no toca una zona aplicada ni un polígono con resultados', () => {
-    expect(
-      scopeEmptyResultsFilters({ filters: [ZONE, OPERATION], polygonEmpty: false, zoneUnapplied: false })
-    ).toEqual({ filters: [ZONE, OPERATION], keepOnClear: [] });
-    expect(
-      scopeEmptyResultsFilters({ filters: [POLYGON], polygonEmpty: false, zoneUnapplied: false })
-    ).toEqual({ filters: [POLYGON], keepOnClear: [] });
-  });
-
-  it('maneja los dos a la vez aunque el esquema no lo permita', () => {
-    expect(
-      scopeEmptyResultsFilters({ filters: [ZONE, POLYGON, OPERATION], polygonEmpty: true, zoneUnapplied: true })
-    ).toEqual({ filters: [OPERATION], keepOnClear: ['polygon', 'zone', 'zoneQuery'] });
+  it('no toca un polígono con resultados', () => {
+    expect(scopeEmptyResultsFilters({ filters: [POLYGON], polygonEmpty: false })).toEqual({
+      filters: [POLYGON],
+      keepOnClear: [],
+    });
   });
 });
 
@@ -65,26 +65,17 @@ describe('selectEmptyResultsKind — precedencia', () => {
 });
 
 describe('alcance y tipo juntos', () => {
-  it('el filtered nunca contiene el polígono ni la zona sin aplicar', () => {
-    const polygonCase = scopeEmptyResultsFilters({
-      filters: [OPERATION, POLYGON],
-      polygonEmpty: true,
-      zoneUnapplied: false,
-    });
-    const zoneCase = scopeEmptyResultsFilters({ filters: [ZONE, OPERATION], polygonEmpty: false, zoneUnapplied: true });
+  it('el filtered nunca contiene el polígono vacío', () => {
+    const scoped = scopeEmptyResultsFilters({ filters: [OPERATION, POLYGON], polygonEmpty: true });
 
-    for (const scoped of [polygonCase, zoneCase]) {
-      expect(selectEmptyResultsKind({ page: 1, polygonEmpty: scoped === polygonCase, filters: scoped.filters })).toBe(
-        'filtered'
-      );
-      expect(scoped.filters.map((filter) => filter.key)).toEqual(['operation']);
-    }
+    expect(selectEmptyResultsKind({ page: 1, polygonEmpty: true, filters: scoped.filters })).toBe('filtered');
+    expect(scoped.filters.map((filter) => filter.key)).toEqual(['operation']);
   });
 
-  it('zona sin aplicar sola: el alcance la deja sin filtros y el tipo es unfiltered', () => {
-    const scoped = scopeEmptyResultsFilters({ filters: [ZONE], polygonEmpty: false, zoneUnapplied: true });
+  it('una zona sola cuenta como filtro: el tipo es filtered, no unfiltered', () => {
+    const scoped = scopeEmptyResultsFilters({ filters: [ZONE], polygonEmpty: false });
 
-    expect(scoped.filters).toEqual([]);
-    expect(selectEmptyResultsKind({ page: 1, polygonEmpty: false, filters: scoped.filters })).toBe('unfiltered');
+    expect(scoped.filters).toEqual([ZONE]);
+    expect(selectEmptyResultsKind({ page: 1, polygonEmpty: false, filters: scoped.filters })).toBe('filtered');
   });
 });

@@ -1,7 +1,9 @@
 // D.14 (decisión 190) — qué explica una sección sin resultados. Lógica pura, sin Next ni ORM.
 //
-// El aviso de cobertura (zona sin aplicar o polígono sin viviendas) es la única explicación de su
+// El aviso de cobertura (zona sin datos o polígono sin viviendas) es la única explicación de su
 // causa; aquí solo se decide qué guía añade el estado vacío además de él, y sobre qué filtros.
+// D.18 (decisión 224): la zona con centroide y radio siempre se aplica, así que es un filtro más y
+// solo el polígono vacío se acota.
 import type { ClearKeepKey } from '@/lib/search-href';
 import type { AppliedFilter } from '@/lib/search-labels';
 
@@ -13,25 +15,14 @@ export interface ScopedEmptyResultsFilters {
   readonly keepOnClear: readonly ClearKeepKey[];
 }
 
-// Quita lo que no es un arreglo: quitar «Zona dibujada» o una zona que no se aplicó no cambiaría
-// el resultado, y contradiría el aviso. Se llama una vez en la página y se comparte con la lista
-// y con el mapa.
+// Quita lo que no es un arreglo: quitar «Zona dibujada» vacía no cambiaría el resultado, y
+// contradiría el aviso. Se llama una vez en la página y se comparte con la lista y con el mapa.
 export function scopeEmptyResultsFilters(input: {
   readonly filters: readonly AppliedFilter[];
   readonly polygonEmpty: boolean;
-  readonly zoneUnapplied: boolean;
 }): ScopedEmptyResultsFilters {
-  const dropped = new Set<AppliedFilter['key']>();
-  const keepOnClear: ClearKeepKey[] = [];
-  if (input.polygonEmpty) {
-    dropped.add('polygon');
-    keepOnClear.push('polygon');
-  }
-  if (input.zoneUnapplied) {
-    dropped.add('zone');
-    keepOnClear.push('zone', 'zoneQuery');
-  }
-  return { filters: input.filters.filter((filter) => !dropped.has(filter.key)), keepOnClear };
+  if (!input.polygonEmpty) return { filters: input.filters, keepOnClear: [] };
+  return { filters: input.filters.filter((filter) => filter.key !== 'polygon'), keepOnClear: ['polygon'] };
 }
 
 // Precedencia explícita. `filters` ya viene acotado por `scopeEmptyResultsFilters`.

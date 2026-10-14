@@ -167,22 +167,12 @@ function formatRadius(radiusMeters: number): string {
     : `A ${formatNumber(radiusMeters)} m de un punto`;
 }
 
-// D.17 (B1) — sufijo del chip de una zona que no se aplicó porque aún no hay datos suyos: la
-// búsqueda sigue mostrando todos los municipios y el chip no debe aparentar un filtro activo.
-export const ZONE_UNAPPLIED_SUFFIX = ' · sin datos todavía';
-
-export interface DescribeAppliedFiltersOptions {
-  // `false` cuando la zona existe pero no se aplicó (sin cobertura). Por defecto, aplicada.
-  readonly zoneApplied?: boolean;
-}
-
 // Describe `criteria` (lo que pidió el usuario), NUNCA `effectiveCriteria`: esa
 // añade `geo` derivado de una zona cubierta y produciría un chip de radio que
 // el usuario no escribió. Orden = orden de la barra, y la zona geográfica al final.
 export function describeAppliedFilters(
   criteria: PropertySearchCriteria,
-  zoneName: string | null,
-  { zoneApplied = true }: DescribeAppliedFiltersOptions = {}
+  zoneName: string | null
 ): readonly AppliedFilter[] {
   const filters: AppliedFilter[] = [];
   const add = (key: AppliedFilterKey, label: string): void => {
@@ -197,34 +187,18 @@ export function describeAppliedFilters(
   if (criteria.maxSurfaceM2 !== undefined) add('maxSurface', `Superficie hasta ${formatNumber(criteria.maxSurfaceM2)} m²`);
   if (criteria.minRooms !== undefined) add('minRooms', `Habitaciones: ${String(criteria.minRooms)} o más`);
   if (criteria.minBathrooms !== undefined) add('minBathrooms', `Baños: ${String(criteria.minBathrooms)} o más`);
-  if (criteria.zone !== undefined) {
-    // Sin nombre resuelto la zona no existe y su aviso ya lo explica: el sufijo solo marca una zona conocida.
-    const unapplied = !zoneApplied && zoneName !== null ? ZONE_UNAPPLIED_SUFFIX : '';
-    add('zone', zoneName !== null ? `Zona: ${zoneName}${unapplied}` : `Zona INE ${criteria.zone}`);
-  }
+  // D.18 (decisión 224): la zona con centroide y radio siempre se aplica; el chip no lleva sufijo.
+  if (criteria.zone !== undefined) add('zone', zoneName !== null ? `Zona: ${zoneName}` : `Zona INE ${criteria.zone}`);
   if (criteria.polygon !== undefined) add('polygon', 'Zona dibujada');
   if (criteria.geo !== undefined) add('geo', formatRadius(criteria.geo.radiusMeters));
   return filters;
 }
 
-// D.6b (decisión 154) — filtros que viven dentro de la bandeja. Ni el orden
-// (`sort`/`dir`) ni la zona, el polígono o el punto con radio son campos de la
-// bandeja: la zona y el radio se ven en sus chips y el orden no es un filtro.
-export const TRAY_FILTER_KEYS: readonly AppliedFilterKey[] = [
-  'operation',
-  'propertyType',
-  'minPrice',
-  'maxPrice',
-  'minSurface',
-  'maxSurface',
-  'minRooms',
-  'minBathrooms',
-];
-
-// Se deriva de `describeAppliedFilters`, la misma fuente que los chips, así que
-// el número de la bandeja coincide por construcción con los chips de criterio.
-export function countTrayFilters(criteria: PropertySearchCriteria): number {
-  return describeAppliedFilters(criteria, null).filter((filter) => TRAY_FILTER_KEYS.includes(filter.key)).length;
+// D.18 (decisión 226, reemplaza la 154) — el número de «Filtros N» es el de los chips: sale de
+// `describeAppliedFilters`, la misma fuente, así que coincide por construcción. Cuenta también la
+// zona, el polígono y el punto con radio (antes quedaban fuera por no ser campos de la bandeja).
+export function countAppliedFilters(criteria: PropertySearchCriteria): number {
+  return describeAppliedFilters(criteria, null).length;
 }
 
 // Recuento de la lista: completo solo en la página 1 sin página siguiente; en
