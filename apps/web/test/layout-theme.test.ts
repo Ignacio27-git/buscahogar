@@ -54,7 +54,7 @@ describe('RootLayout — tema (D.4)', () => {
     const header = html.slice(html.indexOf('<header'), html.indexOf('</header>'));
     expect(header).toContain('<form');
     expect(header.match(/<button[^>]*>/g)).toHaveLength(3);
-    expect(header).toContain('<legend>Tema</legend>');
+    expect(header).toContain('<legend class="sr-only">Tema</legend>');
   });
 
   it('el pie conserva la atribución y no contiene formulario ni botones', () => {
@@ -68,7 +68,7 @@ describe('RootLayout — tema (D.4)', () => {
   it('el marcado del selector vive en site-header.tsx', () => {
     const src = readFileSync(new URL('../src/components/site-header.tsx', import.meta.url), 'utf8');
     expect(src).toContain('action="/theme"');
-    expect(src).toContain('<legend>Tema</legend>');
+    expect(src).toContain('<legend className="sr-only">Tema</legend>');
     expect(src).not.toContain('aria-pressed');
   });
 

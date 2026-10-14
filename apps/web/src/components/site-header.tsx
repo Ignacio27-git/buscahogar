@@ -1,29 +1,38 @@
 import type { ReactElement } from 'react';
 
+import { Icon } from './icon';
+import type { IconName } from './icon';
 import { SHELL_CONTAINER } from './shell-container';
 
 // D.17 (B7): bajo 30rem la cabecera se compacta solo en el relleno y el hueco entre filas. Los
 // objetivos siguen midiendo 40 px (decisión 200) a todos los anchos; un test lo fija.
-const THEME_BUTTON = 'min-h-10 text-dense';
 const HEADER_LINK = 'inline-flex min-h-10 items-center';
+// D.18 (decisión 223): botón de icono de 40 × 40. `relative` ancla la barra `::before` del activo.
+const THEME_BUTTON = 'relative inline-flex min-h-10 min-w-10 items-center justify-center px-2 text-heading-3';
+
+const THEME_OPTIONS: readonly { readonly value: string; readonly name: string; readonly icon: IconName }[] = [
+  { value: 'light', name: 'Claro', icon: 'sun' },
+  { value: 'dark', name: 'Oscuro', icon: 'moon' },
+  { value: 'system', name: 'Sistema', icon: 'monitor' },
+];
 
 // Selector de tema (D.4, decisión 144; movido aquí en D.5). Server Component sin
 // JavaScript: un formulario POST a `/theme` que guarda la cookie y vuelve a la
 // página. El estado actual lo pinta solo el CSS según la clase de `<html>`.
+// D.18 (decisión 223): tres botones de icono. El nombre accesible es el texto de un span `sr-only`
+// (`theme-selector__name`); el CSS le añade «, activo» al del tema vigente (enmienda la 195). La
+// leyenda «Tema» queda oculta a la vista y el selector va siempre a la derecha (`ml-auto`).
 function ThemeSelector(): ReactElement {
   return (
-    <form method="post" action="/theme" className="theme-selector sm:ml-auto">
+    <form method="post" action="/theme" className="theme-selector ml-auto">
       <fieldset>
-        <legend>Tema</legend>
-        <button type="submit" name="theme" value="light" className={THEME_BUTTON}>
-          Claro
-        </button>
-        <button type="submit" name="theme" value="dark" className={THEME_BUTTON}>
-          Oscuro
-        </button>
-        <button type="submit" name="theme" value="system" className={THEME_BUTTON}>
-          Sistema
-        </button>
+        <legend className="sr-only">Tema</legend>
+        {THEME_OPTIONS.map((option) => (
+          <button key={option.value} type="submit" name="theme" value={option.value} className={THEME_BUTTON}>
+            <Icon name={option.icon} />
+            <span className="sr-only theme-selector__name">{option.name}</span>
+          </button>
+        ))}
       </fieldset>
     </form>
   );
@@ -31,7 +40,8 @@ function ThemeSelector(): ReactElement {
 
 // Cabecera de la aplicación (D.5, decisión 147): el landmark `banner`. Estática,
 // no fija al desplazarse, y sin buscador propio: la búsqueda vive en la página.
-// En 320 px el selector pasa a una segunda fila; el orden del DOM es el visual.
+// D.18 (decisión 223): sin `<nav>` ni «Buscar»; el nombre es el enlace a «/». A 320 px el nombre y
+// los tres botones caben en una fila; el orden del DOM es el visual.
 // Enlaces con `<a href>` normal, nunca `next/link` (convención de toda la app): `Link`
 // añadiría JavaScript de cliente y prefetch, y la cabecera debe seguir siendo estática.
 /* eslint-disable @next/next/no-html-link-for-pages */
@@ -44,15 +54,6 @@ export function SiteHeader(): ReactElement {
         <a href="/" className={`${HEADER_LINK} text-heading-3 text-ink no-underline`}>
           Buscahogar
         </a>
-        <nav aria-label="Principal">
-          <ul className="flex gap-4">
-            <li>
-              <a href="/" className={HEADER_LINK}>
-                Buscar
-              </a>
-            </li>
-          </ul>
-        </nav>
         <ThemeSelector />
       </div>
     </header>

@@ -329,11 +329,6 @@
     padding: 0;
   }
 
-  .theme-selector legend {
-    float: left;
-    margin-inline-end: 0.5rem;
-  }
-
   /* Bandeja de filtros (D.6b, decisión 153): un <details> nativo, cerrado en móvil. El resumen
      conserva `display: list-item` para que el marcador nativo indique el estado; objetivo
      táctil de 2.5rem. Funciona sin JavaScript y con teclado. */
@@ -1774,23 +1769,35 @@
     }
   }
 
+  /* D.18 (decisión 223, enmienda la 195 y la 215): el botón es un icono, que no tiene peso ni
+     subrayado. La señal del activo no es solo color: borde grueso (2px de ink: el borde de 1px más
+     una sombra interior de 1px) y una barra de 2px bajo el icono. */
   .light .theme-selector [value='light'],
   .dark .theme-selector [value='dark'],
   :root:not(.light, .dark) .theme-selector [value='system'] {
-    font-weight: 600;
     border-color: var(--ink);
     box-shadow: inset 0 0 0 1px var(--ink);
-    /* D.17 (P3): una tercera señal que no es color ni solo borde. */
-    text-decoration-line: underline;
-    text-underline-offset: 0.2em;
   }
 
-  /* D.15 (F3, decisión 195): el estado activo llega a la tecnología de apoyo sin hacer dinámica la
-     cabecera (147). Texto alternativo tras «/»: no se pinta (contenido vacío) y se añade al nombre
-     accesible como «Oscuro, activo». La coma sobrevive al recorte de espacios del nombre. */
-  .light .theme-selector [value='light']::after,
-  .dark .theme-selector [value='dark']::after,
-  :root:not(.light, .dark) .theme-selector [value='system']::after {
+  .light .theme-selector [value='light']::before,
+  .dark .theme-selector [value='dark']::before,
+  :root:not(.light, .dark) .theme-selector [value='system']::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0.5rem;
+    inset-block-end: 0.25rem;
+    block-size: 2px;
+    background-color: var(--ink);
+  }
+
+  /* D.15 (F3, decisión 195) movido al span del nombre por D.18: el estado activo llega a la
+     tecnología de apoyo sin hacer dinámica la cabecera (147). Texto alternativo tras «/»: no se
+     pinta (contenido vacío) y se añade al nombre accesible como «Oscuro, activo». Va dentro del
+     mismo span que la palabra para que no haya un espacio colgante entre ambas; la coma sobrevive
+     al recorte de espacios del nombre. */
+  .light .theme-selector [value='light'] .theme-selector__name::after,
+  .dark .theme-selector [value='dark'] .theme-selector__name::after,
+  :root:not(.light, .dark) .theme-selector [value='system'] .theme-selector__name::after {
     content: '' / ', activo';
   }
 }

@@ -633,21 +633,48 @@ describe('regla .icon (D.15)', () => {
   });
 });
 
-// D.15 (F3, R8, decisión 195) — el botón del tema activo anuncia «activo» a la tecnología de apoyo
-// mediante texto alternativo del contenido generado; la cabecera sigue siendo estática (147) y el
-// contenido visible no cambia (alternativa vacía a la izquierda de la barra).
-describe('estado del selector de tema (D.15)', () => {
-  const ACTIVOS: readonly (readonly [string, string])[] = [
-    ['light', ".light .theme-selector [value='light']::after"],
-    ['dark', ".dark .theme-selector [value='dark']::after"],
-    ['system', ":root:not(.light, .dark) .theme-selector [value='system']::after"],
+// D.15 (F3, R8, decisión 195) y D.18 (decisión 223) — el botón del tema activo anuncia «activo» a la
+// tecnología de apoyo mediante texto alternativo del contenido generado; la cabecera sigue siendo
+// estática (147). Desde D.18 el texto alternativo cuelga del `::after` del span sr-only que lleva el
+// nombre («Oscuro, activo» dentro del mismo span, sin espacio colgante), y la señal visible del
+// activo es una barra `::before` bajo el icono (un icono no tiene ni peso ni subrayado).
+describe('estado del selector de tema (D.15, D.18)', () => {
+  const ACTIVOS: readonly (readonly [string, string, string])[] = [
+    ['light', ".light .theme-selector [value='light']", ".light .theme-selector [value='light'] .theme-selector__name::after"],
+    ['dark', ".dark .theme-selector [value='dark']", ".dark .theme-selector [value='dark'] .theme-selector__name::after"],
+    [
+      'system',
+      ":root:not(.light, .dark) .theme-selector [value='system']",
+      ":root:not(.light, .dark) .theme-selector [value='system'] .theme-selector__name::after",
+    ],
   ];
+  const ruleBody = (selector: string): string => {
+    const start = RAW_CSS.indexOf(selector);
+    expect(start, selector).toBeGreaterThan(-1);
+    return RAW_CSS.slice(start, RAW_CSS.indexOf('}', start));
+  };
 
-  it.each(ACTIVOS)('el botón «%s» activo lleva texto alternativo «, activo»', (_tema, selector) => {
-    const regla = RAW_CSS.indexOf(selector);
-    expect(regla).toBeGreaterThan(-1);
-    const bloque = RAW_CSS.slice(regla, RAW_CSS.indexOf('}', regla));
-    expect(bloque).toContain("content: '' / ', activo'");
+  it.each(ACTIVOS)('el botón «%s» activo lleva texto alternativo «, activo» en el span del nombre', (_tema, _boton, after) => {
+    expect(ruleBody(after)).toContain("content: '' / ', activo'");
+  });
+
+  it.each(ACTIVOS)('el botón «%s» activo dibuja una barra ::before de 2px bajo el icono', (_tema, boton) => {
+    const body = ruleBody(`${boton}::before`);
+    expect(body).toContain("content: ''");
+    expect(body).toContain('position: absolute');
+    expect(body).toContain('block-size: 2px');
+    expect(body).toContain('background-color: var(--ink)');
+  });
+
+  it('ya no hay subrayado ni peso 600 en el botón activo (un icono no tiene ninguno)', () => {
+    const body = ruleBody(".light .theme-selector [value='light'],");
+    expect(body).not.toContain('text-decoration');
+    expect(body).not.toContain('font-weight');
+    expect(body).toContain('border-color: var(--ink)');
+  });
+
+  it('el botón de tema no vuelve a flotar la leyenda: ya no hay regla `.theme-selector legend`', () => {
+    expect(RAW_CSS).not.toContain('.theme-selector legend');
   });
 });
 

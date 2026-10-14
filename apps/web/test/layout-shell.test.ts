@@ -65,10 +65,34 @@ describe('RootLayout — enlace de salto y orden de landmarks (R1, R2)', () => {
 describe('Cabecera (R3)', () => {
   const header = html.slice(html.indexOf('<header'), html.indexOf('</header>'));
 
-  it('lleva el nombre como enlace a / y la navegación Principal con Buscar', () => {
+  // D.18 (decisión 223, enmienda la 147): la cabecera pierde `<nav>` y «Buscar»; el nombre sigue
+  // siendo el enlace a «/». El tema pasa a tres botones de icono con nombre accesible oculto.
+  it('lleva el nombre como enlace a / y ninguna navegación ni «Buscar»', () => {
     expect(header).toMatch(/<a href="\/"[^>]*>Buscahogar<\/a>/);
-    expect(header).toMatch(/<nav aria-label="Principal">[\s\S]*<a href="\/"[^>]*>Buscar<\/a>[\s\S]*<\/nav>/);
-    expect(count(header, '<nav')).toBe(1);
+    expect(count(header, '<nav')).toBe(0);
+    expect(header).not.toContain('Buscar<');
+    expect(count(header, '<a ')).toBe(1);
+  });
+
+  it('el selector de tema son tres botones de icono con el nombre en un span sr-only', () => {
+    const names = [...header.matchAll(/<button\b[^>]*value="(light|dark|system)"[^>]*>(.*?)<\/button>/g)];
+    expect(names.map((match) => match[1])).toEqual(['light', 'dark', 'system']);
+    expect(names.map((match) => match[2]?.replace(/<svg.*?<\/svg>/, ''))).toEqual([
+      '<span class="sr-only theme-selector__name">Claro</span>',
+      '<span class="sr-only theme-selector__name">Oscuro</span>',
+      '<span class="sr-only theme-selector__name">Sistema</span>',
+    ]);
+    // Un icono distinto y decorativo por botón.
+    const icons = names.map((match) => /<path d="([^"]+)"/.exec(match[2] ?? '')?.[1]);
+    expect(new Set(icons).size).toBe(3);
+    for (const match of names) {
+      expect(match[2]).toMatch(/^<svg class="icon"[^>]*aria-hidden="true"/);
+    }
+  });
+
+  it('la leyenda «Tema» sigue en el DOM pero oculta a la vista (sr-only), y el selector va a la derecha', () => {
+    expect(header).toContain('<legend class="sr-only">Tema</legend>');
+    expect(header).toMatch(/<form[^>]*class="theme-selector ml-auto"/);
   });
 
   it('contiene el selector de tema', () => {
@@ -140,10 +164,15 @@ describe('Cabecera: objetivos de 40 px a todos los anchos (decisión 200)', () =
   const header = html.slice(html.indexOf('<header'), html.indexOf('</header>'));
   const targets = [...header.matchAll(/<(?:a|button)\b[^>]*>/g)].map((match) => match[0]);
 
-  it('hay enlaces y botones, y todos llevan min-h-10', () => {
-    expect(targets).toHaveLength(5);
+  it('hay un enlace y tres botones, y todos llevan min-h-10; los botones también min-w-10', () => {
+    expect(targets).toHaveLength(4);
     for (const target of targets) {
       expect(target).toMatch(/class="[^"]*\bmin-h-10\b/);
+    }
+    const buttons = targets.filter((target) => target.startsWith('<button'));
+    expect(buttons).toHaveLength(3);
+    for (const button of buttons) {
+      expect(button).toMatch(/class="[^"]*\bmin-w-10\b/);
     }
   });
 

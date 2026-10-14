@@ -1,4 +1,5 @@
 // D.13b (decisión 185) — conjunto de iconos dibujados: sustituye a los glifos ×, ↗, + y −.
+// D.18 (decisión 223) añade `sun`, `moon` y `monitor` para el selector de tema.
 // Las constantes del zoom de Leaflet son cadenas de confianza (Leaflet las inserta con innerHTML):
 // el test de igualdad prueba que no llevan datos y que son el mismo marcado que el componente.
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -11,7 +12,7 @@ import {
   type IconName,
 } from '../src/components/icon';
 
-const NAMES: readonly IconName[] = ['close', 'external-link', 'plus', 'minus'];
+const NAMES: readonly IconName[] = ['close', 'external-link', 'plus', 'minus', 'sun', 'moon', 'monitor'];
 
 describe('Icon (server-compatible, trazo 2 con currentColor)', () => {
   it.each(NAMES)('%s es un svg 24×24 decorativo de trazo 2 y currentColor', (name) => {

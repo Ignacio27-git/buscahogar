@@ -28,7 +28,8 @@ test.describe('estructura de la página', () => {
         await expect(page.getByRole('main')).toHaveCount(1);
         await expect(page.getByRole('banner')).toHaveCount(1);
         await expect(page.getByRole('contentinfo')).toHaveCount(1);
-        await expect(page.getByRole('navigation', { name: 'Principal' })).toHaveCount(1);
+        // D.18 (decisión 223): la cabecera ya no lleva `<nav>`; no queda ningún landmark de navegación.
+        await expect(page.getByRole('navigation')).toHaveCount(0);
         await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
         await expect(page.locator('#contenido')).toHaveCount(1);
       });
@@ -87,6 +88,37 @@ test.describe('estructura de la página', () => {
       });
     });
   }
+});
+
+// D.18 (decisión 223) — a 320 px la cabecera cabe en una fila: el nombre y los tres botones de
+// tema comparten el centro vertical (±1px) y cada botón mide al menos 40 × 40.
+test.describe('cabecera de una fila (D.18)', () => {
+  test('a 320 px el nombre y los tres botones de tema están en la misma fila y miden 40 × 40', async ({
+    page,
+  }) => {
+    test.skip(test.info().project.name !== 'w320-light', 'solo el ancho móvil');
+    await page.goto('/no-existe');
+
+    const banner = page.getByRole('banner');
+    const brand = banner.getByRole('link', { name: 'Buscahogar' });
+    const buttons = banner.getByRole('group', { name: 'Tema' }).getByRole('button');
+    await expect(buttons).toHaveCount(3);
+
+    const brandBox = await brand.boundingBox();
+    expect(brandBox).not.toBeNull();
+    const centreOf = (box: { y: number; height: number }): number => box.y + box.height / 2;
+    for (let index = 0; index < 3; index += 1) {
+      const box = await buttons.nth(index).boundingBox();
+      expect(box, `botón ${String(index)}`).not.toBeNull();
+      if (box === null || brandBox === null) continue;
+      expect(Math.abs(centreOf(box) - centreOf(brandBox))).toBeLessThanOrEqual(1);
+      expect(box.width).toBeGreaterThanOrEqual(40);
+      expect(box.height).toBeGreaterThanOrEqual(40);
+    }
+    // Una sola fila: el alto de la cabecera es el del objetivo más alto más su relleno.
+    const bannerBox = await banner.boundingBox();
+    expect(bannerBox?.height ?? 0).toBeLessThan(72);
+  });
 });
 
 test.describe('títulos e iconos', () => {
