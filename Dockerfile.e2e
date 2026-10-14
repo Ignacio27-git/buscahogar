@@ -40,6 +40,18 @@ RUN test ! -e apps/web/src/app/template.tsx \
     && test ! -e apps/web/src/app/e2e-only \
     && cp -r apps/web/e2e/inject/app/. apps/web/src/app/
 
+# D.18 (decisión 217): fontconfig determinista. `sans-serif`, `sans` y `system-ui` se resuelven a
+# Liberation Sans (que sí tiene negrita) en vez de WenQuanYi Zen Hei. El `RUN` falla la build si la
+# resolución no es la esperada: el peso 600 sale como Bold, y un `fc-match` distinto invalidaría
+# todas las líneas base sin avisar.
+COPY apps/web/e2e/fontconfig/50-buscahogar-e2e-sans.conf /etc/fonts/conf.d/50-buscahogar-e2e-sans.conf
+RUN fc-cache -f \
+    && test "$(fc-match -f '%{family[0]}' sans-serif)" = 'Liberation Sans' \
+    && test "$(fc-match -f '%{family[0]}' system-ui)" = 'Liberation Sans' \
+    && test "$(fc-match -f '%{family[0]}' sans)" = 'Liberation Sans' \
+    && test "$(fc-match -f '%{style[0]}' 'sans-serif:weight=demibold')" = 'Bold' \
+    && test "$(fc-match -f '%{style[0]}' 'sans-serif:bold')" = 'Bold'
+
 # Se invoca con `sh` para no depender del bit de ejecución del fichero (Windows).
 ENTRYPOINT ["sh", "/app/apps/web/e2e/docker-entrypoint.sh"]
 CMD ["run"]
