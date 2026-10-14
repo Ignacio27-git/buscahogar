@@ -39,6 +39,7 @@ export function buildRateLimitResponse(retryAfterSeconds: number): RateLimitResp
 <style>${STANDALONE_PAGE_CSS}</style>
 </head>
 <body>
+<header class="standalone-header"><a class="standalone-header__brand" href="/">Buscahogar</a></header>
 <main class="standalone">
 <h1>${title}</h1>
 <p>Has hecho muchas peticiones en poco tiempo. Es algo temporal. Espera ${formatWait(retryAfterSeconds)} y vuelve a cargar la página.</p>

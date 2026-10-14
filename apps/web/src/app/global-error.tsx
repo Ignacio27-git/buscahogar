@@ -33,6 +33,11 @@ export default function GlobalError({ retry }: GlobalErrorProps): ReactElement {
       <body>
         <title>Buscahogar no está disponible</title>
         <style dangerouslySetInnerHTML={{ __html: STANDALONE_PAGE_CSS }} />
+        <header className="standalone-header">
+          <a className="standalone-header__brand" href="/">
+            Buscahogar
+          </a>
+        </header>
         <main className="standalone">
           <h1 ref={headingRef} tabIndex={-1}>
             Buscahogar no está disponible ahora mismo

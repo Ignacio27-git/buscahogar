@@ -61,6 +61,18 @@ async function capture(page: Page, name: string): Promise<void> {
   });
 }
 
+// D.18 (decisión 219): un único landmark `banner` con la marca como enlace a `/`, fuera de
+// `<main>`, y el h1 como primer elemento del bloque centrado.
+async function expectBrandStrip(page: Page): Promise<void> {
+  await expect(page.getByRole('banner')).toHaveCount(1);
+  await expect(page.getByRole('banner').getByRole('link', { name: 'Buscahogar' })).toHaveAttribute(
+    'href',
+    '/'
+  );
+  await expect(page.getByRole('main').locator('header, .standalone-header__brand')).toHaveCount(0);
+  await expect(page.getByRole('main').locator('> *').first()).toHaveJSProperty('tagName', 'H1');
+}
+
 test.describe('páginas autónomas (D.17)', () => {
   test('error.tsx: frontera de error raíz', async ({ page }, testInfo) => {
     await page.goto(ERROR_BOUNDARY_PATH);
@@ -76,6 +88,7 @@ test.describe('páginas autónomas (D.17)', () => {
     // El servidor entrega el armazón de error de Next y el cliente pinta después el título.
     await expect(page.getByRole('heading', { level: 1, name: GLOBAL_ERROR_TITLE })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Reintentar' })).toBeVisible();
+    await expectBrandStrip(page);
     await expectThemeApplied(page, schemeOf(testInfo.project.name));
     await capture(page, 'global-error');
     await expectNoAxeViolations(page);
@@ -102,7 +115,9 @@ test.describe('páginas autónomas (D.17)', () => {
 
       await expect(page.getByRole('heading', { level: 1, name: RATE_LIMIT_TITLE })).toBeVisible();
       // Ventana de 3600 s: dentro de un mismo test quedan más de 3540 s, que se muestran como 60 min.
+      // D.18 (decisión 219): la marca va en la franja `<header>`, fuera de `<main>`.
       await expect(page.locator('.standalone p')).toContainText(RATE_LIMIT_WAIT);
+      await expectBrandStrip(page);
       await expectThemeApplied(page, schemeOf(testInfo.project.name));
       await capture(page, 'rate-limit');
       await expectNoAxeViolations(page);

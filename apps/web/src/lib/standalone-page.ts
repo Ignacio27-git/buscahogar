@@ -6,6 +6,8 @@
 // Los valores son un ESPEJO de `:root` y `.dark` de `globals.css`; `test/standalone-page.test.ts`
 // comprueba la paridad y el contraste AA en ambos esquemas. Sin `url(`, sin recursos externos y
 // sin movimiento. Se elige el esquema con `prefers-color-scheme`, porque aquí no hay script de tema.
+// D.18 (decisión 219): la franja `.standalone-header` espeja la cabecera de la app (borde inferior
+// `--rule`, marca con `--text-heading-3*` y 40 px de alto) y queda fuera del bloque centrado.
 // Módulo puro y sin `server-only`: el proxy lo alcanza fuera del grafo de componentes de servidor.
 export const STANDALONE_PAGE_CSS = `:root {
   color-scheme: light dark;
@@ -14,6 +16,7 @@ export const STANDALONE_PAGE_CSS = `:root {
   --surface-sunken: oklch(97% 0.004 92);
   --ink: #1c1f22;
   --ink-muted: oklch(50% 0.012 235);
+  --rule: #e4e2dc;
   --rule-control: oklch(62% 0.01 235);
   --accent: #1f5fa8;
   --focus: #1f5fa8;
@@ -25,6 +28,7 @@ export const STANDALONE_PAGE_CSS = `:root {
     --surface-sunken: oklch(16% 0.007 235);
     --ink: oklch(92% 0.008 90);
     --ink-muted: oklch(70% 0.012 235);
+    --rule: oklch(32% 0.008 235);
     --rule-control: oklch(56% 0.012 235);
     --accent: oklch(72% 0.12 252);
     --focus: oklch(72% 0.12 252);
@@ -35,16 +39,26 @@ body {
   margin: 0;
   min-height: 100dvh;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
+  flex-direction: column;
   background-color: var(--surface);
   color: var(--ink);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif;
   font-size: 1rem;
   line-height: 1.5rem;
 }
-.standalone { max-width: 34rem; }
+.standalone-header { border-bottom: 1px solid var(--rule); padding: 0.5rem 1.5rem; }
+.standalone-header__brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  font-size: 1.125rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration-line: none;
+}
+/* 34rem de texto + 2 x 1.5rem de relleno: border-box, así que el ancho útil no cambia. */
+.standalone { max-width: 37rem; margin: auto; padding: 1.5rem; }
 .standalone h1 {
   margin: 0 0 0.75rem;
   font-size: 1.75rem;

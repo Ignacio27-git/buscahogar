@@ -28,6 +28,14 @@ describe('buildRateLimitResponse — cuerpo', () => {
     expect(visibleText(body)).toMatch(/temporal/);
   });
 
+  it('lleva la marca en un <header> fuera de <main>, y el h1 es lo primero de <main> (D.18)', () => {
+    expect(body).toContain(
+      '<header class="standalone-header"><a class="standalone-header__brand" href="/">Buscahogar</a></header>'
+    );
+    expect(body.indexOf('</header>')).toBeLessThan(body.indexOf('<main'));
+    expect(body).toContain('<main class="standalone">\n<h1>Demasiadas peticiones seguidas</h1>');
+  });
+
   it('no usa texto técnico ni inglés y no depende de recursos externos', () => {
     expect(body).not.toContain('Too Many Requests');
     expect(visibleText(body)).not.toMatch(/\b(429|HTTP|rate)\b/i);

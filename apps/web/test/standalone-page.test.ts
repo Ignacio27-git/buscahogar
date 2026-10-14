@@ -20,6 +20,7 @@ const REQUIRED_TOKENS = [
   '--surface-sunken',
   '--ink',
   '--ink-muted',
+  '--rule',
   '--rule-control',
   '--accent',
   '--focus',
@@ -97,5 +98,41 @@ describe('STANDALONE_PAGE_CSS — autónomo y sin movimiento', () => {
 
     expect(rules.length).toBeGreaterThan(3);
     expect(rules.filter((rule) => /#[0-9a-fA-F]{3,8}\b|oklch\(|rgba?\(/.test(rule))).toEqual([]);
+  });
+});
+
+// D.18 (decisión 219) — franja de cabecera con la marca, fuera del bloque centrado. Espeja la
+// cabecera de la app (`site-header.tsx`): `border-b border-rule`, enlace `text-heading-3 text-ink
+// no-underline` de 40 px. Sus valores copian `--text-heading-3*` de `@theme static`.
+describe('STANDALONE_PAGE_CSS — franja de marca (decisión 219)', () => {
+  const header = declarations(findBlock(STANDALONE, '.standalone-header'));
+  const brand = declarations(findBlock(STANDALONE, '.standalone-header__brand'));
+  const theme = declarations(findBlock(GLOBALS, '@theme static'));
+
+  it('la franja lleva borde inferior con --rule y la marca no se subraya', () => {
+    expect(header.get('border-bottom')).toBe('1px solid var(--rule)');
+    expect(brand.get('color')).toBe('var(--ink)');
+    expect(brand.get('text-decoration-line')).toBe('none');
+  });
+
+  it('la marca mide al menos 40 px de alto como el enlace de la cabecera', () => {
+    expect(brand.get('min-height')).toBe('2.5rem');
+    expect(brand.get('display')).toBe('inline-flex');
+  });
+
+  it('espeja los tokens --text-heading-3* de globals.css', () => {
+    expect(brand.get('font-size')).toBe(theme.get('--text-heading-3'));
+    expect(brand.get('line-height')).toBe(theme.get('--text-heading-3--line-height'));
+    expect(brand.get('font-weight')).toBe(theme.get('--text-heading-3--font-weight'));
+  });
+
+  it('el bloque centrado deja de ser el body: la franja queda arriba y main centra el resto', () => {
+    const body = declarations(findBlock(STANDALONE, 'body'));
+    expect(body.get('flex-direction')).toBe('column');
+    expect(declarations(findBlock(STANDALONE, '.standalone')).get('margin')).toBe('auto');
+    // Ancho útil de 34rem (37rem con el relleno, border-box) y mismo inset de 1.5rem que la franja.
+    expect(declarations(findBlock(STANDALONE, '.standalone')).get('max-width')).toBe('37rem');
+    expect(declarations(findBlock(STANDALONE, '.standalone')).get('padding')).toBe('1.5rem');
+    expect(declarations(findBlock(STANDALONE, '.standalone-header')).get('padding')).toBe('0.5rem 1.5rem');
   });
 });

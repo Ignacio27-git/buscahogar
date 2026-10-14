@@ -129,6 +129,15 @@ describe('global-error.tsx', () => {
     expect(html).toMatch(/<title>[^<]+<\/title>/);
   });
 
+  it('lleva la marca en un <header> con enlace a / fuera de <main>; el h1 abre <main> (D.18)', () => {
+    expect(html).toMatch(
+      /<header class="standalone-header"><a class="standalone-header__brand" href="\/">Buscahogar<\/a><\/header>/
+    );
+    expect(html.indexOf('</header>')).toBeLessThan(html.indexOf('<main'));
+    expect(html).toMatch(/<main class="standalone"><h1[ >]/);
+    expect(html.match(/<header/g)).toHaveLength(1);
+  });
+
   it('no aplica clase de tema ni exporta metadata', () => {
     expect(html).not.toMatch(/<(html|body)[^>]*class=/);
     expect(html).not.toMatch(/class="[^"]*\b(dark|light)\b/);
