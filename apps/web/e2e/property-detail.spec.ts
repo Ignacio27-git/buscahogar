@@ -17,6 +17,7 @@ function route(name: string): (typeof ROUTES)[number] {
   return found;
 }
 
+const DETAIL_ROUTE = route('detail');
 const GALLERY_ROUTE = route('detail-gallery');
 const HISTORY_ROUTE = route('detail-history');
 const SINGLE_ROUTE = route('detail-single');
@@ -130,6 +131,20 @@ test.describe('galería de la ficha: foco y tamaño de objetivo (D.15)', () => {
     await expect
       .poll(() => page.evaluate(() => document.activeElement?.id ?? ''))
       .toBe(secondId ?? '');
+  });
+});
+
+// D.18 (decisión 220) — Chromium con es-ES omite el punto en números de cuatro cifras; el precio
+// lo agrupa siempre («1.180 €», P2) y la superficie no.
+test.describe('formato del precio en la ficha (D.18)', () => {
+  test('P2 muestra «1.180 €» con punto de millar y ninguna cifra de cuatro dígitos sin agrupar', async ({
+    page,
+  }) => {
+    test.skip(test.info().project.name !== 'w320-light', 'solo el ancho móvil');
+    await page.goto(DETAIL_ROUTE.path);
+
+    await expect(page.locator('main').getByText('1.180 €').first()).toBeVisible();
+    await expect(page.locator('main').getByText(/(^|[^\d.])1180 €/)).toHaveCount(0);
   });
 });
 

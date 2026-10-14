@@ -6,7 +6,9 @@ export function formatPriceCents(cents: number | null): string {
   if (cents === null) {
     return 'Precio no disponible';
   }
-  return `${(cents / 100).toLocaleString('es-ES')} €`;
+  // D.18 (decisión 220) — es-ES omite el punto en cuatro cifras (regla de la RAE para
+  // números); en un precio se agrupa siempre («1.180 €»). Superficie y radio no pasan por aquí.
+  return `${(cents / 100).toLocaleString('es-ES', { useGrouping: 'always' })} €`;
 }
 
 // D.10 (decisión 178) — variación entre dos precios consecutivos del

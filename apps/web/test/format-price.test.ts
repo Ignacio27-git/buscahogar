@@ -42,8 +42,16 @@ describe('formatPriceCents — decisión 119', () => {
   });
 
   it('convierte céntimos a euros con el formato es-ES', () => {
-    expect(formatPriceCents(100000)).toBe(`${(1000).toLocaleString('es-ES')} €`);
     expect(formatPriceCents(12345678)).toBe(`${(123456.78).toLocaleString('es-ES')} €`);
+  });
+
+  // D.18 (decisión 220) — es-ES omite el punto en los números de cuatro cifras
+  // (regla de la RAE); un precio sí lo lleva siempre.
+  it('agrupa siempre los miles, también con cuatro cifras', () => {
+    expect(formatPriceCents(118000)).toBe('1.180 €');
+    expect(formatPriceCents(100000)).toBe('1.000 €');
+    expect(formatPriceCents(99900)).toBe('999 €');
+    expect(formatPriceCents(123456700)).toBe('1.234.567 €');
   });
 
   it('el 0 es un precio, no un valor ausente', () => {

@@ -45,6 +45,14 @@ describe('describeAppliedFilters — rótulos y orden (spec "Applied-filter chip
     ]);
   });
 
+  // D.18 (decisión 220) — el precio agrupa siempre los miles; la superficie sigue la regla de la RAE.
+  it('un precio de cuatro cifras lleva punto y una superficie de cuatro cifras no', () => {
+    expect(labels({ minPrice: '1180', minSurface: '1180' })).toEqual([
+      'Precio desde 1.180 €',
+      'Superficie desde 1180 m²',
+    ]);
+  });
+
   it('otra combinación: alquiler y casa, sin precio ni superficie', () => {
     expect(labels({ operation: 'rent', propertyType: 'house', minRooms: '3' })).toEqual([
       'Operación: Alquiler',
