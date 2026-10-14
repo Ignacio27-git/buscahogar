@@ -41,7 +41,7 @@ describe('PriceHistory', () => {
       obs('a', 'idealista', 30000, '2026-04-04T10:00:00Z'),
     ]);
 
-    expect(html).toContain('Precio observado el 04/03/2026; aún sin cambios');
+    expect(html).toContain('Primer precio observado el 04/03/2026; aún sin cambios');
     expect(html).toContain('<table');
     expect(html).not.toContain('<svg');
   });

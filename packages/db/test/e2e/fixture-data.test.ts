@@ -250,6 +250,28 @@ describe('buildE2eFixture — histórico de precios de P1 (D.10)', () => {
     }
   });
 
+  // D.18 (decisión 218): la semilla no puede contradecirse. La primera captura es el
+  // `firstSeenAt` del anuncio y ninguna captura es posterior a su `lastSeenAt`.
+  it('coherencia temporal: firstSeenAt = primera captura ≤ última captura ≤ lastSeenAt', () => {
+    for (const listing of fixture.listings) {
+      const captures = versionsOf(listing.id ?? '').map((row) => row.capturedAt?.getTime() ?? NaN);
+      const first = Math.min(...captures);
+      const last = Math.max(...captures);
+      expect(listing.firstSeenAt?.getTime(), `firstSeenAt de ${listing.id ?? '?'}`).toBe(first);
+      expect(first).toBeLessThanOrEqual(last);
+      expect(last, `última captura de ${listing.id ?? '?'}`).toBeLessThanOrEqual(
+        listing.lastSeenAt?.getTime() ?? NaN
+      );
+    }
+  });
+
+  it('la versión vigente de un anuncio no activo se captura en su propio lastSeenAt', () => {
+    for (const listing of fixture.listings.filter((row) => row.status !== 'active')) {
+      const current = versionsOf(listing.id ?? '').find((row) => row.isCurrent);
+      expect(current?.capturedAt?.getTime()).toBe(listing.lastSeenAt?.getTime());
+    }
+  });
+
   it('el mínimo de P1 sigue saliendo de las versiones vigentes (85000)', () => {
     const p1 = fixture.properties.find((row) => row.id === E2E_PROPERTY_IDS.p1);
     expect(p1?.minPriceCents).toBe(85000);

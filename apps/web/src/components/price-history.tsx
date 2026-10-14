@@ -50,7 +50,7 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
       <h2 id="historico-de-precios">Histórico de precios</h2>
       {history.unchanged && history.firstObservedAt !== null ? (
         <p className="price-history__note">
-          {`Precio observado el ${formatUtcDate(history.firstObservedAt)}; aún sin cambios`}
+          {`Primer precio observado el ${formatUtcDate(history.firstObservedAt)}; aún sin cambios`}
         </p>
       ) : null}
       {model !== null ? (

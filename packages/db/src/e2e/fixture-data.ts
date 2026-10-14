@@ -371,6 +371,13 @@ export function buildE2eFixture(seedNow: Date = SEEN_AT): E2eFixture {
       const removed = listing.status === 'removed';
       const inactive = listing.status === 'inactive';
       const versionId = e2eUuid(0x50 + ordinal);
+      // Decisión 218: la última vez que se vio el anuncio es también la captura de su versión
+      // vigente. Un anuncio retirado o inactivo no se captura después de dejar de verse.
+      const lastSeenAt = removed
+        ? REMOVED_LAST_SEEN_AT
+        : inactive
+          ? INACTIVE_LAST_SEEN_AT
+          : SEEN_AT;
 
       fixture.listings.push({
         id: listing.id,
@@ -386,9 +393,9 @@ export function buildE2eFixture(seedNow: Date = SEEN_AT): E2eFixture {
         inactiveSince: removed ? INACTIVE_SINCE : inactive ? RECENTLY_INACTIVE_SINCE : null,
         inactiveReason: removed || inactive ? 'delisted' : null,
         tombstonedAt: removed ? TOMBSTONED_AT : null,
-        // La primera captura del histórico; sin él, `SEEN_AT`.
-        firstSeenAt: listing.history?.[0]?.capturedAt ?? SEEN_AT,
-        lastSeenAt: removed ? REMOVED_LAST_SEEN_AT : inactive ? INACTIVE_LAST_SEEN_AT : SEEN_AT,
+        // La primera captura del histórico; sin él, la captura vigente (= `lastSeenAt`).
+        firstSeenAt: listing.history?.[0]?.capturedAt ?? lastSeenAt,
+        lastSeenAt,
         createdAt: SEEN_AT,
         updatedAt: SEEN_AT,
       });
@@ -434,7 +441,7 @@ export function buildE2eFixture(seedNow: Date = SEEN_AT): E2eFixture {
         );
       });
       fixture.versions.push(
-        versionRow(versionId, history.length + 1, true, listing.priceCents, SEEN_AT)
+        versionRow(versionId, history.length + 1, true, listing.priceCents, lastSeenAt)
       );
 
       fixture.propertyListings.push({
