@@ -19,6 +19,9 @@
 //
 // D.17 (B9, decisión 211): un anuncio retirado dice «No disponible», como uno inactivo y como la
 // insignia del histórico; «Retirado» desaparece.
+//
+// D.18 (decisión 221): sin ningún anuncio activo la insignia pasa de «Precio más bajo» a «Último
+// precio más bajo» (enmienda la 180): es el último precio conocido, no uno vigente.
 import type { ReactElement } from 'react';
 
 import { compareSourceListings } from '@buscahogar/core';
@@ -37,7 +40,7 @@ export interface SourceListProps {
 
 const HIGHLIGHT_BY_MODE = {
   active: 'Más económico',
-  'none-active': 'Precio más bajo',
+  'none-active': 'Último precio más bajo',
 } as const;
 
 const GROUPING_NOTE =

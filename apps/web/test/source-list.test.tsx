@@ -2,7 +2,7 @@
 // propio, enlace de salida y el recuento de fotos como cifra FECHADA junto a
 // `lastSeenAt` (nunca un número vivo suelto — D6, AR-5: `numPhotos` es
 // identity-column, congelada en el primer avistamiento). D.12 añade la
-// comparación: «Más económico» / «Precio más bajo», el aviso sin anuncios
+// comparación: «Más económico» / «Último precio más bajo», el aviso sin anuncios
 // activos y la nota de agrupación.
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -166,6 +166,7 @@ describe('SourceList (D.12) — comparación de anuncios', () => {
 
     expect(items[0]).not.toContain('Más económico');
     expect(items[1]).toContain('Más económico');
+    expect(html).not.toContain('Último precio más bajo');
     expect(html).not.toContain('Precio más bajo');
   });
 
@@ -208,7 +209,7 @@ describe('SourceList (D.12) — comparación de anuncios', () => {
     expect(html).toContain('<strong class="source-row__highlight">Más económico</strong>');
   });
 
-  it('sin ningún anuncio activo avisa sobre la lista y marca «Precio más bajo», nunca «Más económico»', () => {
+  it('sin ningún anuncio activo avisa sobre la lista y marca «Último precio más bajo», nunca «Más económico»', () => {
     const sources = [
       makeSource({ listingId: 'l1', status: 'inactive', priceCents: 9_000_000 }),
       makeSource({ listingId: 'l2', status: 'removed', priceCents: 7_500_000, sourceKey: 'kyero' }),
@@ -220,9 +221,12 @@ describe('SourceList (D.12) — comparación de anuncios', () => {
       'Ninguno de estos anuncios sigue disponible. Mostramos el más bajo de sus últimos precios.';
     expect(html).toContain(`<p class="source-list__warning">${warning}</p>`);
     expect(html.indexOf(warning)).toBeLessThan(html.indexOf('<ul'));
-    expect(html.match(/Precio más bajo/g)).toHaveLength(1);
-    expect(items[1]).toContain('Precio más bajo');
+    // D.18 (decisión 221): sin anuncios activos la insignia es «Último precio más bajo».
+    expect(html.match(/Último precio más bajo/g)).toHaveLength(1);
+    expect(items[1]).toContain('<strong class="source-row__highlight">Último precio más bajo</strong>');
+    expect(items[0]).not.toContain('Último precio más bajo');
     expect(html).not.toContain('Más económico');
+    expect(html).not.toContain('Precio más bajo');
   });
 
   it('con algún anuncio activo no muestra el aviso', () => {
@@ -238,7 +242,7 @@ describe('SourceList (D.12) — comparación de anuncios', () => {
     expect(html).toContain('id="anuncios-de-origen"');
     expect(html).not.toContain('source-list__warning');
     expect(html).not.toContain('Más económico');
-    expect(html).not.toContain('Precio más bajo');
+    expect(html).not.toContain('Último precio más bajo');
   });
 
   it('la nota de agrupación se muestra siempre bajo el h2, con uno o varios anuncios', () => {

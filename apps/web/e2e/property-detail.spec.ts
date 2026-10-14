@@ -159,12 +159,12 @@ test.describe('comparación de anuncios de origen en la ficha', () => {
     await expect(list.locator('.source-row')).toHaveCount(1);
     await expect(list.locator('.source-row__highlight')).toHaveCount(1);
     await expect(list.getByText('Más económico')).toHaveCount(1);
-    await expect(list.getByText('Precio más bajo')).toHaveCount(0);
+    await expect(list.getByText('Último precio más bajo')).toHaveCount(0);
     await expect(list.locator('.source-list__note')).toContainText('Compruébalo en cada fuente');
     await expect(list.locator('.source-list__warning')).toHaveCount(0);
   });
 
-  test('P7, sin anuncios activos: aviso y «Precio más bajo», nunca «Más económico»', async ({
+  test('P7, sin anuncios activos: aviso y «Último precio más bajo», nunca «Más económico»', async ({
     page,
   }) => {
     test.skip(test.info().project.name !== 'w320-light', 'solo el ancho móvil');
@@ -175,7 +175,7 @@ test.describe('comparación de anuncios de origen en la ficha', () => {
       'Ninguno de estos anuncios sigue disponible'
     );
     await expect(list.getByText('Más económico')).toHaveCount(0);
-    await expect(list.getByText('Precio más bajo')).toHaveCount(1);
+    await expect(list.getByText('Último precio más bajo')).toHaveCount(1);
     await expect(list.locator('.source-list__note')).toBeVisible();
   });
 
