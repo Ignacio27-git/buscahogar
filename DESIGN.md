@@ -38,32 +38,32 @@ colors:
   danger-wash-dark: 'oklch(27% 0.035 25)'
 typography:
   small:
-    fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji'"
+    fontFamily: "var(--font-figtree, system-ui), system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji'"
     fontSize: '0.75rem'
     lineHeight: '1rem'
     fontWeight: 400
   dense:
-    fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji'"
+    fontFamily: "var(--font-figtree, system-ui), system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji'"
     fontSize: '0.875rem'
     lineHeight: '1.25rem'
     fontWeight: 400
   body:
-    fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji'"
+    fontFamily: "var(--font-figtree, system-ui), system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji'"
     fontSize: '1rem'
     lineHeight: '1.5rem'
     fontWeight: 400
   heading-3:
-    fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji'"
+    fontFamily: "var(--font-figtree, system-ui), system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji'"
     fontSize: '1.125rem'
     lineHeight: '1.5rem'
     fontWeight: 600
   heading-2:
-    fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji'"
+    fontFamily: "var(--font-figtree, system-ui), system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji'"
     fontSize: '1.375rem'
     lineHeight: '1.75rem'
     fontWeight: 600
   heading-1:
-    fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji'"
+    fontFamily: "var(--font-figtree, system-ui), system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji'"
     fontSize: '1.75rem'
     lineHeight: '2.25rem'
     fontWeight: 700

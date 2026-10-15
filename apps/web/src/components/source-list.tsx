@@ -94,7 +94,9 @@ export function SourceList({ sources }: SourceListProps): ReactElement {
                 </div>
                 <div>
                   <dt>Fotos</dt>
-                  <dd>{source.numPhotos === null ? 'Sin datos' : String(source.numPhotos)}</dd>
+                  <dd className={source.numPhotos === null ? undefined : 'tabular-nums'}>
+                    {source.numPhotos === null ? 'Sin datos' : String(source.numPhotos)}
+                  </dd>
                 </div>
                 <div>
                   <dt>Visto por última vez</dt>

@@ -301,6 +301,13 @@ describe('SourceList (D.19) — claves de estado favorable', () => {
     }
   );
 
+  it('el recuento de fotos lleva cifras tabulares (se compara entre filas)', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[makeSource({ numPhotos: 46 })]} />);
+    expect(html).toContain('<dt>Fotos</dt><dd class="tabular-nums">46</dd>');
+    const missing = renderToStaticMarkup(<SourceList sources={[makeSource({ numPhotos: null })]} />);
+    expect(missing).toContain('<dt>Fotos</dt><dd>Sin datos</dd>');
+  });
+
   it('el precio y la fecha de la fila llevan cifras tabulares', () => {
     const html = renderToStaticMarkup(<SourceList sources={[makeSource({})]} />);
     expect(html).toContain('<dd class="source-row__price tabular-nums">100.000 €</dd>');

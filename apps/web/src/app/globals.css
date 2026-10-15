@@ -108,9 +108,12 @@
 }
 
 @theme static {
+  /* D.19 (decisión 230): Figtree primero, autoalojada (módulo `fonts/figtree.ts`). `--font-figtree` lo declara
+     la clase `figtree.variable` de `<html>`; el `system-ui` del `var()` cubre su ausencia. Va en
+     `static` (no `inline`) para que la variable se emita siempre y la lean `body` y el CSS del mapa. */
   --font-sans:
-    system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif,
-    'Apple Color Emoji', 'Segoe UI Emoji';
+    var(--font-figtree, system-ui), system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans',
+    'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
 
   /* Escala tipográfica cerrada: tamaño, interlineado y, en títulos, peso. */
   --text-*: initial;

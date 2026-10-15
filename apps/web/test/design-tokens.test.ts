@@ -525,14 +525,25 @@ describe('mapeo a Tailwind (spec «Tailwind mapping» y «Hatch is not a utility
   });
 });
 
-describe('tokens estáticos (spec «System font stack», «Type roles», «Spacing, radii, shadows, layers»)', () => {
+describe('tokens estáticos (spec «Figtree-first stack», «Type roles», «Spacing, radii, shadows, layers»)', () => {
   const staticBlock = (): CssNode => findBlock(ROOT, '@theme static');
   const staticTokens = (): Map<string, string> => declarations(staticBlock());
 
-  it('--font-sans es una pila del sistema declarada en @theme static y no en inline', () => {
+  // D.19 (decisión 230): Figtree primero y la pila del sistema detrás. `--font-figtree` lo declara la clase
+  // `figtree.variable` de `<html>`; el respaldo `system-ui` del `var()` cubre el caso de que no exista.
+  it('--font-sans empieza por var(--font-figtree, system-ui) y sigue con la pila del sistema, en @theme static', () => {
     const tokens = staticTokens();
-    expect(tokens.get('--font-sans')).toMatch(/^system-ui,/);
+    const value = normalizeValue(tokens.get('--font-sans') ?? '');
+    expect(value).toMatch(/^var\(--font-figtree, system-ui\), system-ui, -apple-system, Segoe UI,/);
+    expect(value).toMatch(/Arial, sans-serif, Apple Color Emoji, Segoe UI Emoji$/);
     expect(declarations(findBlock(ROOT, '@theme inline')).has('--font-sans')).toBe(false);
+  });
+
+  it('sin Figtree la pila sigue siendo válida: lo que sigue al var() es solo el sistema', () => {
+    const value = normalizeValue(staticTokens().get('--font-sans') ?? '');
+    const withoutFigtree = value.replace(/^var\(--font-figtree, system-ui\), /, '');
+    expect(withoutFigtree).toMatch(/^system-ui,/);
+    expect(withoutFigtree).not.toContain('figtree');
   });
 
   it('define los seis roles tipográficos con cuerpo 1rem y denso 0,875rem', () => {
@@ -708,18 +719,50 @@ describe('estilos base (spec base-styles)', () => {
   });
 });
 
-describe('fuentes sin red (spec «System font stack»)', () => {
+describe('fuentes sin red (spec «Figtree served same-origin», «License committed»)', () => {
   it('globals.css no contiene http://, https://, @font-face ni url( (comentarios incluidos)', () => {
     expect(RAW_CSS).not.toMatch(/https?:\/\//);
     expect(RAW_CSS).not.toMatch(/@font-face/);
     expect(RAW_CSS).not.toMatch(/url\(/);
   });
 
-  it('ningún fichero de apps/web/src importa next/font', () => {
+  // D.19 (decisión 230): Figtree se autoaloja con `next/font/local` desde un único módulo; nada importa
+  // `next/font/google` (que descargaría de un tercero en la compilación) ni carga la fuente por otra vía.
+  const FONT_MODULE = join(SRC_DIR, 'fonts', 'figtree.ts');
+
+  it('solo src/fonts/figtree.ts importa next/font, y es next/font/local', () => {
     const files = listSourceFiles(SRC_DIR);
     expect(files.some((file) => file.endsWith('layout.tsx'))).toBe(true);
-    const infractores = files.filter((file) => /next\/font/.test(readFileSync(file, 'utf8')));
-    expect(infractores).toEqual([]);
+    const importers = files.filter((file) => /next\/font/.test(readFileSync(file, 'utf8')));
+    expect(importers).toEqual([FONT_MODULE]);
+    expect(readFileSync(FONT_MODULE, 'utf8')).toMatch(/from 'next\/font\/local'/);
+  });
+
+  it('nada en apps/web/src importa next/font/google ni referencia fonts.googleapis', () => {
+    const offenders = listSourceFiles(SRC_DIR).filter((file) =>
+      /next\/font\/google|fonts\.(googleapis|gstatic)/.test(readFileSync(file, 'utf8'))
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('el módulo declara la variable continua 300-900, swap, --font-figtree y el ajuste de respaldo Arial', () => {
+    const source = readFileSync(FONT_MODULE, 'utf8');
+    expect(source).toContain("src: './figtree-latin-wght-normal.woff2'");
+    expect(source).toContain("weight: '300 900'");
+    expect(source).toContain("style: 'normal'");
+    expect(source).toContain("variable: '--font-figtree'");
+    expect(source).toContain("display: 'swap'");
+    expect(source).toContain("adjustFontFallback: 'Arial'");
+    expect(source).toMatch(/export const figtree\b/);
+  });
+
+  it('el woff2 (variable, latin) y la licencia OFL 1.1 están junto al módulo', () => {
+    const woff2 = readFileSync(join(SRC_DIR, 'fonts', 'figtree-latin-wght-normal.woff2'));
+    expect(woff2.subarray(0, 4).toString('ascii')).toBe('wOF2');
+    expect(woff2.length).toBe(20156);
+    expect(readFileSync(join(SRC_DIR, 'fonts', 'OFL.txt'), 'utf8')).toContain(
+      'SIL OPEN FONT LICENSE Version 1.1'
+    );
   });
 });
 

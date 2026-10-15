@@ -78,6 +78,21 @@ describe('RootLayout — tema (D.4)', () => {
     expect(src).not.toMatch(/\b(?:cookies|headers)\s*\(/);
   });
 
+  // D.19 (decisión 230): `<html>` lleva la clase de la variable de Figtree para que `--font-figtree` exista en
+  // `:root` y `--font-sans` la resuelva. En vitest `next/font/local` es el doble de `test/stubs`.
+  it('<html> lleva la clase de la variable de Figtree (el doble de next/font/local en vitest)', () => {
+    const el = RootLayout({ children: 'x' });
+    expect(el.props).toMatchObject({ className: 'font-figtree-stub' });
+    expect(render()).toMatch(/<html lang="es" class="font-figtree-stub"/);
+  });
+
+  it('layout.tsx toma la fuente del módulo @/fonts/figtree y no de next/font directamente', () => {
+    const src = readFileSync(new URL('../src/app/layout.tsx', import.meta.url), 'utf8');
+    expect(src).toContain("from '@/fonts/figtree'");
+    expect(src).toContain('className={figtree.variable}');
+    expect(src).not.toContain('next/font');
+  });
+
   // Turbopack no resuelve el sufijo `.js` en rutas relativas hacia ficheros `.ts`
   // (falló `next build` en el e2e): el resto de `src/app` importa con el alias `@/`.
   it('layout.tsx importa el helper del tema con el alias @/ y sin sufijo .js', () => {

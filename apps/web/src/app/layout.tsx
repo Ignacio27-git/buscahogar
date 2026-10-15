@@ -3,6 +3,7 @@ import type { ReactElement, ReactNode } from 'react';
 
 import { SHELL_CONTAINER } from '@/components/shell-container';
 import { SiteHeader } from '@/components/site-header';
+import { figtree } from '@/fonts/figtree';
 import { THEME_INIT_SCRIPT } from '@/server/theme-preference';
 
 import './globals.css';
@@ -36,7 +37,7 @@ function AttributionFooter(): ReactElement {
 
 export default function RootLayout({ children }: { children: ReactNode }): ReactElement {
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es" className={figtree.variable} suppressHydrationWarning>
       <head>
         {/* Script estático: aplica la clase de tema antes del primer pintado. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
