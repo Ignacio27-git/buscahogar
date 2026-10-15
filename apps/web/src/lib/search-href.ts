@@ -5,6 +5,9 @@
 import { formatPolygonParam } from '@buscahogar/core';
 import type { PolygonRing } from '@buscahogar/core';
 
+import { DEFAULT_SORT_PRESET, sortPresetById } from '@/lib/sort-presets';
+import type { SortPreset } from '@/lib/sort-presets';
+
 export type RawSearchParams = Readonly<Record<string, string | string[] | undefined>>;
 
 // Copia los parámetros, saltando las claves indicadas. Las claves repetidas se
@@ -106,7 +109,34 @@ export function canonicalizeFormSubmission(params: RawSearchParams): RawSearchPa
       cleaned[key] = value;
     }
   }
-  return cleaned;
+  return applyOrderField(cleaned);
+}
+
+// D.18 (decisión 227) — el panel de `?q=` envía un único campo `order` (radios con el id del
+// preset). Un `order` conocido y único pasa a sort/dir (el predefinido quita ambos) y MANDA sobre
+// cualquier sort/dir que lleguen a la vez. Todo `order` no mapeable (cadena desconocida o valor
+// repetido) se entrega en bruto a `sort`: Zod lo rechaza con su nombre («Ordenar por»), igual que un
+// `sort` inválido o repetido, en vez de ignorarse en silencio (D10).
+function applyOrderField(cleaned: Record<string, string | string[]>): Record<string, string | string[]> {
+  const order: string | string[] | undefined = cleaned.order;
+  if (order === undefined) {
+    return cleaned;
+  }
+  const rest: Record<string, string | string[]> = {};
+  for (const [key, value] of Object.entries(cleaned)) {
+    if (key !== 'order' && key !== 'sort' && key !== 'dir') {
+      rest[key] = value;
+    }
+  }
+  const single = Array.isArray(order) && order.length === 1 ? order[0] : order;
+  const preset = typeof single === 'string' ? sortPresetById(single) : undefined;
+  if (preset === undefined) {
+    return { ...rest, sort: order };
+  }
+  if (preset.id === DEFAULT_SORT_PRESET.id) {
+    return rest;
+  }
+  return { ...rest, sort: preset.sort, dir: preset.dir };
 }
 
 // D.6a (decisión 151) — filtros aplicados que la página pinta como enlaces
@@ -142,13 +172,26 @@ export const FILTER_PARAM_KEYS: Readonly<Record<AppliedFilterKey, readonly strin
 // Estado que la barra de filtros reenvía en campos ocultos para no perderlo al
 // enviar. `page` queda fuera a propósito: con otros filtros la página N pierde
 // su sentido.
-export const FILTER_BAR_CONTEXT_KEYS = ['view', 'polygon', 'zone', 'lat', 'lng', 'radius', 'zoneQuery'] as const;
+// D.18 (decisión 227): `sort` y `dir` viajan como ocultos porque los desplegables ya no están en la
+// barra; sin ellos, enviar un filtro perdería la ordenación elegida (XC3).
+export const FILTER_BAR_CONTEXT_KEYS = ['view', 'polygon', 'zone', 'lat', 'lng', 'radius', 'zoneQuery', 'sort', 'dir'] as const;
 
 const GEO_KEYS: readonly string[] = FILTER_PARAM_KEYS.geo;
 
 // Quitar un filtro descarta su grupo de claves y `page`, y conserva el resto.
 export function buildRemoveFilterHref(params: RawSearchParams, filter: AppliedFilterKey): string {
   return toHref(copyParams(params, new Set([...FILTER_PARAM_KEYS[filter], 'page'])));
+}
+
+// D.18 (decisión 227): un enlace de ordenación conserva los filtros, quita `page` (la página N pierde su
+// sentido con otro orden) y fija sort/dir, salvo en el predefinido, que los omite.
+export function buildSortHref(params: RawSearchParams, preset: SortPreset): string {
+  const query = copyParams(params, new Set(['page', 'sort', 'dir']));
+  if (preset.id !== DEFAULT_SORT_PRESET.id) {
+    query.set('sort', preset.sort);
+    query.set('dir', preset.dir);
+  }
+  return toHref(query);
 }
 
 // «Quitar todos»: conserva solo la vista y la ordenación.

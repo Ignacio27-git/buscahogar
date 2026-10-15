@@ -118,8 +118,7 @@ describe('?q= interpreta sin buscar (spec "Interpret Without Searching")', () =>
       'maxSurface',
       'minRooms',
       'minBathrooms',
-      'sort',
-      'dir',
+      'order',
       'zone',
     ]) {
       expect(html).toContain(`name="${name}"`);

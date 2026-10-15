@@ -23,6 +23,7 @@ import { ResultCard } from '@/components/result-card';
 import { SearchMap } from '@/components/search-map';
 import type { MapPointView } from '@/components/search-map-types';
 import { SearchTextForm } from '@/components/search-text-form';
+import { SortPresets } from '@/components/sort-presets';
 import { StepIndicator } from '@/components/step-indicator';
 import { scopeEmptyResultsFilters, selectEmptyResultsKind } from '@/lib/empty-results';
 import { formatPriceCents } from '@/lib/format-price';
@@ -417,6 +418,10 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       {/* D.13b: los grupos de la cabecera comparten un ritmo vertical (gap de 1rem). */}
       <div className="search-header">
         {header}
+        {/* D.18 (decisión 227): ordenación como enlaces predefinidos; solo con resultados. */}
+        {results.length > 0 ? (
+          <SortPresets params={rawSearchParams} sort={criteria.sort} dir={criteria.dir} />
+        ) : null}
         {/* El recuento de la lista vive aquí, compartido por las dos secciones. */}
         <AppliedFilters
           criteria={criteria}

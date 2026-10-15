@@ -10,11 +10,15 @@ import {
   buildDrawnAreaHref,
   buildPageHref,
   buildRemoveFilterHref,
+  buildSortHref,
   buildViewHref,
   buildZoneSelectionHref,
+  FILTER_BAR_CONTEXT_KEYS,
   canonicalizeFormSubmission,
   pickFilterBarContext,
 } from '../src/lib/search-href.js';
+import { SORT_PRESETS, sortPresetById } from '../src/lib/sort-presets.js';
+import type { SortPreset } from '../src/lib/sort-presets.js';
 
 const RING = [
   { lat: 40.4, lon: -3.7 },
@@ -273,5 +277,112 @@ describe('pickFilterBarContext — D.6a "Hidden state kept, page dropped"', () =
       ['lng', '2'],
       ['radius', '500'],
     ]);
+  });
+});
+
+// D.18 (decisión 227) — enlaces de ordenación: conservan los filtros, reinician `page` y dejan sort/dir
+// en la URL salvo en el predefinido (updated/desc), donde se omiten.
+describe('buildSortHref', () => {
+  const preset = (id: string): SortPreset => {
+    const found = sortPresetById(id);
+    if (found === undefined) throw new Error(id);
+    return found;
+  };
+
+  it('pone sort y dir, conserva los filtros y quita page', () => {
+    expect(buildSortHref({ operation: 'sale', page: '3', view: 'map' }, preset('price-asc'))).toBe(
+      '/?operation=sale&view=map&sort=price&dir=asc'
+    );
+  });
+
+  it('sustituye el sort/dir anterior en vez de duplicarlo', () => {
+    expect(buildSortHref({ sort: 'surface', dir: 'asc', minRooms: '2' }, preset('price-desc'))).toBe(
+      '/?minRooms=2&sort=price&dir=desc'
+    );
+  });
+
+  it('el predefinido omite sort y dir', () => {
+    expect(buildSortHref({ sort: 'price', dir: 'asc', operation: 'rent', page: '2' }, preset('recent'))).toBe(
+      '/?operation=rent'
+    );
+    expect(buildSortHref({ sort: 'price' }, preset('recent'))).toBe('/');
+  });
+
+  it('cada preset no predefinido produce su par', () => {
+    for (const p of SORT_PRESETS.filter((candidate) => candidate.id !== 'recent')) {
+      expect(parse(buildSortHref({}, p)).get('sort')).toBe(p.sort);
+      expect(parse(buildSortHref({}, p)).get('dir')).toBe(p.dir);
+    }
+  });
+});
+
+describe('contexto de la barra: sort y dir sobreviven al envío (XC3)', () => {
+  it('FILTER_BAR_CONTEXT_KEYS incluye sort y dir', () => {
+    expect(FILTER_BAR_CONTEXT_KEYS).toContain('sort');
+    expect(FILTER_BAR_CONTEXT_KEYS).toContain('dir');
+  });
+
+  it('pickFilterBarContext reenvía sort/dir escalares y omite los rechazados', () => {
+    const params = { sort: 'price', dir: 'asc', view: 'map' };
+    expect(pickFilterBarContext(params)).toEqual([
+      ['view', 'map'],
+      ['sort', 'price'],
+      ['dir', 'asc'],
+    ]);
+    expect(pickFilterBarContext(params, new Set(['sort']))).toEqual([
+      ['view', 'map'],
+      ['dir', 'asc'],
+    ]);
+  });
+});
+
+// D.18 (decisión 227) — el panel de `?q=` envía un único campo `order`; la canonicalización lo
+// convierte en sort/dir. Todo `order` no mapeable pasa en bruto a `sort` para que Zod lo rechace
+// con su nombre («Ordenar por»), igual que un `sort` inválido o repetido.
+describe('canonicalizeFormSubmission — campo order (D.18)', () => {
+  const marked = { form: 'criteria' };
+
+  it('un order conocido pasa a sort y dir y desaparece', () => {
+    expect(canonicalizeFormSubmission({ ...marked, order: 'price-asc', minRooms: '2' })).toEqual({
+      minRooms: '2',
+      sort: 'price',
+      dir: 'asc',
+    });
+    expect(canonicalizeFormSubmission({ ...marked, order: 'surface-desc' })).toEqual({
+      sort: 'surface',
+      dir: 'desc',
+    });
+  });
+
+  it('el predefinido quita sort y dir', () => {
+    expect(canonicalizeFormSubmission({ ...marked, order: 'recent', sort: 'price', dir: 'asc' })).toEqual({});
+  });
+
+  it('order manda sobre un sort/dir que lleguen a la vez', () => {
+    expect(canonicalizeFormSubmission({ ...marked, order: 'price-desc', sort: 'surface', dir: 'asc' })).toEqual({
+      sort: 'price',
+      dir: 'desc',
+    });
+  });
+
+  it('un order desconocido se entrega en bruto a sort para que Zod lo rechace con nombre', () => {
+    expect(canonicalizeFormSubmission({ ...marked, order: 'barato', dir: 'asc' })).toEqual({ sort: 'barato' });
+    expect(canonicalizeFormSubmission({ ...marked, order: 'toString' })).toEqual({ sort: 'toString' });
+  });
+
+  it('un order repetido se entrega como lista a sort (rechazo nombrado, no se ignora)', () => {
+    expect(canonicalizeFormSubmission({ ...marked, order: ['recent', 'price-asc'] })).toEqual({
+      sort: ['recent', 'price-asc'],
+    });
+    expect(canonicalizeFormSubmission({ ...marked, order: ['price-asc', ''] })).toEqual({
+      sort: 'price',
+      dir: 'asc',
+    });
+  });
+
+  it('un order en blanco se ignora; sin la marca no se toca nada', () => {
+    expect(canonicalizeFormSubmission({ ...marked, order: ' ', sort: 'price' })).toEqual({ sort: 'price' });
+    const raw = { order: 'price-asc' };
+    expect(canonicalizeFormSubmission(raw)).toBe(raw);
   });
 });

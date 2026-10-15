@@ -27,8 +27,6 @@ const FIELD_KEYS: readonly NlParamKey[] = [
   'maxSurface',
   'minRooms',
   'minBathrooms',
-  'sort',
-  'dir',
 ];
 
 export interface FilterBarProps {

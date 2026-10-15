@@ -74,16 +74,8 @@ export function floorLabel(value: string | null): string | null {
   return labelOrNull(FLOOR_CODE_LABELS, value);
 }
 
-export const SORT_LABELS: Readonly<Record<'price' | 'surface' | 'updated', string>> = {
-  price: 'Precio',
-  surface: 'Superficie',
-  updated: 'Última actualización',
-};
-
-export const DIR_LABELS: Readonly<Record<'asc' | 'desc', string>> = {
-  asc: 'Ascendente',
-  desc: 'Descendente',
-};
+// D.18 (decisión 227): los desplegables de orden y sentido desaparecen; los rótulos de la ordenación
+// viven en `lib/sort-presets.ts`. `FIELD_LABELS.sort/dir` se conservan para los rechazos con nombre.
 
 // Rótulo de cada campo, para las etiquetas y para citar un campo en conflicto.
 export const FIELD_LABELS: Readonly<Record<NlParamKey | 'place', string>> = {

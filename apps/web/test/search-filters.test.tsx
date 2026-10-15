@@ -167,8 +167,6 @@ describe('CriteriaFields — campos compartidos (spec "Shared fields", "Markup c
       'maxSurface',
       'minRooms',
       'minBathrooms',
-      'sort',
-      'dir',
     ]) {
       expect(panel).toContain(`id="criteria-${field}"`);
       expect(panel).toContain(`for="criteria-${field}"`);
@@ -180,7 +178,7 @@ describe('CriteriaFields — campos compartidos (spec "Shared fields", "Markup c
   });
 
   it('el orden de los campos es el de la barra', () => {
-    const order = ['operation', 'propertyType', 'minPrice', 'maxPrice', 'minSurface', 'maxSurface', 'minRooms', 'minBathrooms', 'sort', 'dir'];
+    const order = ['operation', 'propertyType', 'minPrice', 'maxPrice', 'minSurface', 'maxSurface', 'minRooms', 'minBathrooms'];
     const positions = order.map((field) => panel.indexOf(`name="${field}"`));
     expect(positions.every((position) => position >= 0)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
@@ -325,11 +323,78 @@ describe('FilterBar — equivalencia de envío (spec "Same validated params")', 
     expect(searchQuerySchema.parse(canonicalizeFormSubmission(submitted))).toEqual(searchQuerySchema.parse(typed));
   });
 
-  it('el HTML de la barra ofrece exactamente los campos que esa equivalencia asume', () => {
-    const html = bar(typed);
+  // D.18 (decisión 227): sort y dir ya no son desplegables de la barra; viajan como ocultos para
+  // que enviar un filtro conserve la ordenación elegida (XC3).
+  it('el HTML de la barra ofrece los campos que esa equivalencia asume, y sort/dir como ocultos', () => {
+    const html = bar({ ...typed, sort: 'price', dir: 'asc' });
     for (const name of Object.keys(submitted)) {
       expect(html).toContain(`name="${name}"`);
     }
+    expect(findTag(html, 'input', 'type="hidden"', 'name="sort"', 'value="price"')).toBeDefined();
+    expect(findTag(html, 'input', 'type="hidden"', 'name="dir"', 'value="asc"')).toBeDefined();
+    expect(html).not.toContain('<select id="filter-sort"');
+    expect(html).not.toContain('Cualquiera</option><option value="price"');
+  });
+
+  it('sin ordenación en la URL no hay ocultos de sort ni dir', () => {
+    const html = bar(typed);
+    expect(findTag(html, 'input', 'name="sort"')).toBeUndefined();
+    expect(findTag(html, 'input', 'name="dir"')).toBeUndefined();
+  });
+
+  it('ida y vuelta: el envío de la barra con sort/dir ocultos conserva el orden elegido', () => {
+    const roundTrip = canonicalizeFormSubmission({ ...submitted, minRooms: '2', sort: 'price', dir: 'asc' });
+    expect(roundTrip).toEqual({ operation: 'sale', maxPrice: '200000', minRooms: '2', sort: 'price', dir: 'asc' });
+  });
+});
+
+// D.18 (decisión 227) — el panel de `?q=` ofrece el orden como cinco radios `name="order"`.
+describe('CriteriaFields agrupado — orden como radios (D.18)', () => {
+  function panel(values: Record<string, string>): string {
+    return renderToStaticMarkup(<CriteriaFields values={values} idPrefix="criteria" grouped={{ zone: <div /> }} />);
+  }
+
+  it('cinco radios con los rótulos C-9, valores = ids y sin selects de orden', () => {
+    const html = panel({});
+    const radios = [...html.matchAll(/<input[^>]*name="order"[^>]*>/g)].map((m) => m[0]);
+    expect(radios).toHaveLength(5);
+    expect(radios.map((r) => /value="([^"]*)"/.exec(r)?.[1])).toEqual([
+      'recent',
+      'price-asc',
+      'price-desc',
+      'surface-desc',
+      'surface-asc',
+    ]);
+    for (const label of [
+      'Más recientes',
+      'Precio: de menor a mayor',
+      'Precio: de mayor a menor',
+      'Superficie: de mayor a menor',
+      'Superficie: de menor a mayor',
+    ]) {
+      expect(html).toMatch(new RegExp(`<label for="criteria-order-[a-z-]+">${label}</label>`));
+    }
+    expect(html).not.toContain('name="sort"');
+    expect(html).not.toContain('name="dir"');
+    expect(html).not.toContain('Cualquiera</option><option value="price"');
+    expect(html).not.toContain('Sentido');
+  });
+
+  it('marca el preset interpretado; sin orden interpretado, el predefinido', () => {
+    const checkedOf = (html: string): string[] =>
+      [...html.matchAll(/<input[^>]*name="order"[^>]*>/g)]
+        .map((m) => m[0])
+        .filter((tag) => tag.includes('checked'))
+        .map((tag) => /value="([^"]*)"/.exec(tag)?.[1] ?? '');
+    expect(checkedOf(panel({ sort: 'price', dir: 'asc' }))).toEqual(['price-asc']);
+    expect(checkedOf(panel({ sort: 'surface' }))).toEqual(['surface-desc']);
+    expect(checkedOf(panel({}))).toEqual(['recent']);
+  });
+
+  it('el grupo conserva el título «Orden de los resultados» y un fieldset con ese nombre', () => {
+    const html = panel({});
+    expect(html).toContain('<h3>Orden de los resultados</h3>');
+    expect(html).toContain('<legend class="sr-only">Orden de los resultados</legend>');
   });
 });
 
@@ -464,17 +529,21 @@ describe('CriteriaFields — pista «solo cifras» (D.15, decisión 204)', () =>
     for (const field of NUMBER_FIELDS) {
       expect(findTag(html, 'input', `name="${field}"`)).toContain(`aria-describedby="${prefix}-numeric-hint"`);
     }
-    for (const field of ['operation', 'propertyType', 'sort', 'dir']) {
+    for (const field of ['operation', 'propertyType']) {
       expect(findTag(html, 'select', `name="${field}"`)).not.toContain('aria-describedby');
     }
   });
 
   // D.17 (B2): en la barra plana la pista queda pegada a los campos numéricos, no suelta encima.
-  it.each(['criteria', 'filter'])('%s plano: la pista va tras los baños y antes del orden', (prefix) => {
+  // D.18: sin desplegables de orden, la pista cierra el formulario plano.
+  it.each(['criteria', 'filter'])('%s plano: la pista va tras los baños y es lo último', (prefix) => {
     const flat = renderToStaticMarkup(<CriteriaFields values={FIELD_VALUES} idPrefix={prefix} />);
     const hint = flat.indexOf(`id="${prefix}-numeric-hint"`);
     expect(hint).toBeGreaterThan(flat.indexOf('name="minBathrooms"'));
-    expect(hint).toBeLessThan(flat.indexOf('name="sort"'));
+    expect(flat.endsWith('solo cifras.</p>')).toBe(true);
+    expect(flat).not.toContain('name="sort"');
+    expect(flat).not.toContain('name="dir"');
+    expect(flat).not.toContain('name="order"');
   });
 
   it('agrupado: la pista se pinta una vez, en el grupo de precio, antes del primer número', () => {
@@ -517,7 +586,7 @@ describe('CriteriaFields — agrupación opcional (S3.1, S3.2)', () => {
 
   it('la zona va entre los baños y el orden, y las leyendas y nombres se conservan', () => {
     expect(grouped.indexOf('name="minBathrooms"')).toBeLessThan(grouped.indexOf('data-slot="zone-slot"'));
-    expect(grouped.indexOf('data-slot="zone-slot"')).toBeLessThan(grouped.indexOf('name="sort"'));
+    expect(grouped.indexOf('data-slot="zone-slot"')).toBeLessThan(grouped.indexOf('name="order"'));
     expect(grouped).toContain('<legend>Precio (€)</legend>');
     expect(grouped).toContain('<legend>Superficie (m²)</legend>');
     expect(grouped).toContain('id="criteria-minPrice"');
@@ -539,15 +608,20 @@ describe('FilterBar D.15 — campos rechazados', () => {
     <FilterBar params={{ minPrice: 'abc', sort: 'x', maxPrice: '900' }} rejectedKeys={rejected} alertId="filter-alert" open />
   );
 
+  // D.18: el `sort` rechazado no se reenvía como oculto y la barra ya no tiene desplegable de orden.
+  it('un sort rechazado no se reenvía y no hay campo de orden que marcar', () => {
+    expect(findTag(html, 'input', 'name="sort"')).toBeUndefined();
+    expect(html).not.toContain('<select id="filter-sort"');
+  });
+
   it('el número y el desplegable rechazados llevan aria-invalid y la descripción de la alerta', () => {
     const minPrice = findTag(html, 'input', 'name="minPrice"');
     expect(minPrice).toContain('aria-invalid="true"');
     // D.15 (decisión 204): la pista de «solo cifras» va primero, la alerta después (mismo orden que
     // el campo de texto libre: ayuda y luego alerta).
     expect(minPrice).toContain('aria-describedby="filter-numeric-hint filter-alert"');
-    const sort = findTag(html, 'select', 'name="sort"');
-    expect(sort).toContain('aria-invalid="true"');
-    expect(sort).toContain('aria-describedby="filter-alert"');
+    const operation = findTag(html, 'select', 'name="operation"');
+    expect(operation).not.toContain('aria-invalid');
   });
 
   it('un campo válido no lleva aria-invalid ni aria-describedby', () => {

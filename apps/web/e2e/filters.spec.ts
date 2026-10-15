@@ -18,8 +18,6 @@ const FIELD_ORDER = [
   'maxSurface',
   'minRooms',
   'minBathrooms',
-  'sort',
-  'dir',
 ];
 
 function route(name: string): (typeof ROUTES)[number] {
@@ -117,6 +115,71 @@ test.describe('barra de filtros y filtros aplicados', () => {
     const chips = page.getByRole('region', { name: 'Filtros aplicados' }).getByRole('link');
     await expect(chips).toHaveCount(2);
     await expect(chips.first()).toContainText('Operación: Venta');
+  });
+
+  // D.18 (decisión 227, C-9): la ordenación son enlaces predefinidos junto al recuento. Funcionan sin
+  // JavaScript (anclas), conservan los filtros, reinician `page` y marcan el vigente con aria-current.
+  test('los cinco enlaces de ordenación llevan sus rótulos y «Más recientes» está activo por defecto', async ({
+    page,
+  }) => {
+    await openRoute(page, route('home'));
+    const list = page.getByRole('list', { name: 'Ordenar por' });
+    await expect(list.getByRole('link')).toHaveText([
+      'Más recientes',
+      'Precio: de menor a mayor',
+      'Precio: de mayor a menor',
+      'Superficie: de mayor a menor',
+      'Superficie: de menor a mayor',
+    ]);
+    await expect(list.getByRole('link', { name: 'Más recientes' })).toHaveAttribute('aria-current', 'true');
+    await expect(list.locator('[aria-current="true"]')).toHaveCount(1);
+    await expect(page.locator('select[name="sort"], select[name="dir"]')).toHaveCount(0);
+    await expect(page.getByText('Cualquiera', { exact: true })).toHaveCount(0);
+  });
+
+  test('un enlace de ordenación conserva los filtros, quita page y marca el vigente', async ({ page }) => {
+    await page.goto('/?operation=sale&page=1');
+    await page.getByRole('link', { name: 'Precio: de menor a mayor' }).click();
+    const params = new URL(page.url()).searchParams;
+    expect(params.get('operation')).toBe('sale');
+    expect(params.get('sort')).toBe('price');
+    expect(params.get('dir')).toBe('asc');
+    expect(params.has('page')).toBe(false);
+    await expect(page.getByRole('link', { name: 'Precio: de menor a mayor' })).toHaveAttribute(
+      'aria-current',
+      'true'
+    );
+    await expect(page.getByRole('link', { name: 'Más recientes' })).not.toHaveAttribute('aria-current', /.*/);
+  });
+
+  test('una combinación sin preset (updated/asc) no marca ningún enlace', async ({ page }) => {
+    await page.goto('/?sort=updated&dir=asc');
+    await expect(page.getByRole('list', { name: 'Ordenar por' }).locator('[aria-current]')).toHaveCount(0);
+  });
+
+  test('aplicar la barra conserva la ordenación elegida', async ({ page }) => {
+    await page.goto('/?sort=price&dir=asc');
+    await openFilterTray(page);
+    const bar = page.getByRole('form', { name: BAR });
+    await bar.getByLabel('Operación').selectOption('sale');
+    await bar.getByRole('button', { name: 'Aplicar filtros' }).click();
+    const params = new URL(page.url()).searchParams;
+    expect(params.get('operation')).toBe('sale');
+    expect(params.get('sort')).toBe('price');
+    expect(params.get('dir')).toBe('asc');
+  });
+
+  test.describe('sin JavaScript', () => {
+    test.use({ javaScriptEnabled: false });
+
+    test('el enlace de ordenación navega con anclas normales', async ({ page }) => {
+      await page.goto('/?operation=sale');
+      await page.getByRole('link', { name: 'Superficie: de mayor a menor' }).click();
+      const params = new URL(page.url()).searchParams;
+      expect(params.get('sort')).toBe('surface');
+      expect(params.get('dir')).toBe('desc');
+      expect(params.get('operation')).toBe('sale');
+    });
   });
 
   test('un chip quita solo su filtro', async ({ page }) => {

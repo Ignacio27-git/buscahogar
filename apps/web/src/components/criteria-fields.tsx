@@ -8,7 +8,8 @@ import type { ReactElement, ReactNode } from 'react';
 import { OPERATION_TYPES, PROPERTY_TYPES } from '@buscahogar/core';
 import type { NlParamKey } from '@buscahogar/core';
 
-import { DIR_LABELS, FIELD_LABELS, OPERATION_LABELS, PROPERTY_TYPE_LABELS, SORT_LABELS } from '@/lib/search-labels';
+import { FIELD_LABELS, OPERATION_LABELS, PROPERTY_TYPE_LABELS } from '@/lib/search-labels';
+import { SORT_PRESETS, sortPresetFor } from '@/lib/sort-presets';
 
 // D.15 (F4, decisión 196) — campos que el esquema rechazó y la alerta que lo explica. Un campo
 // rechazado se declara `aria-invalid` y se describe con esa alerta (una sola fuente del texto).
@@ -100,11 +101,40 @@ function NumberField({ field, idPrefix, value, step, invalid }: NumberFieldProps
   );
 }
 
-const SORT_OPTIONS = (['price', 'surface', 'updated'] as const).map((value) => ({
-  value,
-  label: SORT_LABELS[value],
-}));
-const DIR_OPTIONS = (['asc', 'desc'] as const).map((value) => ({ value, label: DIR_LABELS[value] }));
+// D.18 (decisión 227) — el orden del panel de `?q=`: los mismos cinco rótulos que los enlaces de la
+// lista, como radios `name="order"` (valor = id del preset). `canonicalizeFormSubmission` los
+// convierte en sort/dir. Marca el preset de los valores interpretados; sin preset (o sin orden
+// interpretado) queda marcado el predefinido, que es el que aplicaría la búsqueda.
+function OrderFieldset({
+  values,
+  idPrefix,
+  invalid,
+}: {
+  readonly values: Readonly<Partial<Record<NlParamKey, string>>>;
+  readonly idPrefix: string;
+  readonly invalid: InvalidFields | undefined;
+}): ReactElement {
+  const checked = sortPresetFor(values.sort, values.dir)?.id ?? SORT_PRESETS[0]?.id;
+  const describedBy =
+    invalid !== undefined && (invalid.keys.has('sort') || invalid.keys.has('dir')) ? invalid.errorId : undefined;
+  return (
+    <fieldset aria-describedby={describedBy}>
+      <legend className="sr-only">Orden de los resultados</legend>
+      {SORT_PRESETS.map((preset) => (
+        <p key={preset.id}>
+          <input
+            type="radio"
+            id={`${idPrefix}-order-${preset.id}`}
+            name="order"
+            value={preset.id}
+            defaultChecked={preset.id === checked}
+          />{' '}
+          <label htmlFor={`${idPrefix}-order-${preset.id}`}>{preset.label}</label>
+        </p>
+      ))}
+    </fieldset>
+  );
+}
 
 export interface CriteriaFieldsProps {
   // Valores prefijados (importes en euros).
@@ -166,8 +196,7 @@ export function CriteriaFields({ values, idPrefix, grouped, invalid }: CriteriaF
         </Group>
         <Group title="¿Dónde?">{grouped.zone}</Group>
         <Group title="Orden de los resultados" secondary>
-          <SelectField field="sort" idPrefix={idPrefix} invalid={invalid} value={values.sort} options={SORT_OPTIONS} />
-          <SelectField field="dir" idPrefix={idPrefix} invalid={invalid} value={values.dir} options={DIR_OPTIONS} />
+          <OrderFieldset values={values} idPrefix={idPrefix} invalid={invalid} />
         </Group>
       </>
     );
@@ -200,18 +229,6 @@ export function CriteriaFields({ values, idPrefix, grouped, invalid }: CriteriaF
       <NumberField field="minBathrooms" idPrefix={idPrefix} invalid={invalid} value={values.minBathrooms} step="1" />
       {/* D.17 (B2): la pista queda pegada a los campos numéricos, no suelta encima de toda la barra. */}
       <NumericHint idPrefix={idPrefix} />
-      <SelectField
-        field="sort"
-        idPrefix={idPrefix} invalid={invalid}
-        value={values.sort}
-        options={SORT_OPTIONS}
-      />
-      <SelectField
-        field="dir"
-        idPrefix={idPrefix} invalid={invalid}
-        value={values.dir}
-        options={DIR_OPTIONS}
-      />
     </>
   );
 }

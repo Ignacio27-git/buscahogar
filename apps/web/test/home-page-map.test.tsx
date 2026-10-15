@@ -256,6 +256,64 @@ describe('lista y mapa en cada petición válida (SMV-15, WSL-D8a-1)', () => {
   });
 });
 
+// D.18 (decisión 227) — enlaces de ordenación: solo con resultados, con el vigente marcado y sin
+// perder los filtros; un `order` inválido del panel se rechaza con su nombre.
+describe('ordenación por enlaces (D.18)', () => {
+  function withResults(): void {
+    searchPropertiesMock.mockResolvedValue({
+      results: [makeListResult(0), makeListResult(1)],
+      hasNextPage: false,
+    });
+    mapResult(2);
+  }
+
+  it('con resultados pinta los cinco enlaces, con «Más recientes» vigente por defecto', async () => {
+    withResults();
+    const html = await render({ operation: 'sale' });
+    expect(html).toContain('<p id="sort-presets-label">Ordenar por</p>');
+    expect(count(html, 'sort-presets__link')).toBe(5);
+    expect(html).toMatch(/<a href="\/\?operation=sale"[^>]*aria-current="true"[^>]*>Más recientes<\/a>/);
+    expect(html).toContain('href="/?operation=sale&amp;sort=price&amp;dir=asc"');
+  });
+
+  it('marca el preset de la URL y ninguno para una combinación sin preset', async () => {
+    withResults();
+    const price = await render({ sort: 'price', dir: 'asc' });
+    expect(count(price, 'aria-current="true"')).toBe(1);
+    expect(price).toMatch(/aria-current="true"[^>]*>Precio: de menor a mayor</);
+    const none = await render({ sort: 'updated', dir: 'asc' });
+    expect(none).toContain('sort-presets__link');
+    expect(none).not.toContain('aria-current="true"');
+  });
+
+  it('sin resultados no pinta enlaces de ordenación', async () => {
+    const html = await render({ operation: 'sale' });
+    expect(html).not.toContain('sort-presets');
+  });
+
+  it('un order desconocido del panel se rechaza con el nombre «Ordenar por»', async () => {
+    const html = await render({ form: 'criteria', order: 'barato' });
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('Ordenar por');
+    expect(searchPropertiesMock).not.toHaveBeenCalled();
+  });
+
+  it('un order repetido también se rechaza, no se ignora', async () => {
+    const html = await render({ form: 'criteria', order: ['recent', 'price-asc'] });
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('Ordenar por');
+    expect(searchPropertiesMock).not.toHaveBeenCalled();
+  });
+
+  it('un order conocido del panel ordena la búsqueda', async () => {
+    withResults();
+    await render({ form: 'criteria', order: 'surface-asc' });
+    const used = searchPropertiesMock.mock.calls[0]?.[1] as { sort: string; dir: string };
+    expect(used.sort).toBe('surface');
+    expect(used.dir).toBe('asc');
+  });
+});
+
 describe('vista de mapa — recuento M y truncado (SMV-4, SMV-14)', () => {
   it('muestra siempre M, sin aviso de truncado por debajo del tope', async () => {
     mapResult(120);
