@@ -472,7 +472,7 @@ describe('AppliedFilters — spec "Applied-filter chips" y "Clear all"', () => {
 // D.7 (decisión 159, spec applied-filters-summary S11.1/S11.2) — el chip
 // interactivo no cambia y la variante de solo lectura reutiliza su forma.
 const INTERACTIVE_CHIP_CLASS =
-  'inline-flex min-h-8 max-w-full items-center gap-1 rounded-control [overflow-wrap:anywhere] border border-rule-control bg-surface-raised px-3 text-dense text-ink no-underline applied-filters__chip';
+  'inline-flex min-h-8 max-w-full items-center gap-1 rounded-control [overflow-wrap:anywhere] border border-rule-control bg-accent-wash px-3 text-dense text-ink no-underline applied-filters__chip';
 
 describe('AppliedFilters — chip interactivo intacto tras extraer la forma común (S11.1)', () => {
   it('la clase del enlace es, byte a byte, la de D.6a', () => {
@@ -483,6 +483,22 @@ describe('AppliedFilters — chip interactivo intacto tras extraer la forma com�
 function summary(params: Record<string, string>, zoneName: string | null = null): string {
   return renderToStaticMarkup(<AppliedFiltersSummary criteria={criteria(params)} zoneName={zoneName} />);
 }
+
+// D.19 (decisión 231) — el lavado azul es el del control interactivo (One Blue Rule): el resumen de solo
+// lectura no lo recibe y sigue en el papel hundido.
+describe('AppliedFilters — lavado azul solo en el chip interactivo (D.19)', () => {
+  it('el chip interactivo usa bg-accent-wash y ya no bg-surface-raised', () => {
+    const html = chips({ minRooms: '2' });
+    expect(html).toContain('bg-accent-wash');
+    expect(html).not.toContain('bg-surface-raised');
+  });
+
+  it('el resumen de solo lectura no usa el lavado azul', () => {
+    const html = summary({ operation: 'rent' });
+    expect(html).toContain('bg-surface-sunken');
+    expect(html).not.toContain('accent-wash');
+  });
+});
 
 describe('AppliedFiltersSummary — variante de solo lectura (S2.1, S11.2)', () => {
   it('lista los mismos rótulos que los chips, sin enlaces, sin recuento y con nombre propio', () => {

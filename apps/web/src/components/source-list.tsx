@@ -22,6 +22,10 @@
 //
 // D.18 (decisión 221): sin ningún anuncio activo la insignia pasa de «Precio más bajo» a «Último
 // precio más bajo» (enmienda la 180): es el último precio conocido, no uno vigente.
+//
+// D.19 (decisión 231): «Más económico» y «Disponible» llevan el verde de estado favorable además del
+// texto (el color nunca es la única señal). «Último precio más bajo» es un precio histórico, no un
+// estado favorable, y conserva la caja de tinta sin verde.
 import type { ReactElement } from 'react';
 
 import { compareSourceListings } from '@buscahogar/core';
@@ -29,7 +33,7 @@ import type { PropertyDetailSource } from '@buscahogar/db';
 
 import { formatUtcDate } from '@/lib/format-date';
 import { formatPriceCents } from '@/lib/format-price';
-import { listingStatusLabel } from '@/lib/listing-status';
+import { isListingAvailable, listingStatusLabel } from '@/lib/listing-status';
 import { sourceLabel } from '@/lib/search-labels';
 
 import { Icon } from './icon';
@@ -72,7 +76,15 @@ export function SourceList({ sources }: SourceListProps): ReactElement {
                   <span className="sr-only"> (web externa)</span>
                 </a>
                 {comparison.mode !== 'empty' && highlighted.has(source.listingId) ? (
-                  <strong className="source-row__highlight">{HIGHLIGHT_BY_MODE[comparison.mode]}</strong>
+                  <strong
+                    className={
+                      comparison.mode === 'active'
+                        ? 'source-row__highlight source-row__highlight--active'
+                        : 'source-row__highlight'
+                    }
+                  >
+                    {HIGHLIGHT_BY_MODE[comparison.mode]}
+                  </strong>
                 ) : null}
               </div>
               <dl className="source-row__facts">
@@ -90,7 +102,9 @@ export function SourceList({ sources }: SourceListProps): ReactElement {
                 </div>
                 <div>
                   <dt>Estado</dt>
-                  <dd>{listingStatusLabel(source.status)}</dd>
+                  <dd className={isListingAvailable(source.status) ? 'source-row__status--available' : undefined}>
+                    {listingStatusLabel(source.status)}
+                  </dd>
                 </div>
               </dl>
             </li>

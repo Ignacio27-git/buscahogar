@@ -206,7 +206,7 @@ describe('SourceList (D.12) — comparación de anuncios', () => {
 
     expect(anchor).toContain('Ver en Idealista');
     expect(anchor).not.toContain('Más económico');
-    expect(html).toContain('<strong class="source-row__highlight">Más económico</strong>');
+    expect(html).toContain('<strong class="source-row__highlight source-row__highlight--active">Más económico</strong>');
   });
 
   it('sin ningún anuncio activo avisa sobre la lista y marca «Último precio más bajo», nunca «Más económico»', () => {
@@ -258,5 +258,51 @@ describe('SourceList (D.12) — comparación de anuncios', () => {
       expect(html.indexOf('</h2>')).toBeLessThan(html.indexOf(note));
       expect(html.indexOf(note)).toBeLessThan(html.indexOf('<ul'));
     }
+  });
+});
+
+// D.19 (decisión 231) — el verde marca solo estados favorables y nunca es la única señal: el texto
+// «Más económico» y «Disponible» se conserva en cada caso.
+describe('SourceList (D.19) — claves de estado favorable', () => {
+  it('«Más económico» lleva el modificador --active y «Último precio más bajo» no', () => {
+    const active = renderToStaticMarkup(<SourceList sources={[makeSource({})]} />);
+    expect(active).toContain('source-row__highlight source-row__highlight--active">Más económico<');
+
+    const none = renderToStaticMarkup(
+      <SourceList sources={[makeSource({ status: 'removed' }), makeSource({ listingId: 'l2', status: 'inactive', priceCents: 9_000_000 })]} />
+    );
+    expect(none).toContain('Último precio más bajo');
+    expect(none).not.toContain('source-row__highlight--active');
+  });
+
+  it('solo las filas más baratas llevan el modificador, igual que el texto', () => {
+    const sources = [
+      makeSource({ listingId: 'l1', priceCents: 8_500_000 }),
+      makeSource({ listingId: 'l2', priceCents: 9_000_000, sourceKey: 'kyero' }),
+    ];
+    const html = renderToStaticMarkup(<SourceList sources={sources} />);
+    const items = rowsOf(html);
+    expect(items[0]).toContain('source-row__highlight--active');
+    expect(items[1]).not.toContain('source-row__highlight');
+    expect(html.match(/source-row__highlight--active/g)).toHaveLength(1);
+  });
+
+  it('el estado «Disponible» lleva la clase de estado favorable con su texto', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[makeSource({ status: 'active' })]} />);
+    expect(html).toContain('<dd class="source-row__status--available">Disponible</dd>');
+  });
+
+  it.each(['inactive', 'removed', 'pending-review'])(
+    'el estado «%s» no lleva la clase favorable ni dice «Disponible»',
+    (status) => {
+      const html = renderToStaticMarkup(<SourceList sources={[makeSource({ status })]} />);
+      expect(html).toContain('<dt>Estado</dt><dd>No disponible</dd>');
+      expect(html).not.toContain('source-row__status--available');
+    }
+  );
+
+  it('el precio y la fecha de la fila llevan cifras tabulares', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[makeSource({})]} />);
+    expect(html).toContain('<dd class="source-row__price tabular-nums">100.000 €</dd>');
   });
 });

@@ -101,7 +101,7 @@ components:
     padding: '0 0.75rem'
     height: '2.5rem'
   chip-filter:
-    backgroundColor: '{colors.surface-raised}'
+    backgroundColor: '{colors.primary-wash}'
     textColor: '{colors.ink}'
     typography: '{typography.dense}'
     rounded: '{rounded.control}'
@@ -137,6 +137,7 @@ components:
     padding: '0.5rem 0.75rem'
     height: '2.5rem'
   badge-multi-source:
+    backgroundColor: '{colors.vegetation-wash}'
     textColor: '{colors.ink}'
     typography: '{typography.small}'
     rounded: '{rounded.control}'
