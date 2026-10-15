@@ -787,7 +787,9 @@ describe('estado vacío filtrado con una sola acción (D.18)', () => {
     return render({ zone: '28074', ...extra });
   }
 
-  it('zona + operación: aviso, estado, frase y una sola acción «Quitar todos los filtros» que quita también la zona', async () => {
+  // Refinamiento de C-11 (decisión de la persona usuaria): con dos o más chips la fila ya ofrece «Quitar
+  // todos», así que el estado vacío no repite un enlace idéntico; con un solo chip sí ofrece la acción.
+  it('zona + operación: la fila de chips ya ofrece «Quitar todos»; el estado vacío no repite el enlace', async () => {
     const html = await renderUncovered({ operation: 'sale' });
     expect(count(html, 'Todavía no hay viviendas de Leganés.')).toBe(1);
     expect(count(html, 'role="status"')).toBe(1);
@@ -795,9 +797,11 @@ describe('estado vacío filtrado con una sola acción (D.18)', () => {
     expect(list).toContain('Ninguna vivienda coincide con tu búsqueda.');
     expect(list).toContain(SENTENCE);
     expect(mapSection(html)).toContain('Ninguna vivienda con ubicación coincide con tu búsqueda.');
-    expect(list).toContain('<p class="empty-results__action"><a href="/">Quitar todos los filtros</a></p>');
-    expect(list).not.toContain('Quitar «');
-    expect(count(list, '>Quitar')).toBe(1);
+    expect(list).not.toContain('empty-results__action');
+    expect(list).not.toContain('>Quitar');
+    // El único «Quitar todos» de la página es el de la fila de chips, fuera de la sección de resultados.
+    expect(count(html, 'Quitar todos<span class="sr-only"> los filtros</span>')).toBe(1);
+    expect(count(html, 'Quitar todos los filtros</a>')).toBe(0);
   });
 
   it('zona sola: sigue siendo un filtro, así que el vacío es filtered y la acción quita la zona', async () => {
@@ -809,9 +813,16 @@ describe('estado vacío filtrado con una sola acción (D.18)', () => {
     expect(list).not.toContain('Todavía no hay viviendas.');
   });
 
-  it('con filtros conserva view y sort en la acción, y la zona se quita', async () => {
-    const html = await renderUncovered({ operation: 'sale', propertyType: 'flat', view: 'map', sort: 'price' });
+  it('zona sola con view y sort: la acción conserva view y sort y quita la zona', async () => {
+    const html = await renderUncovered({ view: 'map', sort: 'price' });
     expect(listSection(html)).toContain('href="/?view=map&amp;sort=price">Quitar todos los filtros</a>');
+    expect(html).not.toContain('sr-only"> los filtros');
+  });
+
+  it('con tres filtros no hay acción en el estado vacío y la fila de chips sí ofrece «Quitar todos»', async () => {
+    const html = await renderUncovered({ operation: 'sale', propertyType: 'flat', view: 'map', sort: 'price' });
+    expect(listSection(html)).not.toContain('>Quitar');
+    expect(html).toMatch(/href="\/\?view=map&amp;sort=price"[^>]*>Quitar todos<span class="sr-only"> los filtros<\/span>/);
   });
 
   it('polígono sin viviendas con otro filtro: la acción se llama «Quitar los demás filtros» y conserva el polígono', async () => {
@@ -821,7 +832,7 @@ describe('estado vacío filtrado con una sola acción (D.18)', () => {
     expect(count(listSection(html), '>Quitar')).toBe(1);
   });
 
-  it('zona cubierta con filtros: filtered, sin aviso de cobertura y con una sola acción', async () => {
+  it('zona cubierta con filtros: filtered, sin aviso de cobertura y sin acción repetida', async () => {
     resolveZoneGeometryMock.mockResolvedValue({ ...geometry, state: 'covered' });
     resolveCoverageForZoneMock.mockResolvedValue({ kind: 'covered' });
     resolveNewZonesDailyCapMock.mockReturnValue(10);
@@ -830,7 +841,7 @@ describe('estado vacío filtrado con una sola acción (D.18)', () => {
     expect(html).not.toContain('coverage-notice');
     expect(listSection(html)).toContain('Ninguna vivienda coincide con tu búsqueda.');
     expect(listSection(html)).toContain(SENTENCE);
-    expect(count(listSection(html), '>Quitar')).toBe(1);
+    expect(count(listSection(html), '>Quitar')).toBe(0);
   });
 });
 

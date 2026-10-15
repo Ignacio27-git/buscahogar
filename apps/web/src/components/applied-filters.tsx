@@ -25,9 +25,15 @@ export interface AppliedFiltersProps {
   readonly count: string;
 }
 
-// «Quitar todos» aparece desde dos filtros. D.18 (decisión 225): privado; el estado vacío ya no lo
-// usa porque su única acción se muestra siempre.
+// «Quitar todos» aparece desde dos filtros. D.18 (decisión 225): el umbral es privado; el estado
+// vacío pregunta por `offersClearAll`.
 const CLEAR_ALL_THRESHOLD = 2;
+
+// La fila de chips ofrece «Quitar todos» desde dos filtros. El estado vacío lo consulta para no
+// repetir un enlace de limpieza idéntico (refinamiento de C-11 tras el gate G-D).
+export function offersClearAll(filterCount: number): boolean {
+  return filterCount >= CLEAR_ALL_THRESHOLD;
+}
 
 // D.7 (decisión 159) — forma común del chip interactivo y del de solo lectura. El
 // interactivo debe seguir produciendo, byte a byte, la clase de D.6a (lo fija un test).
@@ -56,7 +62,7 @@ export function AppliedFilters({ criteria, params, zoneName, count }: AppliedFil
           </ul>
         </section>
       ) : null}
-      {filters.length >= CLEAR_ALL_THRESHOLD ? (
+      {offersClearAll(filters.length) ? (
         <a href={buildClearFiltersHref(params)} className="inline-flex min-h-8 shrink-0 items-center">
           Quitar todos<span className="sr-only"> los filtros</span>
         </a>

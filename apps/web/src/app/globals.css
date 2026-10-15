@@ -846,7 +846,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.5rem 1.5rem;
+    gap: 1rem 1.5rem;
   }
 
   .search-toolbar > .filter-tray[open] {
@@ -1016,6 +1016,17 @@
 
   .search-header > * {
     margin-block: 0;
+  }
+
+  /* Pulido tras el gate G-D: el hueco entre bloques de la cabecera lo da su `gap` de 1rem, así que el
+     aviso de cobertura no lleva el margen propio de su uso suelto; y tras una cabecera con aviso los
+     resultados (lista, mapa o estado vacío) empiezan 1rem más abajo, igual en todos los estados. */
+  .search-header > .coverage-notice {
+    margin: 0;
+  }
+
+  .search-header:has(> .coverage-panel, > .coverage-notice) + .search-results {
+    margin-block-start: 1rem;
   }
 
   /* Lista y mapa (D.8a, decisión 164). Las dos secciones son hermanas dentro de

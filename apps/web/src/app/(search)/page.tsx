@@ -11,7 +11,7 @@ import {
 import { resolveZoneGeometry, searchMapPoints, searchProperties, suggestZones } from '@buscahogar/db';
 import type { CoverageJobState, ZoneGeometry, ZoneSuggestion } from '@buscahogar/db';
 
-import { AppliedFilters } from '@/components/applied-filters';
+import { AppliedFilters, offersClearAll } from '@/components/applied-filters';
 import { CoverageNotice, isReloadable, noticeForOutcome } from '@/components/coverage-notice';
 import type { CoverageNoticeVariant } from '@/components/coverage-notice';
 import { CoverageStatus } from '@/components/coverage-status';
@@ -440,7 +440,12 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
         <section aria-label="Resultados" className="search-results__list">
           {results.length === 0 ? (
             listEmptyKind !== null ? (
-              <EmptyResults kind={listEmptyKind} params={rawSearchParams} keepOnClear={emptyScope.keepOnClear} />
+              <EmptyResults
+                kind={listEmptyKind}
+                params={rawSearchParams}
+                keepOnClear={emptyScope.keepOnClear}
+                clearAllOffered={offersClearAll(countAppliedFilters(criteria))}
+              />
             ) : null
           ) : (
             <ul className="result-list">

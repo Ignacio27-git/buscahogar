@@ -20,49 +20,54 @@ function linkNames(html: string): string[] {
   return [...html.matchAll(/<a [^>]*>([\s\S]*?)<\/a>/g)].map((match) => text(match[1] ?? ''));
 }
 
-// D.18 (decisión 225, C-11): el vacío filtrado ya no repite los chips. Estado, la frase que remite a
-// los chips de arriba y UNA acción siempre visible. Sin lista de «Quitar «X»».
+// D.18 (decisión 225, C-11 y su refinamiento): el vacío filtrado no repite los chips. Estado y la frase
+// que remite a los chips; la acción solo aparece si la fila de chips NO ofrece ya «Quitar todos»
+// (`clearAllOffered`): nunca dos enlaces idénticos de limpieza a la vez.
 describe('EmptyResults — filtered', () => {
   const params = { operation: 'sale', propertyType: 'flat', view: 'map', sort: 'price', page: '1' };
-  const html = renderToStaticMarkup(<EmptyResults kind="filtered" params={params} keepOnClear={[]} />);
+  const withChips = renderToStaticMarkup(
+    <EmptyResults kind="filtered" params={params} keepOnClear={[]} clearAllOffered />
+  );
 
-  it('estado, frase que remite a los chips y exactamente un enlace, en tuteo', () => {
-    expect(text(html)).toContain('Ninguna vivienda coincide con tu búsqueda.');
-    expect(text(html)).toContain('Los filtros aplicados están arriba; pulsa uno para quitarlo');
-    expect(text(html)).not.toContain('Prueba a quitar alguno de estos filtros');
+  it('con «Quitar todos» ya en los chips: estado y frase, sin ningún enlace, en tuteo', () => {
+    expect(text(withChips)).toContain('Ninguna vivienda coincide con tu búsqueda.');
+    expect(text(withChips)).toContain('Los filtros aplicados están arriba; pulsa uno para quitarlo');
+    expect(text(withChips)).not.toContain('Prueba a quitar alguno de estos filtros');
+    expect(linkNames(withChips)).toEqual([]);
+    expect(withChips).not.toContain('empty-results__action');
+    expect(text(withChips)).not.toMatch(IMPERSONAL);
+  });
+
+  it('con un solo chip (la fila no ofrece «Quitar todos»): una acción que apunta a view y sort', () => {
+    const html = renderToStaticMarkup(
+      <EmptyResults kind="filtered" params={params} keepOnClear={[]} clearAllOffered={false} />
+    );
     expect(linkNames(html)).toEqual(['Quitar todos los filtros']);
-    expect(text(html)).not.toMatch(IMPERSONAL);
-  });
-
-  it('no repite los chips: ningún enlace «Quitar «…»»', () => {
-    expect(html).not.toContain('Quitar «');
-    expect(html).not.toContain('Operación: Venta');
-  });
-
-  it('«Quitar todos los filtros» sin nada que conservar apunta a view y sort, dentro de su párrafo', () => {
     expect(html).toContain(
       '<p class="empty-results__action"><a href="/?view=map&amp;sort=price">Quitar todos los filtros</a></p>'
     );
+    expect(html).not.toContain('Quitar «');
     expect(html).not.toContain('empty-results__actions');
   });
 
-  it('con un solo filtro también ofrece la acción (C-11: siempre visible)', () => {
+  it('sin la propiedad se asume que la fila no lo ofrece y la acción se muestra', () => {
     const one = renderToStaticMarkup(<EmptyResults kind="filtered" params={{ operation: 'sale' }} keepOnClear={[]} />);
-
     expect(linkNames(one)).toEqual(['Quitar todos los filtros']);
     expect(one).toContain('href="/"');
   });
 
   it('no declara un rol vivo: el aviso de cobertura es la única región', () => {
-    expect(html).not.toMatch(/role="(status|alert)"|aria-live/);
+    expect(withChips).not.toMatch(/role="(status|alert)"|aria-live/);
   });
 });
 
 describe('EmptyResults — acción que conserva el polígono (WCAG 3.2.4)', () => {
   const params = { view: 'map', polygon: POLYGON, operation: 'sale', propertyType: 'flat' };
 
-  it('con polígono conservado se llama «Quitar los demás filtros» y mantiene el polígono', () => {
-    const html = renderToStaticMarkup(<EmptyResults kind="filtered" params={params} keepOnClear={['polygon']} />);
+  it('con polígono conservado se llama «Quitar los demás filtros» y mantiene el polígono, aunque los chips ofrezcan «Quitar todos»', () => {
+    const html = renderToStaticMarkup(
+      <EmptyResults kind="filtered" params={params} keepOnClear={['polygon']} clearAllOffered />
+    );
     const encoded = new URLSearchParams({ polygon: POLYGON }).toString();
 
     expect(linkNames(html)).toEqual(['Quitar los demás filtros']);

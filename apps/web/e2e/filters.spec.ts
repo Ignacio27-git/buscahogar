@@ -57,21 +57,22 @@ test.describe('barra de filtros y filtros aplicados', () => {
     for (const name of names) {
       expect(name).toMatch(/^Quitar filtro: /);
     }
-    // D.14: esta ruta no devuelve resultados, así que el estado vacío ofrece el mismo enlace con el
-    // mismo nombre y destino que la barra (WCAG 3.2.4): uno en la barra y otro en los resultados.
+    // Refinamiento de C-11: esta ruta no devuelve resultados, pero con nueve chips la fila ya ofrece
+    // «Quitar todos»; el estado vacío no repite un enlace idéntico (WCAG 3.2.4 y menos ruido).
     const clearAll = page.getByRole('link', { name: 'Quitar todos los filtros' });
-    await expect(clearAll).toHaveCount(2);
-    await expect(clearAll.first()).toBeVisible();
+    await expect(clearAll).toHaveCount(1);
+    await expect(clearAll).toBeVisible();
+    await expect(clearAll).toHaveAttribute('href', '/');
     await expect(
       page.getByRole('region', { name: 'Resultados', exact: true }).getByRole('link', {
         name: 'Quitar todos los filtros',
       })
-    ).toHaveAttribute('href', '/');
+    ).toHaveCount(0);
   });
 
   // D.18 (decisión 225, C-11): el estado vacío filtrado no repite los chips; una frase que remite a
-  // ellos y una sola acción siempre visible.
-  test('el estado vacío filtrado tiene la frase y una sola acción, sin enlaces por filtro', async ({
+  // ellos y, solo si la fila de chips no ofrece ya «Quitar todos» (un único chip), una acción.
+  test('el estado vacío filtrado tiene la frase y ningún enlace repetido ni por filtro', async ({
     page,
   }) => {
     await openRoute(page, route('home-filtered'));
@@ -80,9 +81,17 @@ test.describe('barra de filtros y filtros aplicados', () => {
     await expect(
       results.getByText('Los filtros aplicados están arriba; pulsa uno para quitarlo')
     ).toBeVisible();
-    await expect(results.getByRole('link')).toHaveCount(1);
-    await expect(results.getByRole('link', { name: 'Quitar todos los filtros' })).toBeVisible();
+    await expect(results.getByRole('link')).toHaveCount(0);
     await expect(results.getByRole('link', { name: /^Quitar «/ })).toHaveCount(0);
+  });
+
+  test('con un solo chip la fila no ofrece «Quitar todos» y el estado vacío sí', async ({ page }) => {
+    // Un único filtro sin resultados en la siembra: ninguna vivienda tiene cincuenta habitaciones.
+    await page.goto('/?minRooms=50');
+    const results = page.getByRole('region', { name: 'Resultados', exact: true });
+    await expect(results.getByText('Ninguna vivienda coincide con tu búsqueda.')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Quitar todos los filtros' })).toHaveCount(1);
+    await expect(results.getByRole('link', { name: 'Quitar todos los filtros' })).toHaveAttribute('href', '/');
   });
 
   test('sin filtros no hay chips ni «Quitar todos», pero el recuento sigue', async ({ page }) => {

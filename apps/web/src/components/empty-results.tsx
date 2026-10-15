@@ -15,6 +15,9 @@ export interface EmptyResultsProps {
   readonly kind: EmptyResultsKind;
   readonly params: RawSearchParams;
   readonly keepOnClear: readonly ClearKeepKey[];
+  // `true` si la fila de chips ya ofrece «Quitar todos»: el vacío filtrado no repite un enlace
+  // idéntico. Con algo que conservar (polígono) la acción es distinta y se muestra siempre.
+  readonly clearAllOffered?: boolean;
 }
 
 function Panel({
@@ -24,7 +27,7 @@ function Panel({
 }: {
   readonly title: string;
   readonly detail: string;
-  readonly children?: ReactElement;
+  readonly children?: ReactElement | null;
 }): ReactElement {
   return (
     <div className="empty-results">
@@ -35,7 +38,7 @@ function Panel({
   );
 }
 
-export function EmptyResults({ kind, params, keepOnClear }: EmptyResultsProps): ReactElement {
+export function EmptyResults({ kind, params, keepOnClear, clearAllOffered = false }: EmptyResultsProps): ReactElement {
   if (kind === 'unfiltered') {
     return (
       <Panel
@@ -59,14 +62,17 @@ export function EmptyResults({ kind, params, keepOnClear }: EmptyResultsProps): 
   // WCAG 3.2.4: dos enlaces con el mismo nombre deben llevar al mismo sitio. El de la fila de chips
   // quita también el polígono; si este lo conserva, se llama distinto.
   const clearName = keepOnClear.length > 0 ? 'Quitar los demás filtros' : 'Quitar todos los filtros';
+  const showAction = keepOnClear.length > 0 || !clearAllOffered;
   return (
     <Panel
       title="Ninguna vivienda coincide con tu búsqueda."
       detail="Los filtros aplicados están arriba; pulsa uno para quitarlo."
     >
-      <p className="empty-results__action">
-        <a href={buildClearFiltersHref(params, { keep: keepOnClear })}>{clearName}</a>
-      </p>
+      {showAction ? (
+        <p className="empty-results__action">
+          <a href={buildClearFiltersHref(params, { keep: keepOnClear })}>{clearName}</a>
+        </p>
+      ) : null}
     </Panel>
   );
 }
