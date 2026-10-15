@@ -1611,6 +1611,131 @@ plegable y orden de la cabecera en móvil. Cada captura que cambie se revisa una
 
 ---
 
+# Bloque 7 — Calidez
+
+Añadido el 2026-10-15, con la hoja de ruta cerrada. El responsable ve la web demasiado seria y sobria y
+quiere más vida sin extravagancia. Eligió **refinar** el mundo de la hoja topográfica, no sustituirlo
+(filas finas, densidad y precio protagonista se conservan), con una **fuente propia autoalojada** y
+**micro-interacciones sutiles**. Se organiza como una fase de tres pasos con una parada de aprobación
+visual al final de D.19, en lugar de un roadmap nuevo o de un paso único.
+
+## [ ] D.19 · Dirección cálida: paleta, tipografía y aprobación
+
+```text
+Paso D.19 de docs/DESIGN-ROADMAP.md (añadido el 2026-10-15). Usa `impeccable colorize` e
+`impeccable typeset`.
+
+La web se ve demasiado seria y sobria. Refina el mundo de la hoja topográfica, no lo
+sustituyas: filas finas, densidad y precio protagonista se conservan.
+
+- Paleta cálida en globals.css: papel cálido en lugar de blanco puro y una paleta de mapa
+  más rica. El azul de hidrografía sigue siendo el de la acción; se añade un verde de
+  vegetación con papel semántico (estado favorable: «Disponible», «Más económico») y
+  lavados suaves de cada tono para superficies de estado. El tema oscuro se compone
+  aparte, no se invierte.
+- Tipografía: una familia propia autoalojada con `next/font/local` (licencia OFL en el
+  repositorio, CSP `font-src 'self'` sin cambios), con cifras tabulares y glifos del
+  español; solo los pesos que se usan. Enmienda la decisión 132 y el compromiso «pila
+  del sistema» de PRODUCT.md.
+- Radios algo más amables; revisa la escala si la nueva familia lo pide.
+- Todo par texto/fondo cumple WCAG 2.2 AA en ambos temas.
+- Parada de aprobación: antes de cerrar, capturas de la búsqueda (con resultados y
+  vacía) y de la ficha a 320 y 1280, en claro y oscuro. Si el responsable no aprueba la
+  dirección, se corrige dentro del paso; D.20 no empieza sin aprobación.
+- Registra las enmiendas en DECISIONS.md, PRODUCT.md y DESIGN.md (Norte creativo, The
+  One Blue Rule y la fuente del sistema).
+```
+
+**Objetivo.** Cambiar la temperatura de todo el sistema desde los tokens, con la dirección aprobada antes de tocar
+componentes.
+
+**Revisar.**
+
+- El responsable ha aprobado las capturas de la parada.
+- `design-tokens.test.ts` y `design-md.test.ts` en verde; axe a cero en ambos temas.
+- La fuente se sirve desde el propio origen y no hay ninguna petición a terceros.
+
+**Notas:**
+
+- **Ficheros:** `apps/web/src/app/globals.css`, `apps/web/src/app/layout.tsx`, ficheros de fuente y su licencia, `PRODUCT.md`,
+  `DESIGN.md`, `.impeccable/design.json`, tests de tokens y de fuentes, capturas de `apps/web/e2e/`.
+- **Tests:** `test/design-tokens.test.ts` (pares WCAG y paridad de temas), `test/design-md.test.ts`, `e2e/fonts.spec.ts` y la suite visual.
+- **Riesgos:** que el refinado derive en un rediseño; que el verde compita con el azul de acción; el peso de la fuente; las capturas
+  dejan de depender de Liberation Sans (decisión 217), lo que puede simplificar la imagen e2e.
+- **Tamaño:** M.
+
+---
+
+## [ ] D.20 · Componentes con la dirección cálida
+
+```text
+Paso D.20 de docs/DESIGN-ROADMAP.md. Usa `impeccable delight` e `impeccable bolder`.
+Requiere D.19 aprobado.
+
+Aplica la dirección de D.19 a los componentes sin cambiar comportamiento ni texto:
+
+- Cabecera de la búsqueda con un motivo sutil de curvas de nivel (SVG propio, servido
+  desde el origen) como único momento decorativo. Enmienda la regla «sin marginalia
+  cartográfica» de DESIGN.md.
+- Fila de resultado: miniatura «Sin foto» con carácter (no un gris plano), precio con
+  más presencia, operación (venta o alquiler) e insignia «Disponible en N fuentes» con
+  color y texto.
+- Ficha: panel de precio con superficie propia; estado de cada anuncio y «Más
+  económico» con el verde de estado y una señal que no dependa del color.
+- Paneles de aviso, vacíos, pasos de la búsqueda, chips y pie con la nueva paleta.
+- Sin cambios en el orden del DOM, los objetivos de 40 px ni la accesibilidad.
+```
+
+**Objetivo.** Que la calidez llegue a las piezas que el usuario mira cada día, sobre todo la fila de resultado y la ficha.
+
+**Revisar.**
+
+- La fila sigue siendo una fila fina (no una tarjeta con foto grande) y el precio sigue mandando.
+- Ningún estado depende solo del color.
+- Capturas revisadas una a una; axe a cero.
+
+**Notas:**
+
+- **Ficheros:** `apps/web/src/components/` (fila, ficha, avisos, vacío, pasos, chips), `apps/web/src/app/globals.css`, el SVG del motivo,
+  capturas de `apps/web/e2e/`.
+- **Riesgos:** decoración que compita con los datos (principio 1 de PRODUCT.md); el motivo pesando a 320.
+- **Tamaño:** M.
+
+---
+
+## [ ] D.21 · Movimiento sutil y cierre de la fase
+
+```text
+Paso D.21 de docs/DESIGN-ROADMAP.md. Usa `impeccable animate`, `impeccable polish` e
+`impeccable document`.
+
+- Micro-interacciones sutiles: hover de filas e imágenes, transición de color en
+  controles y enlaces, aparición suave de los avisos y del panel de cobertura. Todo pasa
+  por los tokens de movimiento y queda a cero con `prefers-reduced-motion` (decisión
+  207). Enmienda la regla «sin movimiento decorativo» y la decisión 208 en lo que toque.
+- Un solo lote de pulido de toda la fase a los tres anchos y en ambos temas.
+- DESIGN.md y `.impeccable/design.json` derivados del código entregado.
+- Regenera en Docker las capturas de referencia y revisa su diferencia una a una; axe a
+  cero.
+```
+
+**Objetivo.** Cerrar la fase con el movimiento, un pulido único y el sistema documentado.
+
+**Revisar.**
+
+- Con `prefers-reduced-motion: reduce` no se mueve nada más allá de lo que ya se admitía.
+- `motion.spec.ts` actualizado y en verde; todas las capturas revisadas.
+- `DESIGN.md` describe la fase entregada.
+
+**Notas:**
+
+- **Ficheros:** `apps/web/src/app/globals.css`, `apps/web/e2e/motion.spec.ts`, `DESIGN.md`, `.impeccable/design.json`, capturas de
+  `apps/web/e2e/`.
+- **Riesgos:** efectos sueltos sin un momento claro; animaciones que se repiten en cada visita y cansan en una herramienta de uso diario.
+- **Tamaño:** S-M.
+
+---
+
 # Evidencia de la investigación
 
 Resumen de la investigación del cambio `web-ux-ui-design-roadmap` (Engram, revisión 2, consultada el
@@ -1820,3 +1945,4 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-15 | D.18 | Commits de pulido después de la puerta G-D: hueco de la barra de herramientas, margen del aviso de cobertura (solo desde 64rem) y acción única del vacío sin repetir «Quitar todos». | Decisiones del responsable al revisar las capturas (225, 229). |
 | 2026-10-15 | D.18 | Se añade el parámetro `order` al formulario de revisión de `?q=` (cinco radios que `canonicalizeFormSubmission` convierte en `sort`/`dir`). | Los desplegables de ordenación desaparecen de la barra; la revisión de `?q=` necesitaba una alternativa sin enlaces que descartaran las ediciones (227). |
 | 2026-10-15 | D.18 | La caja de texto también se abre con zona desconocida. | Extensión del diseño: su aviso remite a escribir el municipio en el buscador (228). |
+| 2026-10-15 | D.19-D.21 | Bloque 7 nuevo, con la hoja de ruta ya cerrada: tres pasos para dar calidez al diseño (paleta y tipografía con parada de aprobación, componentes, y movimiento con cierre). Enmendarán la decisión 132 (pila del sistema) y las reglas de DESIGN.md de un único azul, sin marginalia y sin movimiento decorativo. | Decisión del responsable (2026-10-15): la web se ve demasiado seria; elige refinar con calidez, fuente propia autoalojada y micro-interacciones sutiles, organizado como fase de tres pasos en lugar de un roadmap nuevo o un paso único. |

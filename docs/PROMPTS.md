@@ -30,6 +30,21 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-15 — Planificación de la fase de calidez (bloque 7, pasos D.19-D.21)
+
+**Tipo de tarea:** planificación de diseño (sin código)
+**Forma de especificación:** prosa abierta más un cuestionario de decisiones (alcance, tipografía, movimiento y organización)
+**Resultado:** utilizable sin cambios
+
+**Prompt:** «una vez hemos acabado con la implementación de los roadmap la aplicación la veo bien, y funciona, pero siento que le
+falta vida al diseño, lo veo demasiado serio y sobrio, preferiría que sin ser nada extravagante tuviera más vida y fuera más bonito»,
+y a mitad de la tarea: «¿veo mejor realizar otro roadmap para hacer este proceso, o ves mejor otra forma?».
+
+**Observación:** el prompt pedía un cambio que chocaba con compromisos escritos (decisión 132, PRODUCT.md y las reglas de DESIGN.md
+de un único azul, sin marginalia y sin movimiento). Antes de tocar código, el agente sacó esas contradicciones en forma de decisiones
+explícitas en lugar de suavizarlas: refinar frente a un mundo nuevo, fuente propia frente a la del sistema y movimiento sí o no. Las
+capturas de referencia del e2e suplieron una base de datos local vacía para ver la búsqueda con resultados y la ficha.
+
 ### 2026-10-14 — Seguimientos de diseño (paso D.18, decisiones 217-229)
 
 **Tipo de tarea:** interfaz (lote estructural), correcciones de semilla y fuentes, cobertura e2e y documentación del sistema de diseño
