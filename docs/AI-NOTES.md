@@ -3948,3 +3948,29 @@ abrir la captura esperada, la obtenida y la diferencia de cada fallo; 8 al ejecu
 **Observación:** un criterio ya decidido (40 px) y una regla de idioma tienen que viajar con la tarea. Una revisión visual «una a una» se
 mide por el recuento de capturas abiertas, no por lo que afirma el revisor. Las referencias a decisiones se numeran contra el registro,
 no de memoria.
+
+### 2026-10-15 — Fallos intermedios en el diseño y la aplicación de D.18
+
+**Contexto:** los 16 seguimientos de diseño de D.17 (`design-followups-d18`).
+
+**Categoría:** contradicción con una regla de una herramienta / omisión en un artefacto / suposición sin comprobar / efecto lateral de CSS /
+fallo de proceso.
+
+**Qué se generó mal:**
+
+1. El orquestador fijó por defecto la marca como una línea sobre el título (seguimiento 6), y la regla de impeccable prohíbe la «ceja». Lo
+   detectó el agente de aplicación y se rehízo como franja de cabecera (decisión 219).
+2. La franja rehecha estrechó el bloque centrado: el relleno cuenta dentro del ancho (`border-box`). Se corrigió con `max-width: 37rem`.
+3. La revisión 2 del diseño omitió el texto confirmado de C-11 y el validador la dio por fallida.
+4. La revisión del artefacto de estado perdió la lista de decisiones («véase la revisión 3») y el diseño usó etiquetas de ordenación provisionales
+   hasta recuperarlas.
+5. El pulido 2 de G-D puso primero el margen bajo el conmutador de vista en anchos estrechos (+16 px a 320 y 768); se limitó a 64rem o más.
+6. El vacío mostraba «Quitar todos» duplicado junto a la fila de chips; el responsable decidió la acción única condicional (decisión 225).
+7. El orquestador dejó una vez un `python -` sin entrada y el proceso quedó esperando stdin.
+8. Un test de base de datos falló una vez sin causa y no se repitió (flaky observada una sola vez).
+
+**Cómo se detectó:** 1 y 2 al aplicar y en la puerta G-C; 3 por el validador del diseño; 4 al escribir las etiquetas; 5 y 6 en la puerta G-D al
+abrir cada captura; 7 por el tiempo de espera; 8 al repetir la suite.
+
+**Observación:** una regla de la herramienta (la «ceja») y las decisiones confirmadas tienen que viajar completas en cada revisión del artefacto.
+Los márgenes que dependen del ancho se prueban en 320 y 768 antes de generalizarlos.

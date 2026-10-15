@@ -1564,6 +1564,53 @@ Paso D.17 de docs/DESIGN-ROADMAP.md. Usa `impeccable critique`, `impeccable poli
 
 ---
 
+## [x] D.18 · Seguimientos de D.17
+
+```text
+Paso D.18 de docs/DESIGN-ROADMAP.md (añadido el 2026-10-14, no estaba en el plan inicial).
+Trata los 16 seguimientos que D.17 dejó anotados, con SDD y una fase de investigación:
+fuentes de las capturas, test de eslint inestable, semilla y texto de primer precio, marca en las
+páginas independientes, cabecera de una fila, precios agrupados, insignia de precio, gráfico,
+zona siempre aplicada, estado vacío, número de filtros, ordenación por enlaces, caja de texto
+plegable y orden de la cabecera en móvil. Cada captura que cambie se revisa una a una.
+```
+
+**Objetivo.** Cerrar los seguimientos de D.17 sin rediseñar: cada uno es un cambio acotado con su decisión.
+
+**Revisar.**
+
+- Las 16 notas de D.17 tienen una resolución (abajo) y `DESIGN.md` describe lo entregado.
+- Todos los tests en verde, axe a cero y las capturas revisadas una a una.
+
+**Notas:**
+
+- **Ficheros:** `Dockerfile.e2e` y `apps/web/e2e/fontconfig/`, `packages/db/src/e2e/fixture-data.ts`, `apps/web/src/` (cabecera, búsqueda,
+  vacío, ordenación, caja de texto, gráfico, páginas independientes, `globals.css`), tests y capturas de `apps/web/e2e/`, `DESIGN.md`,
+  `.impeccable/design.json` y la documentación.
+- **Estado (2026-10-15): D.18 hecho.** Aplicada con SDD (Engram `sdd/design-followups-d18/*`) en dos PR partidos por commits en la misma rama:
+  PR1 = A-C (`83fc126`..`f72dcfb`: test de eslint, fuentes, semilla, marca) y PR2 = D-F (`a01b06a`..: lote estructural, `DESIGN.md` y
+  documentación), este último con `size:exception` aceptado. Decisiones 217-229.
+- **Los 16 seguimientos:** (1) fuentes: Liberation Sans por `fontconfig` en la imagen e2e (217). (2) test de eslint: instancia única, `configFor`
+  memoizado y tiempo de espera de 60 s solo en ese `describe`. (3) fechas de la ficha: era la semilla, no la lógica (218). (4) lista vacía para zonas
+  sin cubrir: la zona se aplica siempre (224). (5) ancho del gráfico: dos SVG (222). (6) páginas autónomas sin nombre: franja de cabecera (219).
+  (7) cabecera en dos filas a 320: una fila con iconos (223). (8) columna de precios desigual: agrupado siempre (220). (9) «Ordenar por / Sentido:
+  Cualquiera»: cinco presets (227). (10) «Precio más bajo» frente a «Más económico»: «Último precio más bajo» (221). (11) chip duplicado en el
+  vacío: una sola acción (225). (12) «Filtros N» sin el radio: cuenta los chips (226). (13) orden junto al recuento (227). (14) caja de texto
+  compitiendo con los filtros: `<details>` plegable (228). (15) chip de zona largo y zona sin datos: 224. (16) bandeja arriba y chips en móvil: un
+  solo orden del DOM (229).
+- **Capturas:** 150 en las tres primeras unidades (G-A 120, G-B 18, G-C 12 más una segunda revisión) y 106 en la D, revisadas una a una por
+  revisores aislados con lista de diferencias esperadas. Tras la puerta G-D hubo dos rondas de pulido (54 y 24 capturas). Suite completa: web 90
+  ficheros / 1334 tests, db 32 / 312 (1 omitido), core 55 / 920; `pnpm e2e` 777 pasadas, 747 omitidas, 0 fallos.
+- **Hallazgo de fuentes:** Liberation Sans no tiene cara SemiBold; el peso 600 se pinta como Bold (700) en todas las capturas. No es un defecto
+  de la aplicación y queda anotado en `DESIGN.md`.
+- **Decisiones del responsable en la puerta:** en el vacío filtrado, la acción solo aparece si la fila de chips no ofrece «Quitar todos» o hay
+  un polígono que conservar (225); el hueco de la barra de herramientas pasa a 1rem y el margen tras el aviso de cobertura solo desde 64rem (229).
+- **Verificación manual pendiente (no automatizable aquí):** NVDA con Chrome, un único landmark de búsqueda con el resumen plegado, anuncio al
+  desplegarlo, campo anunciado como «Describe lo que buscas» y tema «Oscuro, activo».
+- **Seguimientos (no entran en D.18):** ninguno abierto. Si el cierre manual con NVDA detecta algo, se anota aquí.
+
+---
+
 # Evidencia de la investigación
 
 Resumen de la investigación del cambio `web-ux-ui-design-roadmap` (Engram, revisión 2, consultada el
@@ -1766,3 +1813,10 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-13 | D.17 | Cambia el orden: la cobertura de las páginas autónomas va antes de la crítica y no después del pulido. | Así la crítica ve las tres páginas con capturas reales y no se estrena una base de capturas nueva después de revisar. |
 | 2026-10-13 | D.17 | Siete commits en lugar de los cinco previstos: dos correcciones (objetivos de 40 px de la cabecera, decisión 200; y marco del mapa vacío alineado) y el commit de `DESIGN.md` separado del de documentación. | El lote B7 bajó la cabecera a 32 px contra la decisión 200 y se revirtió en la puerta del orquestador. La revisión captura a captura de `home-filtered` encontró que la frase del mapa vacío bajaba el marco 32 px respecto a la lista. |
 | 2026-10-13 | D.17 | Un solo PR con `size:exception` aceptado por el responsable frente al presupuesto de 800 líneas. | El trabajo cohesivo (pulido, tokens, `DESIGN.md`, sidecar, test de paridad y documentación) no se parte sin dejar commits que no se sostienen solos; no se recortó ningún test ni comentario. |
+| 2026-10-14 | D.18 | D.18 es un paso nuevo que no estaba en la hoja de ruta: reúne los 16 seguimientos de D.17. | Decisión del responsable (2026-10-14): «continúa con los pendientes registrados». |
+| 2026-10-14 | D.18 | Se entrega en dos PR partidos por commits en la misma rama (A-C y D-F) en lugar de uno, y el segundo lleva `size:exception`. | La estimación (~2.000 líneas) triplicaba el presupuesto de 800; la unidad D no se puede partir sin romper la suite visual. |
+| 2026-10-14 | D.18 | Se añade una fase de investigación (`sdd-research`) antes de proponer. | Varios seguimientos dependían de comportamientos del navegador y de herramientas (`fontconfig`, `Intl`, `aria-current`, contenedores). |
+| 2026-10-14 | D.18 | La unidad C se rehizo dos veces: la línea de marca sobre el título contradecía la regla de impeccable contra la «ceja» y pasó a franja de cabecera; después la franja estrechó el bloque centrado y se corrigió el ancho. | Decisión 219; ver `AI-NOTES.md`. |
+| 2026-10-15 | D.18 | Commits de pulido después de la puerta G-D: hueco de la barra de herramientas, margen del aviso de cobertura (solo desde 64rem) y acción única del vacío sin repetir «Quitar todos». | Decisiones del responsable al revisar las capturas (225, 229). |
+| 2026-10-15 | D.18 | Se añade el parámetro `order` al formulario de revisión de `?q=` (cinco radios que `canonicalizeFormSubmission` convierte en `sort`/`dir`). | Los desplegables de ordenación desaparecen de la barra; la revisión de `?q=` necesitaba una alternativa sin enlaces que descartaran las ediciones (227). |
+| 2026-10-15 | D.18 | La caja de texto también se abre con zona desconocida. | Extensión del diseño: su aviso remite a escribir el municipio en el buscador (228). |

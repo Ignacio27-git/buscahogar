@@ -30,6 +30,21 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-14 — Seguimientos de diseño (paso D.18, decisiones 217-229)
+
+**Tipo de tarea:** interfaz (lote estructural), correcciones de semilla y fuentes, cobertura e2e y documentación del sistema de diseño
+**Forma de especificación:** SDD con fase de investigación (Engram `sdd/design-followups-d18/*`) y puertas del orquestador con revisión
+individual de cada captura (G-A 120, G-B 18, G-C 12 con una segunda revisión, G-D 106 más dos rondas de pulido de 54 y 24). Dos PR partidos por
+commits en la misma rama: A-C (fuentes, semilla, marca) y D-F (lote estructural, `DESIGN.md` y documentación), este último con `size:exception`
+**Resultado:** utilizable con retoques. La unidad C se rehízo dos veces (la línea de marca sobre el título contradecía la regla de impeccable
+contra la «ceja»; después la franja estrechó el bloque centrado) y tras la puerta G-D hubo dos rondas de pulido: hueco de la barra, margen del
+aviso de cobertura y una única acción en el vacío (decisión del responsable).
+
+**Prompt:** «continúa con los pendientes registrados»: los 16 seguimientos que D.17 dejó anotados, tratados como un nuevo paso D.18.
+
+**Observación:** un lote tan grande solo fue revisable porque se partió en unidades con una regeneración de capturas por unidad y una puerta
+cada una. La mayor parte de los retoques salió de mirar las capturas, no de los tests.
+
 ### 2026-10-13 — Pulido final y DESIGN.md (paso D.17, decisiones 209-216)
 
 **Tipo de tarea:** interfaz (un lote de pulido tras una crítica), tokens, cobertura e2e de las páginas autónomas y documentación del

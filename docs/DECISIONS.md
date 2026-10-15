@@ -4638,6 +4638,8 @@ campo: dos fuentes que pueden divergir de los chips.
 **Motivo.** La zona y el radio ya se ven en sus chips, y derivar el número de la misma función que pinta los chips hace que
 coincida por construcción con los filtros de criterio visibles.
 
+**Reemplazada por la 226** (D.18): el número es `countAppliedFilters`, igual que los chips; `TRAY_FILTER_KEYS` y `countTrayFilters` ya no existen.
+
 ---
 
 ## 155 — Fila de resultado densa: miniatura 4:3 con `fill` y `sizes`, medida de 48rem y un solo enlace
@@ -4709,6 +4711,8 @@ con 2 habitaciones») es un `<p id="search-text-help">` enlazado con `aria-descr
 jerga.
 
 **Motivo.** Decisiones del responsable sobre el nombre del botón y la ayuda.
+
+**Enmendada por la 228** (D.18): la etiqueta visible pasa a ser el resumen «Describe lo que buscas» del `<details>`; la del campo queda `sr-only`.
 
 ---
 
@@ -5103,6 +5107,8 @@ sí entra en las opciones del constructor; `map-guards.test.ts` lo vigila.
 
 **Motivo.** Que se vea por qué se muestra un precio, sin presentar la agrupación como certeza (prioridad: minimizar falsos positivos).
 
+**Enmendada por la 221** (D.18): sin anuncios activos la etiqueta es «Último precio más bajo».
+
 ---
 
 ## 181 — Avisos de cobertura: un componente de servidor, hora de Madrid, una sola región viva y fecha de siembra inyectada
@@ -5308,6 +5314,8 @@ limpiar: borra una selección que la persona acaba de hacer. Mantener el mismo n
 
 **Motivo.** Cada vacío tiene una causa y una salida distinta, y el enlace debe llamarse por lo que hace.
 
+**Enmendada por la 224 y la 225** (D.18): la zona se aplica siempre y el vacío filtrado tiene una sola acción; el alcance solo excluye el polígono.
+
 ---
 
 ## 191 — Mitigación sin JavaScript para un esqueleto de carga: RECHAZADA
@@ -5400,6 +5408,8 @@ cliente: añadiría un quinto fichero al allowlist. Texto visible «(activo)»: 
 
 **Motivo.** La coma inicial sobrevive al recorte de espacios del cálculo de nombre; Playwright 1.63 interpreta el texto alternativo tras
 `/`. Un lector de pantalla debe saber qué tema está activo sin mover la cabecera a modo dinámico.
+
+**Enmendada por la 223** (D.18): el texto alternativo «, activo» va en el span del nombre del botón de icono, no en el botón.
 
 ---
 
@@ -5727,6 +5737,8 @@ el usuario vería viviendas de otros municipios sin saber por qué.
 
 **Motivo.** La crítica señaló que el chip afirmaba una zona que la lista no respetaba; basta decirlo con texto sin cambiar la lógica.
 
+**Reemplazada por la 224** (D.18): el sufijo, el rótulo y la lista de todos los municipios desaparecen; la zona se aplica siempre.
+
 ---
 
 ## 214 — Estado de la cobertura con etiqueta de texto y un único panel
@@ -5758,6 +5770,8 @@ fijó para toda la cabecera. Un menú desplegable para el tema: sería un compon
 
 **Motivo.** Recuperar altura sin tocar el contrato táctil de la app.
 
+**Enmendada por la 223** (D.18): la cabecera pierde «Buscar» y cabe en una fila a 320 px; los botones del tema siguen en 40 px.
+
 ---
 
 ## 216 — `DESIGN.md` y su sidecar: formato, idioma y derivación comprobada por un test
@@ -5778,6 +5792,209 @@ fichero de tokens la fuente y generar el CSS: cambia la fuente de verdad, que ya
 frontmatter es plano y no merece una dependencia.
 
 **Motivo.** Un documento de diseño solo sirve a los agentes si no puede desviarse en silencio del código; el test lo garantiza.
+
+---
+
+## 217 — Fuentes deterministas en la imagen de capturas: Liberation Sans por `fontconfig`
+
+**Estado:** aceptada (D.18, seguimiento 1).
+
+**Decisión.** `apps/web/e2e/fontconfig/50-buscahogar-e2e-sans.conf` se copia a `/etc/fonts/conf.d/` en `Dockerfile.e2e`. Tres reglas
+`<match target="pattern">` (familias `sans-serif`, `sans` y `system-ui`) anteponen Liberation Sans con `prepend_first` y `binding="strong"`;
+el 50 hace que corra después de `49-sansserif.conf`. Un `RUN` de la imagen falla la build si `fc-match` no devuelve Liberation Sans para las tres
+familias o si `demibold` y `bold` no se resuelven a la cara Bold. La producción no cambia. Como Liberation Sans no tiene cara SemiBold, todo el
+peso 600 se pinta como Bold (700) en las capturas: se acepta y se documenta en `DESIGN.md`.
+
+**Alternativas descartadas.** `<alias><prefer>`: inserta antes del genérico pero queda detrás del `prefer` anterior de `44-wqy-zenhei`, así que
+depende del orden. Instalar Noto o DejaVu: de 2 a 43 MB sin ganancia.
+
+**Motivo.** Solo `prepend_first` fuerza la familia a la cabeza sea cual sea el orden; D.17 había dejado los pesos 600 y 700 pintados como 400.
+
+---
+
+## 218 — Semilla coherente: la versión vigente toma la fecha del último avistamiento
+
+**Estado:** aceptada (D.18, seguimiento 3).
+
+**Decisión.** En la semilla e2e el `capturedAt` de la versión vigente de cada anuncio es su `lastSeenAt` (la fecha de siembra para los activos,
+28/02 para el retirado, 31/08 para el inactivo) y `firstSeenAt` es `history[0] ?? currentCapturedAt`. Un test fija el invariante
+`firstSeenAt = min(capturedAt) ≤ max(capturedAt) ≤ lastSeenAt`. Un anuncio con una sola observación dice «Primer precio observado el X; aún sin
+cambios».
+
+**Alternativas descartadas.** Cambiar la lógica de la ficha: no había error en ella.
+
+**Motivo.** Los datos de la semilla eran contradictorios (una versión más reciente que el último avistamiento), no el código.
+
+---
+
+## 219 — Marca en las páginas independientes: franja de cabecera, no línea sobre el título
+
+**Estado:** aceptada (D.18, seguimiento 6); sustituye la primera versión del diseño.
+
+**Decisión.** `global-error.tsx` y `server/rate-limit-page.ts` pintan una franja `<header class="standalone-header">` con el enlace «Buscahogar»
+(`standalone-header__brand`: `heading-3`, 40 px de alto, enlace a «/») y un filete inferior `--rule`, fuera del bloque centrado. `STANDALONE_PAGE_CSS`
+copia `--rule` de `:root` y `.dark` y el test de paridad lo cubre. El bloque centrado pasa a `max-width: 37rem` con `padding: 1.5rem` porque
+`box-sizing` es `border-box`: así el ancho útil sigue siendo 34rem.
+
+**Alternativas descartadas.** La versión inicial: un `<p class="standalone__brand">` sobre el `h1`. La regla de impeccable prohíbe la «ceja» (una
+etiqueta de marca encima del título) y se descartó al aplicar. Un enlace de marca sin franja: no imita la cabecera de la app. Primer intento de
+la franja: sin aumentar el ancho, el relleno comía 3rem del bloque y lo estrechaba.
+
+**Motivo.** La marca visible fuera del layout, con la apariencia de la cabecera de la app y sin una ceja.
+
+---
+
+## 220 — Los precios agrupan siempre los miles
+
+**Estado:** aceptada (D.18, seguimiento 8).
+
+**Decisión.** `formatPriceCents` usa `toLocaleString('es-ES', { useGrouping: 'always' })` y da «1.180 €». La superficie y el radio siguen con
+`formatNumber` (regla de la RAE: cuatro cifras sin punto).
+
+**Alternativas descartadas.** Agrupar todos los números: rompería la RAE para los m².
+
+**Motivo.** La columna de precios quedaba desigual («1180 €» frente a «185.000 €»); Chromium lo confirma en e2e.
+
+---
+
+## 221 — «Último precio más bajo» cuando no hay anuncios activos
+
+**Estado:** aceptada (D.18, seguimiento 10); enmienda la 180.
+
+**Decisión.** `HIGHLIGHT_BY_MODE['none-active']` pasa de «Precio más bajo» a «Último precio más bajo». Con anuncios activos se mantiene «Más
+económico».
+
+**Alternativas descartadas.** Unificar las dos etiquetas: son estados distintos (el mínimo de los activos o el mínimo histórico).
+
+**Motivo.** El responsable pidió que la etiqueta dijera que el precio es el último conocido.
+
+---
+
+## 222 — Gráfico de precios con dos SVG a escala 1:1
+
+**Estado:** aceptada (D.18, seguimiento 5).
+
+**Decisión.** `buildPriceChart(series, layout)` genera un modelo con dos disposiciones: `compact` (288 × 160, máximo 24rem, la de partida) y
+`wide` (544 × 192, máximo 34rem). `.price-chart` es `container-type: inline-size` y desde 34rem de contenedor se oculta el compacto
+(`display: none`, fuera del árbol de accesibilidad) y se muestra el ancho. Etiquetas del eje x: inicio, final y la primera captura de cada serie
+posterior al inicio, con anchura fija de 70 más 8 de hueco; la que se solapa se descarta por prioridad (inicio, final, serie en orden temporal).
+
+**Alternativas descartadas.** Un único `viewBox` escalado: el texto quedaría en ~6 px a 320 px, o en ~24 px si el de 288 se ensancha a 34rem.
+
+**Motivo.** El texto del gráfico se lee igual a cualquier ancho y el resultado es determinista.
+
+---
+
+## 223 — Cabecera de una fila con el tema por iconos
+
+**Estado:** aceptada (D.18, seguimiento 7); enmienda la 195 y la 215.
+
+**Decisión.** Se quitan `<nav>` y «Buscar»; queda el enlace de marca. El selector de tema son tres botones de icono de 40 × 40
+(`sun`, `moon`, `monitor` de `icon.tsx`), con la leyenda «Tema» y el nombre en `sr-only`, y `ml-auto` a todos los anchos. El texto alternativo de la
+195 pasa al span del nombre: `.theme-selector [value=…] .theme-selector__name::after { content: '' / ', activo' }`, así que el nombre es exactamente
+«Oscuro, activo». La señal visual del activo es el borde de 2px (1px más una sombra interior de 1px) y una barra de 2px en `button::before`; se
+quitan el subrayado y el peso 600, que un icono no tiene.
+
+**Alternativas descartadas.** `aria-pressed`/`aria-current`: exigen leer el tema al renderizar y vuelven dinámica la cabecera (147, 195).
+`aria-label`: sustituye el contenido y pierde el texto alternativo. Barra y texto alternativo en el mismo `::after`: riesgo de un espacio
+(«Oscuro , activo»).
+
+**Motivo.** A 320 px la cabecera ocupaba dos filas; ahora marca y tres botones caben en una.
+
+---
+
+## 224 — La zona se aplica siempre que haya centroide y radio
+
+**Estado:** aceptada (D.18, seguimientos 4 y 15); sustituye la 213 y enmienda la 190.
+
+**Decisión.** Con centroide y `sweepRadiusM`, `effectiveCriteria.geo` se aplica en cualquier estado de cobertura; la resolución de cobertura y su
+aviso no cambian. Una zona no localizable (desconocida, o sin centroide o radio) no consulta nada y devuelve una lista vacía con el aviso
+existente. Se eliminan `ZONE_UNAPPLIED_SUFFIX`, `zoneApplied`, `DescribeAppliedFiltersOptions`, `zoneUnapplied` y `.search-results__caption`.
+`scopeEmptyResultsFilters` solo trata el polígono y `ClearKeepKey` es `'polygon'`.
+
+**Alternativas descartadas.** Listar todos los municipios mientras no hay datos (213): contradice el chip de la zona.
+
+**Motivo.** El chip afirmaba una zona que la lista no respetaba; ahora la respeta y la lista vacía se explica con el aviso.
+
+---
+
+## 225 — Estado vacío con una sola acción, sin repetir los chips
+
+**Estado:** aceptada (D.18, seguimiento 11); enmienda la 190, con el refinamiento del responsable en la puerta G-D.
+
+**Decisión.** El vacío filtrado muestra el estado («Ninguna vivienda coincide con tu búsqueda.»), la frase «Los filtros aplicados están arriba;
+pulsa uno para quitarlo.» y una única acción en `.empty-results__action`: «Quitar los demás filtros» si hay un polígono que conservar, y «Quitar todos
+los filtros» en los demás casos. Refinamiento: la acción solo se muestra si la fila de chips no ofrece ya «Quitar todos» (menos de dos chips) o si hay
+un polígono que conservar, para que nunca haya dos enlaces idénticos. Desaparecen el detalle «Prueba a quitar alguno…», la lista «Quitar «X»» y el
+prop `filters`; `CLEAR_ALL_THRESHOLD` pasa a ser privado de `applied-filters.tsx`.
+
+**Alternativas descartadas.** Conservar la lista por filtro: duplica los chips. Mostrar siempre la acción (primera versión): con dos o más
+chips repetía «Quitar todos» con el mismo nombre y destino (WCAG 3.2.4 lo admite, pero era ruido).
+
+**Motivo.** Los chips ya son la lista de filtros; el vacío solo añade la salida.
+
+---
+
+## 226 — «Filtros N» cuenta los chips
+
+**Estado:** aceptada (D.18, seguimiento 12); sustituye la 154.
+
+**Decisión.** `countAppliedFilters(criteria)` es `describeAppliedFilters(criteria, null).length`. `TRAY_FILTER_KEYS` y `countTrayFilters` se
+eliminan, de modo que el número incluye zona y radio.
+
+**Alternativas descartadas.** Mantener la lista de claves de la bandeja: obligaba a mantener dos fuentes.
+
+**Motivo.** El número y los chips salen de la misma función y coinciden por construcción.
+
+---
+
+## 227 — Ordenación por enlaces predefinidos
+
+**Estado:** aceptada (D.18, seguimientos 9 y 13).
+
+**Decisión.** `lib/sort-presets.ts` define cinco ordenaciones: «Más recientes» (por defecto, no se escribe en la URL), «Precio: de menor a mayor»,
+«Precio: de mayor a menor», «Superficie: de mayor a menor» y «Superficie: de menor a mayor». `SortPresets` pinta `<ul>` de enlaces de 40 px junto
+al recuento (`buildSortHref` descarta `page`, `sort` y `dir`); el vigente lleva `aria-current="true"`, peso 600 y una barra de 2px. Una combinación
+fuera de los cinco (por ejemplo `updated` ascendente) no marca ninguno. Se eliminan los desplegables «Ordenar por» y «Sentido». En la revisión de
+`?q=` son cinco radios `name="order"` que `canonicalizeFormSubmission` convierte en `sort`/`dir`; un `order` desconocido o repetido se pasa tal cual a
+`sort` para que Zod lo rechace con nombre.
+
+**Alternativas descartadas.** Un `<nav>`: landmark de más. Enlaces en el panel de `?q=`: descartarían las ediciones. Dos desplegables: etiquetas
+incoherentes. Ignorar un `order` inválido: incumple el rechazo con nombre.
+
+**Motivo.** Sin JavaScript, sin «Cualquiera» ni «Sentido» y con las mismas etiquetas en todas partes.
+
+---
+
+## 228 — La caja de texto es un `<details>` plegable en un landmark `search`
+
+**Estado:** aceptada (D.18, seguimiento 14); enmienda la 158.
+
+**Decisión.** `SearchTextForm` pinta `<search><details><summary>Describe lo que buscas</summary><form>…</form></details></search>`, plegable a todos
+los anchos. Se abre en la portada, en las dos ramas de `?q=`, con parámetros no válidos y con zona desconocida (extensión del diseño: su aviso
+dice «Escribe el nombre del municipio en el buscador»). La etiqueta del campo queda `sr-only` pero asociada, de modo que el nombre del campo sigue
+siendo «Describe lo que buscas» (2.5.3).
+
+**Alternativas descartadas.** Las dos etiquetas visibles: las mismas palabras dos veces. `aria-labelledby` al resumen: nombra un campo con un control.
+`role="search"` en el `<details>`: no permitido. Siempre abierta en escritorio: no confirmado.
+
+**Motivo.** La caja competía con los filtros en las páginas de resultados.
+
+---
+
+## 229 — Un único orden en el DOM para la cabecera de la búsqueda
+
+**Estado:** aceptada (D.18, seguimiento 16).
+
+**Decisión.** `.search-header` sigue el orden de lectura sin `order` en CSS: título, pasos, `<search>`, `.search-toolbar` (bandeja de filtros y
+ordenación, con `flex-wrap`), chips, sugerencias de zona, panel de cobertura, aviso del polígono y conmutador de vista. Con la bandeja abierta, y
+desde 64rem, la bandeja ocupa toda la fila. Pulido tras G-D: el hueco de la barra es de 1rem; el aviso de cobertura no lleva margen propio; y los
+resultados bajan 1rem tras un aviso solo desde 64rem, donde no hay conmutador (el primer intento a todos los anchos añadía 16 px bajo el
+conmutador a 320 y 768).
+
+**Alternativas descartadas.** CSS `order` o `row-reverse`: rompen 1.3.2 y 2.4.3.
+
+**Motivo.** El mismo apilado a los dos anchos y un orden de tabulación igual al visual.
 
 ---
 

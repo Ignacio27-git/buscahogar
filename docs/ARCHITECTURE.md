@@ -189,6 +189,10 @@ días son una elección del proyecto y viven como constantes en `policy.ts`.
   editable (el envío lleva `form=criteria`): no ejecuta la búsqueda ni toca cobertura, señales ni
   cuota. El lugar se resuelve contra nuestra base de datos (`suggestZones`, solo lectura) y solo una
   coincidencia exacta selecciona la zona. Decisiones 120-124.
+- Ordenación (D.18, decisión 227): cinco presets como enlaces (`lib/sort-presets.ts`, `buildSortHref`), sin JavaScript. El parámetro `order`
+  solo existe en el formulario de revisión de `?q=` y `canonicalizeFormSubmission` lo convierte en `sort`/`dir`. La caja de lenguaje natural es
+  `<search><details>` (decisión 228). Con centroide y radio, la zona se aplica siempre (decisión 224).
+- La imagen Docker de e2e fija Liberation Sans con una regla de `fontconfig` verificada en la build (decisión 217); el peso 600 se pinta como Bold.
 - El sistema visual está documentado en `DESIGN.md` (raíz) y `.impeccable/design.json`, derivados de `globals.css`; `test/design-md.test.ts`
   comprueba que no se desvían (decisión 216).
 - Las rutas de error solo para e2e se inyectan en tiempo de build únicamente dentro de la imagen Docker de e2e, desde
