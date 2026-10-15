@@ -266,15 +266,28 @@ describe('buildPriceChart — diseños compacto y ancho (D.18)', () => {
     ]);
     expect(wide.gridX2).toBe(532);
     expect(wide.xLabelY).toBe(184);
-    expect(wide.yLabelX).toBe(64);
+    expect(wide.yLabelX).toBe(68);
   });
 
-  it('el compacto coloca los rótulos fijos: fechas en y = 152, precios en x = 64', () => {
+  it('el compacto coloca los rótulos fijos: fechas en y = 152, precios en x = 68', () => {
     const compact = buildPriceChart(two, 'compact');
 
     expect(compact.xLabelY).toBe(152);
-    expect(compact.yLabelX).toBe(64);
+    expect(compact.yLabelX).toBe(68);
   });
+
+  // D.19 (decisión 230): Figtree es más ancha que la pila del sistema y «1.234.567 €» (12px, unos 66 de
+  // ancho) se salía 2px por la izquierda del lienzo con el hueco de 8 (e2e `fixed-boxes.spec.ts`). El hueco
+  // entre el rótulo de precio y el inicio de la rejilla pasa a 4: el rótulo termina en gridX1 - 4.
+  it.each(['compact', 'wide'] as const)(
+    'el rótulo de precio del diseño %s termina 4 antes de donde empieza la rejilla',
+    (layout) => {
+      const model = buildPriceChart(two, layout);
+
+      expect(model.gridX1 - model.yLabelX).toBe(4);
+      expect(model.yLabelX).toBeGreaterThanOrEqual(66);
+    }
+  );
 
   it('rotula el inicio de una serie posterior en el diseño ancho, centrado en su primera captura', () => {
     const wide = buildPriceChart(

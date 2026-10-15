@@ -55,6 +55,9 @@ const PAD_LEFT = 72;
 // Un rótulo de fecha («dd/mm/aaaa» a 12px) mide unos 70 de ancho; entre dos rótulos queda un hueco.
 const X_LABEL_WIDTH = 70;
 const X_LABEL_GAP = 8;
+// Hueco entre el final del rótulo de precio y el inicio de la rejilla. D.19: con Figtree, «1.234.567 €»
+// mide unos 66 a 12px; con un hueco de 8 el rótulo (anclado a la derecha en 64) se salía 2px del lienzo.
+const Y_LABEL_GAP = 4;
 const MARKER_RADIUS = 3;
 const STYLE_COUNT = 4;
 
@@ -165,7 +168,7 @@ export function buildPriceChart(series: readonly ChartSeriesInput[], layout: Cha
   return {
     viewBox: `0 0 ${String(width)} ${String(height)}`,
     xLabelY: height - 8,
-    yLabelX: plotLeft - 8,
+    yLabelX: plotLeft - Y_LABEL_GAP,
     gridX1: plotLeft,
     gridX2: plotRight,
     yLabels,
