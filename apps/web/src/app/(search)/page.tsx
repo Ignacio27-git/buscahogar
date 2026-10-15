@@ -158,7 +158,7 @@ async function renderInterpretation(rawQ: string | string[]): Promise<ReactEleme
       <>
         <h1>Buscar vivienda</h1>
         <StepIndicator current={1} />
-        <SearchTextForm value={shown} errorId={SEARCH_TEXT_ALERT_ID} />
+        <SearchTextForm value={shown} errorId={SEARCH_TEXT_ALERT_ID} open />
         <p id={SEARCH_TEXT_ALERT_ID} role="alert">
           {message}
         </p>
@@ -198,7 +198,7 @@ async function renderInterpretation(rawQ: string | string[]): Promise<ReactEleme
     <>
       <h1>Buscar vivienda</h1>
       <StepIndicator current={2} />
-      <SearchTextForm value={queryParsed.data} />
+      <SearchTextForm value={queryParsed.data} open />
       <CriteriaForm
         values={interpretation.params}
         zoneChoices={zoneChoices}
@@ -259,7 +259,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
     return (
       <>
         <h1>Buscar vivienda</h1>
-        <SearchTextForm value="" />
+        <SearchTextForm value="" open />
         <p id={FILTERS_ALERT_ID} role="alert">
           Algún filtro no es válido; corrígelo abajo y vuelve a buscar. Detalle: {issues.map(formatSearchIssue).join(' ')}
         </p>
@@ -304,6 +304,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
   // Nombre del municipio ya resuelto para el chip de zona: sin consulta nueva.
   let zoneName: string | null = null;
   let zoneUnlocatable = false;
+  let zoneUnknown = false;
 
   if (criteria.zone !== undefined) {
     const zoneGeometry = await resolveZoneGeometry(db, criteria.zone);
@@ -312,6 +313,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
     if (zoneGeometry === null) {
       coverageVariant = { kind: 'unknown-zone' };
       zoneUnlocatable = true;
+      zoneUnknown = true;
     } else {
       await recordDemandSignal(zoneGeometry);
       if (!(zoneGeometry.state === 'covered' && zoneGeometry.centroid !== null)) {
@@ -357,25 +359,6 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       <CoverageNotice variant={coverageVariant} />
     );
 
-  // D.17 (B6): los pasos «Describe · Revisa · Busca» solo se muestran en la home sin parámetros y en
-  // la revisión de `?q=`: son el recorrido del texto libre. Con una búsqueda ya hecha (filtros, zona,
-  // mapa) la persona ya salió de ese recorrido y el indicador sería ruido sobre los resultados.
-  const header = (
-    <>
-      <h1>Buscar vivienda</h1>
-      {isPlainHome ? <StepIndicator current={1} /> : null}
-      <SearchTextForm value="" />
-      <FilterBar params={rawSearchParams} activeCount={countAppliedFilters(criteria)} />
-      {suggestions !== null ? <ZoneSuggestions suggestions={suggestions} rawSearchParams={rawSearchParams} /> : null}
-      {coverageSection}
-      <p className="view-toggle">
-        <a href={buildViewHref(rawSearchParams, view === 'map' ? 'list' : 'map')}>
-          {view === 'map' ? 'Ver lista' : 'Ver mapa'}
-        </a>
-      </p>
-    </>
-  );
-
   // D.8a (decisión 163, enmienda la 118) — lista y mapa conviven: toda petición
   // válida corre las DOS consultas, en paralelo y una sola vez, y renderiza las
   // dos secciones. `view` solo decide, por CSS bajo 64rem, cuál se ve; desde 64rem
@@ -415,13 +398,26 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
 
   return (
     <>
-      {/* D.13b: los grupos de la cabecera comparten un ritmo vertical (gap de 1rem). */}
+      {/* D.13b: los grupos de la cabecera comparten un ritmo vertical (gap de 1rem).
+          D.18 (decisión 229, C-16): UN orden en el DOM = orden de lectura = orden visual, sin `order`
+          de CSS: título, [pasos], buscador, barra de herramientas, recuento y chips, sugerencias,
+          panel de cobertura, aviso del polígono y conmutador de vista. */}
       <div className="search-header">
-        {header}
-        {/* D.18 (decisión 227): ordenación como enlaces predefinidos; solo con resultados. */}
-        {results.length > 0 ? (
-          <SortPresets params={rawSearchParams} sort={criteria.sort} dir={criteria.dir} />
-        ) : null}
+        <h1>Buscar vivienda</h1>
+        {/* D.17 (B6): los pasos «Describe · Revisa · Busca» solo se muestran en la home sin parámetros
+            y en la revisión de `?q=`: son el recorrido del texto libre. Con una búsqueda ya hecha la
+            persona ya salió de él y el indicador sería ruido sobre los resultados. */}
+        {isPlainHome ? <StepIndicator current={1} /> : null}
+        {/* D.18 (decisión 228): abierta en el inicio y cuando la zona es desconocida, porque su aviso manda
+            escribir el municipio aquí; cerrada en el resto de resultados. */}
+        <SearchTextForm value="" open={isPlainHome || zoneUnknown} />
+        <div className="search-toolbar">
+          <FilterBar params={rawSearchParams} activeCount={countAppliedFilters(criteria)} />
+          {/* D.18 (decisión 227): ordenación como enlaces predefinidos; solo con resultados. */}
+          {results.length > 0 ? (
+            <SortPresets params={rawSearchParams} sort={criteria.sort} dir={criteria.dir} />
+          ) : null}
+        </div>
         {/* El recuento de la lista vive aquí, compartido por las dos secciones. */}
         <AppliedFilters
           criteria={criteria}
@@ -429,9 +425,16 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
           zoneName={zoneName}
           count={formatListCount(results.length, criteria.page, hasNextPage)}
         />
+        {suggestions !== null ? <ZoneSuggestions suggestions={suggestions} rawSearchParams={rawSearchParams} /> : null}
+        {coverageSection}
         {/* DAS-11: región compartida; con polígono las dos consultas dan el mismo
             total, así que M === 0 vale también en páginas posteriores de la lista. */}
         {polygonEmpty ? <CoverageNotice variant={{ kind: 'outside-polygon' }} /> : null}
+        <p className="view-toggle">
+          <a href={buildViewHref(rawSearchParams, view === 'map' ? 'list' : 'map')}>
+            {view === 'map' ? 'Ver lista' : 'Ver mapa'}
+          </a>
+        </p>
       </div>
       <div className="search-results" data-view={view}>
         <section aria-label="Resultados" className="search-results__list">

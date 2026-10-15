@@ -90,6 +90,33 @@ test.describe('estructura de la página', () => {
   }
 });
 
+// D.18 (decisión 229, C-16): el orden del DOM es el visual. En una página de resultados, a 320 px,
+// los bloques de la cabecera se apilan de arriba abajo en el orden de lectura.
+test.describe('orden visual = orden del DOM (D.18)', () => {
+  test('a 320 px: buscador, bandeja y ordenación, recuento, y conmutador de vista bajan en ese orden', async ({
+    page,
+  }) => {
+    test.skip(test.info().project.name !== 'w320-light', 'solo el ancho móvil');
+    await page.goto('/?operation=sale');
+    const top = async (selector: string): Promise<number> => {
+      const box = await page.locator(selector).first().boundingBox();
+      expect(box, selector).not.toBeNull();
+      return box?.y ?? 0;
+    };
+    const ys = [
+      await top('main h1'),
+      await top('main search'),
+      await top('main details.filter-tray'),
+      await top('main .sort-presets'),
+      await top('main [aria-label="Filtros aplicados"]'),
+      await top('main .view-toggle'),
+    ];
+    for (let index = 1; index < ys.length; index += 1) {
+      expect(ys[index], `bloque ${String(index)}`).toBeGreaterThan(ys[index - 1] ?? 0);
+    }
+  });
+});
+
 // D.18 (decisión 223) — a 320 px la cabecera cabe en una fila: el nombre y los tres botones de
 // tema comparten el centro vertical (±1px) y cada botón mide al menos 40 × 40.
 test.describe('cabecera de una fila (D.18)', () => {

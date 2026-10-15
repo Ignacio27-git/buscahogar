@@ -258,6 +258,98 @@ describe('lista y mapa en cada petición válida (SMV-15, WSL-D8a-1)', () => {
 
 // D.18 (decisión 227) — enlaces de ordenación: solo con resultados, con el vigente marcado y sin
 // perder los filtros; un `order` inválido del panel se rechaza con su nombre.
+// D.18 (decisión 229, C-16): un único orden en el DOM = orden de lectura = orden visual, sin `order`
+// de CSS: título, [pasos], buscador, barra de herramientas (filtros + ordenación), recuento y chips,
+// sugerencias, panel de cobertura, aviso del polígono y conmutador de vista.
+describe('orden del DOM de la cabecera (D.18, decisión 229)', () => {
+  const geometry = {
+    zoneId: 'zone-1',
+    ineCode: '28074',
+    municipality: 'Leganés',
+    state: 'uncovered',
+    centroid: { latitude: 40.33, longitude: -3.76 },
+    sweepRadiusM: 4500,
+  };
+
+  function positions(html: string, needles: string[]): number[] {
+    return needles.map((needle) => {
+      const index = html.indexOf(needle);
+      expect(index, needle).toBeGreaterThan(-1);
+      return index;
+    });
+  }
+
+  function ascending(values: number[]): boolean {
+    return values.every((value, index) => index === 0 || value > (values[index - 1] ?? 0));
+  }
+
+  it('con resultados, zona sin cubrir, sugerencias y vista: el orden completo', async () => {
+    searchPropertiesMock.mockResolvedValue({ results: [makeListResult(0)], hasNextPage: false });
+    mapResult(1);
+    resolveZoneGeometryMock.mockResolvedValue(geometry);
+    resolveNewZonesDailyCapMock.mockReturnValue(10);
+    resolveCoverageClientLimitMock.mockResolvedValue(null);
+    resolveCoverageForZoneMock.mockResolvedValue({ kind: 'not-sweepable' });
+    suggestZonesMock.mockResolvedValue([
+      { ineCode: '28074', municipality: 'Leganés', province: 'Madrid', state: 'uncovered', sweepable: true },
+    ]);
+    const html = await render({ zone: '28074', zoneQuery: 'lega', operation: 'sale' });
+    const header = html.slice(0, html.indexOf('class="search-results"'));
+    expect(
+      ascending(
+        positions(header, [
+          '<h1>',
+          '<search',
+          'class="search-toolbar"',
+          'class="filter-tray"',
+          'class="sort-presets"',
+          'aria-label="Filtros aplicados"',
+          'aria-label="Sugerencias de zona"',
+          'Todavía no hay viviendas de Leganés.',
+          'class="view-toggle"',
+        ])
+      )
+    ).toBe(true);
+  });
+
+  it('el aviso del polígono va tras los chips y antes del conmutador de vista', async () => {
+    mapResult(0);
+    const html = await render({ polygon: POLYGON, operation: 'sale' });
+    const header = html.slice(0, html.indexOf('class="search-results"'));
+    expect(
+      ascending(
+        positions(header, ['<search', 'aria-label="Filtros aplicados"', NOT_COVERED, 'class="view-toggle"'])
+      )
+    ).toBe(true);
+  });
+
+  it('la barra de herramientas agrupa la bandeja de filtros y la ordenación, en ese orden', async () => {
+    searchPropertiesMock.mockResolvedValue({ results: [makeListResult(0)], hasNextPage: false });
+    mapResult(1);
+    const html = await render({});
+    const toolbar = html.slice(html.indexOf('class="search-toolbar"'), html.indexOf('class="search-results"'));
+    const end = toolbar.indexOf('class="sort-presets"');
+    expect(toolbar.indexOf('class="filter-tray"')).toBeGreaterThan(-1);
+    expect(toolbar.indexOf('class="filter-tray"')).toBeLessThan(end);
+  });
+
+  it('sin resultados la barra solo lleva la bandeja de filtros', async () => {
+    const html = await render({ operation: 'sale' });
+    const toolbar = html.slice(html.indexOf('class="search-toolbar"'), html.indexOf('class="search-results"'));
+    expect(toolbar).toContain('class="filter-tray"');
+    expect(toolbar).not.toContain('sort-presets');
+  });
+
+  it('ningún elemento reordena con la propiedad order de CSS ni con row-reverse', async () => {
+    const css = (await import('node:fs')).readFileSync(
+      new URL('../src/app/globals.css', import.meta.url),
+      'utf8'
+    );
+    expect(css).not.toMatch(/^\s*order\s*:/m);
+    expect(css).not.toMatch(/flex-direction:\s*(row|column)-reverse/);
+  });
+});
+
 describe('ordenación por enlaces (D.18)', () => {
   function withResults(): void {
     searchPropertiesMock.mockResolvedValue({

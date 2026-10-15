@@ -133,9 +133,10 @@ describe('?q= interpreta sin buscar (spec "Interpret Without Searching")', () =>
     expect(html).toMatch(/<label for="criteria-minPrice">/);
   });
 
-  it('la caja de texto role=search está también en el modo búsqueda normal', async () => {
+  it('la caja de texto, dentro de <search>, está también en el modo búsqueda normal', async () => {
     const html = await render({ operation: 'sale' });
-    expect(findTag(html, 'form', 'role="search"')).toBeDefined();
+    expect(html).toContain('<search class="nl-search">');
+    expect(findTag(html, 'form', 'role="search"')).toBeUndefined();
     expect(html).toContain('name="q"');
   });
 
@@ -271,17 +272,18 @@ function barForm(html: string): string {
 }
 
 describe('barra de filtros en la home (D.6a, spec "Filter bar")', () => {
-  it('la rama ?q= no la lleva y conserva un único role=search', async () => {
+  it('la rama ?q= no la lleva y conserva un único landmark <search>', async () => {
     const html = await render({ q: 'piso en venta' });
     expect(html).not.toContain(BAR);
-    expect(html.match(/role="search"/g)).toHaveLength(1);
+    expect(html.match(/<search[ >]/g)).toHaveLength(1);
+    expect(html).not.toContain('role="search"');
   });
 
-  it('la rama válida la pinta bajo la caja de texto y SearchTextForm sigue siendo el único role=search', async () => {
+  it('la rama válida la pinta bajo la caja de texto y SearchTextForm sigue siendo el único <search>', async () => {
     const html = await render({ operation: 'sale' });
     expect(html).toContain(BAR);
-    expect(html.match(/role="search"/g)).toHaveLength(1);
-    expect(html.indexOf('role="search"')).toBeLessThan(html.indexOf(BAR));
+    expect(html.match(/<search[ >]/g)).toHaveLength(1);
+    expect(html.indexOf('<search')).toBeLessThan(html.indexOf(BAR));
     expect(html).toContain('id="filter-operation"');
   });
 
@@ -446,7 +448,8 @@ describe('lista y paginador en la home (D.6b)', () => {
 // abierta (sin número) en la rama de parámetros inválidos.
 describe('bandeja de filtros en la home (D.6b, S15-S17, S21, S22)', () => {
   function summaryOf(html: string): string {
-    return /<summary[^>]*>(.*?)<\/summary>/s.exec(html)?.[1] ?? '';
+    // D.18: la caja de texto también lleva un `<summary>`; aquí se lee el de la bandeja de filtros.
+    return /<details class="filter-tray"[^>]*><summary[^>]*>(.*?)<\/summary>/s.exec(html)?.[1] ?? '';
   }
 
   it('rama válida: cerrada y con el recuento de los chips, zona incluida (sort no cuenta; D.18)', async () => {
@@ -527,6 +530,88 @@ describe('indicador de pasos (D.7, R1)', () => {
   ] as const)('S1.4/S1.5: %s no lleva indicador de pasos', async (_name, params) => {
     searchMapPointsMock.mockResolvedValue({ points: [], total: 0, truncated: false });
     expect(await render({ ...params })).not.toContain(STEPS);
+  });
+});
+
+// D.18 (decisión 228, C-14): la caja de texto es un `<details>` dentro del landmark `<search>`, plegable
+// a todos los anchos y operable sin JavaScript. Abierta en el inicio, en las dos ramas de `?q=`, con
+// parámetros inválidos y con una zona desconocida (cuyo aviso manda escribir el municipio ahí);
+// cerrada en el resto de páginas de resultados.
+describe('caja de texto plegable (D.18, decisión 228)', () => {
+  const OPEN = '<details class="nl-disclosure" open="">';
+  const CLOSED = '<details class="nl-disclosure">';
+
+  it.each([
+    ['inicio', {}],
+    ['interpretación ?q= válida', { q: 'piso en venta' }],
+    ['?q= rechazada (vacía)', { q: '   ' }],
+    ['parámetros inválidos', { minPrice: 'abc' }],
+  ] as const)('%s: abierta', async (_name, params) => {
+    searchMapPointsMock.mockResolvedValue({ points: [], total: 0, truncated: false });
+    const html = await render({ ...params });
+    expect(html).toContain(OPEN);
+    expect(html).not.toContain(CLOSED);
+  });
+
+  it('?q= repetida: abierta', async () => {
+    const html = await render({ q: ['a', 'b'] });
+    expect(html).toContain(OPEN);
+  });
+
+  it('zona desconocida: abierta, porque su aviso manda escribir el municipio en el buscador', async () => {
+    searchMapPointsMock.mockResolvedValue({ points: [], total: 0, truncated: false });
+    resolveZoneGeometryMock.mockResolvedValue(null);
+    const html = await render({ zone: '00000' });
+    expect(html).toContain(OPEN);
+  });
+
+  it.each([
+    ['filtros', { operation: 'sale' }],
+    ['mapa', { view: 'map' }],
+    ['ordenación', { sort: 'price', dir: 'asc' }],
+  ] as const)('otra página de resultados (%s): cerrada', async (_name, params) => {
+    searchMapPointsMock.mockResolvedValue({ points: [], total: 0, truncated: false });
+    const html = await render({ ...params });
+    expect(html).toContain(CLOSED);
+    expect(html).not.toContain(OPEN);
+  });
+
+  it('zona conocida (cubierta o no): cerrada', async () => {
+    searchMapPointsMock.mockResolvedValue({ points: [], total: 0, truncated: false });
+    resolveZoneGeometryMock.mockResolvedValue({
+      zoneId: 'z',
+      ineCode: '28074',
+      municipality: 'Leganés',
+      state: 'covered',
+      centroid: { latitude: 40.33, longitude: -3.76 },
+      sweepRadiusM: 4500,
+    });
+    const html = await render({ zone: '28074' });
+    expect(html).toContain(CLOSED);
+  });
+
+  it('estructura: <search> > <details> > <summary> y el formulario dentro, sin role=search', async () => {
+    const html = await render({});
+    expect(html).toMatch(
+      /<search class="nl-search"><details class="nl-disclosure"[^>]*><summary>Describe lo que buscas<\/summary><form [^>]*class="search-text"[^>]*>/
+    );
+    expect(html).toContain('</form></details></search>');
+    expect(html).not.toContain('role="search"');
+  });
+
+  it('el resumen es el único texto visible: la etiqueta del campo es sr-only pero sigue asociada', async () => {
+    const html = await render({});
+    expect(html).toContain('<label for="search-text" class="sr-only">Describe lo que buscas</label>');
+    expect(findTag(html, 'input', 'id="search-text"', 'name="q"')).toBeDefined();
+    expect(html.match(/Describe lo que buscas/g)).toHaveLength(2);
+  });
+
+  it('el botón, la ayuda y el campo siguen dentro del formulario', async () => {
+    const html = await render({ operation: 'sale' });
+    const details = html.slice(html.indexOf('<details class="nl-disclosure"'), html.indexOf('</details>'));
+    expect(details).toContain('id="search-text-help"');
+    expect(details).toContain('Convertir en filtros');
+    expect(details).toContain('name="q"');
   });
 });
 

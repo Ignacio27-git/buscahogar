@@ -50,12 +50,77 @@ test.describe('indicador de pasos y panel de revisión', () => {
     test(`S10.1: ${name} lleva el botón «Convertir en filtros» y la ayuda enlazada`, async ({ page }) => {
       await openRoute(page, route(name));
       const search = page.getByRole('search');
+      // D.18 (decisión 228): fuera del inicio y de `?q=` la caja llega plegada; se abre con su resumen.
+      const disclosure = search.locator('details.nl-disclosure');
+      if (!(await disclosure.evaluate((element) => (element as HTMLDetailsElement).open))) {
+        await search.getByText('Describe lo que buscas', { exact: true }).first().click();
+      }
+      await expect(page.getByLabel('Describe lo que buscas')).toBeVisible();
       await expect(search.getByRole('button', { name: 'Convertir en filtros' })).toBeVisible();
       await expect(search.getByRole('searchbox')).toHaveAccessibleDescription(
         'Por ejemplo: «Piso en alquiler en Getafe hasta 900 € con 2 habitaciones»'
       );
     });
   }
+});
+
+// D.18 (decisión 228, C-14): la caja de texto es un <details> en <search>. Abierta en el inicio, en
+// `?q=` y con una zona desconocida; plegada en el resto de resultados, a 320 y a 1280 px.
+test.describe('caja de texto plegable (D.18)', () => {
+  test.beforeEach(() => {
+    test.skip(!['w320-light', 'w1280-light'].includes(test.info().project.name), 'solo claro, ancho móvil y de escritorio');
+  });
+
+  const isOpen = (page: import('@playwright/test').Page): Promise<boolean> =>
+    page.locator('search details.nl-disclosure').evaluate((element) => (element as HTMLDetailsElement).open);
+
+  for (const [name, expected] of [
+    ['home', true],
+    ['nl-query', true],
+    ['home-filtered', false],
+    ['map', false],
+  ] as const) {
+    test(`${name}: ${expected ? 'abierta' : 'plegada'}`, async ({ page }) => {
+      await openRoute(page, route(name));
+      expect(await isOpen(page)).toBe(expected);
+      await expect(page.getByRole('search')).toHaveCount(1);
+    });
+  }
+
+  test('zona desconocida: abierta, porque su aviso manda escribir el municipio ahí', async ({ page }) => {
+    await page.goto('/?zone=00000');
+    expect(await isOpen(page)).toBe(true);
+  });
+
+  test('plegada: el resumen la abre y el campo se anuncia «Describe lo que buscas»', async ({ page }) => {
+    await openRoute(page, route('home-filtered'));
+    await expect(page.getByRole('searchbox')).toBeHidden();
+    await page.locator('search summary').click();
+    expect(await isOpen(page)).toBe(true);
+    await expect(page.getByRole('searchbox', { name: 'Describe lo que buscas' })).toBeVisible();
+  });
+
+  test('con teclado: el resumen va antes que la bandeja de filtros y Enter lo abre', async ({ page }) => {
+    await openRoute(page, route('home-filtered'));
+    const nl = page.locator('search summary');
+    const tray = page.locator('details.filter-tray > summary');
+    for (let tab = 0; tab < 80; tab += 1) {
+      if (await nl.evaluate((element) => element === document.activeElement)) break;
+      await page.keyboard.press('Tab');
+    }
+    await expect(nl).toBeFocused();
+    await page.keyboard.press('Enter');
+    expect(await isOpen(page)).toBe(true);
+    // Tras abrir, el siguiente foco entra en la caja y luego en el botón, antes de la bandeja.
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('searchbox')).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'Convertir en filtros' })).toBeFocused();
+    if (await tray.isVisible()) {
+      await page.keyboard.press('Tab');
+      await expect(tray).toBeFocused();
+    }
+  });
 });
 
 // S9.3: la rama `?q=` no desborda en ningún ancho ni esquema.
