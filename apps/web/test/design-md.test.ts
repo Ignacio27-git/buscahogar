@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { declarations, findBlock, parseCss } from './helpers/css-tokens';
+import { declarations, findBlock, findBlocks, parseCss } from './helpers/css-tokens';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const DESIGN_MD = readFileSync(`${REPO_ROOT}DESIGN.md`, 'utf8');
@@ -226,7 +226,7 @@ interface Sidecar {
     zScale: { name: string; value: string }[];
     focusRing: { outline: string; offset: string; source: string };
   };
-  components: { name: string; kind: string; html: string; css: string }[];
+  components: { name: string; kind: string; refersTo?: string; html: string; css: string }[];
   narrative: {
     northStar: string;
     overview: string;
@@ -309,5 +309,111 @@ describe('.impeccable/design.json: sidecar del esquema 2', () => {
     expect(SIDECAR.narrative.keyCharacteristics.length).toBeGreaterThan(2);
     expect(SIDECAR.narrative.dos.length).toBeGreaterThan(2);
     expect(SIDECAR.narrative.donts.length).toBeGreaterThan(2);
+  });
+});
+
+// D.18: los componentes de este bloque salen de las decisiones 222, 223, 225, 227, 228 y 229. Los
+// tamaños de los componentes nuevos son los de la hoja de estilos final.
+const SRC = (path: string): string =>
+  readFileSync(fileURLToPath(new URL(`../src/${path}`, import.meta.url)), 'utf8');
+
+/** Selectores de un preludio separados por comas de primer nivel, sin espacios ni comillas. */
+function selectorList(prelude: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const char of prelude.replace(/\s+/g, '').replace(/['"]/g, '')) {
+    if (char === '(') depth += 1;
+    if (char === ')') depth -= 1;
+    if (char === ',' && depth === 0) {
+      parts.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  parts.push(current);
+  return parts;
+}
+
+/** Todas las reglas (a cualquier profundidad) cuyo preludio coincide, fusionadas en un mapa. */
+function ruleValues(prelude: string): Map<string, string> {
+  const wanted = prelude.replace(/\s+/g, '').replace(/['"]/g, '');
+  const merged = new Map<string, string>();
+  for (const node of findBlocks(GLOBALS)) {
+    if (selectorList(node.prelude).includes(wanted)) {
+      for (const [name, value] of node.declarations) merged.set(name, value);
+    }
+  }
+  return merged;
+}
+
+describe('DESIGN.md: componentes de D.18 salen del código enviado', () => {
+  it('sort-preset: alto, relleno y tipografía de .sort-presets__link', () => {
+    const rule = ruleValues('.sort-presets__link');
+    expect(required(FRONT, 'components.sort-preset.height')).toBe(required(rule, 'min-block-size'));
+    expect(required(FRONT, 'components.sort-preset.padding')).toBe(
+      `0 ${required(rule, 'padding-inline')}`
+    );
+    expect(required(FRONT, 'components.sort-preset.typography')).toBe('{typography.dense}');
+    expect(rule.get('font-size')).toBe('var(--text-dense)');
+  });
+
+  it('sort-preset-active: el vigente lleva tinta, peso 600 y barra de 2px en tinta', () => {
+    const rule = ruleValues(".sort-presets__link[aria-current='true']");
+    expect(rule.get('font-weight')).toBe('600');
+    expect(rule.get('border-block-end-color')).toBe('var(--ink)');
+    expect(required(FRONT, 'components.sort-preset-active.textColor')).toBe('{colors.ink}');
+    expect(ruleValues('.sort-presets__link').get('border-block-end')).toBe('2px solid transparent');
+  });
+
+  it('icon-button: 40 × 40 como el botón de tema de la cabecera', () => {
+    expect(SRC('components/site-header.tsx')).toContain('min-h-10 min-w-10');
+    expect(required(FRONT, 'components.icon-button.height')).toBe('2.5rem');
+    expect(required(FRONT, 'components.icon-button.width')).toBe('2.5rem');
+    const bar = ruleValues(".light .theme-selector [value='light']::before");
+    expect(bar.get('block-size')).toBe('2px');
+    expect(bar.get('inset-block-end')).toBe('0.25rem');
+  });
+
+  it('disclosure-summary: resumen de la caja de texto con alto de 2,5rem y borde de control', () => {
+    const rule = ruleValues('.nl-disclosure > summary');
+    expect(required(FRONT, 'components.disclosure-summary.height')).toBe(
+      required(rule, 'min-block-size')
+    );
+    expect(rule.get('border')).toBe('1px solid var(--rule-control)');
+    expect(required(FRONT, 'components.disclosure-summary.backgroundColor')).toBe(
+      '{colors.surface-raised}'
+    );
+  });
+
+  it('la franja de las páginas independientes usa el mismo filete y la misma marca que la cabecera', () => {
+    const css = SRC('lib/standalone-page.ts');
+    expect(css).toContain('.standalone-header { border-bottom: 1px solid var(--rule);');
+    expect(css).toContain('font-size: 1.125rem;');
+    expect(required(FRONT, 'typography.heading-3.fontSize')).toBe('1.125rem');
+    expect(body).toContain('franja');
+  });
+
+  it('el texto describe la cabecera de una fila, la ordenación por enlaces y el vacío con una acción', () => {
+    const flat = body.replace(/\s+/g, ' ');
+    expect(flat).not.toMatch(/único enlace «Buscar»/);
+    expect(flat).toContain('botones de icono');
+    expect(flat).toContain('Más recientes');
+    expect(flat).toContain('aria-current');
+    expect(flat).toContain('Describe lo que buscas');
+    expect(flat).toContain('Quitar los demás filtros');
+    expect(flat).toContain('Quitar todos los filtros');
+    expect(flat).toContain('dos SVG');
+  });
+
+  it('no queda rastro del pie de zona ni de la leyenda de D.17', () => {
+    expect(DESIGN_MD).not.toMatch(/search-results__caption|ZONE_UNAPPLIED|aún sin aplicar/);
+    expect(SIDECAR_TEXT).not.toMatch(/search-results__caption|ZONE_UNAPPLIED/);
+  });
+
+  it('el sidecar documenta la ordenación y el botón de icono con prefijo ds-', () => {
+    const refers = SIDECAR.components.map((component) => component.refersTo);
+    expect(refers).toEqual(expect.arrayContaining(['sort-preset', 'icon-button']));
   });
 });

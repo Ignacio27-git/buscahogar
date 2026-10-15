@@ -105,6 +105,29 @@ components:
     typography: '{typography.body}'
     rounded: '{rounded.panel}'
     padding: '0.75rem 1rem'
+  sort-preset:
+    textColor: '{colors.primary}'
+    typography: '{typography.dense}'
+    padding: '0 0.5rem'
+    height: '2.5rem'
+  sort-preset-active:
+    textColor: '{colors.ink}'
+    typography: '{typography.dense}'
+    padding: '0 0.5rem'
+    height: '2.5rem'
+  icon-button:
+    backgroundColor: '{colors.surface-raised}'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.control}'
+    height: '2.5rem'
+    width: '2.5rem'
+  disclosure-summary:
+    backgroundColor: '{colors.surface-raised}'
+    textColor: '{colors.ink}'
+    typography: '{typography.body}'
+    rounded: '{rounded.control}'
+    padding: '0.5rem 0.75rem'
+    height: '2.5rem'
   badge-multi-source:
     textColor: '{colors.ink}'
     typography: '{typography.small}'
@@ -208,13 +231,15 @@ usa uno por el otro.
 **Body Font:** la misma pila; no se carga ninguna fuente de terceros (la CSP solo admite `font-src 'self'`).
 
 **Character:** una sola familia neutra de sistema, como el rótulo de una hoja técnica. La jerarquía sale
-del tamaño y del peso (400, 600, 700), nunca de un cambio de familia.
+del tamaño y del peso (400, 600, 700), nunca de un cambio de familia. En las capturas de la verificación
+visual la pila se resuelve a Liberation Sans, y como no tiene cara SemiBold todo el peso 600 se pinta con
+la Bold (700): un artefacto del entorno de pruebas, no del diseño (decisión 217).
 
 ### Hierarchy
 
 - **Heading 1** (700, 1.75rem, 2.25rem, tracking -0.01em): título de la página («Buscar vivienda», precio principal de la ficha).
 - **Heading 2** (600, 1.375rem, 1.75rem): secciones de la ficha y precio de cada fila a partir de 48rem.
-- **Heading 3** (600, 1.125rem, 1.5rem): marca «Buscahogar», precio de fila en móvil y precio de la ventana del mapa.
+- **Heading 3** (600, 1.125rem, 1.5rem): marca «Buscahogar» (en la cabecera y en la franja de las páginas independientes), precio de fila en móvil y precio de la ventana del mapa.
 - **Body** (400, 1rem, 1.5rem): texto corrido y campos de formulario (16px, para que iOS no amplíe al enfocar).
 - **Dense** (400, 0.875rem, 1.25rem): etiquetas, ayudas, direcciones, chips y cifras de las filas.
 - **Small** (400, 0.75rem, 1rem): pie del mapa, insignia de fuentes, etiquetas de estado.
@@ -231,6 +256,12 @@ del tamaño y del peso (400, 600, 700), nunca de un cambio de familia.
 
 Una columna de contenido con un contenedor de 80rem (`spacing.page`) centrado y márgenes laterales de 1rem,
 1,5rem (desde 40rem) y 2rem (desde 64rem). La cabecera, el contenido y el pie comparten ese contenedor.
+
+La cabecera de la búsqueda sigue un único orden, que es también el de lectura y el del DOM (sin `order` en
+CSS): título, pasos, caja de texto plegable, barra de herramientas (filtros y ordenación), chips aplicados,
+sugerencias de zona, panel de cobertura, aviso del polígono y conmutador de vista. La barra de herramientas
+envuelve; con la bandeja de filtros abierta, y desde 64rem con el formulario ya desplegado, la bandeja ocupa
+toda la fila y la ordenación baja debajo (decisión 229). Los bloques se separan con un hueco de 1rem.
 
 La búsqueda es una hoja de dos columnas solo cuando cabe: por debajo de 64rem la lista y el mapa se alternan
 con un conmutador («Ver mapa» / «Ver lista»); desde 64rem se ven a la vez, la lista con medida de 48rem a la
@@ -318,12 +349,42 @@ principal y nada decorativo: se leen como instrumentos técnicos.
 
 ### Navigation
 
-- **Cabecera:** estática, con la marca a la izquierda, un único enlace «Buscar» y el selector de tema a la
-  derecha (un `fieldset` con tres botones). El tema activo se marca con peso 600, borde de tinta, subrayado
-  y un nombre accesible «, activo»: no depende del color.
+- **Cabecera:** estática y de una sola fila a todos los anchos, con la marca (enlace a «/») a la izquierda y
+  el selector de tema a la derecha (`fieldset` con tres botones de icono: sol, luna y monitor; leyenda «Tema»
+  solo para lectores de pantalla). Cada botón mide 40 × 40px y su nombre («Claro», «Oscuro», «Sistema») es
+  texto oculto a la vista. El tema activo se marca con un borde de tinta de 2px, una barra de 2px bajo el
+  icono y un nombre accesible «Oscuro, activo»: no depende del color. Ya no hay enlace «Buscar».
+- **Franja de las páginas independientes:** el error global y la página 429 llevan sobre el bloque centrado
+  una franja con la marca «Buscahogar» (`heading-3`, 40px de alto, enlace a «/») y un filete inferior de
+  `rule`, como la cabecera de la app. La marca no se pone como línea suelta sobre el título.
 - **Pasos de la búsqueda:** el paso actual lleva peso 600 y el número relleno de tinta.
 - **Paginador:** «anterior» y «siguiente» como enlaces de 2,5rem; el extremo que no existe es texto y
   conserva su sitio.
+
+### Ordenación (sort-preset)
+
+Cinco enlaces junto a la etiqueta «Ordenar por», bajo la bandeja de filtros: «Más recientes» (el orden por
+defecto, que no ensucia la URL), «Precio: de menor a mayor», «Precio: de mayor a menor», «Superficie: de
+mayor a menor» y «Superficie: de menor a mayor». Son enlaces reales de 40px de alto y 0,5rem de relleno
+lateral, en `primary` y `dense`. El vigente lleva `aria-current="true"`, tinta, peso 600 y una barra de 2px
+bajo el texto, sin subrayado; una combinación fuera de los cinco, como `updated` ascendente en la URL, no
+marca ninguno. Sin transición. En la revisión de `?q=` la misma ordenación son cinco opciones de radio.
+
+### Caja de texto plegable (disclosure-summary)
+
+La búsqueda en lenguaje natural es un `<details>` dentro del landmark `search`, plegable a todos los
+anchos. El resumen «Describe lo que buscas» es el único texto visible: botón de 40px, borde `rule-control`,
+fondo `surface-raised` y peso 600. La etiqueta del campo existe pero queda oculta a la vista, así que el
+campo conserva el mismo nombre. Se abre sola en la portada, con `?q=`, con parámetros no válidos y cuando la
+zona no se reconoce; en una página de resultados queda cerrada. Sin movimiento.
+
+### Estado vacío
+
+El vacío filtrado es un panel de 1px con tres cosas: el estado («Ninguna vivienda coincide con tu
+búsqueda.»), una frase que remite a los chips de arriba y una única acción. La acción se llama «Quitar los
+demás filtros» si hay un polígono que conservar y «Quitar todos los filtros» en los demás casos; no se
+muestra si la fila de chips ya ofrece «Quitar todos», para que nunca haya dos enlaces idénticos. El panel no
+repite la lista de filtros.
 
 ### Fila de resultado
 
@@ -337,6 +398,14 @@ El marco del mapa es un filete de `rule-control`, sin sombra. Las etiquetas de p
 `surface-raised`, peso 600 y cifras tabulares; el clúster es un círculo azul de 40px; la barra de dibujo
 (`shadow-raised`) y la ventana emergente (`shadow-overlay`) son lo único que flota.
 
+### Gráfico de precios
+
+La ficha dibuja el historial con dos SVG del mismo modelo, cada uno a escala 1:1 para que el texto de 12px
+no se encoja: uno compacto (288 × 160, hasta 24rem) y otro ancho (544 × 192, 34rem) que sustituye al
+primero cuando el contenedor mide 34rem o más. Solo uno está en el árbol de accesibilidad; la tabla del
+historial sigue junto al gráfico. Las etiquetas del eje x son el inicio, el final y la primera captura de
+cada serie; la que se solapa con otra de más prioridad se omite.
+
 ### Aviso de cobertura
 
 Un panel único de 1px con el aviso (región viva), la frase de refresco y, al final, el enlace «Comprobar de
@@ -348,7 +417,8 @@ nuevo». El estado (pendiente, en curso, hecho o fallido) lleva una etiqueta de 
 
 - **Do** usar `primary` solo para lo interactivo y para la zona que el usuario ha dibujado.
 - **Do** separar con filetes de 1px (`rule`) y rodear los controles con `rule-control`.
-- **Do** mantener 40px de alto mínimo en todo lo que se pulsa, a todos los anchos (decisión 200).
+- **Do** mantener 40px de alto mínimo en todo lo que se pulsa, a todos los anchos (decisión 200), también en botones de icono y enlaces de ordenación.
+- **Do** dar a cada control de solo icono un nombre accesible en texto oculto y una señal de estado que no sea el color.
 - **Do** dar cada estado con texto o con peso, además de con color (insignias, pasos, tema activo, estado de cobertura).
 - **Do** usar cifras tabulares donde se comparan precios, recuentos y fechas.
 - **Do** declarar todo valor de color, tamaño y radio en `globals.css` y reflejarlo aquí; `apps/web/test/design-md.test.ts` lo comprueba.
