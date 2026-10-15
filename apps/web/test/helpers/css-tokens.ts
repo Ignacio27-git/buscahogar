@@ -296,3 +296,40 @@ export function hasShadowOffset(value: string): boolean {
     })
   );
 }
+
+export interface Oklch {
+  /** Luminosidad de 0 a 1. */
+  readonly l: number;
+  readonly c: number;
+  /** Matiz en grados, de 0 a 360 (0 si el color es acromático). */
+  readonly h: number;
+}
+
+/**
+ * Lee `oklch(L% C H)` tal cual (sin pasar por sRGB de 8 bits, para no perder precisión) o convierte
+ * un `#rrggbb` a OKLCH con las matrices estándar de OKLab. Lanza con cualquier otra notación.
+ */
+export function parseOklch(value: string): Oklch {
+  const literal = OKLCH.exec(value.trim());
+  if (literal) {
+    return {
+      l: Number.parseFloat(literal[1] ?? '') / 100,
+      c: Number.parseFloat(literal[2] ?? ''),
+      h: Number.parseFloat(literal[3] ?? ''),
+    };
+  }
+  const { r, g, b } = parseColor(value);
+  const [lr, lg, lb] = [r, g, b].map((channel) => {
+    const c = channel / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  const l = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb);
+  const m = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb);
+  const s = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb);
+  const lightness = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
+  const a = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+  const bb = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+  const chroma = Math.hypot(a, bb);
+  const hue = chroma < 1e-4 ? 0 : (Math.atan2(bb, a) * 180) / Math.PI;
+  return { l: lightness, c: chroma, h: hue < 0 ? hue + 360 : hue };
+}

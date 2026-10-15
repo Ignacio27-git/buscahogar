@@ -86,6 +86,25 @@ describe('STANDALONE_PAGE_CSS — contraste AA en ambos esquemas (D7)', () => {
   });
 });
 
+// D.19 (decisiones 232 y 233) — el radio de los botones copia `--radius-control`, y las páginas
+// independientes conservan la pila del sistema (sin Figtree ni `next/font`) como excepción documentada.
+describe('STANDALONE_PAGE_CSS — radio y familia tipográfica (D.19)', () => {
+  const theme = declarations(findBlock(GLOBALS, '@theme static'));
+
+  it('el botón copia --radius-control de globals.css', () => {
+    const button = declarations(findBlock(STANDALONE, '.standalone button'));
+    expect(theme.get('--radius-control')).toBe('0.375rem');
+    expect(button.get('border-radius')).toBe(theme.get('--radius-control'));
+  });
+
+  it('el body usa una pila del sistema y no menciona Figtree', () => {
+    const family = declarations(findBlock(STANDALONE, 'body')).get('font-family') ?? '';
+    expect(family).toMatch(/^system-ui,/);
+    expect(family).not.toMatch(/figtree/i);
+    expect(STANDALONE_PAGE_CSS).not.toMatch(/figtree|next\/font/i);
+  });
+});
+
 describe('STANDALONE_PAGE_CSS — autónomo y sin movimiento', () => {
   it('no carga recursos externos ni usa url(), @import ni animaciones', () => {
     expect(STANDALONE_PAGE_CSS).not.toMatch(/url\(|@import|https?:\/\/|@keyframes|animation|transition/);

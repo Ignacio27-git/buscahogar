@@ -18,20 +18,24 @@
 :root {
   color-scheme: light dark;
 
-  --surface: #ffffff;
-  --surface-raised: #ffffff;
-  --surface-sunken: oklch(97% 0.004 92);
-  --ink: #1c1f22;
-  --ink-muted: oklch(50% 0.012 235);
+  --surface: #faf8f3;
+  --surface-raised: #fefdfb;
+  --surface-sunken: oklch(95% 0.008 85);
+  --ink: #1e1c19;
+  --ink-muted: oklch(49% 0.014 70);
   --rule: #e4e2dc;
-  --rule-control: oklch(62% 0.01 235);
+  --rule-control: oklch(60% 0.012 70);
   --accent: #1f5fa8;
   --ink-on-accent: #ffffff;
   --focus: #1f5fa8;
   --danger: oklch(52% 0.17 27);
   --selection: oklch(90% 0.04 252);
   --hatch: #b0662b;
-  --shadow-color: oklch(24.5% 0.01 232 / 0.14);
+  --shadow-color: oklch(25% 0.012 70 / 0.14);
+  --vegetation: oklch(47% 0.09 150);
+  --vegetation-wash: oklch(95% 0.022 145);
+  --accent-wash: oklch(95% 0.018 252);
+  --danger-wash: oklch(95% 0.018 25);
 }
 
 .light {
@@ -41,44 +45,54 @@
 .dark {
   color-scheme: dark;
 
-  --surface: oklch(20% 0.008 235);
-  --surface-raised: oklch(24% 0.009 235);
-  --surface-sunken: oklch(16% 0.007 235);
-  --ink: oklch(92% 0.008 90);
-  --ink-muted: oklch(70% 0.012 235);
-  --rule: oklch(32% 0.008 235);
-  --rule-control: oklch(56% 0.012 235);
+  --surface: oklch(20.5% 0.006 70);
+  --surface-raised: oklch(24.5% 0.007 70);
+  --surface-sunken: oklch(16.5% 0.005 70);
+  --ink: oklch(92% 0.012 85);
+  --ink-muted: oklch(71% 0.014 75);
+  --rule: oklch(32% 0.008 70);
+  --rule-control: oklch(57% 0.012 70);
   --accent: oklch(72% 0.12 252);
-  --ink-on-accent: oklch(20% 0.008 235);
+  --ink-on-accent: oklch(20.5% 0.006 70);
   --focus: oklch(72% 0.12 252);
   --danger: oklch(72% 0.14 25);
   --selection: oklch(38% 0.08 252);
   --hatch: oklch(70% 0.11 56);
   --shadow-color: oklch(0% 0 0 / 0.55);
+  --vegetation: oklch(72% 0.1 150);
+  --vegetation-wash: oklch(27% 0.03 150);
+  --accent-wash: oklch(27% 0.035 252);
+  --danger-wash: oklch(27% 0.035 25);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
-    --surface: oklch(20% 0.008 235);
-    --surface-raised: oklch(24% 0.009 235);
-    --surface-sunken: oklch(16% 0.007 235);
-    --ink: oklch(92% 0.008 90);
-    --ink-muted: oklch(70% 0.012 235);
-    --rule: oklch(32% 0.008 235);
-    --rule-control: oklch(56% 0.012 235);
+    --surface: oklch(20.5% 0.006 70);
+    --surface-raised: oklch(24.5% 0.007 70);
+    --surface-sunken: oklch(16.5% 0.005 70);
+    --ink: oklch(92% 0.012 85);
+    --ink-muted: oklch(71% 0.014 75);
+    --rule: oklch(32% 0.008 70);
+    --rule-control: oklch(57% 0.012 70);
     --accent: oklch(72% 0.12 252);
-    --ink-on-accent: oklch(20% 0.008 235);
+    --ink-on-accent: oklch(20.5% 0.006 70);
     --focus: oklch(72% 0.12 252);
     --danger: oklch(72% 0.14 25);
     --selection: oklch(38% 0.08 252);
     --hatch: oklch(70% 0.11 56);
     --shadow-color: oklch(0% 0 0 / 0.55);
+    --vegetation: oklch(72% 0.1 150);
+    --vegetation-wash: oklch(27% 0.03 150);
+    --accent-wash: oklch(27% 0.035 252);
+    --danger-wash: oklch(27% 0.035 25);
   }
 }
 
 /* Utilidades de color: solo los roles que sirven de texto, fondo o borde. `--hatch`,
    `--selection`, `--shadow-color`, `--focus` y `--danger` se usan como variable (`var()`) y no
-   tienen utilidad (D.17: ningún componente usaba `text-danger`, `ring-focus` y similares). */
+   tienen utilidad (D.17: ningún componente usaba `text-danger`, `ring-focus` y similares). D.19: lo mismo
+   para `--vegetation`, `--vegetation-wash` y `--danger-wash`; `--accent-wash` sí es utilidad porque los chips
+   usan `bg-accent-wash`. */
 @theme inline {
   --color-*: initial;
   --color-surface: var(--surface);
@@ -90,6 +104,7 @@
   --color-rule-control: var(--rule-control);
   --color-accent: var(--accent);
   --color-ink-on-accent: var(--ink-on-accent);
+  --color-accent-wash: var(--accent-wash);
 }
 
 @theme static {
@@ -116,8 +131,8 @@
   --text-heading-1--font-weight: 700;
   --text-heading-1--letter-spacing: -0.01em;
 
-  --radius-control: 0.25rem;
-  --radius-panel: 0.375rem;
+  --radius-control: 0.375rem;
+  --radius-panel: 0.5rem;
 
   /* Capas, de menor a mayor. Se usan con `z-(--z-toast)` o `var(--z-toast)`. */
   --z-map-controls: 10;

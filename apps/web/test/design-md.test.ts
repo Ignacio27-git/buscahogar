@@ -40,7 +40,10 @@ const FRONTMATTER_GROUPS = [
   'components',
 ];
 
-/** Nombre en DESIGN.md → nombre del token en `globals.css` (solo difiere el acento: `primary`). */
+/**
+ * Nombre en DESIGN.md → nombre del token en `globals.css`. Difieren el acento (`primary`) y su lavado
+ * (`primary-wash` → `accent-wash`); `vegetation` y los lavados son de D.19 (decisión 231).
+ */
 const COLOR_NAME_MAP: Record<string, string> = {
   surface: 'surface',
   'surface-raised': 'surface-raised',
@@ -55,6 +58,10 @@ const COLOR_NAME_MAP: Record<string, string> = {
   danger: 'danger',
   selection: 'selection',
   hatch: 'hatch',
+  vegetation: 'vegetation',
+  'vegetation-wash': 'vegetation-wash',
+  'primary-wash': 'accent-wash',
+  'danger-wash': 'danger-wash',
 };
 
 const TYPOGRAPHY_ROLES = ['small', 'dense', 'body', 'heading-3', 'heading-2', 'heading-1'] as const;
@@ -152,7 +159,7 @@ describe('DESIGN.md: el sistema visual deriva de globals.css', () => {
     }
   );
 
-  it('la tipografía del título principal conserva su interlineado negativo y la familia es la pila del sistema', () => {
+  it('la tipografía del título principal conserva su interlineado negativo y la familia es la de --font-sans', () => {
     expect(required(FRONT, 'typography.heading-1.letterSpacing')).toBe(
       required(THEME_STATIC, '--text-heading-1--letter-spacing')
     );

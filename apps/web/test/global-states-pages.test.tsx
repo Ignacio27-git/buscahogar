@@ -147,7 +147,7 @@ describe('global-error.tsx', () => {
 
   it('incrusta STANDALONE_PAGE_CSS, con su esquema oscuro', () => {
     expect(html).toContain('prefers-color-scheme: dark');
-    expect(html).toContain('--surface: #ffffff');
+    expect(html).toContain('--surface: #faf8f3');
   });
 
   it('llama a retry una sola vez y no pinta texto técnico', () => {

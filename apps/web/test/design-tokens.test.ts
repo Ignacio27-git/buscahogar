@@ -20,6 +20,7 @@ import {
   luminance,
   missingNames,
   parseColor,
+  parseOklch,
   parseCss,
   toHex,
   type ContrastPair,
@@ -31,7 +32,11 @@ const CSS_PATH = join(SRC_DIR, 'app', 'globals.css');
 const RAW_CSS = readFileSync(CSS_PATH, 'utf8');
 const ROOT = parseCss(RAW_CSS);
 
-/** Los 14 tokens de color vigentes (D.17, decisión 212: `--success` se retiró por no usarse). */
+/**
+ * Los 18 tokens de color vigentes: los 14 de D.17 (decisión 212: `--success` se retiró por no
+ * usarse) más `vegetation` y los tres lavados `vegetation-wash`, `accent-wash` y `danger-wash` (D.19,
+ * decisión 231).
+ */
 const COLOR_TOKENS = [
   'surface',
   'surface-raised',
@@ -47,15 +52,33 @@ const COLOR_TOKENS = [
   'selection',
   'hatch',
   'shadow-color',
+  'vegetation',
+  'vegetation-wash',
+  'accent-wash',
+  'danger-wash',
 ] as const;
 
-/** Tokens que NO se exponen como utilidad de color (decisión 141; D.17: `focus` y `danger` solo se usan con `var()`). */
-const NOT_UTILITIES = ['hatch', 'selection', 'shadow-color', 'focus', 'danger'] as const;
+/**
+ * Tokens que NO se exponen como utilidad de color (decisión 141; D.17: `focus` y `danger` solo se usan
+ * con `var()`; D.19: el verde, su lavado y el lavado de peligro solo se usan con `var()` en las reglas
+ * de estado). `accent-wash` sí es utilidad: lo consumen los chips con `bg-accent-wash`.
+ */
+const NOT_UTILITIES = [
+  'hatch',
+  'selection',
+  'shadow-color',
+  'focus',
+  'danger',
+  'vegetation',
+  'vegetation-wash',
+  'danger-wash',
+] as const;
 const UTILITY_TOKENS = COLOR_TOKENS.filter(
   (name) => !(NOT_UTILITIES as readonly string[]).includes(name)
 );
 
 const SURFACES = ['surface', 'surface-raised', 'surface-sunken'] as const;
+const WASHES = ['vegetation-wash', 'accent-wash', 'danger-wash'] as const;
 const TEXT_MIN = 4.5;
 const NON_TEXT_MIN = 3;
 
@@ -70,6 +93,15 @@ const PAIRS: ContrastPair[] = [
   ),
   { fg: 'hatch', bg: 'surface', min: NON_TEXT_MIN },
   { fg: 'hatch', bg: 'surface-sunken', min: NON_TEXT_MIN },
+  // D.19 (decisión 231): el verde de estado y los lavados.
+  ...SURFACES.map((bg) => ({ fg: 'vegetation', bg, min: TEXT_MIN })),
+  { fg: 'vegetation', bg: 'vegetation-wash', min: TEXT_MIN },
+  { fg: 'danger', bg: 'danger-wash', min: TEXT_MIN },
+  { fg: 'accent', bg: 'accent-wash', min: TEXT_MIN },
+  ...(['ink', 'ink-muted'] as const).flatMap((fg) =>
+    WASHES.map((bg) => ({ fg, bg, min: TEXT_MIN }))
+  ),
+  { fg: 'rule-control', bg: 'accent-wash', min: NON_TEXT_MIN },
 ];
 
 /** Normaliza un selector: espacios colapsados, comillas fuera. */
@@ -150,6 +182,20 @@ describe('helpers de color y contraste (sanidad, sin globals.css)', () => {
     expect(toHex(parseColor('oklch(50% 0 0)'))).toBe('#636363');
   });
 
+  it('parseOklch lee un literal OKLCH tal cual y convierte un hex a L, C y H', () => {
+    expect(parseOklch('oklch(72% 0.12 252)')).toEqual({ l: 0.72, c: 0.12, h: 252 });
+    const white = parseOklch('#ffffff');
+    expect(white.l).toBeCloseTo(1, 3);
+    expect(white.c).toBeLessThan(0.001);
+    const blue = parseOklch('#1f5fa8');
+    expect(blue.l).toBeGreaterThan(0.45);
+    expect(blue.l).toBeLessThan(0.55);
+    expect(blue.h).toBeGreaterThan(250);
+    expect(blue.h).toBeLessThan(260);
+    const red = parseOklch('#ff0000');
+    expect(red.h).toBeCloseTo(29.23, 0);
+  });
+
   it('acepta primarios con cromaticidad dentro de la tolerancia de 1e-3', () => {
     expect(toHex(parseColor('oklch(62.8% 0.2577 29.23)'))).toBe('#ff0000');
     expect(toHex(parseColor('oklch(45.2% 0.3132 264.05)'))).toBe('#0000ff');
@@ -223,7 +269,7 @@ describe('estructura de globals.css (spec design-tokens)', () => {
 });
 
 describe('paridad de los tres bloques de tema (spec «Semantic colour token set»)', () => {
-  it('los tres bloques declaran exactamente los 14 tokens de color', () => {
+  it('los tres bloques declaran exactamente los 18 tokens de color', () => {
     const { root, dark, media } = themeBlocks();
     for (const [nombre, bloque] of [
       [':root', root],
@@ -261,6 +307,110 @@ describe('paridad de los tres bloques de tema (spec «Semantic colour token set�
         expect(tieneAlfa, `--${name}`).toBe(name === 'shadow-color');
       }
     }
+  });
+});
+
+// D.19 (decisión 231) — paleta cálida. Los rangos son la envolvente comprobable de la spec; los valores
+// exactos salen de los pares de contraste.
+describe('paleta cálida (D.19, spec «Warm light palette» y «Composed warm dark palette»)', () => {
+  const light = (): Record<string, string> => themeValues(themeBlocks().root);
+  const dark = (): Record<string, string> => themeValues(themeBlocks().dark);
+  const lch = (values: Record<string, string>, name: string): ReturnType<typeof parseOklch> =>
+    parseOklch(values[name] ?? '');
+  const WARM = { min: 40, max: 110 };
+
+  it('el papel claro está entre L 0,97 y 0,98, con croma y matiz cálido', () => {
+    const paper = lch(light(), 'surface');
+    expect(paper.l).toBeGreaterThanOrEqual(0.97);
+    expect(paper.l).toBeLessThanOrEqual(0.98);
+    expect(paper.c).toBeGreaterThan(0);
+    expect(paper.h).toBeGreaterThanOrEqual(WARM.min);
+    expect(paper.h).toBeLessThanOrEqual(WARM.max);
+  });
+
+  it('surface-raised es más claro que el papel y surface-sunken más oscuro', () => {
+    expect(lch(light(), 'surface-raised').l).toBeGreaterThanOrEqual(0.985);
+    expect(lch(light(), 'surface-raised').l).toBeGreaterThan(lch(light(), 'surface').l);
+    expect(lch(light(), 'surface-sunken').l).toBeLessThan(lch(light(), 'surface').l);
+  });
+
+  it('la tinta clara es cálida (croma > 0 y matiz cálido) en lugar de azul grisáceo', () => {
+    const ink = lch(light(), 'ink');
+    expect(ink.c).toBeGreaterThan(0);
+    expect(ink.h).toBeGreaterThanOrEqual(WARM.min);
+    expect(ink.h).toBeLessThanOrEqual(WARM.max);
+  });
+
+  it('el acento sigue siendo azul en los tres bloques (único color interactivo)', () => {
+    const { root, dark: darkBlock, media } = themeBlocks();
+    for (const block of [root, darkBlock, media]) {
+      for (const name of ['accent', 'focus'] as const) {
+        const { h } = lch(themeValues(block), name);
+        expect(h, `--${name}`).toBeGreaterThanOrEqual(240);
+        expect(h, `--${name}`).toBeLessThanOrEqual(270);
+      }
+    }
+  });
+
+  it('las superficies oscuras son carbón casi neutro con matiz cálido (L < 0,30, 0 < C <= 0,02)', () => {
+    for (const name of SURFACES) {
+      const surface = lch(dark(), name);
+      expect(surface.l, name).toBeLessThan(0.3);
+      expect(surface.c, name).toBeGreaterThan(0);
+      expect(surface.c, name).toBeLessThanOrEqual(0.02);
+      expect(surface.h, name).toBeGreaterThanOrEqual(WARM.min);
+      expect(surface.h, name).toBeLessThanOrEqual(WARM.max);
+    }
+  });
+
+  it('la tinta oscura es más clara que la superficie y cálida', () => {
+    const ink = lch(dark(), 'ink');
+    expect(ink.l).toBeGreaterThan(lch(dark(), 'surface').l);
+    expect(ink.c).toBeGreaterThan(0);
+    expect(ink.h).toBeGreaterThanOrEqual(WARM.min);
+    expect(ink.h).toBeLessThanOrEqual(WARM.max);
+  });
+
+  it('el acento oscuro es más claro que el claro', () => {
+    expect(lch(dark(), 'accent').l).toBeGreaterThan(lch(light(), 'accent').l);
+  });
+
+  it('--vegetation es verde (matiz 130-170), distinto del acento, en los dos temas', () => {
+    for (const values of [light(), dark()]) {
+      const green = lch(values, 'vegetation');
+      expect(green.h).toBeGreaterThanOrEqual(130);
+      expect(green.h).toBeLessThanOrEqual(170);
+      expect(Math.abs(green.h - lch(values, 'accent').h)).toBeGreaterThan(60);
+    }
+  });
+
+  it('cada lavado es un tinte de croma bajo (<= 0,04) del matiz de su color base', () => {
+    const base = {
+      'vegetation-wash': 'vegetation',
+      'accent-wash': 'accent',
+      'danger-wash': 'danger',
+    };
+    for (const values of [light(), dark()]) {
+      for (const [wash, parent] of Object.entries(base)) {
+        const tint = lch(values, wash);
+        expect(tint.c, wash).toBeGreaterThan(0);
+        expect(tint.c, wash).toBeLessThanOrEqual(0.04);
+        expect(Math.abs(tint.h - lch(values, parent).h), wash).toBeLessThanOrEqual(15);
+      }
+    }
+  });
+
+  it('un lavado queda por debajo del papel en claro y por encima de la superficie en oscuro', () => {
+    for (const wash of WASHES) {
+      expect(lch(light(), wash).l, wash).toBeLessThan(lch(light(), 'surface').l);
+      expect(lch(dark(), wash).l, wash).toBeGreaterThan(lch(dark(), 'surface').l);
+    }
+  });
+
+  it('el siena sigue siendo solo de trama: ni lavado de trama ni utilidad de hatch', () => {
+    expect(COLOR_TOKENS as readonly string[]).not.toContain('hatch-wash');
+    expect(RAW_CSS).not.toContain('--color-hatch');
+    expect(RAW_CSS).not.toContain('hatch-wash');
   });
 });
 
@@ -339,8 +489,13 @@ describe('mapeo a Tailwind (spec «Tailwind mapping» y «Hatch is not a utility
     expect(mappedTokens().get(`--color-${name}`)).toBe(`var(--${name})`);
   });
 
-  it('hatch, selection, shadow-color, focus y danger no son utilidades de color', () => {
-    expect(NOT_UTILITIES).toHaveLength(5);
+  it('accent-wash sí es utilidad de color (lo consumen los chips con bg-accent-wash)', () => {
+    expect(mappedTokens().get('--color-accent-wash')).toBe('var(--accent-wash)');
+    expect(mappedTokens().has('--color-vegetation')).toBe(false);
+  });
+
+  it('hatch, selection, shadow-color, focus, danger, vegetation y los lavados de verde y peligro no son utilidades de color', () => {
+    expect(NOT_UTILITIES).toHaveLength(8);
     for (const name of NOT_UTILITIES) {
       expect(mappedTokens().has(`--color-${name}`), `--color-${name}`).toBe(false);
     }
@@ -402,10 +557,15 @@ describe('tokens estáticos (spec «System font stack», «Type roles», «Spaci
     }
   });
 
-  it('define los radios de control y panel', () => {
+  it('los radios son 0,375rem de control y 0,5rem de panel, sin píldoras (D.19, decisión 232)', () => {
     const tokens = staticTokens();
-    expect(tokens.get('--radius-control')).toBeDefined();
-    expect(tokens.get('--radius-panel')).toBeDefined();
+    expect(tokens.get('--radius-control')).toBe('0.375rem');
+    expect(tokens.get('--radius-panel')).toBe('0.5rem');
+    expect([...tokens.keys()].filter((name) => name.startsWith('--radius-'))).toEqual([
+      '--radius-control',
+      '--radius-panel',
+    ]);
+    expect(RAW_CSS).not.toMatch(/border-radius:\s*(9999px|999px|50%|100vw)/);
   });
 
   it('la escala z es exactamente map-controls, sticky-header y toast, ascendente', () => {

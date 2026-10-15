@@ -8,28 +8,30 @@
 // sin movimiento. Se elige el esquema con `prefers-color-scheme`, porque aquí no hay script de tema.
 // D.18 (decisión 219): la franja `.standalone-header` espeja la cabecera de la app (borde inferior
 // `--rule`, marca con `--text-heading-3*` y 40 px de alto) y queda fuera del bloque centrado.
+// D.19 (decisiones 232 y 233): paleta y radio de la paleta cálida; la familia tipográfica sigue siendo la pila del
+// sistema (excepción documentada: sin Figtree ni fuente autoalojada, porque esta página debe funcionar cuando el layout falla).
 // Módulo puro y sin `server-only`: el proxy lo alcanza fuera del grafo de componentes de servidor.
 export const STANDALONE_PAGE_CSS = `:root {
   color-scheme: light dark;
-  --surface: #ffffff;
-  --surface-raised: #ffffff;
-  --surface-sunken: oklch(97% 0.004 92);
-  --ink: #1c1f22;
-  --ink-muted: oklch(50% 0.012 235);
+  --surface: #faf8f3;
+  --surface-raised: #fefdfb;
+  --surface-sunken: oklch(95% 0.008 85);
+  --ink: #1e1c19;
+  --ink-muted: oklch(49% 0.014 70);
   --rule: #e4e2dc;
-  --rule-control: oklch(62% 0.01 235);
+  --rule-control: oklch(60% 0.012 70);
   --accent: #1f5fa8;
   --focus: #1f5fa8;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --surface: oklch(20% 0.008 235);
-    --surface-raised: oklch(24% 0.009 235);
-    --surface-sunken: oklch(16% 0.007 235);
-    --ink: oklch(92% 0.008 90);
-    --ink-muted: oklch(70% 0.012 235);
-    --rule: oklch(32% 0.008 235);
-    --rule-control: oklch(56% 0.012 235);
+    --surface: oklch(20.5% 0.006 70);
+    --surface-raised: oklch(24.5% 0.007 70);
+    --surface-sunken: oklch(16.5% 0.005 70);
+    --ink: oklch(92% 0.012 85);
+    --ink-muted: oklch(71% 0.014 75);
+    --rule: oklch(32% 0.008 70);
+    --rule-control: oklch(57% 0.012 70);
     --accent: oklch(72% 0.12 252);
     --focus: oklch(72% 0.12 252);
   }
@@ -74,7 +76,7 @@ body {
   background-color: var(--surface-raised);
   color: var(--ink);
   border: 1px solid var(--rule-control);
-  border-radius: 0.25rem;
+  border-radius: 0.375rem;
   font: inherit;
   cursor: pointer;
 }
