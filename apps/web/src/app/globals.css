@@ -1019,15 +1019,12 @@
   }
 
   /* Pulido tras el gate G-D: el hueco entre bloques de la cabecera lo da su `gap` de 1rem, así que el
-     aviso de cobertura no lleva el margen propio de su uso suelto; y tras una cabecera con aviso los
-     resultados (lista, mapa o estado vacío) empiezan 1rem más abajo, igual en todos los estados. */
+     aviso de cobertura no lleva el margen propio de su uso suelto; y, en ancho, tras una cabecera con
+     aviso los resultados (lista, mapa o estado vacío) empiezan 1rem más abajo. */
   .search-header > .coverage-notice {
     margin: 0;
   }
 
-  .search-header:has(> .coverage-panel, > .coverage-notice) + .search-results {
-    margin-block-start: 1rem;
-  }
 
   /* Lista y mapa (D.8a, decisión 164). Las dos secciones son hermanas dentro de
      `.search-results[data-view]`. Bajo 64rem (768px incluido, porque la columna del mapa
@@ -1113,6 +1110,12 @@
   }
 
   @media (width >= 64rem) {
+    /* Aviso de cobertura sobre los resultados: aquí no hay conmutador de vista y quedaban casi
+       pegados. Por debajo, el conmutador ya los separa y el ritmo es el de la home. */
+    .search-header:has(> .coverage-panel, > .coverage-notice) + .search-results {
+      margin-block-start: 1rem;
+    }
+
     .search-results {
       grid-template-columns: minmax(0, 48rem) minmax(20rem, 1fr);
       gap: 1.5rem;

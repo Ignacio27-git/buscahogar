@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { declarations, findBlock, parseCss, type CssNode } from './helpers/css-tokens';
+import { declarations, findBlock, findBlocks, parseCss, type CssNode } from './helpers/css-tokens';
 
 const CSS = readFileSync(fileURLToPath(new URL('../src/app/globals.css', import.meta.url)), 'utf8');
 const components = (): CssNode => findBlock(parseCss(CSS), '@layer components');
@@ -23,13 +23,16 @@ describe('ritmo vertical de la cabecera (pulido D.18)', () => {
     expect(notice.get('margin')).toBe('0');
   });
 
-  it('tras una cabecera con aviso de cobertura, los resultados dejan 1rem', () => {
-    const rule = declarations(
-      findBlock(
-        components(),
-        '.search-header:has(> .coverage-panel, > .coverage-notice) + .search-results'
-      )
-    );
-    expect(rule.get('margin-block-start')).toBe('1rem');
+  // El conmutador de vista (visible bajo 64rem) ya separa el aviso de los resultados: el margen extra
+  // solo vale en el diseño ancho, donde no hay conmutador.
+  it('tras una cabecera con aviso de cobertura, los resultados dejan 1rem solo desde 64rem', () => {
+    const selector = '.search-header:has(> .coverage-panel, > .coverage-notice) + .search-results';
+    const wide = findBlocks(components()).filter((node) => node.prelude.replace(/\s+/g, ' ') === '@media (width >= 64rem)');
+    const rules = wide.flatMap((media) => media.children.filter((child) => child.prelude.replace(/\s+/g, ' ') === selector));
+    expect(rules).toHaveLength(1);
+    expect(declarations(rules[0] as CssNode).get('margin-block-start')).toBe('1rem');
+    // Y ninguna regla suelta (sin media query) lo aplica a todos los anchos.
+    const loose = components().children.filter((child) => child.prelude.replace(/\s+/g, ' ') === selector);
+    expect(loose).toHaveLength(0);
   });
 });
