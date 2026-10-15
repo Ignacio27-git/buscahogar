@@ -134,7 +134,7 @@ test.describe('barra de filtros y filtros aplicados', () => {
     await expect(list.getByRole('link', { name: 'Más recientes' })).toHaveAttribute('aria-current', 'true');
     await expect(list.locator('[aria-current="true"]')).toHaveCount(1);
     await expect(page.locator('select[name="sort"], select[name="dir"]')).toHaveCount(0);
-    await expect(page.getByText('Cualquiera', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Sentido', { exact: true })).toHaveCount(0);
   });
 
   test('un enlace de ordenación conserva los filtros, quita page y marca el vigente', async ({ page }) => {

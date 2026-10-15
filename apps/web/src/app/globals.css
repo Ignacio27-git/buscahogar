@@ -954,6 +954,23 @@
     min-block-size: 2.5rem;
   }
 
+  /* D.18 (decisión 227): los cinco radios del orden van en filas que envuelven, como las opciones de
+     zona; en columna estrecha (320px) ninguna etiqueta se parte letra a letra ni desborda. */
+  .criteria-order {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    min-inline-size: 0;
+    column-gap: 1.5rem;
+  }
+
+  .criteria-order > p {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-block-size: 2.5rem;
+  }
+
   /* D.17 (B8): el botón y el aviso de que la búsqueda aún no empieza, juntos. */
   .criteria-form__actions {
     display: flex;

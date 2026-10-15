@@ -120,18 +120,20 @@ function OrderFieldset({
   return (
     <fieldset aria-describedby={describedBy}>
       <legend className="sr-only">Orden de los resultados</legend>
-      {SORT_PRESETS.map((preset) => (
-        <p key={preset.id}>
-          <input
-            type="radio"
-            id={`${idPrefix}-order-${preset.id}`}
-            name="order"
-            value={preset.id}
-            defaultChecked={preset.id === checked}
-          />{' '}
-          <label htmlFor={`${idPrefix}-order-${preset.id}`}>{preset.label}</label>
-        </p>
-      ))}
+      <div className="criteria-order">
+        {SORT_PRESETS.map((preset) => (
+          <p key={preset.id}>
+            <input
+              type="radio"
+              id={`${idPrefix}-order-${preset.id}`}
+              name="order"
+              value={preset.id}
+              defaultChecked={preset.id === checked}
+            />{' '}
+            <label htmlFor={`${idPrefix}-order-${preset.id}`}>{preset.label}</label>
+          </p>
+        ))}
+      </div>
     </fieldset>
   );
 }
