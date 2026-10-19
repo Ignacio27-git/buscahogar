@@ -223,6 +223,14 @@
     text-underline-offset: 0.2em;
   }
 
+  /* El color de los enlaces cambia en 150 ms al pasar el puntero (D.21, decisión 240). El subrayado
+     sigue a currentColor, así que no necesita lista propia. El enlace de salto aparece al instante. */
+  a:not(.skip-link) {
+    transition-property: color;
+    transition-duration: var(--duration-hover);
+    transition-timing-function: var(--ease-enter);
+  }
+
   :focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
@@ -283,10 +291,12 @@
   /* Respuesta de pulsación (D.16, decisión 208): solo con puntero. `:not(:focus-visible)` evita que
      una pulsación de teclado (Espacio, Intro) escale el botón, y `:not(.theme-selector button)`
      deja fuera los tres botones del selector de tema, cuyo envío recarga la página. El estado base
-     declara la transición para que también la suelta tenga duración. El color no transiciona. */
+     declara la transición para que también la suelta tenga duración. D.21 (decisión 240) suma el
+     color y el borde, en 150 ms: las duraciones se emparejan por posición con la lista de propiedades
+     (pulsación, fondo, borde). El anillo de foco (outline) nunca se transiciona. */
   button:not(.theme-selector button) {
-    transition-property: transform;
-    transition-duration: var(--duration-feedback);
+    transition-property: transform, background-color, border-color;
+    transition-duration: var(--duration-feedback), var(--duration-hover), var(--duration-hover);
     transition-timing-function: var(--ease-enter);
   }
 
@@ -297,6 +307,13 @@
   @media (hover: hover) and (pointer: fine) {
     button:hover {
       background-color: var(--surface-sunken);
+    }
+
+    /* Hover de enlaces y del paginador (D.21, decisión 11): el acento con un 12 % de tinta, la misma
+       receta que el botón primario. Mezclar hacia la tinta sube el contraste en los dos temas. Las
+       reglas de la capa de componentes (fila, preset vigente) ganan por capa. */
+    a:not(.skip-link):hover {
+      color: color-mix(in oklab, var(--accent), var(--ink) 12%);
     }
   }
 
@@ -376,10 +393,10 @@
     border-color: var(--ink);
   }
 
-  /* Misma respuesta de pulsación que los botones (D.16, decisión 208). */
+  /* Misma respuesta de pulsación y de color que los botones (D.16, decisión 208; D.21). */
   .filter-tray > summary {
-    transition-property: transform;
-    transition-duration: var(--duration-feedback);
+    transition-property: transform, background-color, border-color;
+    transition-duration: var(--duration-feedback), var(--duration-hover), var(--duration-hover);
     transition-timing-function: var(--ease-enter);
   }
 
@@ -399,8 +416,8 @@
   }
 
   .applied-filters__chip {
-    transition-property: transform;
-    transition-duration: var(--duration-feedback);
+    transition-property: transform, background-color, border-color;
+    transition-duration: var(--duration-feedback), var(--duration-hover), var(--duration-hover);
     transition-timing-function: var(--ease-enter);
   }
 
@@ -689,13 +706,16 @@
   }
 
   /* Un único enlace por fila. El foco visible es el global; el resalte solo se aplica con
-     puntero fino (en táctil el :hover se queda pegado) y :active da respuesta al toque. Sin
-     transiciones: la fila no se mueve (D.16, decisión 208). */
+     puntero fino (en táctil el :hover se queda pegado) y :active da respuesta al toque. La fila no
+     se mueve (D.16, decisión 208): solo el fondo transiciona, en 150 ms (D.21, decisión 241). */
   .result-row__link {
     color: var(--ink);
     text-decoration-line: none;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+    transition-property: background-color;
+    transition-duration: var(--duration-hover);
+    transition-timing-function: var(--ease-enter);
   }
 
   .result-row__link:active {
@@ -879,6 +899,14 @@
     user-select: none;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Sin escala de pulsación (es un resumen de texto libre), pero el color del hover y del pulsado
+     transiciona como el resto de controles (D.21). */
+  .nl-disclosure > summary {
+    transition-property: background-color, border-color;
+    transition-duration: var(--duration-hover);
+    transition-timing-function: var(--ease-enter);
   }
 
   .nl-disclosure > summary:active {
@@ -1532,6 +1560,9 @@
     border-block-end: 2px solid transparent;
     font-size: var(--text-dense);
     line-height: var(--text-dense--line-height);
+    transition-property: color, border-color;
+    transition-duration: var(--duration-hover);
+    transition-timing-function: var(--ease-enter);
   }
 
   .sort-presets__link[aria-current='true'] {
@@ -1539,6 +1570,15 @@
     color: var(--ink);
     font-weight: 600;
     text-decoration: none;
+  }
+
+  /* Vista previa suave al pasar el puntero sobre un preset no vigente (D.21, decisión 13): el borde
+     toma --rule-control, nunca la tinta del vigente, para que los dos estados se distingan. El vigente
+     no cambia con el puntero. */
+  @media (hover: hover) and (pointer: fine) {
+    .sort-presets__link:not([aria-current='true']):hover {
+      border-block-end-color: var(--rule-control);
+    }
   }
 
   /* D.18 (decisión 225): una sola acción, en su propio párrafo, con el objetivo de 40px de toda la app. */

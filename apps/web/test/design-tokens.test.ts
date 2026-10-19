@@ -1342,14 +1342,17 @@ describe('movimiento (D.16, ampliado en D.21)', () => {
       );
     });
 
+    // D.21: la pulsación (transform, 100 ms) comparte lista con el color (150 ms), emparejados por posición.
     it.each(BASE_SELECTORS)('«%s» declara el estado base con longhands y tokens', (selector) => {
       const rules = ruleFor(selector).filter((node) =>
         declarations(node).has('transition-property')
       );
       expect(rules).toHaveLength(1);
       const declared = declarations(rules[0] as CssNode);
-      expect(declared.get('transition-property')).toBe('transform');
-      expect(declared.get('transition-duration')).toBe('var(--duration-feedback)');
+      expect(declared.get('transition-property')).toBe('transform, background-color, border-color');
+      expect(declared.get('transition-duration')).toBe(
+        'var(--duration-feedback), var(--duration-hover), var(--duration-hover)'
+      );
       expect(declared.get('transition-timing-function')).toBe('var(--ease-enter)');
     });
 

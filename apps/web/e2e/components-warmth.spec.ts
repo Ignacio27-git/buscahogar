@@ -183,3 +183,66 @@ test.describe('D.20 banda de precio de la ficha', () => {
     expect(band.x + band.width).toBeLessThanOrEqual(scroll.client);
   });
 });
+
+// D.21 (UI-1b, S-UI-2e) — contraste del color de los enlaces al pasar el puntero. axe no puede
+// pasar el ratón, así que se mide con los colores calculados (OKLab → sRGB con un canvas 1x1) en los
+// dos esquemas. Bajo `reduce` el color cambia al instante, de modo que no hace falta esperar.
+const HOVER_CONTRAST_MIN = 4.5;
+
+interface Rgb {
+  readonly r: number;
+  readonly g: number;
+  readonly b: number;
+}
+
+async function colours(page: Page, selector: string): Promise<{ fg: Rgb; bg: Rgb }> {
+  return page.evaluate((sel) => {
+    const toRgb = (css: string): { r: number; g: number; b: number } => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext('2d');
+      if (context === null) throw new Error('canvas sin contexto 2d');
+      context.fillStyle = css;
+      context.fillRect(0, 0, 1, 1);
+      const [r = 0, g = 0, b = 0] = context.getImageData(0, 0, 1, 1).data;
+      return { r, g, b };
+    };
+    const element = document.querySelector(sel);
+    if (element === null) throw new Error(`no existe ${sel}`);
+    return {
+      fg: toRgb(getComputedStyle(element).color),
+      bg: toRgb(getComputedStyle(document.body).backgroundColor),
+    };
+  }, selector);
+}
+
+function channel(value: number): number {
+  const scaled = value / 255;
+  return scaled <= 0.03928 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
+}
+
+function luminance({ r, g, b }: Rgb): number {
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+function contrastRatio(a: Rgb, b: Rgb): number {
+  const [light = 0, dark = 0] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+}
+
+test.describe('D.21 contraste del hover de enlaces', () => {
+  for (const selector of ['.empty-results__action a', '.pagination__prev']) {
+    test(`S-UI-2e ${selector} cumple 4,5:1 con el puntero encima`, async ({ page }, testInfo) => {
+      test.skip(!testInfo.project.name.startsWith('w1280'), 'solo 1280 px, claro y oscuro');
+      await page.goto('/?page=2');
+      const link = page.locator(selector);
+      await link.hover();
+      const hovered = await colours(page, selector);
+      await page.mouse.move(2, 2);
+      const rest = await colours(page, selector);
+      expect(hovered.fg, 'el hover cambia el color').not.toEqual(rest.fg);
+      expect(contrastRatio(hovered.fg, hovered.bg)).toBeGreaterThanOrEqual(HOVER_CONTRAST_MIN);
+    });
+  }
+});

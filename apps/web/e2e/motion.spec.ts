@@ -1,5 +1,5 @@
-// Paso D.16 (specs motion-tokens, ui-motion-surfaces y map-motion; decisiones 205-208) — prueba de
-// movimiento en Chromium SIN capturas. La configuración global fuerza `reducedMotion: 'reduce'`
+// Paso D.16 (specs motion-tokens, ui-motion-surfaces y map-motion; decisiones 205-208) y D.21 (specs
+// ui-microinteractions y motion, decisiones 240-243) — prueba de movimiento en Chromium SIN capturas. La configuración global fuerza `reducedMotion: 'reduce'`
 // (sirve a los baselines visuales), así que cada bloque fija el valor que necesita. Todos los
 // proyectos son Chromium y los dos anchos relevantes (320 y 1280 en claro) se eligen con
 // `onlyProject`. Se leen estilos calculados y estados finales con `expect.poll`; nunca
@@ -21,6 +21,12 @@ function route(name: string): (typeof ROUTES)[number] {
 }
 
 const SCALE_PRESSED = 'matrix(0.97, 0, 0, 0.97, 0, 0)';
+// D.21: la lista de duraciones de los botones empareja la pulsación (100 ms) con el color (150 ms).
+const PRESS_AND_COLOUR = '0.1s, 0.15s, 0.15s';
+const HOVER_TIME = '0.15s';
+const LINK_HOVER_RECIPE = 'color-mix(in oklab, var(--accent), var(--ink) 12%)';
+// Sin resultados en la página 2: la lista muestra «Ir a la primera página» y el paginador, «anterior».
+const PAGINATION_PATH = '/?page=2';
 const TRAY_PROPERTIES = 'opacity, transform, content-visibility';
 const FILTERED_PATH = '/?operation=sale&maxPrice=300000';
 
@@ -57,6 +63,35 @@ async function computed(
   return locator.evaluate((element, name) => window.getComputedStyle(element)[name], property);
 }
 
+// Estilo calculado por nombre CSS (`border-block-end-color`, `color`...). El navegador devuelve los
+// colores ya resueltos, así que se comparan entre sí y nunca con un literal.
+async function style(locator: Locator, property: string): Promise<string> {
+  return locator.evaluate((element, name) => window.getComputedStyle(element).getPropertyValue(name), property);
+}
+
+// Color calculado de una expresión CSS evaluada en la página (con los tokens del tema vigente).
+async function resolveColour(page: Page, expression: string): Promise<string> {
+  return page.evaluate((value) => {
+    const probe = document.createElement('span');
+    probe.style.color = value;
+    document.body.append(probe);
+    const resolved = window.getComputedStyle(probe).color;
+    probe.remove();
+    return resolved;
+  }, expression);
+}
+
+async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
+  const box = await locator.boundingBox();
+  if (box === null) throw new Error('el elemento no tiene caja');
+  return box;
+}
+
+// Los dos esquemas del ancho de escritorio: el hover se comprueba en claro y en oscuro.
+function onlyDesktop(): void {
+  test.skip(!test.info().project.name.startsWith('w1280'), 'solo 1280 px');
+}
+
 // Pulsa con el ratón sobre el centro del elemento y lo deja pulsado.
 async function pressWithMouse(page: Page, target: Locator): Promise<void> {
   const box = await target.boundingBox();
@@ -81,6 +116,8 @@ test.describe('movimiento con preferencia normal', () => {
     await openRoute(page, route('home'));
 
     expect(await rootTokenMs(page, '--duration-feedback')).toBe(100);
+    expect(await rootTokenMs(page, '--duration-hover')).toBe(150);
+    expect(await rootTokenMs(page, '--duration-appear')).toBe(200);
     expect(await rootTokenMs(page, '--duration-panel-enter')).toBe(250);
     expect(await rootTokenMs(page, '--duration-panel-exit')).toBe(200);
 
@@ -111,7 +148,7 @@ test.describe('movimiento con preferencia normal', () => {
     await openRoute(page, route('map'));
     const button = drawButton(page);
 
-    expect(await computed(button, 'transitionDuration')).toBe('0.1s');
+    expect(await computed(button, 'transitionDuration')).toBe(PRESS_AND_COLOUR);
     expect(await computed(button, 'transform')).toBe('none');
 
     await pressWithMouse(page, button);
@@ -128,7 +165,7 @@ test.describe('movimiento con preferencia normal', () => {
     await expect(chip).toBeVisible();
 
     for (const target of [chip, traySummary(page)]) {
-      expect(await computed(target, 'transitionDuration')).toBe('0.1s');
+      expect(await computed(target, 'transitionDuration')).toBe(PRESS_AND_COLOUR);
       await pressWithMouse(page, target);
       await expect.poll(() => computed(target, 'transform')).toBe(SCALE_PRESSED);
       await releaseOffTarget(page);
@@ -163,7 +200,11 @@ test.describe('movimiento con preferencia normal', () => {
     expect(await computed(button, 'transform')).toBe('none');
   });
 
-  test('el color y el fondo siguen siendo instantáneos al pasar el ratón (S-UM-7)', async ({ page }) => {
+  // S-UM-7 (reemplazada en D.21, decisión 240): el color del hover ya se acompaña de 150 ms; la
+  // pulsación sigue en 100 ms y el anillo de foco (outline) nunca entra en la lista.
+  test('el hover de un botón transiciona color y borde en 150 ms, sin outline ni sombra (S-UM-7)', async ({
+    page,
+  }) => {
     onlyProject('w1280-light');
     await openRoute(page, route('map'));
     const button = drawButton(page);
@@ -171,8 +212,9 @@ test.describe('movimiento con preferencia normal', () => {
     await button.hover();
     await expect(button).toBeVisible();
     const property = await computed(button, 'transitionProperty');
-    expect(property).toBe('transform');
-    expect(property).not.toMatch(/color|background|border|outline|all/);
+    expect(property).toBe('transform, background-color, border-color');
+    expect(property).not.toMatch(/all|outline|box-shadow/);
+    expect(await computed(button, 'transitionDuration')).toBe(PRESS_AND_COLOUR);
   });
 
   test('el pan con flechas es instantáneo y no usa la animación de Leaflet (S-MM-7)', async ({ page }) => {
@@ -218,11 +260,13 @@ test.describe('movimiento con preferencia normal', () => {
 test.describe('movimiento con reducción de movimiento', () => {
   test.use({ reducedMotion: 'reduce' });
 
-  test('los tres tiempos valen 0s y la bandeja es instantánea (S-MT-6, S-UM-4)', async ({ page }) => {
+  test('las cinco duraciones valen 0s y la bandeja es instantánea (S-MT-6, S-UM-4)', async ({ page }) => {
     onlyProject('w320-light');
     await openRoute(page, route('home'));
 
     expect(await rootTokenMs(page, '--duration-feedback')).toBe(0);
+    expect(await rootTokenMs(page, '--duration-hover')).toBe(0);
+    expect(await rootTokenMs(page, '--duration-appear')).toBe(0);
     expect(await rootTokenMs(page, '--duration-panel-enter')).toBe(0);
     expect(await rootTokenMs(page, '--duration-panel-exit')).toBe(0);
     expect(await pseudoStyle(page, 'transitionDuration')).toBe('0s');
@@ -234,6 +278,121 @@ test.describe('movimiento con reducción de movimiento', () => {
   test('los botones pulsables tampoco esperan (S-UM-4)', async ({ page }) => {
     onlyProject('w1280-light');
     await openRoute(page, route('map'));
-    expect(await computed(drawButton(page), 'transitionDuration')).toBe('0s');
+    // Cada entrada de la lista (pulsación y color) vale 0s: ya nada espera.
+    expect(await computed(drawButton(page), 'transitionDuration')).toBe('0s, 0s, 0s');
+  });
+});
+
+// D.21 (UI-1, UI-1b, UI-2; S-UI-2, S-UI-2c, S-UI-3): color y borde de los controles al pasar el
+// puntero, y lo que queda instantáneo.
+test.describe('hover y color con preferencia normal (D.21)', () => {
+  test.use({ reducedMotion: 'no-preference' });
+
+  // Cada entrada: página donde está el control, localizador, y una propiedad de color que debe figurar.
+  const CONTROLS: ReadonlyArray<readonly [name: string, path: string, selector: string, property: RegExp, time: string]> = [
+    ['chip', FILTERED_PATH, '.applied-filters__chip', /border-color/, HOVER_TIME],
+    ['resumen nl-disclosure', '/', '.nl-disclosure > summary', /background-color/, HOVER_TIME],
+    ['preset de ordenación', '/', '.sort-presets__link', /border-color/, HOVER_TIME],
+    ['fila de resultado', '/', '.result-row__link', /background-color/, HOVER_TIME],
+    ['enlace de texto', PAGINATION_PATH, '.empty-results__action a', /^color$/, HOVER_TIME],
+    ['enlace del paginador', PAGINATION_PATH, '.pagination__prev', /^color$/, HOVER_TIME],
+  ];
+
+  for (const [name, path, selector, property, time] of CONTROLS) {
+    test(`${name}: transiciona color en 150 ms (S-UI-2)`, async ({ page }) => {
+      onlyProject('w1280-light');
+      await page.goto(path);
+      const target = page.locator(selector).first();
+      await expect(target).toBeVisible();
+      expect(await computed(target, 'transitionProperty')).toMatch(property);
+      expect(await computed(target, 'transitionDuration')).toContain(time);
+    });
+  }
+
+  test('enlace de texto y paginador: el hover mezcla acento y tinta y no mueve la caja (S-UI-2c)', async ({
+    page,
+  }) => {
+    onlyDesktop();
+    await page.goto(PAGINATION_PATH);
+    const expected = await resolveColour(page, LINK_HOVER_RECIPE);
+    for (const link of [page.locator('.empty-results__action a'), page.locator('.pagination__prev')]) {
+      const rest = await style(link, 'color');
+      const box = await boxOf(link);
+      expect(expected, 'la receta difiere del color en reposo').not.toBe(rest);
+
+      await link.hover();
+      await expect.poll(() => style(link, 'color')).toBe(expected);
+      expect(await boxOf(link)).toEqual(box);
+
+      await page.mouse.move(2, 2);
+      await expect.poll(() => style(link, 'color')).toBe(rest);
+    }
+  });
+
+  test('ordenación: un preset no vigente muestra --rule-control, distinto del vigente (S-UI-2c)', async ({
+    page,
+  }) => {
+    onlyDesktop();
+    await page.goto('/');
+    const selected = page.locator('.sort-presets__link[aria-current="true"]');
+    const other = page.locator('.sort-presets__link:not([aria-current="true"])').first();
+    await expect(selected).toHaveCount(1);
+    const rest = await style(other, 'border-block-end-color');
+    const box = await boxOf(other);
+    const softer = await resolveColour(page, 'var(--rule-control)');
+    const selectedBorder = await style(selected, 'border-block-end-color');
+    expect(softer).not.toBe(rest);
+    expect(softer).not.toBe(selectedBorder);
+
+    await other.hover();
+    await expect.poll(() => style(other, 'border-block-end-color')).toBe(softer);
+    expect(await boxOf(other)).toEqual(box);
+    // El vigente no cambia con el puntero sobre otro preset.
+    expect(await style(selected, 'border-block-end-color')).toBe(selectedBorder);
+  });
+
+  test('campos y selector de tema no transicionan; el anillo de foco es instantáneo (S-UI-3)', async ({
+    page,
+  }) => {
+    onlyProject('w1280-light');
+    await openRoute(page, route('home'));
+    const field = page.locator('input:not([type="hidden"])').first();
+    const select = page.locator('select').first();
+    const theme = page.getByRole('banner').getByRole('button', { name: 'Claro', exact: true });
+    for (const target of [field, select, theme]) {
+      expect(await computed(target, 'transitionDuration')).toBe('0s');
+      expect(await computed(target, 'transitionProperty')).not.toMatch(/color|outline|box-shadow/);
+    }
+
+    // Foco de teclado en un control con transición de color: el anillo ya está entero en la primera
+    // lectura y su propiedad no figura en la lista.
+    await page.keyboard.press('Tab');
+    const link = page.locator('.sort-presets__link').first();
+    await link.focus();
+    expect(await link.evaluate((element) => element.matches(':focus-visible'))).toBe(true);
+    expect(await style(link, 'outline-style')).toBe('solid');
+    expect(await style(link, 'outline-width')).toBe('2px');
+    expect(await computed(link, 'transitionProperty')).not.toMatch(/outline|box-shadow/);
+  });
+});
+
+// D.21 (S-UI-2d): sin puntero fino no hay hover de color.
+test.describe('hover sin puntero fino (D.21)', () => {
+  test.use({ reducedMotion: 'no-preference', isMobile: true, hasTouch: true });
+
+  test('un puntero táctil no aplica el hover de enlace ni el de ordenación (S-UI-2d)', async ({ page }) => {
+    onlyProject('w320-light');
+    await page.goto(PAGINATION_PATH);
+    expect(await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches)).toBe(false);
+    const link = page.locator('.empty-results__action a');
+    const rest = await style(link, 'color');
+    await link.hover();
+    expect(await style(link, 'color')).toBe(rest);
+
+    await page.goto('/');
+    const other = page.locator('.sort-presets__link:not([aria-current="true"])').first();
+    const border = await style(other, 'border-block-end-color');
+    await other.hover();
+    expect(await style(other, 'border-block-end-color')).toBe(border);
   });
 });
