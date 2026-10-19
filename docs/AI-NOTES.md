@@ -3997,3 +3997,28 @@ abrir cada captura; 7 por el tiempo de espera; 8 al repetir la suite.
 
 **Observación:** una regla de la herramienta (la «ceja») y las decisiones confirmadas tienen que viajar completas en cada revisión del artefacto.
 Los márgenes que dependen del ancho se prueban en 320 y 768 antes de generalizarlos.
+
+### 2026-10-19 — Fallos intermedios en el diseño y la aplicación de D.20
+
+**Contexto:** componentes con la dirección cálida (`design-components-d20`).
+
+**Categoría:** contradicción con una regla de una herramienta / efecto lateral de CSS / fallo de proceso / omisión en un artefacto.
+
+**Qué se generó mal:**
+
+1. Las fases de exploración y de tareas no cargaron la skill de `impeccable` que el proyecto exige para el trabajo de interfaz; la
+   tarea dejó escrito que la fase de aplicación debía cargarla.
+2. El primer dibujo del motivo (líneas onduladas paralelas) se leía como un matasellos y no como curvas de nivel, y pesaba distinto en claro
+   y en oscuro. Se rehízo como anillos cerrados alrededor de una cima, con un trazo por tema (contraste medido 1,49:1 y 1,41:1).
+3. La primera versión del diseño hacía crecer la fila a 320 en unos 6px (interlineado de heading-2 más un borde de 1px) sin cuantificarlo; lo
+   detectó el validador en contexto limpio, junto con escenarios sin cubrir, y el diseño se corrigió (peso en lugar de tamaño, `outline` en lugar
+   de borde).
+4. El agente del lote 3a sobrescribió en Engram la observación detallada de `apply-progress` con un resumen, y se perdió la evidencia previa.
+5. `--update-snapshots=changed` no regeneró las capturas con cambios bajo el umbral (pie y motivo), así que hubo que borrar los 102 PNG y
+   escribirlos de nuevo (decisión 239).
+
+**Cómo se detectó:** 1 al revisar el proceso del paso; 2 en la revisión visual de las capturas; 3 por el validador del diseño; 4 al
+leer la observación en el lote siguiente; 5 al contrastar los PNG cambiados con los esperados.
+
+**Observación:** una restricción numérica («la fila no crece») hay que cuantificarla en el diseño y fijarla con una prueba antes de tocar CSS. Una
+observación de progreso se actualiza con `find`/`replace` o se anexa, no se sobrescribe con un resumen.

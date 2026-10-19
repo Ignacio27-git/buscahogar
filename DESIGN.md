@@ -108,7 +108,7 @@ components:
     padding: '0 0.75rem'
     height: '2rem'
   panel:
-    backgroundColor: '{colors.surface}'
+    backgroundColor: '{colors.surface-raised}'
     textColor: '{colors.ink}'
     typography: '{typography.body}'
     rounded: '{rounded.panel}'
@@ -173,8 +173,9 @@ de un portal inmobiliario.
 
 El sistema se reconoce por lo que no lleva. Una vivienda es una fila fina separada por un filete,
 no una tarjeta con una foto grande como unidad de lectura. No hay marginalia cartográfica más allá
-de un marco y una trama: el marco del mapa y la trama de la ubicación aproximada. Todo lo demás es
-papel cálido, tinta, un azul para lo que se pulsa y un verde para lo que está bien.
+de un marco, una trama y un único motivo de curvas de nivel: el marco del mapa, la trama de la
+ubicación aproximada y el motivo decorativo junto al título de la búsqueda.
+Esa excepción es de D.20 (decisión 235). Todo lo demás es papel cálido, tinta, un azul para lo que se pulsa y un verde para lo que está bien.
 
 **Key Characteristics:**
 
@@ -182,6 +183,7 @@ papel cálido, tinta, un azul para lo que se pulsa y un verde para lo que está 
 - Estructura con filetes de 1px y superficies, no con sombras ni tarjetas.
 - Controles de alto fijo (40px como mínimo en todo lo que se pulsa) y radios algo más amables (0,375 y 0,5rem).
 - Una sola trama (siena) reservada a la ubicación aproximada.
+- Un único motivo decorativo de curvas de nivel junto al título de la búsqueda, en trazo fino y por debajo de los datos.
 - Una sola familia, Figtree autoalojada, con cifras tabulares donde se comparan precios, recuentos y fechas.
 - Sin movimiento decorativo: solo la respuesta de pulsación y la bandeja de filtros.
 
@@ -218,9 +220,12 @@ luminosidad y lavados más oscuros.
 
 - **Papel de hoja** (`surface`, #faf8f3 / oklch(20.5% 0.006 70)): fondo de página y de los campos. Crema cálido; en oscuro, carbón cálido.
 - **Papel sobrepuesto** (`surface-raised`, #fefdfb / oklch(24.5% 0.007 70)): botones, etiquetas de precio
-  del mapa y todo lo que flota sobre él. Un escalón más claro que el papel en ambos temas.
+  del mapa, los avisos, el panel de cobertura, los números de los pasos y el panel de precio de la ficha. Un
+  escalón más claro que el papel en ambos temas (D.20, decisión 237).
 - **Papel hundido** (`surface-sunken`, oklch(95% 0.008 85) / oklch(16.5% 0.005 70)): estado pulsado y hover
-  fino de los controles, marco de la miniatura sin foto (mezclado con un 5% de tinta).
+  fino de los controles, estado vacío, incidencias de la búsqueda en lenguaje natural y pie de página. La
+  miniatura sin foto no lo usa: conserva el tinte de un 5% de tinta sobre el papel (D.17), más claro que la
+  página en oscuro.
 - **Tinta de plancha** (`ink`, #1e1c19 / oklch(92% 0.012 85)): texto principal, bordes que se enfatizan y la
   insignia de varias fuentes.
 - **Tinta de leyenda** (`ink-muted`, oklch(49% 0.014 70) / oklch(71% 0.014 75)): ayudas, direcciones, pies
@@ -263,8 +268,9 @@ a Liberation Sans, que no tiene cara SemiBold y pinta el 600 como 700 (decisión
 ### Hierarchy
 
 - **Heading 1** (700, 1.75rem, 2.25rem, tracking -0.01em): título de la página («Buscar vivienda», precio principal de la ficha).
-- **Heading 2** (600, 1.375rem, 1.75rem): secciones de la ficha y precio de cada fila a partir de 48rem.
-- **Heading 3** (600, 1.125rem, 1.5rem): marca «Buscahogar» (en la cabecera y en la franja de las páginas independientes), precio de fila en móvil y precio de la ventana del mapa.
+- **Heading 2** (600, 1.375rem, 1.75rem): secciones de la ficha y tamaño del precio de cada fila a partir de 48rem.
+- **Heading 3** (600, 1.125rem, 1.5rem): marca «Buscahogar» (en la cabecera y en la franja de las páginas independientes), tamaño del precio de fila en móvil y precio de la ventana del mapa.
+- **Precio de fila** (700 en todos los anchos): desde D.20 el precio de la fila toma el peso del titular mayor y mantiene el tamaño y el interlineado de arriba, de modo que la fila no crece (decisión 236).
 - **Body** (400, 1rem, 1.5rem): texto corrido y campos de formulario (16px, para que iOS no amplíe al enfocar).
 - **Dense** (400, 0.875rem, 1.25rem): etiquetas, ayudas, direcciones, chips y cifras de las filas.
 - **Small** (400, 0.75rem, 1rem): pie del mapa, insignia de fuentes, etiquetas de estado.
@@ -361,7 +367,8 @@ principal y nada decorativo: se leen como instrumentos técnicos.
 ### Cards / Containers
 
 - **Corner Style:** panel de 0,5rem (`panel`); las filas de resultado no tienen caja.
-- **Background:** `surface`, sin sombra.
+- **Background:** `surface-raised`, sin sombra (D.20: los avisos y el panel de cobertura son papel sobrepuesto neutro, no
+  `surface`); el estado vacío y las incidencias de la búsqueda en lenguaje natural usan `surface-sunken`. Las alertas conservan `danger-wash`.
 - **Border:** 1px en `rule`; los paneles de alerta (cobertura fallida, filtros no válidos) toman `danger`.
 - **Internal Padding:** 0,75rem 1rem.
 
@@ -403,6 +410,26 @@ fondo `surface-raised` y peso 600. La etiqueta del campo existe pero queda ocult
 campo conserva el mismo nombre. Se abre sola en la portada, con `?q=`, con parámetros no válidos y cuando la
 zona no se reconoce; en una página de resultados queda cerrada. Sin movimiento.
 
+### Motivo de curvas de nivel
+
+Único momento decorativo del sistema (D.20, decisión 235). Cinco anillos cerrados e irregulares anidados alrededor de una cima,
+con el tercero como curva maestra (trazo de 2), en un SVG propio de 240 × 48 incrustado en la cabecera de la búsqueda
+(`contour-motif`, `aria-hidden`, sin foco ni texto). Va junto al título de resultados y solo ahí: ni en la portada con consulta en
+lenguaje natural, ni en la ficha, ni en los 404. Es un trazo fino que no reserva espacio (posición absoluta, sin eventos de
+puntero), pinta por debajo del título y no cambia ni el alto de la cabecera ni el orden del DOM. El trazo es `rule-control` al
+35% de opacidad en claro y `rule` entero en oscuro, para que los dos temas pesen parecido (contraste de línea de 1,49:1 y
+1,41:1); a 320px se recorta en lugar de desbordar. No es un dato: el motivo no sustituye ninguna señal.
+
+### Panel de precio de la ficha
+
+El precio de la ficha es un panel elevado neutro (`surface-raised`, borde de `rule`, radio `panel`). A partir de 64rem es una
+banda lateral cuyo texto se alinea con la rejilla de datos (sangrado lateral de 1rem compensado con el mismo relleno).
+
+### Pie de página
+
+Filete superior de `rule` sobre `surface-sunken`, un escalón más hundido que el papel; la atribución de IGN/CNIG y de
+OpenStreetMap conserva el contraste AA en ambos temas.
+
 ### Estado vacío
 
 El vacío filtrado es un panel de 1px con tres cosas: el estado («Ninguna vivienda coincide con tu
@@ -416,13 +443,22 @@ repite la lista de filtros.
 Una fila fina separada por un filete de 1px. A 320px, miniatura de 6rem y texto a la derecha; desde 48rem,
 miniatura de 10rem, datos y precio en una columna fija de 10rem a la derecha. «Disponible en N fuentes» (N de
 2 en adelante) es la insignia `badge-multi-source`: borde `vegetation`, fondo `vegetation-wash`, texto
-`ink`, peso 600 y cifras tabulares; «Disponible en 1 fuente» es una línea tenue sin caja.
+`ink`, peso 600 y cifras tabulares; «Disponible en 1 fuente» es una línea tenue con un contorno de 1px en `rule`
+(`outline` con desplazamiento negativo, que no añade alto ni sombra), sin el verde.
+
+Desde D.20 la fila gana carácter sin crecer (la altura de cada ancho está fijada por `e2e/components-warmth.spec.ts` con una
+tolerancia de 4px): el precio pesa 700 en todos los anchos y no lleva espaciado negativo cuando falta; la
+operación («Venta», «Alquiler») es la etiqueta neutra `result-row__operation` en la línea de tipo
+(«Piso · Venta»), de peso 400, borde de 1px en `rule`, tamaño `small` y sin tono, con el mismo texto
+accesible de antes; y «Sin foto» dibuja una pauta cuadrada interior (`rule`, 1px, a 0,375rem del borde) con el
+texto en peso 600 sobre el tinte de D.17. La etiqueta de operación queda fuera del subrayado del enlace.
 
 ### Comparativa de fuentes
 
 En la ficha, cada anuncio activo dice «Disponible» en `vegetation` y el más barato de los activos lleva la
-marca «Más económico» con borde `vegetation` y fondo `vegetation-wash`. El texto va siempre; el verde no es
-la única señal. Los anuncios no activos conservan la tinta apagada.
+marca «Más económico» con borde `vegetation` y fondo `vegetation-wash`. Desde D.20 ambas llevan delante un icono `check`
+decorativo (`currentColor`, trazo de 2) que es una señal más que no depende del color; «Último precio más bajo» no lo
+lleva. El texto va siempre; el verde no es la única señal. Los anuncios no activos conservan la tinta apagada.
 
 ### Mapa
 
@@ -458,7 +494,7 @@ nuevo». El estado (pendiente, en curso, hecho o fallido) lleva una etiqueta de 
 ### Don't:
 
 - **Don't** usar una tarjeta con una foto grande como unidad de lectura de un resultado.
-- **Don't** añadir marginalia cartográfica más allá del marco del mapa y la trama de la ubicación aproximada.
+- **Don't** añadir marginalia cartográfica más allá del marco del mapa, la trama de la ubicación aproximada y el único motivo de curvas de nivel junto al título de la búsqueda.
 - **Don't** usar `hatch` (siena) como texto, fondo ni acento.
 - **Don't** pintar de verde un enlace, un botón ni «Último precio más bajo»; el verde no es interactivo.
 - **Don't** proyectar sombra en reposo; las dos sombras son para lo que flota sobre el mapa o surge al enfocar.

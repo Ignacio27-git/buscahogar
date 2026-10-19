@@ -99,7 +99,7 @@ métricas de uso, testimonios, cifras de cobertura ni acuerdos con portales.
 
 ## Product Principles
 
-1. El precio y los datos comparables mandan; la decoración no compite con ellos.
+1. El precio y los datos comparables mandan; la decoración no compite con ellos. La única decoración admitida es el motivo de curvas de nivel junto al título de la búsqueda: un trazo fino que nunca se coloca sobre los datos ni compite con ellos. Enmienda de D.20 (decisión 235).
 2. Mostrar la evidencia de la agregación: de qué fuentes sale cada vivienda y cuál es la más
    barata.
 3. Honestidad con la incertidumbre: lo aproximado, lo no consolidado y lo inactivo se dicen como

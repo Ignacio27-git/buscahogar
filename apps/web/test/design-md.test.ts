@@ -424,3 +424,59 @@ describe('DESIGN.md: componentes de D.18 salen del código enviado', () => {
     expect(refers).toEqual(expect.arrayContaining(['sort-preset', 'icon-button']));
   });
 });
+
+// D.20 (decisión 235): la regla «sin marginalia cartográfica» admite exactamente un motivo decorativo
+// de curvas de nivel junto al título de la búsqueda. La misma redacción vive en DESIGN.md, en el
+// sidecar y en PRODUCT.md, y este bloque impide que se separen.
+const PRODUCT_MD = readFileSync(`${REPO_ROOT}PRODUCT.md`, 'utf8');
+const flatten = (text: string): string => text.replace(/\s+/g, ' ');
+
+const MARGINALIA_OVERVIEW =
+  'No hay marginalia cartográfica más allá de un marco, una trama y un único motivo de curvas de nivel: el marco del mapa, la trama de la ubicación aproximada y el motivo decorativo junto al título de la búsqueda.';
+const MARGINALIA_DONT =
+  "**Don't** añadir marginalia cartográfica más allá del marco del mapa, la trama de la ubicación aproximada y el único motivo de curvas de nivel junto al título de la búsqueda.";
+const MARGINALIA_PRODUCT =
+  'La única decoración admitida es el motivo de curvas de nivel junto al título de la búsqueda: un trazo fino que nunca se coloca sobre los datos ni compite con ellos.';
+
+describe('D.20: la regla de marginalia enmendada es idéntica en los tres documentos', () => {
+  const sidecarNarrative = SIDECAR.narrative;
+
+  it('el resumen de DESIGN.md y el del sidecar repiten la misma frase', () => {
+    expect(flatten(body)).toContain(MARGINALIA_OVERVIEW);
+    expect(flatten(sidecarNarrative.overview)).toContain(MARGINALIA_OVERVIEW);
+  });
+
+  it("el «Don't» de DESIGN.md y el del sidecar repiten la misma frase", () => {
+    expect(flatten(body)).toContain(MARGINALIA_DONT);
+    expect(sidecarNarrative.donts).toContain(MARGINALIA_DONT);
+  });
+
+  it('PRODUCT.md admite el motivo bajo el primer principio con la misma idea', () => {
+    expect(flatten(PRODUCT_MD)).toContain(MARGINALIA_PRODUCT);
+  });
+
+  it('ya no queda la prohibición absoluta ni en DESIGN.md ni en el sidecar', () => {
+    const old =
+      /más allá de un marco y una trama|del marco del mapa y la trama de la ubicación aproximada\./;
+    expect(flatten(DESIGN_MD)).not.toMatch(old);
+    expect(flatten(SIDECAR_TEXT)).not.toMatch(old);
+  });
+
+  it('el motivo, la etiqueta de operación y el icono de verificación se describen', () => {
+    const flat = flatten(body);
+    expect(flat).toContain('curvas de nivel');
+    expect(flat).toContain('result-row__operation');
+    expect(flat).toContain('icono `check`');
+    expect(flat).toContain('pauta cuadrada');
+    expect(
+      sidecarNarrative.keyCharacteristics.some((line: string) => line.includes('curvas de nivel'))
+    ).toBe(true);
+  });
+
+  it('el panel del frontmatter usa la superficie elevada y el sidecar sigue en diez componentes', () => {
+    expect(required(FRONT, 'components.panel.backgroundColor')).toBe('{colors.surface-raised}');
+    expect(SIDECAR.components).toHaveLength(10);
+    const row = SIDECAR.components.find((component) => component.name === 'Fila de resultado');
+    expect(row?.css).toContain('.ds-row__operation');
+  });
+});

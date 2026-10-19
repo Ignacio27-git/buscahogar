@@ -1681,7 +1681,7 @@ componentes.
 
 ---
 
-## [ ] D.20 · Componentes con la dirección cálida
+## [x] D.20 · Componentes con la dirección cálida
 
 ```text
 Paso D.20 de docs/DESIGN-ROADMAP.md. Usa `impeccable delight` e `impeccable bolder`.
@@ -1713,7 +1713,38 @@ Aplica la dirección de D.19 a los componentes sin cambiar comportamiento ni tex
 
 - **Ficheros:** `apps/web/src/components/` (fila, ficha, avisos, vacío, pasos, chips), `apps/web/src/app/globals.css`, el SVG del motivo,
   capturas de `apps/web/e2e/`.
-- **Riesgos:** decoración que compita con los datos (principio 1 de PRODUCT.md); el motivo pesando a 320.
+- **Tests:** `test/contour-motif.test.tsx`, `test/components-warmth-css.test.ts` (forma de las reglas), `test/result-card.test.tsx`,
+  `test/source-list.test.tsx`, `test/icon.test.tsx`, `test/property-detail-css.test.ts`, `test/layout-shell.test.ts`, `test/design-md.test.ts`
+  (redacción idéntica de la regla enmendada en los tres documentos) y `e2e/components-warmth.spec.ts` (alturas de fila fijadas, motivo,
+  banda de la ficha).
+- **Riesgos:** decoración que compita con los datos (principio 1 de PRODUCT.md); el motivo pesando a 320. El motivo y la altura de la fila se
+  vigilaron con mediciones (el motivo no desborda a 320; las alturas de fila no cambian).
+- **Estado (2026-10-19): D.20 hecho.** Aplicada con SDD y fase de investigación (Engram `sdd/design-components-d20/*`), en un único PR con
+  `size:exception` aceptado por el responsable el 2026-10-19 antes de aplicar. Siete commits en `feature-fase3`: `7bfae91` (alturas de fila
+  fijadas), `6405f11` (icono `check`), `5578ea5` (motivo de curvas de nivel), `7fb3803` (fila: precio, operación y «Sin foto»), `4eadade`
+  (superficies, panel de la ficha y pie), `0905fce` (correcciones de la revisión visual) y `37db8d7` (102 líneas base), más el de
+  documentación. Decisiones 235-239.
+- **Entregado:** motivo de curvas de nivel en SVG incrustado junto al `h1` de la búsqueda (cinco anillos alrededor de una cima, curva maestra;
+  `rule-control` al 35% en claro, `rule` en oscuro); precio de fila en 700; etiqueta neutra de operación; «Sin foto» con pauta cuadrada;
+  contorno en la insignia de una fuente; icono `check` en «Disponible» y «Más económico»; avisos, panel de cobertura y números de los pasos
+  en `surface-raised`; vacío, incidencias y pie en `surface-sunken`; panel de precio de la ficha elevado, con banda alineada desde 64rem; la
+  regla de marginalia enmendada en `DESIGN.md`, `design.json` y `PRODUCT.md`.
+- **Revisión visual:** 102 capturas revisadas por seis revisores aislados (102/102 sin bloqueantes ni mayores). El responsable decidió tres
+  correcciones: (A) motivo redibujado como anillos de nivel y equilibrado entre temas (contraste de línea medido 1,49:1 en claro y 1,41:1 en
+  oscuro); (B) etiqueta de operación en peso 400 con borde `rule`; (C) banda del precio de la ficha con `margin-inline: -1rem` para alinear
+  el texto con la rejilla. Segunda pasada con dos revisores aislados: sin regresiones. Decisiones de producto del responsable (2026-10-19):
+  SVG incrustado, motivo solo junto al `h1`, etiqueta de operación neutra, superficies neutras sin tokens nuevos, icono `check` y pie
+  recoloreado.
+- **Tests:** web 94 ficheros / 1.439 tests en verde; typecheck y eslint limpios. `pnpm e2e` en Docker: 842 pasadas, 778 omitidas, 0 fallos;
+  axe a cero en ambos temas. Alturas de fila fijadas (U0): a 320, 141/139/139/139/159 px; a 768 y 1280, 145 px; sin cambio tras D.20
+  (tolerancia de 4px).
+- **Decisiones:** 235 (motivo, enmienda la 132), 236 (fila), 237 (superficies, banda de la ficha y pie), 238 (icono `check`) y 239 (línea
+  base: borrar y reescribir bajo umbral).
+- **Tamaño real:** 17 ficheros, +809/−20 líneas sin contar los PNG (estimado 575-830; presupuesto 800), a las que se suma este registro.
+- **Seguimientos (entran en D.21, menores):** los anillos exteriores del motivo se cortan en plano arriba y abajo de la caja del SVG; a 320
+  el fragmento recortado se lee en parte como rayas y tiene un corte duro a la izquierda (valorar un desvanecido u otro recorte); en
+  claro la banda del precio de la ficha apenas se ve (`#fefdfb` sobre `#faf8f3`) y su filete es más ancho que los de la lista de fuentes;
+  la etiqueta de operación y las etiquetas de estado de cobertura se distinguen sobre todo por la fuerza del borde.
 - **Tamaño:** M.
 
 ---
@@ -1967,3 +1998,13 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-15 | D.19 | El módulo de la fuente vive en `apps/web/src/fonts/` y el puente es `var(--font-figtree, system-ui)` en `@theme static`; el spec decía `app/fonts` y `@theme inline`. | `app` está reservado a rutas, y `inline` rompe donde la variable no existe (páginas independientes y tests). Decisión 230. |
 | 2026-10-15 | D.19 | Se añade una fase de investigación (`sdd-research`) que devolvió «parcial»; el hueco de las cifras tabulares lo cerró el orquestador con una comprobación empírica con fontTools. | La investigación no pudo verificar la característica `tnum` del `woff2` sin herramientas; se comprobó directamente en el fichero. |
 | 2026-10-15 | D.19 | «Disponible en 1 fuente» conserva su línea tenue sin caja; el spec decía que no llevaba insignia. | Coincide con el diseño y con `DESIGN.md`: la insignia verde es solo para dos fuentes o más. |
+| 2026-10-19 | D.20 | `size:exception` aceptado por el responsable antes de aplicar: 17 ficheros, +809/−20 líneas sin PNG frente al presupuesto de 800, en un único PR. | Trabajo cohesivo (CSS, componentes y sus tests); partirlo separaría las reglas de las pruebas que las fijan. Las 102 capturas no cuentan. |
+| 2026-10-19 | D.20 | El motivo es un SVG incrustado (componente `contour-motif`) y no un fichero servido desde el origen, como decía el paso. | Decisión del responsable: un fichero en `public/` obligaba a abrir el matcher del `proxy` y a enmendar los tests que prohíben `url(` (decisión 235). |
+| 2026-10-19 | D.20 | La etiqueta de operación es neutra, sin color; el paso pedía «con color y texto». | Decisión del responsable: el azul es solo interactivo y el verde, un estado favorable (decisiones 231 y 236). El color lo aporta la insignia de varias fuentes. |
+| 2026-10-19 | D.20 | «Sin foto» conserva el fondo con tinte de tinta de D.17 (P3); el spec R2.3 decía `surface-sunken`. | En oscuro `surface-sunken` queda más oscuro que la página, justo lo que la P3 corrigió (decisión 236). |
+| 2026-10-19 | D.20 | El precio de fila mantiene el tamaño heading-3 en móvil y heading-2 desde 48rem; solo cambia el peso a 700. | La columna de 10rem y el alto de la fila no admiten un tamaño mayor: la primera versión del diseño sumaba unos 6px a 320 (decisión 236). |
+| 2026-10-19 | D.20 | La insignia de una fuente usa `outline` con desplazamiento negativo y no un borde. | El contorno no suma alto ni sombra; un borde de 1px cambiaba la altura de la fila (decisión 236). |
+| 2026-10-19 | D.20 | Se acepta el solape del `h1` y el motivo con el espaciado de texto de WCAG 1.4.12: el título pinta por encima. | El motivo es decorativo y por debajo, sin `z-index`; no oculta información (decisión 235). |
+| 2026-10-19 | D.20 | El subrayado al pasar el puntero no alcanza la etiqueta de operación (es `inline-block`). | Efecto del modelo de caja; la fila entera sigue siendo un enlace y el texto accesible no cambia (decisión 236). |
+| 2026-10-19 | D.20 | Las 102 líneas base se regeneraron borrando y reescribiendo, no con `--update-snapshots=changed`. | `changed` no ve los cambios bajo el umbral (pie y motivo); se excluyeron `global-error`, `rate-limit` y `draw-frame` (decisión 239). |
+| 2026-10-19 | D.20 | Tres correcciones tras la revisión visual de las 102 capturas (motivo redibujado y equilibrado entre temas, etiqueta en peso 400, banda de la ficha con sangría) y un test e2e de geometría de la banda, no previstos en el diseño. | El motivo de líneas paralelas se leía como un matasellos; la etiqueta pesaba más que el precio; el texto de la banda no alineaba con la rejilla (decisiones 235-237). |

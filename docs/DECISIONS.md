@@ -6083,6 +6083,93 @@ bajó `Y_LABEL_GAP` de 8 a 4 tras desbordar 2px.
 
 ---
 
+## 235 — Motivo de curvas de nivel junto al título de la búsqueda, en SVG incrustado (enmienda la 132)
+
+**Estado:** aceptada (D.20); enmienda la regla de marginalia de la 132 (`docs/DECISIONS.md`, secciones OWN-WORLD y «Un solo marco y una sola
+trama»).
+
+**Decisión.** La regla «ninguna otra marginalia cartográfica» admite exactamente un motivo decorativo: curvas de nivel junto al título de los
+resultados de búsqueda. Es el componente `contour-motif` (SVG de 240 × 48 con cinco anillos cerrados anidados alrededor de una cima y la tercera
+curva como maestra), incrustado en línea, `aria-hidden`, sin foco, fuera del flujo (posición absoluta y `pointer-events: none`) y por debajo del
+título. Solo aparece en `(search)/page.tsx`: no en la portada en lenguaje natural, ni en la ficha, ni en los 404. Trazo con tokens existentes
+(`rule-control` al 35% en claro, `rule` entero en oscuro), sin colores nuevos. La misma redacción enmendada vive en `DESIGN.md`, `design.json` y
+`PRODUCT.md`, y `design-md.test.ts` impide que se separen.
+
+**Alternativas descartadas.** (1) Un fichero SVG en `public/` con `mask-image` o `background-image`: obliga a abrir el matcher del `proxy` a esa
+ruta y a enmendar los tests que prohíben `url(` en la hoja de estilos, es decir, tocar la política de seguridad por un adorno. (2) Un motivo
+repetido en la ficha, el vacío y la cabecera: contradice el principio 1 de `PRODUCT.md`. (3) El primer dibujo de líneas onduladas paralelas, que
+se leía como un matasellos y no como curvas de nivel (se rehízo tras la revisión visual).
+
+**Motivo.** Una decoración mínima, accesible y sin coste de red ni de CSP; el límite «uno solo» conserva la sobriedad de la 132.
+
+---
+
+## 236 — Fila de resultado: precio por peso, etiqueta de operación neutra y «Sin foto» con pauta
+
+**Estado:** aceptada (D.20).
+
+**Decisión.** El precio de la fila pesa 700 en todos los anchos y mantiene el tamaño y el interlineado de D.6b (heading-3 en móvil y heading-2
+desde 48rem), con `letter-spacing` normal cuando falta; la fila no crece (alturas fijadas en U0 con tolerancia de 4px). La operación pasa a ser
+la etiqueta `result-row__operation` en la línea de tipo («Piso · Venta»), neutra: peso 400, borde de 1px en `rule`, sin tono ni fondo, con el
+mismo texto accesible. «Sin foto» dibuja una pauta cuadrada interior (`rule`, 1px, a 0,375rem) con texto en peso 600, sobre el tinte de tinta de
+D.17 (P3). La insignia de una sola fuente lleva un contorno (`outline`, desplazamiento −1px) en lugar de un borde.
+
+**Alternativas descartadas.** Subir el precio a heading-2 en móvil: la columna de 10rem y el alto de la fila lo impiden (la primera versión del
+diseño añadía unos 6px a 320). Colorear la etiqueta de operación (azul o verde): el azul es solo para lo interactivo y el verde para un estado
+favorable (decisión 231). Fondo `surface-sunken` en «Sin foto», como pedía el spec: en oscuro quedaba más oscuro que la página (razón de la P3 de D.17).
+Un borde en la insignia de una fuente: añade alto y cambia la altura de la fila.
+
+**Motivo.** Presencia del precio y carácter de la fila sin tocar la densidad ni el color semántico.
+
+---
+
+## 237 — Superficies neutras, banda de precio de la ficha y pie rebajado
+
+**Estado:** aceptada (D.20).
+
+**Decisión.** Sin tokens nuevos: los avisos (revisión en lenguaje natural, aviso del polígono, aviso de cobertura), el panel de cobertura, los
+números de los pasos y el panel `panel` de `DESIGN.md` usan `surface-raised`; el estado vacío y las incidencias de la revisión usan
+`surface-sunken`; las alertas conservan `danger-wash`; los chips, `primary-wash`. El pie pasa a `surface-sunken` con su filete. El precio de la
+ficha es un panel elevado con borde `rule` y radio `panel`; desde 64rem es una banda con `margin-inline: -1rem` y `padding-inline: 1rem`, de modo
+que el texto queda alineado con la rejilla de datos (corrección de la revisión visual).
+
+**Alternativas descartadas.** Un token nuevo de «superficie de aviso»: duplica `surface-raised`. Dejar la banda al ras del contenido: el texto
+quedaba sangrado respecto a la rejilla y el panel apenas se distinguía.
+
+**Motivo.** Calidez por jerarquía de papeles ya existentes, con la paridad de `COLOR_TOKENS` intacta.
+
+---
+
+## 238 — Icono `check` como señal que no depende del color
+
+**Estado:** aceptada (D.20).
+
+**Decisión.** «Disponible» y la marca «Más económico» (solo en modo activo) llevan delante el icono `check` (`M20 6 9 17l-5-5`, trazo de 2,
+`currentColor`, decorativo y sin foco). «Último precio más bajo» no lo lleva. El texto visible y el nombre accesible no cambian.
+
+**Alternativas descartadas.** Un icono de otra familia o de colores propios: contradice «no cargar iconos de terceros» y la regla del verde.
+Poner el icono también en «Último precio más bajo»: el verde no se usa ahí (decisión 231).
+
+**Motivo.** El estado favorable ya se decía con texto; el icono añade una segunda señal visual sin depender del tono.
+
+---
+
+## 239 — Línea base visual: borrar y reescribir cuando el cambio queda por debajo del umbral
+
+**Estado:** aceptada (D.20); acota la 130 y la regla de `test:e2e:update`.
+
+**Decisión.** `--update-snapshots=changed` no reescribe una captura cuya diferencia queda por debajo del umbral de `toHaveScreenshot` (el pie y
+el motivo, de pocos píxeles). Para un cambio visual transversal se borran los PNG afectados (102 en D.20: 17 por proyecto en 6 proyectos; no
+`global-error`, `rate-limit` ni `draw-frame`, que no llevan el pie del layout raíz ni son una captura de página) y se regeneran con
+`pnpm e2e:update`; después se revisa cada imagen en aislamiento y se corre `pnpm e2e` sin actualizar.
+
+**Alternativas descartadas.** Confiar en `changed`: deja capturas obsoletas que pasan sin mostrar el pie. Bajar el umbral global: abre falsos
+positivos en el resto de la suite.
+
+**Motivo.** Una línea base completa o ninguna; es la misma salida que ya hubo que tomar con `rate-limit` en D.19.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

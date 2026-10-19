@@ -30,6 +30,28 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-19 — Componentes con la dirección cálida (paso D.20, decisiones 235-239)
+
+**Tipo de tarea:** interfaz (motivo SVG, fila de resultado, superficies, icono), cobertura e2e con alturas fijadas, regeneración de 102 capturas
+y documentación del sistema de diseño
+**Forma de especificación:** SDD con fase de investigación (Engram `sdd/design-components-d20/*`) y cuestionarios al responsable para las
+decisiones de producto (SVG incrustado, motivo solo junto al `h1`, etiqueta de operación neutra, superficies sin tokens nuevos, icono `check`, pie
+recoloreado). Revisión visual de las 102 capturas con seis revisores aislados y una segunda pasada con dos. Un solo PR con `size:exception`
+**Resultado:** utilizable con retoques. El diseño falló una vez la validación en contexto limpio (la fila crecía unos 6px a 320 y faltaban
+escenarios) y se corrigió; tras la revisión visual el responsable decidió tres correcciones: el motivo (líneas onduladas paralelas que se leían
+como un matasellos) se redibujó como anillos de nivel y se equilibró entre temas, la etiqueta de operación bajó a peso 400 y la banda de la ficha
+se alineó con la rejilla de datos.
+
+**Prompt:** el del paso D.20 de `docs/DESIGN-ROADMAP.md`, literal: «Aplica la dirección de D.19 a los componentes sin cambiar comportamiento
+ni texto: cabecera de la búsqueda con un motivo sutil de curvas de nivel (SVG propio, servido desde el origen) como único momento decorativo;
+fila de resultado con miniatura «Sin foto» con carácter, precio con más presencia y operación; ficha con panel de precio y estados con el verde
+y una señal que no dependa del color; paneles de aviso, vacíos, pasos y pie con la nueva paleta. Sin cambios en el orden del DOM, los objetivos
+de 40 px ni la accesibilidad.»
+
+**Observación:** fijar las alturas de fila en el e2e antes de tocar CSS (U0) hizo medible la restricción «la fila no crece» y evitó discutirla
+a ojo. Lo que la lectura de los tests no detectó salió de mirar las capturas, y `--update-snapshots=changed` dejó pasar los cambios bajo el
+umbral (decisión 239).
+
 ### 2026-10-15 — Dirección cálida: paleta, tipografía y aprobación (paso D.19, decisiones 230-234)
 
 **Tipo de tarea:** interfaz (tokens, color de estado y fuente propia), cobertura e2e y documentación del sistema de diseño
