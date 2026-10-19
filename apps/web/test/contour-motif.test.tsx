@@ -19,8 +19,23 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
+/** Atributos de una etiqueta de apertura, con el nombre tal como lo imprime React. */
+function attributesOf(tag: string): Map<string, string> {
+  return new Map([...tag.matchAll(/([A-Za-z-]+)="([^"]*)"/g)].map((match) => [match[1] ?? '', match[2] ?? '']));
+}
+
 describe('ContourMotif (S1.1)', () => {
   const html = renderToStaticMarkup(<ContourMotif />);
+
+  /** Caja de cada anillo a partir de los números de su trazado (pares x, y). */
+  function ringBoxes(): Array<{ x0: number; x1: number; y0: number; y1: number }> {
+    return [...html.matchAll(/ d="([^"]+)"/g)].map((match) => {
+      const numbers = [...(match[1] ?? '').matchAll(/-?\d+(?:\.\d+)?/g)].map((n) => Number(n[0]));
+      const xs = numbers.filter((_, i) => i % 2 === 0);
+      const ys = numbers.filter((_, i) => i % 2 === 1);
+      return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+    });
+  }
 
   it('es un svg decorativo: aria-hidden, sin foco, sin rol, título, descripción ni estilo', () => {
     expect(html).toMatch(/^<svg /);
@@ -39,11 +54,66 @@ describe('ContourMotif (S1.1)', () => {
     expect(html).not.toMatch(/rgb|hsl|oklch/i);
   });
 
-  it('usa la caja 240×48 recortada y centrada, sin relleno', () => {
-    expect(html).toContain('class="contour-motif"');
-    expect(html).toContain('viewBox="0 0 240 48"');
-    expect(html).toContain('preserveAspectRatio="xMidYMid slice"');
-    expect(html).toContain('fill="none"');
+  it('el svg exterior no lleva viewBox: sus unidades son los píxeles de la caja, sin relleno (D.21, M7)', () => {
+    const outer = attributesOf(/^<svg [^>]*>/.exec(html)?.[0] ?? '');
+    expect(outer.get('class')).toBe('contour-motif');
+    expect(outer.get('fill')).toBe('none');
+    expect(outer.has('viewBox')).toBe(false);
+  });
+
+  it('el svg interior encuadra los anillos en una caja 5:1 centrada, recortada con slice', () => {
+    const inner = attributesOf(/<svg [^>]*viewBox[^>]*>/.exec(html)?.[0] ?? '');
+    expect(inner.get('viewBox')).toBe('-40 -7 330 66');
+    expect(inner.get('preserveAspectRatio')).toBe('xMidYMid slice');
+    expect(inner.get('width')).toBe('100%');
+    expect(inner.get('height')).toBe('100%');
+  });
+
+  it('ningún anillo queda cortado en plano: cada uno cabe en el viewBox con al menos 1 unidad de margen', () => {
+    const [x0 = 0, y0 = 0, width = 0, height = 0] = '-40 -7 330 66'.split(' ').map(Number);
+    const boxes = ringBoxes();
+    expect(boxes).toHaveLength(5);
+    for (const [index, box] of boxes.entries()) {
+      expect(box.x0, `anillo ${String(index)} por la izquierda`).toBeGreaterThanOrEqual(x0 + 1);
+      expect(box.y0, `anillo ${String(index)} por arriba`).toBeGreaterThanOrEqual(y0 + 1);
+      expect(box.x1, `anillo ${String(index)} por la derecha`).toBeLessThanOrEqual(x0 + width - 1);
+      expect(box.y1, `anillo ${String(index)} por abajo`).toBeLessThanOrEqual(y0 + height - 1);
+    }
+  });
+
+  it('el desvanecido de los bordes es una máscara de alfa en línea: degradado, máscara y rect (D.21, M7)', () => {
+    const gradient = /<linearGradient [^>]*>([\s\S]*?)<\/linearGradient>/.exec(html);
+    expect(attributesOf(/<linearGradient [^>]*>/.exec(html)?.[0] ?? '').get('id')).toBe('contour-motif-fade');
+    const stops = [...(gradient?.[1] ?? '').matchAll(/<stop [^>]*>/g)].map((match) => attributesOf(match[0]));
+    expect(stops.map((stop) => [stop.get('offset'), stop.get('stop-opacity')])).toEqual([
+      ['0', '0'],
+      ['0.2', '1'],
+      ['0.8', '1'],
+      ['1', '0'],
+    ]);
+
+    const mask = attributesOf(/<mask [^>]*>/.exec(html)?.[0] ?? '');
+    expect(mask.get('id')).toBe('contour-motif-mask');
+    expect(mask.get('class')).toBe('contour-motif__mask');
+    expect(mask.get('maskUnits')).toBe('userSpaceOnUse');
+    expect([mask.get('x'), mask.get('y'), mask.get('width'), mask.get('height')]).toEqual(['0', '0', '100%', '100%']);
+
+    const fade = attributesOf(/<rect [^>]*>/.exec(html)?.[0] ?? '');
+    expect(fade.get('class')).toBe('contour-motif__fade');
+    expect(fade.get('fill')).toBe('url(#contour-motif-fade)');
+    expect([fade.get('width'), fade.get('height')]).toEqual(['100%', '100%']);
+
+    expect(attributesOf(/<g [^>]*>/.exec(html)?.[0] ?? '').get('mask')).toBe('url(#contour-motif-mask)');
+  });
+
+  it('solo hay referencias url(#contour-motif-*), ids únicos y ningún color: el alfa basta', () => {
+    const references = [...html.matchAll(/url\(([^)]*)\)/g)].map((match) => match[1]);
+    expect(references).toHaveLength(2);
+    for (const reference of references) expect(reference).toMatch(/^#contour-motif-(fade|mask)$/);
+    const ids = [...html.matchAll(/ id="([^"]+)"/g)].map((match) => match[1]);
+    expect(ids).toEqual(['contour-motif-fade', 'contour-motif-mask']);
+    expect(html).not.toContain('stop-color');
+    expect(html).not.toMatch(/<(circle|line|polygon|polyline|ellipse)[\s/>]/);
   });
 
   it('dibuja cinco anillos cerrados y anidados, y el tercero es la curva índice', () => {

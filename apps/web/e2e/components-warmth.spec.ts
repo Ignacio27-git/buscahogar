@@ -246,3 +246,125 @@ test.describe('D.21 contraste del hover de enlaces', () => {
     });
   }
 });
+
+// D.21 (decisión 243, S-PL-2) — el desvanecido del motivo es una máscara de alfa en el propio svg: no
+// mueve nada (lo cubre S1.4) y no pinta un marco con el trazo heredado.
+test.describe('D.21 máscara del motivo de curvas de nivel', () => {
+  test('S-PL-2 la máscara es de alfa y su rect no tiene trazo', async ({ page }) => {
+    await openRoute(page, route('home'));
+    await expect(page.locator('.contour-motif mask')).toHaveCount(1);
+    expect(await page.locator('.contour-motif__mask').evaluate((node) => getComputedStyle(node).maskType)).toBe('alpha');
+    expect(await page.locator('.contour-motif__fade').evaluate((node) => getComputedStyle(node).stroke)).toBe('none');
+    const scroll = await page.evaluate(() => ({
+      scroll: document.documentElement.scrollWidth,
+      client: document.documentElement.clientWidth,
+    }));
+    expect(scroll.scroll).toBeLessThanOrEqual(scroll.client);
+  });
+});
+
+// D.21 (decisión 12, S-PL-3) — el filete de la banda de precio mide lo que la columna, como los filetes
+// de la lista de fuentes, y la banda no cambia de alto ni de fondo. El filete es un ::after: su caja se
+// deduce de la de la banda y de los valores calculados del pseudoelemento.
+const BAND_HEIGHT = 89;
+const RULE_EDGE_TOLERANCE = 1;
+
+test.describe('D.21 filete de la banda de precio', () => {
+  test('S-PL-3 los extremos del filete coinciden con los de los filetes de la lista de fuentes', async ({
+    page,
+  }, testInfo) => {
+    test.skip(!testInfo.project.name.startsWith('w1280'), 'la banda solo existe desde 64rem');
+    await openRoute(page, route('detail'));
+    const band = page.locator('.property-summary--panel');
+    const box = await boxOf(page, '.property-summary--panel');
+    const source = await boxOf(page, '.source-row');
+    expect(box).not.toBeNull();
+    expect(source).not.toBeNull();
+    if (box === null || source === null) return;
+
+    const line = await band.evaluate((node) => {
+      const after = getComputedStyle(node, '::after');
+      return {
+        content: after.content,
+        position: after.position,
+        left: Number.parseFloat(after.left),
+        right: Number.parseFloat(after.right),
+        thickness: Number.parseFloat(after.borderBottomWidth),
+        style: after.borderBottomStyle,
+        colour: after.borderBottomColor,
+        ruleColour: ((): string => {
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--rule)';
+          document.body.append(probe);
+          const resolved = getComputedStyle(probe).color;
+          probe.remove();
+          return resolved;
+        })(),
+        ownBorder: getComputedStyle(node).borderBottomWidth,
+        background: getComputedStyle(node).backgroundColor,
+      };
+    });
+    expect(line.position).toBe('absolute');
+    expect(line.thickness).toBe(1);
+    expect(line.style).toBe('solid');
+    expect(line.colour).toBe(line.ruleColour);
+    expect(line.ownBorder).toBe('0px');
+
+    // Extremos del filete en la página: la caja de la banda más el desplazamiento de `inset-inline`.
+    const lineLeft = box.x + line.left;
+    const lineRight = box.x + box.width - line.right;
+    expect(Math.abs(lineLeft - source.x)).toBeLessThanOrEqual(RULE_EDGE_TOLERANCE);
+    expect(Math.abs(lineRight - (source.x + source.width))).toBeLessThanOrEqual(RULE_EDGE_TOLERANCE);
+    // La banda mide lo mismo que antes (5.5rem + 1px) y conserva su superficie.
+    expect(Math.abs(box.height - BAND_HEIGHT)).toBeLessThanOrEqual(1);
+    const raised = await page.evaluate(() => {
+      const probe = document.createElement('span');
+      probe.style.backgroundColor = 'var(--surface-raised)';
+      document.body.append(probe);
+      const resolved = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return resolved;
+    });
+    expect(line.background).toBe(raised);
+  });
+});
+
+// D.21 (decisión 243, S-PL-4/S-PL-5) — la etiqueta de operación de la fila y la de estado del aviso de
+// cobertura se distinguen sin color: la segunda lleva un cuadrado relleno antes del texto. Las capturas
+// en escala de grises se adjuntan al informe para su revisión (el veredicto va al registro de revisión).
+test.describe('D.21 marcador del estado de cobertura', () => {
+  test('S-PL-4/5 el estado lleva marcador, la operación no, y se distinguen en grises', async ({ page }, testInfo) => {
+    await openRoute(page, route('coverage-running'));
+    const state = page.locator('.coverage-notice__state').first();
+    await expect(state).toBeVisible();
+    const marker = await state.evaluate((node) => {
+      const before = getComputedStyle(node, '::before');
+      return {
+        content: before.content,
+        width: before.width,
+        height: before.height,
+        display: before.display,
+        background: before.backgroundColor,
+        colour: getComputedStyle(node).color,
+        text: node.textContent,
+      };
+    });
+    expect(marker.width).toBe('6px');
+    expect(marker.height).toBe('6px');
+    expect(marker.display).toBe('inline-block');
+    expect(marker.background).toBe(marker.colour);
+    expect(marker.content).toBe('""');
+    expect(marker.text.trim().length).toBeGreaterThan(0);
+
+    await page.addStyleTag({ content: 'html{filter:grayscale(1)}' });
+    await testInfo.attach('estado-cobertura-grises', { body: await state.screenshot(), contentType: 'image/png' });
+
+    await openRoute(page, route('home'));
+    const operation = page.locator('.result-row__operation').first();
+    await expect(operation).toBeVisible();
+    const before = await operation.evaluate((node) => getComputedStyle(node, '::before').content);
+    expect(before).toBe('none');
+    await page.addStyleTag({ content: 'html{filter:grayscale(1)}' });
+    await testInfo.attach('etiqueta-operacion-grises', { body: await operation.screenshot(), contentType: 'image/png' });
+  });
+});

@@ -4,8 +4,17 @@
 // regla de `url(` del CSS.
 //
 // Son cinco anillos cerrados e irregulares alrededor de una misma cima, como un fragmento de mapa
-// topográfico: los exteriores se salen de la caja y los recorta la banda. Cada anillo contiene al
-// anterior en todo su contorno, así que no se cruzan; el tercero es la curva índice (más gruesa).
+// topográfico. Cada anillo contiene al anterior en todo su contorno, así que no se cruzan; el tercero
+// es la curva índice (más gruesa).
+//
+// D.21 (decisión 243, M7) — en D.20 la caja era 240×48 y los anillos exteriores se salían de ella: el
+// borde del SVG los cortaba en plano. Ahora el svg interior encuadra todos los anillos con margen
+// (`-40 -7 330 66`, 5:1, centrado en la cima) y, como la caja de CSS se recorta con `slice` en anchos
+// estrechos, el borde visible se desvanece con una máscara de alfa dibujada EN el svg exterior, que no
+// tiene viewBox: sus unidades son los píxeles de la caja, así que el degradado cae siempre en los
+// bordes visibles y no en los del dibujo. La máscara es de alfa (`mask-type: alpha` en el CSS), por lo
+// que no necesita ningún color; las referencias son fragmentos `url(#…)` del propio documento, sin
+// recurso servido ni `url(` en el CSS.
 //
 // Es decorativo: `aria-hidden`, sin foco, sin rol, título ni descripción. No lleva atributo de trazo
 // ni de color: sin CSS el trazo es `none` (invisible) y con CSS lo pone `.contour-motif` con un token.
@@ -23,17 +32,33 @@ const INDEX_CONTOUR = 2;
 
 export function ContourMotif(): ReactElement {
   return (
-    <svg
-      className="contour-motif"
-      viewBox="0 0 240 48"
-      preserveAspectRatio="xMidYMid slice"
-      fill="none"
-      aria-hidden="true"
-      focusable="false"
-    >
-      {CONTOUR_PATHS.map((path, index) => (
-        <path key={path} d={path} className={index === INDEX_CONTOUR ? 'contour-motif__index' : undefined} />
-      ))}
+    <svg className="contour-motif" fill="none" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="contour-motif-fade">
+          <stop offset="0" stopOpacity="0" />
+          <stop offset="0.2" stopOpacity="1" />
+          <stop offset="0.8" stopOpacity="1" />
+          <stop offset="1" stopOpacity="0" />
+        </linearGradient>
+        <mask
+          id="contour-motif-mask"
+          className="contour-motif__mask"
+          maskUnits="userSpaceOnUse"
+          x="0"
+          y="0"
+          width="100%"
+          height="100%"
+        >
+          <rect className="contour-motif__fade" width="100%" height="100%" fill="url(#contour-motif-fade)" />
+        </mask>
+      </defs>
+      <g mask="url(#contour-motif-mask)">
+        <svg viewBox="-40 -7 330 66" preserveAspectRatio="xMidYMid slice" width="100%" height="100%">
+          {CONTOUR_PATHS.map((path, index) => (
+            <path key={path} d={path} className={index === INDEX_CONTOUR ? 'contour-motif__index' : undefined} />
+          ))}
+        </svg>
+      </g>
     </svg>
   );
 }

@@ -47,9 +47,27 @@ describe('ficha desde 64rem: solo el precio es sticky (decisión 183)', () => {
     // La superficie sangra 1rem hacia fuera y el relleno devuelve el texto al borde de la columna:
     // el precio queda alineado con la rejilla de datos de debajo. El panel sigue sin caja.
     expect(summary.get('margin-inline')).toBe('-1rem');
-    expect(summary.get('padding-block')).toBe('var(--scroll-offset) 0.75rem');
-    expect(summary.get('border-block-end')).toBe('1px solid var(--rule)');
+    // D.21 (decisión 12, M8): el filete ya no es el borde de la caja (que sangraba 1rem a cada lado) sino
+    // un pseudoelemento al ancho de la columna. Se retira el borde y su 1px pasa al relleno, así que la
+    // banda mide lo mismo: 5.5rem + 1px.
+    expect(summary.get('padding-block')).toBe('var(--scroll-offset) calc(0.75rem + 1px)');
+    expect(summary.get('border-block-end')).toBe('0');
     expect(summary.get('z-index')).toBe('var(--z-sticky-header)');
+  });
+
+  it('el filete de la banda es un ::after de 1px --rule inset 1rem: el ancho de la columna, igual en los dos temas (S-PL-3)', () => {
+    const rule = wideDetail().children.find((child) => canon(child.prelude) === canon('.property-summary--panel::after'));
+    expect(rule, '.property-summary--panel::after').toBeDefined();
+    const line = declarations(rule as CssNode);
+    expect(line.get('content')).toBe("''");
+    expect(line.get('position')).toBe('absolute');
+    expect(line.get('inset-inline')).toBe('1rem');
+    expect(line.get('inset-block-end')).toBe('0');
+    expect(line.get('border-block-end')).toBe('1px solid var(--rule)');
+    // Sin sangrado negativo ni condición de tema: el mismo filete en claro y en oscuro.
+    for (const [name, value] of line) {
+      expect(`${name}:${value}`, name).not.toMatch(/-\d|\.dark|prefers-color-scheme/);
+    }
   });
 
   it('el panel ya no es una caja con scroll propio ni sticky', () => {

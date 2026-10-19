@@ -238,3 +238,34 @@ describe('fundido de los avisos (UI-4..UI-6, S-UI-9, S-UI-10, S-UI-14, decisión
     expect(FADE_SELECTOR).not.toContain('nl-review__alert');
   });
 });
+
+describe('marcador del estado de cobertura (PL-3, S-PL-4, M9)', () => {
+  it('el estado lleva un cuadrado de 0,375rem en currentColor antes del texto: una señal de forma, no de color', () => {
+    const marker = declaring('.coverage-notice__state::before', 'content').declarations;
+    expect(marker.get('content')).toBe("''");
+    expect(marker.get('display')).toBe('inline-block');
+    expect(marker.get('inline-size')).toBe('0.375rem');
+    expect(marker.get('block-size')).toBe('0.375rem');
+    expect(marker.get('background-color')).toBe('currentColor');
+    expect(marker.get('margin-inline-end')).toBe('0.25rem');
+    // Cuadrado: sin radio, a diferencia del punto redondo descartado en el diseño.
+    expect(marker.has('border-radius')).toBe(false);
+  });
+
+  it('no añade texto ni color nuevo: el contenido generado está vacío y el color es el del propio texto', () => {
+    const marker = declaring('.coverage-notice__state::before', 'content').declarations;
+    expect(marker.get('content')).not.toMatch(/[A-Za-z0-9]/);
+    for (const value of marker.values()) expect(value).not.toMatch(/#[0-9a-f]{3,8}|oklch|rgb|var\(--/i);
+  });
+
+  it('la etiqueta de operación de la fila queda como en D.20: sin marcador', () => {
+    expect(rulesFor('.result-row__operation::before')).toEqual([]);
+    expect(rulesFor('.result-row__operation::after')).toEqual([]);
+  });
+
+  it('la etiqueta de estado mantiene su borde y su peso: el marcador es el cue añadido', () => {
+    const state = declaring('.coverage-notice__state', 'border').declarations;
+    expect(state.get('border')).toBe('1px solid var(--rule-control)');
+    expect(state.get('font-weight')).toBe('400');
+  });
+});
