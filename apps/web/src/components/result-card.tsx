@@ -48,7 +48,9 @@ export function ResultCard({ result, returnParams = [] }: ResultCardProps): Reac
   const priceMissing = result.minPriceCents === null;
   const sourceCount = result.distinctSourceCount;
   // D.15 (F6, decisión 198): una sola cadena para la línea visible y para el encabezado.
-  const kind = `${propertyTypeLabel(result.propertyType) ?? 'Tipo no disponible'} · ${operationLabel(result.operation) ?? 'Operación no disponible'}`;
+  const typeText = propertyTypeLabel(result.propertyType) ?? 'Tipo no disponible';
+  const operationText = operationLabel(result.operation);
+  const kind = `${typeText} · ${operationText ?? 'Operación no disponible'}`;
 
   const content = (
     <>
@@ -70,7 +72,17 @@ export function ResultCard({ result, returnParams = [] }: ResultCardProps): Reac
         <span className="sr-only">{`, ${kind}`}</span>
       </h2>
       <div className="result-row__facts">
-        <p className="result-row__kind">{kind}</p>
+        {/* D.20 (decisión 236): la operación es una etiqueta con caja; el texto visible no cambia. */}
+        <p className="result-row__kind">
+          {operationText === null ? (
+            kind
+          ) : (
+            <>
+              {`${typeText} · `}
+              <span className="result-row__operation">{operationText}</span>
+            </>
+          )}
+        </p>
         <p className="result-row__figures tabular-nums">
           {result.surfaceM2 !== null ? `${String(result.surfaceM2)} m²` : 'Superficie no disponible'}
           {result.rooms !== null ? ` · ${String(result.rooms)} hab.` : ''}

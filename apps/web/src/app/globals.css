@@ -587,22 +587,50 @@
     text-align: center;
   }
 
+  /* D.20 (decisión 236): «Sin foto» es una pauta cuadrada interior. Va en absoluto, así que no
+     toca el alto de la fila (la caja sigue siendo 4:3) ni el fondo de tinta de D.17. */
+  .result-row__media > span {
+    position: absolute;
+    inset: 0.375rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--rule);
+    font-weight: 600;
+  }
+
   .result-row__img {
     object-fit: cover;
   }
 
+  /* D.20 (decisión 236): el precio pesa lo más de la fila por peso, no por tamaño: mantiene el
+     tamaño y el interlineado de D.6b (la fila no crece) y toma el peso del titular mayor. */
   .result-row__price {
     grid-area: price;
     font-size: var(--text-heading-3);
     line-height: var(--text-heading-3--line-height);
-    font-weight: var(--text-heading-3--font-weight);
+    font-weight: var(--text-heading-1--font-weight);
+    letter-spacing: var(--text-heading-1--letter-spacing);
   }
 
   .result-row__price--missing {
     font-size: var(--text-dense);
     line-height: var(--text-dense--line-height);
     font-weight: 400;
+    letter-spacing: normal;
     color: var(--ink-muted);
+  }
+
+  /* D.20: la operación es la etiqueta neutra de la línea de tipo (sin tono, como el estado del
+     aviso de cobertura). La caja de 16px cabe en el interlineado de la línea: no añade alto. */
+  .result-row__operation {
+    display: inline-block;
+    padding-inline: 0.375rem;
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+    font-size: var(--text-small);
+    line-height: var(--text-small--line-height);
+    font-weight: 600;
+    vertical-align: 0.125em;
   }
 
   .result-row__facts {
@@ -634,15 +662,20 @@
     inline-size: fit-content;
     max-inline-size: 100%;
     margin-block-start: 0.25rem;
+    padding-inline: 0.375rem;
+    border-radius: var(--radius-control);
+    /* D.20 (A6): «1 fuente» lleva un filete hacia dentro con outline, que no ocupa espacio (un borde
+       añadiría 2px de alto a la fila). La insignia no recibe foco, así que no choca con el anillo. */
+    outline: 1px solid var(--rule);
+    outline-offset: -1px;
     color: var(--ink-muted);
     font-size: var(--text-small);
     line-height: var(--text-small--line-height);
   }
 
   .result-row__badge--multi {
-    padding-inline: 0.375rem;
+    outline: 0;
     border: 1px solid var(--vegetation);
-    border-radius: var(--radius-control);
     background-color: var(--vegetation-wash);
     color: var(--ink);
     font-weight: 600;
@@ -680,7 +713,7 @@
     .result-row__price {
       font-size: var(--text-heading-2);
       line-height: var(--text-heading-2--line-height);
-      font-weight: var(--text-heading-2--font-weight);
+      font-weight: var(--text-heading-1--font-weight);
       text-align: end;
     }
 
@@ -688,6 +721,7 @@
       font-size: var(--text-dense);
       line-height: var(--text-dense--line-height);
       font-weight: 400;
+      letter-spacing: normal;
     }
   }
 

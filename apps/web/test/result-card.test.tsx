@@ -91,17 +91,23 @@ function render(overrides: Partial<PropertySearchResult> = {}): string {
   return renderToStaticMarkup(<ResultCard result={makeResult({ anchorListingId: ANCHOR, ...overrides })} />);
 }
 
+const kindOf = (html: string): string => /<p class="result-row__kind">[\s\S]*?<\/p>/.exec(html)?.[0] ?? '';
+const textOf = (markup: string): string => markup.replace(/<[^>]+>/g, '');
+
 describe('ResultCard D.6b — contenido y rótulos (S1-S5)', () => {
+  // D.20 (decisión 236): la operación va en un <span> propio; el texto visible no cambia.
   it('S1: tipo y operación como «Piso · Venta», sin los valores crudos', () => {
     const html = render({ propertyType: 'flat', operation: 'sale' });
-    expect(html).toContain('Piso · Venta');
+    expect(kindOf(html)).toBe('<p class="result-row__kind">Piso · <span class="result-row__operation">Venta</span></p>');
+    expect(textOf(kindOf(html))).toBe('Piso · Venta');
     expect(html).not.toContain('flat');
     expect(html).not.toContain('sale');
   });
 
   it('S1 (triangulación): «Casa · Alquiler», sin `house` ni `rent`', () => {
     const html = render({ propertyType: 'house', operation: 'rent' });
-    expect(html).toContain('Casa · Alquiler');
+    expect(textOf(kindOf(html))).toBe('Casa · Alquiler');
+    expect(kindOf(html)).toContain('<span class="result-row__operation">Alquiler</span>');
     expect(html).not.toContain('house');
     expect(html).not.toContain('rent');
   });
@@ -190,6 +196,35 @@ describe('ResultCard D.6b — enlace único (S10)', () => {
     const visibleText = link.replace(/<[^>]+>/g, '').trim();
     expect(visibleText).toContain('Precio no disponible');
     expect(visibleText).toContain('Tipo no disponible');
+  });
+});
+
+// D.20 (S2.2, S2.4) — etiqueta de operación y precio dominante: solo marcado, mismo texto visible.
+describe('ResultCard D.20 — etiqueta de operación y precio', () => {
+  const srOnlyOf = (html: string): string => /<span class="sr-only">, ([^<]*)<\/span>/.exec(html)?.[1] ?? '';
+
+  it.each([
+    ['flat', 'sale'],
+    ['house', 'rent'],
+  ] as const)('el texto de la línea («%s», «%s») sin etiquetas coincide con el del encabezado', (propertyType, operation) => {
+    const html = render({ propertyType, operation });
+    expect(textOf(kindOf(html))).toBe(srOnlyOf(html));
+  });
+
+  it('el <span> de la operación solo lleva su clase', () => {
+    const spans = [...render({ operation: 'sale' }).matchAll(/<span class="result-row__operation"([^>]*)>/g)];
+    expect(spans).toHaveLength(1);
+    expect(spans[0]?.[1]).toBe('');
+  });
+
+  it('sin operación conocida no hay <span> y la reserva sigue como texto', () => {
+    const html = render({ operation: null });
+    expect(html).not.toContain('result-row__operation');
+    expect(kindOf(html)).toBe('<p class="result-row__kind">Piso · Operación no disponible</p>');
+  });
+
+  it('el precio conserva la clase tabular-nums', () => {
+    expect(/<h2 class="([^"]*)"/.exec(render())?.[1]).toBe('result-row__price tabular-nums');
   });
 });
 

@@ -30,6 +30,21 @@ function declaredTokens(): string[] {
   return theme.flatMap((node) => node.declarations.map(([name]) => name));
 }
 
+/** Como `rule`, pero dentro del `@media (width >= 48rem)` que contiene la fila de resultado. */
+function wideRule(selector: string): Map<string, string> {
+  const block = COMPONENTS.children.find(
+    (child) =>
+      canon(child.prelude) === canon('@media (width >= 48rem)') &&
+      child.children.some((inner) => inner.prelude.includes('.result-row__price'))
+  );
+  if (block === undefined) throw new Error('No existe el @media de 48rem de la fila de resultado.');
+  const found = block.children.filter((child) =>
+    child.prelude.split(',').some((part) => canon(part) === canon(selector))
+  );
+  if (found.length === 0) throw new Error(`No existe la regla ancha "${selector}".`);
+  return new Map(found.flatMap((node) => [...declarations(node)]));
+}
+
 describe('motivo de curvas de nivel (S1.2)', () => {
   it('el trazo sale del token --rule, que existe', () => {
     const motif = rule('.contour-motif');
@@ -59,5 +74,79 @@ describe('motivo de curvas de nivel (S1.2)', () => {
   it('no añade url( ni http en el CSS (INV-5)', () => {
     expect(RAW_CSS).not.toMatch(/url\(/);
     expect(RAW_CSS).not.toMatch(/https?:\/\//);
+  });
+});
+
+describe('fila de resultado: precio dominante (S2.4, decisión 236)', () => {
+  it('el precio sube de peso en todos los anchos y no cambia de tamaño', () => {
+    const base = rule('.result-row__price');
+    expect(base.get('font-weight')).toBe('var(--text-heading-1--font-weight)');
+    expect(base.get('letter-spacing')).toBe('var(--text-heading-1--letter-spacing)');
+    expect(base.get('font-size')).toBe('var(--text-heading-3)');
+    expect(base.get('line-height')).toBe('var(--text-heading-3--line-height)');
+
+    const wide = wideRule('.result-row__price');
+    expect(wide.get('font-weight')).toBe('var(--text-heading-1--font-weight)');
+    expect(wide.get('font-size')).toBe('var(--text-heading-2)');
+    expect(wide.get('line-height')).toBe('var(--text-heading-2--line-height)');
+  });
+
+  it('«Precio no disponible» no hereda el peso ni el espaciado del precio', () => {
+    for (const missing of [rule('.result-row__price--missing'), wideRule('.result-row__price--missing')]) {
+      expect(missing.get('font-weight')).toBe('400');
+      expect(missing.get('letter-spacing')).toBe('normal');
+    }
+  });
+});
+
+describe('fila de resultado: etiqueta de operación (S2.2, A4)', () => {
+  it('es una etiqueta neutra: borde --rule-control, peso 600, sin color ni fondo', () => {
+    const operation = rule('.result-row__operation');
+    expect(operation.get('display')).toBe('inline-block');
+    expect(operation.get('border')).toBe('1px solid var(--rule-control)');
+    expect(operation.get('font-weight')).toBe('600');
+    expect(operation.has('color')).toBe(false);
+    expect(operation.has('background-color')).toBe(false);
+    expect(operation.has('background')).toBe(false);
+  });
+
+  it('no cambia el alto de la línea: tamaño y interlineado de --text-small', () => {
+    const operation = rule('.result-row__operation');
+    expect(operation.get('font-size')).toBe('var(--text-small)');
+    expect(operation.get('line-height')).toBe('var(--text-small--line-height)');
+  });
+});
+
+describe('fila de resultado: insignias y «Sin foto» (S2.3, A5, A6)', () => {
+  it('«1 fuente» se enmarca con outline --rule hacia dentro, sin borde ni sombra (alto cero)', () => {
+    const badge = rule('.result-row__badge');
+    expect(badge.get('outline')).toBe('1px solid var(--rule)');
+    expect(badge.get('outline-offset')).toBe('-1px');
+    for (const property of ['border', 'box-shadow', 'background-color']) {
+      expect(badge.has(property), property).toBe(false);
+    }
+    expect(JSON.stringify([...badge])).not.toContain('--vegetation');
+  });
+
+  it('«N fuentes» conserva el verde y anula el outline', () => {
+    const multi = rule('.result-row__badge--multi');
+    expect(multi.get('outline')).toBe('0');
+    expect(multi.get('border')).toBe('1px solid var(--vegetation)');
+    expect(multi.get('background-color')).toBe('var(--vegetation-wash)');
+  });
+
+  it('«Sin foto» es una pauta cuadrada interior que no altera la caja 4:3', () => {
+    const label = rule('.result-row__media > span');
+    expect(label.get('position')).toBe('absolute');
+    expect(label.get('inset')).toBe('0.375rem');
+    expect(label.get('border')).toBe('1px solid var(--rule)');
+    expect(label.get('font-weight')).toBe('600');
+    expect(label.has('background-color')).toBe(false);
+  });
+
+  it('la caja de la miniatura conserva el fondo de tinta de D.17 (desviación declarada de R2.3)', () => {
+    const media = rule('.result-row__media');
+    expect(media.get('background-color')).toBe('color-mix(in oklab, var(--surface), var(--ink) 5%)');
+    expect(media.get('aspect-ratio')).toBe('4 / 3');
   });
 });
