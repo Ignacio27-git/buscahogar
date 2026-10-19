@@ -482,3 +482,149 @@ test.describe('hover sin puntero fino (D.21)', () => {
     await releaseOffTarget(page);
   });
 });
+
+// D.21 (UI-4..UI-6; S-UI-11, S-UI-12, S-UI-14, decisión 242): los avisos aparecen con un fundido de
+// opacidad de 200 ms al montarse, nunca se quedan ocultos y las alertas no se animan.
+const EMPTY_PATH = '/?operation=sale&maxPrice=1';
+
+interface FadeRecord {
+  readonly name: string;
+  readonly className: string;
+  readonly duration: number;
+}
+
+// Registra cada `animationstart` desde antes de cualquier script de la página: un fundido de 200 ms
+// empieza y acaba demasiado rápido para leerlo después con `getAnimations()`.
+async function recordFades(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const records: Array<{ name: string; className: string; duration: number }> = [];
+    Object.defineProperty(window, '__fades', { value: records });
+    document.addEventListener(
+      'animationstart',
+      (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        const timing = target.getAnimations()[0]?.effect?.getTiming();
+        const duration = typeof timing?.duration === 'number' ? timing.duration : Number.NaN;
+        records.push({ name: event.animationName, className: target.getAttribute('class') ?? '', duration });
+      },
+      true
+    );
+  });
+}
+
+async function fades(page: Page): Promise<FadeRecord[]> {
+  return page.evaluate(() => (window as unknown as { __fades: FadeRecord[] }).__fades.slice());
+}
+
+test.describe('fundido de los avisos con preferencia normal (D.21)', () => {
+  test.use({ reducedMotion: 'no-preference' });
+
+  test('el aviso del vacío filtrado hace un fundido de 200 ms y acaba opaco (S-UI-11)', async ({ page }) => {
+    onlyProject('w1280-light');
+    await recordFades(page);
+    await page.goto(EMPTY_PATH);
+    const notice = page.locator('.empty-results');
+    await expect(notice).toBeVisible();
+
+    await expect
+      .poll(async () => (await fades(page)).filter((record) => record.className.includes('empty-results')))
+      .toEqual([{ name: 'notice-appear', className: 'empty-results', duration: 200 }]);
+    await expect.poll(() => style(notice, 'opacity')).toBe('1');
+    expect(await style(notice, 'visibility')).toBe('visible');
+    expect(await style(notice, 'animation-fill-mode')).toBe('none');
+  });
+
+  test('el panel de cobertura en curso también aparece con el fundido (S-UI-11)', async ({ page }) => {
+    onlyProject('w1280-light');
+    await recordFades(page);
+    await openRoute(page, route('coverage-running'));
+    const panel = page.locator('.coverage-panel');
+    await expect(panel).toBeVisible();
+    await expect
+      .poll(async () => (await fades(page)).some((record) => record.className.includes('coverage-panel')))
+      .toBe(true);
+    await expect.poll(() => style(panel, 'opacity')).toBe('1');
+  });
+
+  // 4.3 (D.21, lectura e2e pedida por el diseño): el diseño suponía que `router.push` de la barra de
+  // dibujo volvía a montar el subárbol de la página y repetía el fundido. La lectura dice lo contrario:
+  // con Next 16.3.4 la navegación suave a la misma ruta con otros parámetros CONSERVA los nodos del DOM
+  // (la marca puesta en la cabecera de la búsqueda sigue ahí), así que lo ya montado no repite su
+  // fundido; solo lo que aparece de nuevo lo hace, una vez, y la carga completa lo repite. Sin ocultar
+  // nada en ningún caso. Si una versión futura vuelve a montar, este test avisa.
+  test('cerrar un polígono con router.push conserva el DOM de la página: no hay repetición del fundido (4.3)', async ({
+    page,
+  }) => {
+    onlyProject('w1280-light');
+    await openRoute(page, route('map'));
+    await page.evaluate(() => {
+      const mark = (selector: string): void => {
+        const element = document.querySelector(selector);
+        if (element === null) throw new Error(`falta ${selector}`);
+        Object.defineProperty(element, '__mark', { value: true });
+      };
+      mark('.search-header');
+      mark('body > header, header');
+    });
+
+    await drawButton(page).click();
+    await expect(page.locator('.search-map__frame .leaflet-container')).toBeFocused();
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('.leaflet-pan-anim')).toHaveCount(0);
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator('.leaflet-pan-anim')).toHaveCount(0);
+    await page.keyboard.press('Enter');
+    await expect(page.locator('path.map-draw-vertex')).toHaveCount(3);
+    await page.locator('.map-draw-toolbar').getByRole('button', { name: 'Cerrar', exact: true }).click();
+    await expect(page).toHaveURL(/polygon=/);
+    await expect(page.locator('.map-draw-toolbar').getByRole('button', { name: 'Quitar zona' })).toBeVisible();
+
+    // Todas las cabeceras que haya en el DOM (una navegación suave podría conservar la anterior
+    // oculta): se anota cuáles llevan la marca y cuáles se ven.
+    const headers = await page.locator('.search-header').evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        marked: (node as unknown as { __mark?: boolean }).__mark === true,
+        visible: node.getClientRects().length > 0,
+      }))
+    );
+    const siteHeaderMarked = await page.evaluate(
+      () => (document.querySelector('body > header, header') as unknown as { __mark?: boolean }).__mark === true
+    );
+    expect(siteHeaderMarked, 'el layout persiste a través de la navegación').toBe(true);
+    expect(headers, 'una sola cabecera en el DOM, la misma de antes de navegar').toEqual([
+      { marked: true, visible: true },
+    ]);
+  });
+
+  test('las alertas no se animan ni se atenúan (S-UI-14)', async ({ page }) => {
+    onlyProject('w1280-light');
+    for (const [path, selector] of [
+      ['/?q=', '#search-text-alert'],
+      ['/?minPrice=abc', '[role="alert"]'],
+    ] as const) {
+      await page.goto(path);
+      const alert = page.locator(selector).first();
+      await expect(alert).toBeVisible();
+      expect(await style(alert, 'animation-name'), path).toBe('none');
+      expect(await style(alert, 'transition-property'), path).not.toMatch(/opacity/);
+      expect(await style(alert, 'opacity'), path).toBe('1');
+    }
+  });
+});
+
+test.describe('fundido de los avisos con reducción de movimiento (D.21)', () => {
+  test.use({ reducedMotion: 'reduce' });
+
+  test('el aviso está opaco desde la primera lectura y su animación dura 0 s (S-UI-12)', async ({ page }) => {
+    onlyProject('w1280-light');
+    await page.goto(EMPTY_PATH);
+    const notice = page.locator('.empty-results');
+    await expect(notice).toBeVisible();
+    expect(await style(notice, 'opacity')).toBe('1');
+    expect(await style(notice, 'visibility')).toBe('visible');
+    expect(await style(notice, 'animation-duration')).toBe('0s');
+  });
+});

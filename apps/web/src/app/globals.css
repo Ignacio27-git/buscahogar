@@ -1005,6 +1005,29 @@
     background-color: var(--danger-wash);
   }
 
+  /* Aparición de los avisos (D.21, decisión 242): solo opacidad, 200 ms, al montarse. Los fotogramas
+     no llevan `to`: el final es el estilo del propio elemento, así que el aviso nunca se queda a 0 (y
+     con `animation-fill-mode: none` tampoco antes de empezar). Se anima el panel de cobertura o el
+     aviso suelto, nunca los dos (se multiplicarían), y jamás una alerta: lo urgente aparece al instante.
+     Cada carga o navegación completa lo repite; el refresco de fondo (`router.refresh`) no. Con
+     movimiento reducido la duración es 0 s. */
+  @keyframes notice-appear {
+    from {
+      opacity: 0;
+    }
+  }
+
+  .coverage-panel:not(:has(> .coverage-notice[role='alert'])),
+  .search-header > .coverage-notice:not([role='alert']),
+  .nl-issues,
+  .source-list__warning,
+  .empty-results {
+    animation-name: notice-appear;
+    animation-duration: var(--duration-appear);
+    animation-timing-function: var(--ease-enter);
+    animation-fill-mode: none;
+  }
+
   .nl-issues {
     display: flex;
     flex-direction: column;

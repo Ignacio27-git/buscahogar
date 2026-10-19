@@ -1213,6 +1213,16 @@ describe('movimiento (D.16, ampliado en D.21)', () => {
     );
   });
 
+  // D.21 (S-UI-9, S-UI-10): globals.css lleva exactamente el fundido, y la auditoría lo acepta.
+  it('globals.css declara exactamente un @keyframes (notice-appear) y una regla animation-* con el selector del fundido', () => {
+    const nodes = locate(RAW_CSS).map(({ node }) => node);
+    expect(nodes.filter((node) => node.prelude.startsWith('@keyframes')).map((node) => node.prelude)).toEqual([
+      '@keyframes notice-appear',
+    ]);
+    const animating = nodes.filter((node) => node.declarations.some(([name]) => name.startsWith('animation')));
+    expect(animating.map((node) => normalizeSelector(node.prelude))).toEqual([FADE_SELECTOR]);
+  });
+
   it('el mapa no declara animation* ni @keyframes (S-MT-5, fuera de alcance: decisión 206)', () => {
     const text = stripComments(MAP_CSS_RAW);
     expect(text).not.toMatch(/@keyframes|animation/);

@@ -166,3 +166,75 @@ describe('realce de la fila de resultado (UI-3, S-UI-5, decisión 241)', () => {
     expect(declaring('.result-row__media', 'overflow').declarations.get('overflow')).toBe('hidden');
   });
 });
+
+describe('fundido de los avisos (UI-4..UI-6, S-UI-9, S-UI-10, S-UI-14, decisión 242)', () => {
+  const FADE_SELECTOR =
+    '.coverage-panel:not(:has(> .coverage-notice[role=alert])), .search-header > .coverage-notice:not([role=alert]), .nl-issues, .source-list__warning, .empty-results';
+
+  interface Frames {
+    readonly prelude: string;
+    readonly layer: string | null;
+    readonly frames: ReadonlyArray<{ prelude: string; declarations: ReadonlyArray<readonly [string, string]> }>;
+  }
+
+  function keyframes(node: CssNode, layer: string | null = null): Frames[] {
+    return node.children.flatMap((child) => {
+      const prelude = normalize(child.prelude);
+      if (prelude.startsWith('@keyframes')) {
+        const frames = child.children.map((frame) => ({
+          prelude: normalize(frame.prelude),
+          declarations: frame.declarations,
+        }));
+        return [{ prelude, layer, frames }];
+      }
+      return keyframes(child, prelude.startsWith('@layer') ? prelude : layer);
+    });
+  }
+
+  const FRAMES = keyframes(ROOT);
+
+  it('hay un único @keyframes, notice-appear, con un solo fotograma «from» que fija opacity: 0', () => {
+    expect(FRAMES).toHaveLength(1);
+    const [only] = FRAMES;
+    expect(only?.prelude).toBe('@keyframes notice-appear');
+    // Sin `to`: el final es el estilo del propio elemento, así que nunca se queda a 0.
+    expect(only?.frames).toEqual([{ prelude: 'from', declarations: [['opacity', '0']] }]);
+    expect(only?.layer).toBe('@layer components');
+  });
+
+  it('una sola regla anima: la lista exacta de avisos, con cuatro longhands y sin relleno de fotogramas', () => {
+    const animating = RULES.filter((rule) => [...rule.declarations.keys()].some((name) => name.startsWith('animation')));
+    expect(animating.map((rule) => rule.selector)).toEqual([FADE_SELECTOR]);
+    const rule = animating[0] as Rule;
+    expect(Object.fromEntries(rule.declarations)).toEqual({
+      'animation-name': 'notice-appear',
+      'animation-duration': 'var(--duration-appear)',
+      'animation-timing-function': 'var(--ease-enter)',
+      'animation-fill-mode': 'none',
+    });
+    expect(rule.ancestors).toEqual(['@layer components']);
+  });
+
+  it('la regla no toca la opacidad ni la visibilidad de los avisos: sin animación nunca quedan ocultos', () => {
+    const rule = declaring(FADE_SELECTOR, 'animation-name');
+    expect([...rule.declarations.keys()].filter((name) => /^(opacity|visibility|display)$/.test(name))).toEqual([]);
+    for (const other of RULES.filter((candidate) => FADE_SELECTOR.split(', ').includes(candidate.selector))) {
+      expect(other.declarations.get('opacity'), other.selector).toBeUndefined();
+    }
+  });
+
+  it('las alertas jamás animan ni transicionan', () => {
+    const alerts = RULES.filter((rule) => /alert/.test(rule.selector.replace(/:not\([^)]*\)/g, '')));
+    expect(alerts.length).toBeGreaterThan(0);
+    for (const rule of alerts) {
+      const motion = [...rule.declarations.keys()].filter((name) => /^(animation|transition)/.test(name));
+      expect(motion, rule.selector).toEqual([]);
+    }
+  });
+
+  it('el selector del fundido excluye las alertas y el panel solo se anima si su aviso no lo es', () => {
+    expect(FADE_SELECTOR).toContain('.coverage-panel:not(:has(> .coverage-notice[role=alert]))');
+    expect(FADE_SELECTOR).toContain('.search-header > .coverage-notice:not([role=alert])');
+    expect(FADE_SELECTOR).not.toContain('nl-review__alert');
+  });
+});
