@@ -169,7 +169,7 @@ describe('realce de la fila de resultado (UI-3, S-UI-5, decisión 241)', () => {
 
 describe('fundido de los avisos (UI-4..UI-6, S-UI-9, S-UI-10, S-UI-14, decisión 242)', () => {
   const FADE_SELECTOR =
-    '.coverage-panel:not(:has(> .coverage-notice[role=alert])), .search-header > .coverage-notice:not([role=alert]), .nl-issues, .source-list__warning, .empty-results';
+    '.coverage-panel:not(:has(> .coverage-notice[role=alert])), .search-results__notices > .coverage-notice:not([role=alert]), .nl-issues, .source-list__warning, .empty-results';
 
   interface Frames {
     readonly prelude: string;
@@ -234,7 +234,7 @@ describe('fundido de los avisos (UI-4..UI-6, S-UI-9, S-UI-10, S-UI-14, decisión
 
   it('el selector del fundido excluye las alertas y el panel solo se anima si su aviso no lo es', () => {
     expect(FADE_SELECTOR).toContain('.coverage-panel:not(:has(> .coverage-notice[role=alert]))');
-    expect(FADE_SELECTOR).toContain('.search-header > .coverage-notice:not([role=alert])');
+    expect(FADE_SELECTOR).toContain('.search-results__notices > .coverage-notice:not([role=alert])');
     expect(FADE_SELECTOR).not.toContain('nl-review__alert');
   });
 });

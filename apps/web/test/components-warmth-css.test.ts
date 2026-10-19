@@ -157,8 +157,10 @@ describe('superficies neutras (S5.1-S5.3, decisión 237)', () => {
     expect(rule('.coverage-panel').get('background-color')).toBe('var(--surface-raised)');
   });
 
-  it('el estado vacío y las incidencias de la revisión se rebajan; las alertas siguen en danger-wash', () => {
-    expect(rule('.empty-results').get('background-color')).toBe('var(--surface-sunken)');
+  // P8 (pulido de D.21): el estado vacío vuelve a la superficie elevada del aviso de cobertura (antes se
+  // rebajaba a `surface-sunken` y los dos paneles apilados se veían de distinto papel).
+  it('las incidencias de la revisión se rebajan; el estado vacío no; las alertas siguen en danger-wash', () => {
+    expect(rule('.empty-results').get('background-color')).toBe('var(--surface-raised)');
     expect(rule('.nl-issues').get('background-color')).toBe('var(--surface-sunken)');
     expect(rule('.nl-review__alert').get('background-color')).toBe('var(--danger-wash)');
     expect(rule(".coverage-notice[role='alert']").get('background-color')).toBe('var(--danger-wash)');

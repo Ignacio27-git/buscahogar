@@ -592,12 +592,20 @@ describe('CriteriaFields — agrupación opcional (S3.1, S3.2)', () => {
     <CriteriaFields values={FIELD_VALUES} idPrefix="criteria" grouped={{ zone: zoneSlot }} />
   );
 
-  it('S3.1: cinco títulos en orden y «Orden de los resultados» el último', () => {
-    const headings = ['¿Qué buscas?', '¿Cuánto quieres pagar?', '¿De qué tamaño?', '¿Dónde?', 'Orden de los resultados'];
+  // P4 (pulido de D.21): habitaciones y baños tienen su propio grupo, tras el tamaño.
+  it('S3.1: seis títulos en orden y «Orden de los resultados» el último', () => {
+    const headings = [
+      '¿Qué buscas?',
+      '¿Cuánto quieres pagar?',
+      '¿De qué tamaño?',
+      '¿Cuántas habitaciones y baños?',
+      '¿Dónde?',
+      'Orden de los resultados',
+    ];
     const positions = headings.map((heading) => grouped.indexOf(`<h3>${heading}</h3>`));
     expect(positions.every((position) => position >= 0)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
-    expect(grouped.match(/<h3/g)).toHaveLength(5);
+    expect(grouped.match(/<h3/g)).toHaveLength(6);
   });
 
   it('la zona va entre los baños y el orden, y las leyendas y nombres se conservan', () => {
@@ -653,5 +661,89 @@ describe('FilterBar D.15 — campos rechazados', () => {
     expect(bar({ minPrice: '100' })).not.toContain('aria-invalid');
     // `view` es un rechazo válido de la página pero no un campo de la barra.
     expect(renderToStaticMarkup(<FilterBar params={{}} rejectedKeys={new Set(['view'])} alertId="filter-alert" />)).not.toContain('aria-invalid');
+  });
+});
+
+// P4 (pulido de D.21) — formulario de revisión de `?q=`: la unidad va solo en la leyenda, los campos de un
+// rango se llaman «mínimo»/«máximo» a la vista (el nombre accesible sigue siendo el completo), un par va
+// en una rejilla de dos columnas, habitaciones y baños tienen su propio grupo y el orden usa el mismo
+// estilo de título que los demás.
+describe('CriteriaFields agrupado — formulario de revisión (P4)', () => {
+  const grouped = renderToStaticMarkup(
+    <CriteriaFields values={FIELD_VALUES} idPrefix="criteria" grouped={{ zone: <div /> }} />
+  );
+  const flat = renderToStaticMarkup(<CriteriaFields values={FIELD_VALUES} idPrefix="filter" />);
+  const text = (html: string): string => html.replace(/<[^>]+>/g, '');
+
+  it.each([
+    ['minPrice', 'Precio ', 'mínimo', ' (€)'],
+    ['maxPrice', 'Precio ', 'máximo', ' (€)'],
+    ['minSurface', 'Superficie ', 'mínima', ' (m²)'],
+    ['maxSurface', 'Superficie ', 'máxima', ' (m²)'],
+  ] as const)('%s: a la vista solo «%s»; prefijo y unidad quedan en texto oculto', (field, prefix, word, unit) => {
+    const label = new RegExp(`<label for="criteria-${field}">(.*?)</label>`).exec(grouped)?.[1] ?? '';
+    expect(label).toBe(`<span class="sr-only">${prefix}</span>${word}<span class="sr-only">${unit}</span>`);
+    // El nombre accesible (texto completo de la etiqueta) es el de siempre.
+    expect(text(label)).toBe(`${prefix}${word}${unit}`);
+  });
+
+  it('la unidad aparece una sola vez a la vista: en la leyenda; la barra plana conserva las etiquetas completas', () => {
+    expect(grouped).toContain('<legend>Precio (€)</legend>');
+    expect(grouped).toContain('<legend>Superficie (m²)</legend>');
+    expect(grouped).not.toContain('>Precio mínimo (€)<');
+    expect(flat).toContain('<label for="filter-minPrice">Precio mínimo (€)</label>');
+    expect(flat).toContain('<label for="filter-maxSurface">Superficie máxima (m²)</label>');
+    expect(flat).not.toContain('criteria-range');
+    expect(flat).not.toContain('<span class="sr-only">Precio </span>');
+  });
+
+  it('los rangos y el par de habitaciones y baños van en una rejilla `criteria-range`', () => {
+    expect(grouped.match(/<fieldset class="criteria-range">/g)).toHaveLength(2);
+    expect(grouped).toContain('<div class="criteria-range">');
+  });
+
+  it('habitaciones y baños no cuelgan del grupo de superficie: tienen el suyo, en un div aparte', () => {
+    const size = grouped.slice(
+      grouped.indexOf('<h3>¿De qué tamaño?</h3>'),
+      grouped.indexOf('<h3>¿Cuántas habitaciones y baños?</h3>')
+    );
+    expect(size).toContain('name="minSurface"');
+    expect(size).toContain('name="maxSurface"');
+    expect(size).not.toContain('name="minRooms"');
+    expect(size).not.toContain('name="minBathrooms"');
+    const rooms = grouped.slice(
+      grouped.indexOf('<h3>¿Cuántas habitaciones y baños?</h3>'),
+      grouped.indexOf('<h3>¿Dónde?</h3>')
+    );
+    expect(rooms).toContain('<label for="criteria-minRooms">Habitaciones (mínimo)</label>');
+    expect(rooms).toContain('<label for="criteria-minBathrooms">Baños (mínimo)</label>');
+    expect(rooms).not.toContain('<fieldset');
+  });
+
+  it('«Orden de los resultados» tiene el mismo estilo de grupo que los demás títulos (sin variante secundaria)', () => {
+    expect(grouped).not.toContain('criteria-group--secondary');
+    expect(grouped.match(/<div class="criteria-group">/g)).toHaveLength(6);
+  });
+});
+
+// P5 (pulido de D.21) — la fila de chips alinea con el margen, arriba y dentro de la columna de la lista.
+describe('AppliedFilters — alineación de la fila (P5)', () => {
+  const two = chips({ minRooms: '2', minBathrooms: '1' });
+
+  it('el contenedor lleva `applied-filters` (anchura y alineación en el CSS) y la lista no lleva relleno', () => {
+    expect(two).toMatch(/^<div class="applied-filters[ "]/);
+    const list = /<ul class="([^"]*)"/.exec(two)?.[1] ?? '';
+    expect(list.split(' ')).not.toContain('p-1');
+    expect(list.split(' ')).toEqual(expect.arrayContaining(['flex', 'flex-wrap', 'min-w-0', 'gap-2']));
+  });
+
+  it('el recuento y «Quitar todos» se alinean al inicio de la fila (items-start), no al centro', () => {
+    const wrapper = /^<div class="([^"]*)"/.exec(two)?.[1] ?? '';
+    expect(wrapper.split(' ')).toContain('sm:items-start');
+    expect(wrapper.split(' ')).not.toContain('sm:items-center');
+    expect(two).toContain('<p class="applied-filters__count font-semibold tabular-nums">7 resultados</p>');
+    expect(two).toMatch(
+      /<a href="[^"]*" class="applied-filters__clear inline-flex min-h-8 shrink-0 items-center">Quitar todos/
+    );
   });
 });

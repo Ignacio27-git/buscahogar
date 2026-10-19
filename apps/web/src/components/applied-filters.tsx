@@ -3,6 +3,10 @@
 // Component puro: cada enlace es un `href` real, así que funciona sin JavaScript.
 // El recuento se pinta siempre, también con 0 resultados.
 //
+// P5 (pulido de D.21): la fila no pasa de 48rem (la columna de la lista, `.applied-filters` en el CSS),
+// así «Quitar todos» queda al final de la fila de chips y no flota sobre el mapa; la lista no lleva relleno
+// (los chips empiezan en el margen) y el recuento y el enlace se alinean arriba, con la primera fila.
+//
 // La lista envuelve (D.13b): los chips pasan a la línea siguiente en vez de desplazarse en
 // horizontal, y un chip más ancho que la fila se parte dentro de sí mismo. Lleva `relative`
 // porque el texto `sr-only` de cada enlace es `position: absolute` y no debe ensanchar el documento.
@@ -42,11 +46,11 @@ const CHIP_SHAPE = 'inline-flex min-h-8 max-w-full items-center gap-1 rounded-co
 export function AppliedFilters({ criteria, params, zoneName, count }: AppliedFiltersProps): ReactElement {
   const filters = describeAppliedFilters(criteria, zoneName);
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-      <p className="font-semibold tabular-nums">{count}</p>
+    <div className="applied-filters flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
+      <p className="applied-filters__count font-semibold tabular-nums">{count}</p>
       {filters.length > 0 ? (
         <section aria-label="Filtros aplicados" className="flex min-w-0 flex-1">
-          <ul className="relative flex min-w-0 flex-1 flex-wrap gap-2 p-1">
+          <ul className="relative flex min-w-0 flex-1 flex-wrap gap-2">
             {filters.map((filter) => (
               <li key={filter.key} className="min-w-0 max-w-full">
                 <a
@@ -63,7 +67,7 @@ export function AppliedFilters({ criteria, params, zoneName, count }: AppliedFil
         </section>
       ) : null}
       {offersClearAll(filters.length) ? (
-        <a href={buildClearFiltersHref(params)} className="inline-flex min-h-8 shrink-0 items-center">
+        <a href={buildClearFiltersHref(params)} className="applied-filters__clear inline-flex min-h-8 shrink-0 items-center">
           Quitar todos<span className="sr-only"> los filtros</span>
         </a>
       ) : null}

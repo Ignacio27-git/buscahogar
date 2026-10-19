@@ -397,12 +397,15 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
     href: point.anchorListingId === null ? null : buildPropertyDetailHref(point.anchorListingId),
   }));
 
+  const toggleShown = view === 'map' || results.length > 0 || total > 0;
+  const noticesShown = coverageSection !== null || polygonEmpty || toggleShown;
+
   return (
     <>
       {/* D.13b: los grupos de la cabecera comparten un ritmo vertical (gap de 1rem).
           D.18 (decisión 229, C-16): UN orden en el DOM = orden de lectura = orden visual, sin `order`
-          de CSS: título, [pasos], buscador, barra de herramientas, recuento y chips, sugerencias,
-          panel de cobertura, aviso del polígono y conmutador de vista. */}
+          de CSS: título, [pasos], buscador, barra de herramientas, recuento y chips, sugerencias y, ya en
+          la rejilla de resultados, panel de cobertura, aviso del polígono y conmutador de vista. */}
       <div className="search-header">
         {/* D.20 (decisión 235): motivo decorativo, fuera del flujo y aria-hidden; solo aquí, no en las
             ramas de `?q=` ni en los rechazos. Va antes del h1 en el DOM para que este pinte por encima. */}
@@ -430,17 +433,27 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
           count={formatListCount(results.length, criteria.page, hasNextPage)}
         />
         {suggestions !== null ? <ZoneSuggestions suggestions={suggestions} rawSearchParams={rawSearchParams} /> : null}
-        {coverageSection}
-        {/* DAS-11: región compartida; con polígono las dos consultas dan el mismo
-            total, así que M === 0 vale también en páginas posteriores de la lista. */}
-        {polygonEmpty ? <CoverageNotice variant={{ kind: 'outside-polygon' }} /> : null}
-        <p className="view-toggle">
-          <a href={buildViewHref(rawSearchParams, view === 'map' ? 'list' : 'map')}>
-            {view === 'map' ? 'Ver lista' : 'Ver mapa'}
-          </a>
-        </p>
       </div>
       <div className="search-results" data-view={view}>
+        {/* P8 (pulido de D.21): el aviso de cobertura, el del polígono y el conmutador abren la rejilla de
+            resultados, en la columna de la lista, así el mapa empieza en su misma fila y no queda una
+            columna derecha vacía. El orden del DOM sigue siendo el de lectura. «Ver mapa» no lleva a ninguna
+            parte con 0 resultados y se omite; «Ver lista» se conserva en la vista de mapa. */}
+        {noticesShown ? (
+          <div className="search-results__notices">
+            {coverageSection}
+            {/* DAS-11: región compartida; con polígono las dos consultas dan el mismo
+                total, así que M === 0 vale también en páginas posteriores de la lista. */}
+            {polygonEmpty ? <CoverageNotice variant={{ kind: 'outside-polygon' }} /> : null}
+            {toggleShown ? (
+              <p className="view-toggle">
+                <a href={buildViewHref(rawSearchParams, view === 'map' ? 'list' : 'map')}>
+                  {view === 'map' ? 'Ver lista' : 'Ver mapa'}
+                </a>
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <section aria-label="Resultados" className="search-results__list">
           {results.length === 0 ? (
             listEmptyKind !== null ? (

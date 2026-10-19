@@ -116,12 +116,12 @@ components:
   sort-preset:
     textColor: '{colors.primary}'
     typography: '{typography.dense}'
-    padding: '0 0.5rem'
+    padding: '0 0'
     height: '2.5rem'
   sort-preset-active:
     textColor: '{colors.ink}'
     typography: '{typography.dense}'
-    padding: '0 0.5rem'
+    padding: '0 0'
     height: '2.5rem'
   icon-button:
     backgroundColor: '{colors.surface-raised}'
@@ -290,7 +290,7 @@ Una columna de contenido con un contenedor de 80rem (`spacing.page`) centrado y 
 
 La cabecera de la búsqueda sigue un único orden, que es también el de lectura y el del DOM (sin `order` en
 CSS): título, pasos, caja de texto plegable, barra de herramientas (filtros y ordenación), chips aplicados,
-sugerencias de zona, panel de cobertura, aviso del polígono y conmutador de vista. La barra de herramientas
+sugerencias de zona y, ya dentro de la rejilla de resultados (P8 de D.21), panel de cobertura, aviso del polígono y conmutador de vista. La barra de herramientas
 envuelve; con la bandeja de filtros abierta, y desde 64rem con el formulario ya desplegado, la bandeja ocupa
 toda la fila y la ordenación baja debajo (decisión 229). Los bloques se separan con un hueco de 1rem.
 
@@ -369,14 +369,16 @@ principal y nada decorativo: se leen como instrumentos técnicos.
 
 - **Corner Style:** panel de 0,5rem (`panel`); las filas de resultado no tienen caja.
 - **Background:** `surface-raised`, sin sombra (D.20: los avisos y el panel de cobertura son papel sobrepuesto neutro, no
-  `surface`); el estado vacío y las incidencias de la búsqueda en lenguaje natural usan `surface-sunken`. Las alertas conservan `danger-wash`.
+  `surface`) y el estado vacío (P8 de D.21) comparte esa superficie; solo las incidencias de la búsqueda en lenguaje natural usan `surface-sunken`. Las alertas conservan `danger-wash`.
 - **Border:** 1px en `rule`; los paneles de alerta (cobertura fallida, filtros no válidos) toman `danger`.
 - **Internal Padding:** 0,75rem 1rem.
 
 ### Inputs / Fields
 
 - **Style:** borde 1px `rule-control`, fondo `surface`, radio de 0,375rem, alto fijo de 2,5rem sin relleno vertical,
-  texto de 1rem. Los numéricos miden 7rem.
+  texto de 1rem. Los numéricos miden 7rem; en la revisión de `?q=` los pares (mínimo y máximo, y habitaciones con baños)
+  van en una rejilla de dos columnas iguales (tope de 20rem) y la unidad solo aparece en la leyenda del grupo: las etiquetas
+  se ven como «Mínimo» y «Máximo» y su nombre accesible sigue siendo el completo.
 - **Focus:** el aro global de 2px.
 - **Error / Disabled:** el error se explica con texto (el nombre del filtro y el motivo); nunca solo con color.
 
@@ -420,8 +422,7 @@ carga completa de la página, no en una navegación suave sobre lo que ya estaba
 
 Cinco enlaces junto a la etiqueta «Ordenar por», bajo la bandeja de filtros: «Más recientes» (el orden por
 defecto, que no ensucia la URL), «Precio: de menor a mayor», «Precio: de mayor a menor», «Superficie: de
-mayor a menor» y «Superficie: de menor a mayor». Son enlaces reales de 40px de alto y 0,5rem de relleno
-lateral, en `primary` y `dense`. El vigente lleva `aria-current="true"`, tinta, peso 600 y una barra de 2px
+mayor a menor» y «Superficie: de menor a mayor». Son enlaces reales de 40px de alto, sin relleno lateral (el texto empieza en el margen de la página; los separa un hueco de 1rem), en `primary` y `dense`. El vigente lleva `aria-current="true"`, tinta, peso 600 y una barra de 2px
 bajo el texto, sin subrayado; una combinación fuera de los cinco, como `updated` ascendente en la URL, no
 marca ninguno. Con puntero fino, un enlace no vigente muestra una vista previa suave (D.21, decisión 13): el borde
 inferior toma `rule-control`, nunca la tinta del vigente, para que se distingan, y el vigente no cambia con el puntero. El
@@ -469,7 +470,10 @@ El vacío filtrado es un panel de 1px con tres cosas: el estado («Ninguna vivie
 búsqueda.»), una frase que remite a los chips de arriba y una única acción. La acción se llama «Quitar los
 demás filtros» si hay un polígono que conservar y «Quitar todos los filtros» en los demás casos; no se
 muestra si la fila de chips ya ofrece «Quitar todos», para que nunca haya dos enlaces idénticos. El panel no
-repite la lista de filtros y aparece con el fundido de opacidad de 200 ms.
+repite la lista de filtros y aparece con el fundido de opacidad de 200 ms. Desde el pulido de D.21 comparte la
+superficie elevada del aviso de cobertura (antes se rebajaba a `surface-sunken` y los dos paneles apilados se veían de
+distinto papel). Con 0 resultados no se ofrece «Ver mapa», y el aviso de cobertura, el del polígono y el conmutador abren
+la rejilla de resultados para que, desde 64rem, el mapa empiece en la misma fila que el aviso.
 
 ### Fila de resultado
 

@@ -501,3 +501,156 @@ test.describe('D.21 pulido: ficha (gráfico, tabla y etiquetas)', () => {
     expect(lines).toBe(1);
   });
 });
+
+// D.21, lote de pulido tras la revisión (P4, P5 y P8).
+test.describe('D.21 pulido: formulario de revisión, chips y cobertura sin resultados', () => {
+  test('P4 los pares llenan su columna, las etiquetas se ven cortas y el nombre accesible sigue completo', async ({ page }) => {
+    await openRoute(page, route('nl-query'));
+    const price = page.locator('fieldset.criteria-range', { has: page.locator('legend', { hasText: 'Precio (€)' }) });
+    await expect(price.locator('label').first()).toHaveText('Precio mínimo (€)');
+    const visible = await price.locator('label').evaluateAll((labels) =>
+      labels.map((label) => {
+        const visibleText = [...label.childNodes]
+          .filter((node) => !(node instanceof HTMLElement && node.classList.contains('sr-only')))
+          .map((node) => node.textContent)
+          .join('')
+          .trim();
+        return { visibleText, firstLetter: getComputedStyle(label, '::first-letter').textTransform };
+      })
+    );
+    expect(visible.map((entry) => entry.visibleText)).toEqual(['mínimo', 'máximo']);
+    expect(visible.map((entry) => entry.firstLetter)).toEqual(['uppercase', 'uppercase']);
+    await expect(page.getByLabel('Precio máximo (€)')).toBeVisible();
+
+    // Sin hueco muerto: los dos números ocupan todo el ancho del par (mismo ancho y sin sobrar a la derecha).
+    const fields = await price.evaluate((fieldset) => {
+      const inputs = [...fieldset.querySelectorAll('input')].map((input) => input.getBoundingClientRect());
+      const last = inputs[1];
+      return {
+        right: last === undefined ? 0 : last.x + last.width,
+        box: fieldset.getBoundingClientRect(),
+        widths: inputs.map((box) => box.width),
+      };
+    });
+    expect(Math.abs(fields.right - (fields.box.x + fields.box.width))).toBeLessThanOrEqual(1);
+    expect(Math.abs((fields.widths[0] ?? 0) - (fields.widths[1] ?? 1))).toBeLessThanOrEqual(1);
+  });
+
+  test('P4 la leyenda no toca las etiquetas y habitaciones y baños tienen su propio grupo', async ({ page }) => {
+    await openRoute(page, route('nl-query'));
+    const gap = await page
+      .locator('fieldset.criteria-range legend')
+      .first()
+      .evaluate((legend) => {
+        const label = legend.parentElement?.querySelector('label')?.getBoundingClientRect();
+        return label === undefined ? 0 : label.y - legend.getBoundingClientRect().bottom;
+      });
+    expect(gap).toBeGreaterThanOrEqual(5);
+
+    const group = page.locator('.criteria-group', { has: page.getByLabel('Habitaciones (mínimo)') });
+    await expect(group.locator('h3')).toHaveText('¿Cuántas habitaciones y baños?');
+    await expect(group.getByLabel('Baños (mínimo)')).toBeVisible();
+    await expect(group.getByLabel('Superficie máxima (m²)')).toHaveCount(0);
+    // Una etiqueta que envuelve a 320px no desplaza el campo vecino: los dos números quedan a la misma altura.
+    const tops = await group.locator('input').evaluateAll((inputs) => inputs.map((input) => Math.round(input.getBoundingClientRect().bottom)));
+    expect(tops).toHaveLength(2);
+    expect(tops[0]).toBe(tops[1]);
+  });
+
+  test('P4 el título de «Orden de los resultados» tiene el mismo estilo que los demás grupos', async ({ page }) => {
+    await openRoute(page, route('nl-query'));
+    const styles = await page.locator('.criteria-group > h3').evaluateAll((headings) =>
+      headings.map((heading) => {
+        const style = getComputedStyle(heading);
+        return `${style.fontSize}/${style.fontWeight}/${style.color}`;
+      })
+    );
+    expect(styles.length).toBe(6);
+    expect(new Set(styles).size).toBe(1);
+  });
+
+  test('P5 el primer chip empieza en el margen y el recuento y «Quitar todos» se alinean con su fila', async ({ page }) => {
+    await openRoute(page, route('home-filtered'));
+    const measured = await page.evaluate(() => {
+      const box = (selector: string): DOMRect | null => document.querySelector(selector)?.getBoundingClientRect() ?? null;
+      return {
+        chip: box('.applied-filters__chip'),
+        count: box('.applied-filters__count'),
+        clear: box('.applied-filters__clear'),
+        gutter: box('.search-header > h1'),
+        list: box('.search-results__list'),
+      };
+    });
+    const { chip, count, clear, gutter, list } = measured;
+    if (chip === null || count === null || clear === null || gutter === null || list === null) {
+      throw new Error('faltan elementos de la fila de chips');
+    }
+    const width = page.viewportSize()?.width ?? 0;
+    if (width < 640) {
+      // Apilado: el chip empieza en el margen de la página, no 4px dentro.
+      expect(Math.abs(chip.x - gutter.x)).toBeLessThanOrEqual(1);
+    } else {
+      // En fila: recuento, chips y «Quitar todos» comparten la parte alta de la primera fila.
+      expect(Math.abs(count.y - chip.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(clear.y - chip.y)).toBeLessThanOrEqual(1);
+    }
+    // «Quitar todos» no sale de la columna de la lista.
+    expect(clear.x + clear.width).toBeLessThanOrEqual(list.x + list.width + 1);
+  });
+
+  test('P5 los enlaces de ordenación empiezan en el margen de la página', async ({ page }) => {
+    test.skip(test.info().project.name.startsWith('w1280'), 'a 1280 la ordenación comparte fila con «Filtros»');
+    await openRoute(page, route('home'));
+    const offsets = await page.evaluate(() => ({
+      link: document.querySelector('.sort-presets__link')?.getBoundingClientRect().x ?? -1,
+      title: document.querySelector('.search-header > h1')?.getBoundingClientRect().x ?? -2,
+    }));
+    expect(Math.abs(offsets.link - offsets.title)).toBeLessThanOrEqual(1);
+  });
+
+  test('P8 con 0 resultados no hay «Ver mapa» y el aviso y el vacío comparten superficie', async ({ page }) => {
+    await openRoute(page, route('coverage-running'));
+    await expect(page.locator('.view-toggle')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Ver mapa' })).toHaveCount(0);
+    const surfaces = await page.evaluate(() => ({
+      panel: getComputedStyle(document.querySelector('.coverage-panel') ?? document.body).backgroundColor,
+      empty: getComputedStyle(document.querySelector('.empty-results') ?? document.body).backgroundColor,
+    }));
+    expect(surfaces.empty).toBe(surfaces.panel);
+  });
+
+  test('P8 desde 64rem el mapa empieza en la fila del aviso de cobertura', async ({ page }) => {
+    test.skip(!test.info().project.name.startsWith('w1280'), 'solo en ancho');
+    await openRoute(page, route('coverage-running'));
+    const tops = await page.evaluate(() => ({
+      notice: document.querySelector('.search-results__notices')?.getBoundingClientRect().y ?? -1,
+      map: document.querySelector('.search-results__map')?.getBoundingClientRect().y ?? -2,
+      list: document.querySelector('.search-results__list')?.getBoundingClientRect().y ?? -3,
+    }));
+    expect(Math.abs(tops.map - tops.notice)).toBeLessThanOrEqual(1);
+    expect(tops.list).toBeGreaterThan(tops.notice);
+    // El alto del mapa no se reparte a la fila del aviso: el vacío empieza justo bajo él (gap de 1,5rem).
+    const gap = await page.evaluate(() => {
+      const notice = document.querySelector('.search-results__notices')?.getBoundingClientRect();
+      const list = document.querySelector('.search-results__list')?.getBoundingClientRect();
+      return notice === undefined || list === undefined ? -1 : list.y - (notice.y + notice.height);
+    });
+    expect(gap).toBeGreaterThanOrEqual(0);
+    expect(gap).toBeLessThanOrEqual(25);
+  });
+
+  test('P8 con resultados y sin aviso, el mapa y la lista siguen alineados', async ({ page }) => {
+    test.skip(!test.info().project.name.startsWith('w1280'), 'solo en ancho');
+    await openRoute(page, route('home'));
+    const tops = await page.evaluate(() => {
+      const notices = document.querySelector('.search-results__notices');
+      return {
+        map: document.querySelector('.search-results__map')?.getBoundingClientRect().y ?? -2,
+        list: document.querySelector('.search-results__list')?.getBoundingClientRect().y ?? -3,
+        noticesHidden: notices === null || getComputedStyle(notices).display === 'none',
+      };
+    });
+    expect(tops.noticesHidden).toBe(true);
+    expect(Math.abs(tops.map - tops.list)).toBeLessThanOrEqual(1);
+  });
+});

@@ -81,12 +81,31 @@ interface NumberFieldProps {
   readonly value: string | undefined;
   readonly step: string;
   readonly invalid?: InvalidFields | undefined;
+  // P4 (pulido de D.21): dentro de un rango agrupado la etiqueta se ve corta («mínimo», «máximo»); el
+  // prefijo y la unidad ya los dan la leyenda y quedan en texto oculto, así que el nombre accesible es
+  // el completo de siempre («Precio mínimo (€)»).
+  readonly short?: boolean;
 }
 
-function NumberField({ field, idPrefix, value, step, invalid }: NumberFieldProps): ReactElement {
+// «Precio mínimo (€)» -> prefijo «Precio », palabra «mínimo» y unidad « (€)». Todas las etiquetas de rango
+// tienen esa forma: sustantivo, mínimo/máximo y unidad entre paréntesis.
+function ShortLabel({ text }: { readonly text: string }): ReactElement {
+  const [noun = '', word = '', ...unit] = text.split(' ');
+  return (
+    <>
+      <span className="sr-only">{`${noun} `}</span>
+      {word}
+      <span className="sr-only">{` ${unit.join(' ')}`}</span>
+    </>
+  );
+}
+
+function NumberField({ field, idPrefix, value, step, invalid, short = false }: NumberFieldProps): ReactElement {
   return (
     <p>
-      <label htmlFor={`${idPrefix}-${field}`}>{FIELD_LABELS[field]}</label>{' '}
+      <label htmlFor={`${idPrefix}-${field}`}>
+        {short ? <ShortLabel text={FIELD_LABELS[field]} /> : FIELD_LABELS[field]}
+      </label>{' '}
       <input
         id={`${idPrefix}-${field}`}
         type="number"
@@ -152,9 +171,9 @@ export interface CriteriaFieldsProps {
   readonly invalid?: InvalidFields | undefined;
 }
 
-function Group({ title, secondary, children }: { readonly title: string; readonly secondary?: boolean; readonly children: ReactNode }): ReactElement {
+function Group({ title, children }: { readonly title: string; readonly children: ReactNode }): ReactElement {
   return (
-    <div className={secondary === true ? 'criteria-group criteria-group--secondary' : 'criteria-group'}>
+    <div className="criteria-group">
       <h3>{title}</h3>
       {children}
     </div>
@@ -181,23 +200,31 @@ export function CriteriaFields({ values, idPrefix, grouped, invalid }: CriteriaF
         </Group>
         <Group title="¿Cuánto quieres pagar?">
           <NumericHint idPrefix={idPrefix} />
-          <fieldset>
+          <fieldset className="criteria-range">
             <legend>Precio (€)</legend>
-            <NumberField field="minPrice" idPrefix={idPrefix} invalid={invalid} value={values.minPrice} step="0.01" />
-            <NumberField field="maxPrice" idPrefix={idPrefix} invalid={invalid} value={values.maxPrice} step="0.01" />
+            <NumberField field="minPrice" idPrefix={idPrefix} invalid={invalid} value={values.minPrice} step="0.01" short />
+            <NumberField field="maxPrice" idPrefix={idPrefix} invalid={invalid} value={values.maxPrice} step="0.01" short />
           </fieldset>
         </Group>
         <Group title="¿De qué tamaño?">
-          <fieldset>
+          <fieldset className="criteria-range">
             <legend>Superficie (m²)</legend>
-            <NumberField field="minSurface" idPrefix={idPrefix} invalid={invalid} value={values.minSurface} step="any" />
-            <NumberField field="maxSurface" idPrefix={idPrefix} invalid={invalid} value={values.maxSurface} step="any" />
+            <NumberField field="minSurface" idPrefix={idPrefix} invalid={invalid} value={values.minSurface} step="any" short />
+            <NumberField field="maxSurface" idPrefix={idPrefix} invalid={invalid} value={values.maxSurface} step="any" short />
           </fieldset>
-          <NumberField field="minRooms" idPrefix={idPrefix} invalid={invalid} value={values.minRooms} step="1" />
-          <NumberField field="minBathrooms" idPrefix={idPrefix} invalid={invalid} value={values.minBathrooms} step="1" />
+        </Group>
+        {/* P4: habitaciones y baños tienen su propio grupo (antes colgaban del de superficie y parecían
+            parte de ella). Es un par de mínimos, no un rango: un div, sin leyenda. */}
+        <Group title="¿Cuántas habitaciones y baños?">
+          <div className="criteria-range">
+            <NumberField field="minRooms" idPrefix={idPrefix} invalid={invalid} value={values.minRooms} step="1" />
+            <NumberField field="minBathrooms" idPrefix={idPrefix} invalid={invalid} value={values.minBathrooms} step="1" />
+          </div>
         </Group>
         <Group title="¿Dónde?">{grouped.zone}</Group>
-        <Group title="Orden de los resultados" secondary>
+        {/* P4: el orden usa el mismo estilo de título que los demás grupos (antes era una variante
+            secundaria más pequeña y en tinta atenuada, que se leía como un error de maquetación). */}
+        <Group title="Orden de los resultados">
           <OrderFieldset values={values} idPrefix={idPrefix} invalid={invalid} />
         </Group>
       </>

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { declarations, findBlock, findBlocks, parseCss, type CssNode } from './helpers/css-tokens';
+import { declarations, findBlock, parseCss, type CssNode } from './helpers/css-tokens';
 
 const CSS = readFileSync(fileURLToPath(new URL('../src/app/globals.css', import.meta.url)), 'utf8');
 const components = (): CssNode => findBlock(parseCss(CSS), '@layer components');
@@ -18,21 +18,16 @@ describe('ritmo vertical de la cabecera (pulido D.18)', () => {
     expect(declarations(findBlock(components(), '.search-header')).get('gap')).toBe('1rem');
   });
 
-  it('el aviso de cobertura de la cabecera no lleva margen propio (el hueco lo da la cabecera)', () => {
-    const notice = declarations(findBlock(components(), '.search-header > .coverage-notice'));
+  // P8 (pulido de D.21): el aviso de cobertura ya no es hijo de la cabecera sino del envoltorio de avisos
+  // de la rejilla de resultados; sigue sin margen propio (el hueco lo da el envoltorio).
+  it('el aviso de cobertura del envoltorio de avisos no lleva margen propio', () => {
+    const notice = declarations(findBlock(components(), '.search-results__notices > .coverage-notice'));
     expect(notice.get('margin')).toBe('0');
   });
 
-  // El conmutador de vista (visible bajo 64rem) ya separa el aviso de los resultados: el margen extra
-  // solo vale en el diseño ancho, donde no hay conmutador.
-  it('tras una cabecera con aviso de cobertura, los resultados dejan 1rem solo desde 64rem', () => {
-    const selector = '.search-header:has(> .coverage-panel, > .coverage-notice) + .search-results';
-    const wide = findBlocks(components()).filter((node) => node.prelude.replace(/\s+/g, ' ') === '@media (width >= 64rem)');
-    const rules = wide.flatMap((media) => media.children.filter((child) => child.prelude.replace(/\s+/g, ' ') === selector));
-    expect(rules).toHaveLength(1);
-    expect(declarations(rules[0] as CssNode).get('margin-block-start')).toBe('1rem');
-    // Y ninguna regla suelta (sin media query) lo aplica a todos los anchos.
-    const loose = components().children.filter((child) => child.prelude.replace(/\s+/g, ' ') === selector);
-    expect(loose).toHaveLength(0);
+  it('la rejilla con avisos se separa 1rem de la cabecera y el envoltorio apila sus hijos con 1rem', () => {
+    const results = declarations(findBlock(components(), '.search-results:has(> .search-results__notices)'));
+    expect(results.get('margin-block-start')).toBe('1rem');
+    expect(declarations(findBlock(components(), '.search-results__notices')).get('gap')).toBe('1rem');
   });
 });

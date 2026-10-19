@@ -33,9 +33,28 @@ function collect(node: CssNode, ancestors: readonly string[] = []): Rule[] {
 
 const RULES = collect(ROOT);
 
+/** Parte una lista de selectores por las comas de primer nivel (no las de `:has(...)` ni `:is(...)`). */
+function selectorParts(list: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const char of list) {
+    if (char === '(') depth += 1;
+    if (char === ')') depth -= 1;
+    if (char === ',' && depth === 0) {
+      parts.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  parts.push(current.trim());
+  return parts;
+}
+
 /** Las reglas de ese selector (cada lista de selectores se parte en sus partes). */
 function rulesFor(selector: string): Rule[] {
-  return RULES.filter((rule) => rule.selector.split(',').some((part) => part.trim() === selector));
+  return RULES.filter((rule) => selectorParts(rule.selector).includes(selector));
 }
 
 /** Declaraciones fusionadas de las reglas del selector que no están bajo ningún @media/@container/@supports. */
@@ -183,5 +202,124 @@ describe('P7 — fecha de inicio y etiquetas de la lista de fuentes', () => {
     expect([...active.keys()].sort()).toEqual(['background-color', 'border-color']);
     expect(active.get('border-color')).toBe('var(--vegetation)');
     expect(active.get('background-color')).toBe('var(--vegetation-wash)');
+  });
+});
+
+// P8 — cobertura sin resultados: los avisos abren la rejilla de resultados y el mapa empieza en su fila.
+describe('P8 — avisos dentro de la rejilla de resultados', () => {
+  const WIDE = '@media (width >= 64rem)';
+  const WITH_NOTICE = '.search-results:has(> .search-results__notices > :is(.coverage-panel, .coverage-notice)) > .search-results__map';
+
+  it('el envoltorio apila los avisos y el conmutador con 1rem; la rejilla se separa 1rem de los chips', () => {
+    const notices = base('.search-results__notices');
+    expect(notices.get('display')).toBe('flex');
+    expect(notices.get('flex-direction')).toBe('column');
+    expect(notices.get('gap')).toBe('1rem');
+    // El margen va en la rejilla (no en el envoltorio): así el mapa y el aviso empiezan a la misma altura.
+    expect(notices.has('margin-block-start')).toBe(false);
+    expect(base('.search-results:has(> .search-results__notices)').get('margin-block-start')).toBe('1rem');
+  });
+
+  it('desde 64rem, si el envoltorio solo lleva el conmutador (oculto), la rejilla no se separa de más', () => {
+    const rule = within(
+      WIDE,
+      '.search-results:has(> .search-results__notices):not(:has(> .search-results__notices > :is(.coverage-panel, .coverage-notice)))'
+    );
+    expect(rule.get('margin-block-start')).toBe('0');
+  });
+
+  it('el aviso de cobertura dentro del envoltorio no lleva margen propio: el hueco lo da el envoltorio', () => {
+    expect(base('.search-results__notices > .coverage-notice').get('margin')).toBe('0');
+    expect(rulesFor('.search-header > .coverage-notice')).toEqual([]);
+  });
+
+  it('desde 64rem el envoltorio solo ocupa fila si lleva un aviso de cobertura (el conmutador está oculto)', () => {
+    const rule = within(WIDE, '.search-results__notices:not(:has(> .coverage-panel, > .coverage-notice))');
+    expect(rule.get('display')).toBe('none');
+  });
+
+  it('desde 64rem los avisos y la lista van en la primera columna y el mapa en la segunda', () => {
+    expect(within(WIDE, '.search-results__notices').get('grid-column')).toBe('1');
+    expect(within(WIDE, '.search-results[data-view] > .search-results__list').get('grid-column')).toBe('1');
+    expect(within(WIDE, '.search-results[data-view] > .search-results__map').get('grid-column')).toBe('2');
+  });
+
+  it('con un aviso de cobertura la rejilla reparte el alto sobrante a la fila de la lista, no a la del aviso', () => {
+    const grid = within(WIDE, '.search-results:has(> .search-results__notices > :is(.coverage-panel, .coverage-notice))');
+    expect(grid.get('grid-template-rows')).toBe('auto 1fr');
+  });
+
+  it('con un aviso de cobertura el mapa abarca la fila del aviso y la de la lista', () => {
+    expect(within(WIDE, WITH_NOTICE).get('grid-row')).toBe('1 / span 2');
+    expect(rulesFor(WITH_NOTICE).filter((rule) => !rule.ancestors.includes(WIDE))).toEqual([]);
+  });
+
+  it('ya no hay margen suelto entre cabecera y resultados: lo da el envoltorio de avisos', () => {
+    expect(rulesFor('.search-header:has(> .coverage-panel, > .coverage-notice) + .search-results')).toEqual([]);
+  });
+
+  it('el estado vacío usa la misma superficie elevada que el aviso de cobertura (sin fondo propio)', () => {
+    const backgrounds = rulesFor('.empty-results').flatMap((rule) => {
+      const value = rule.declarations.get('background-color');
+      return value === undefined ? [] : [value];
+    });
+    expect(backgrounds).toEqual(['var(--surface-raised)']);
+    expect(base('.coverage-notice').get('color')).toBe(base('.empty-results').get('color'));
+    const coverage = rulesFor('.coverage-notice').flatMap((rule) => {
+      const value = rule.declarations.get('background-color');
+      return value === undefined ? [] : [value];
+    });
+    expect(coverage).toContain('var(--surface-raised)');
+  });
+});
+
+// P4 — rejilla de dos columnas de los pares de campos del formulario de revisión.
+describe('P4 — rejilla de los campos de la revisión de ?q=', () => {
+  it('`criteria-range` es una rejilla de dos columnas iguales con tope de 20rem', () => {
+    const range = base('.criteria-range');
+    expect(range.get('display')).toBe('grid');
+    expect(range.get('grid-template-columns')).toBe('1fr 1fr');
+    expect(range.get('max-inline-size')).toBe('20rem');
+    expect(range.get('inline-size')).toBe('100%');
+  });
+
+  it('la leyenda ocupa las dos columnas y deja 0,375rem antes de los campos', () => {
+    const legend = base('.criteria-range > legend');
+    expect(legend.get('grid-column')).toBe('1 / -1');
+    expect(legend.get('margin-block-end')).toBe('0.375rem');
+  });
+
+  it('los campos de una fila se alinean por abajo: una etiqueta que envuelve no desplaza el campo vecino', () => {
+    expect(base('.criteria-range').get('align-items')).toBe('end');
+  });
+
+  it('los números llenan su columna: sin hueco muerto a 320px', () => {
+    expect(base('.criteria-range input[type=number]').get('inline-size')).toBe('100%');
+  });
+
+  it('la etiqueta corta empieza en mayúscula (el texto oculto lleva la minúscula)', () => {
+    expect(base('.criteria-range label::first-letter').get('text-transform')).toBe('uppercase');
+  });
+
+  it('desaparece la variante secundaria del título de grupo', () => {
+    expect(rulesFor('.criteria-group--secondary > h3')).toEqual([]);
+  });
+});
+
+// P5 — fila de chips: al margen, arriba y en la columna de la lista.
+describe('P5 — fila de filtros aplicados', () => {
+  it('la fila no pasa de 48rem, la columna de la lista, para que «Quitar todos» no flote sobre el mapa', () => {
+    expect(base('.applied-filters').get('max-inline-size')).toBe('48rem');
+  });
+
+  it('el recuento mide 2rem de alto como un chip, así que alinea con la primera fila de chips', () => {
+    const count = base('.applied-filters__count');
+    expect(count.get('min-block-size')).toBe('2rem');
+    expect(count.get('line-height')).toBe('2rem');
+  });
+
+  it('los enlaces de ordenación no llevan relleno lateral: el texto empieza en el margen', () => {
+    expect(base('.sort-presets__link').get('padding-inline')).toBe('0');
+    expect(base('.sort-presets__list').get('gap')).toBe('0 1rem');
   });
 });

@@ -941,7 +941,7 @@ describe('movimiento (D.16, ampliado en D.21)', () => {
   /** Selector exacto de la única regla que anima (D.21, M6): los avisos que aparecen al montarse. */
   const FADE_SELECTOR = [
     ".coverage-panel:not(:has(> .coverage-notice[role='alert']))",
-    ".search-header > .coverage-notice:not([role='alert'])",
+    ".search-results__notices > .coverage-notice:not([role='alert'])",
     '.nl-issues',
     '.source-list__warning',
     '.empty-results',

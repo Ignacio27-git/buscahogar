@@ -195,7 +195,10 @@ describe('lista y mapa en cada petición válida (SMV-15, WSL-D8a-1)', () => {
     expect(await render({ view: 'map' })).toContain('class="search-results" data-view="map"');
   });
 
-  it('el título, los filtros aplicados y el aviso de polígono van juntos en .search-header, antes de los resultados', async () => {
+  // P8 (pulido de D.21): el aviso de cobertura, el del polígono y el conmutador viven en la rejilla de
+  // resultados (primera fila de la columna de la lista) para que el mapa empiece en su misma fila.
+  it('el título y los filtros aplicados van en .search-header; los avisos y el conmutador, al inicio de los resultados', async () => {
+    searchPropertiesMock.mockResolvedValue({ results: [makeListResult(0)], hasNextPage: false });
     const html = await render({ polygon: POLYGON });
     const start = html.indexOf('<div class="search-header">');
     const end = html.indexOf('class="search-results"');
@@ -204,7 +207,46 @@ describe('lista y mapa en cada petición válida (SMV-15, WSL-D8a-1)', () => {
     const header = html.slice(start, end);
     expect(header).toContain('<h1');
     expect(header).toContain('aria-label="Filtros aplicados"');
-    expect(header).toContain('coverage-notice');
+    expect(header).not.toContain('coverage-notice');
+    expect(header).not.toContain('view-toggle');
+
+    const results = html.slice(end);
+    const notices = results.indexOf('<div class="search-results__notices">');
+    expect(notices).toBeGreaterThanOrEqual(0);
+    expect(notices).toBeLessThan(results.indexOf('search-results__list"'));
+    const noticesHtml = results.slice(notices, results.indexOf('search-results__list"'));
+    expect(noticesHtml).toContain('coverage-notice');
+    expect(noticesHtml).toContain('class="view-toggle"');
+    expect(noticesHtml.indexOf('coverage-notice')).toBeLessThan(noticesHtml.indexOf('class="view-toggle"'));
+  });
+
+  it('sin avisos y con resultados, el envoltorio solo lleva el conmutador', async () => {
+    searchPropertiesMock.mockResolvedValue({ results: [makeListResult(0)], hasNextPage: false });
+    mapResult(1);
+    const withToggle = await render({});
+    expect(withToggle).toContain('<div class="search-results__notices"><p class="view-toggle">');
+    expect(withToggle).not.toContain('coverage-notice');
+  });
+
+  // P8: con 0 resultados «Ver mapa» no lleva a ninguna parte; «Ver lista» sí se queda en la vista de mapa
+  // (la lista vacía explica el vacío y es la única forma de volver a ella).
+  it('con 0 resultados no hay «Ver mapa» ni envoltorio de avisos', async () => {
+    const html = await render({ operation: 'sale' });
+    expect(html).not.toContain('Ver mapa');
+    expect(html).not.toContain('view-toggle');
+    expect(html).not.toContain('search-results__notices');
+  });
+
+  it('con 0 resultados en la vista de mapa se conserva «Ver lista»', async () => {
+    const html = await render({ operation: 'sale', view: 'map' });
+    expect(html).toContain('<a href="/?operation=sale">Ver lista</a>');
+  });
+
+  it('con 0 resultados pero un aviso de cobertura, el envoltorio lleva el aviso y ningún conmutador', async () => {
+    const html = await render({ polygon: POLYGON });
+    const notices = html.slice(html.indexOf('<div class="search-results__notices">'), html.indexOf('search-results__list"'));
+    expect(notices).toContain('No hay viviendas en la zona dibujada.');
+    expect(notices).not.toContain('view-toggle');
   });
 
   // D.20 (decisión 235): el motivo de curvas de nivel es el primer hijo de .search-header, antes del h1.
@@ -306,11 +348,11 @@ describe('orden del DOM de la cabecera (D.18, decisión 229)', () => {
     suggestZonesMock.mockResolvedValue([
       { ineCode: '28074', municipality: 'Leganés', province: 'Madrid', state: 'uncovered', sweepable: true },
     ]);
+    searchPropertiesMock.mockResolvedValue({ results: [makeListResult(0)], hasNextPage: false });
     const html = await render({ zone: '28074', zoneQuery: 'lega', operation: 'sale' });
-    const header = html.slice(0, html.indexOf('class="search-results"'));
     expect(
       ascending(
-        positions(header, [
+        positions(html, [
           '<h1>',
           '<search',
           'class="search-toolbar"',
@@ -318,8 +360,10 @@ describe('orden del DOM de la cabecera (D.18, decisión 229)', () => {
           'class="sort-presets"',
           'aria-label="Filtros aplicados"',
           'aria-label="Sugerencias de zona"',
+          'class="search-results"',
           'Todavía no hay viviendas de Leganés.',
           'class="view-toggle"',
+          'search-results__list"',
         ])
       )
     ).toBe(true);
@@ -327,11 +371,11 @@ describe('orden del DOM de la cabecera (D.18, decisión 229)', () => {
 
   it('el aviso del polígono va tras los chips y antes del conmutador de vista', async () => {
     mapResult(0);
+    searchPropertiesMock.mockResolvedValue({ results: [makeListResult(0)], hasNextPage: false });
     const html = await render({ polygon: POLYGON, operation: 'sale' });
-    const header = html.slice(0, html.indexOf('class="search-results"'));
     expect(
       ascending(
-        positions(header, ['<search', 'aria-label="Filtros aplicados"', NOT_COVERED, 'class="view-toggle"'])
+        positions(html, ['<search', 'aria-label="Filtros aplicados"', NOT_COVERED, 'class="view-toggle"'])
       )
     ).toBe(true);
   });
@@ -661,7 +705,8 @@ describe('vista de lista — aviso de fuera de cobertura y conmutador (DAS-11, S
     expect(html).not.toContain(NOT_COVERED);
   });
 
-  it('el enlace a la vista de mapa conserva los parámetros y descarta page; está siempre en el DOM', async () => {
+  it('el enlace a la vista de mapa conserva los parámetros y descarta page; está en el DOM si hay resultados', async () => {
+    searchPropertiesMock.mockResolvedValue({ results: [makeListResult(0)], hasNextPage: false });
     const html = await render({ operation: 'sale', page: '3' });
     expect(html).toContain('<a href="/?operation=sale&amp;view=map">Ver mapa</a>');
     expect(html).toContain('class="view-toggle"');
