@@ -4,9 +4,11 @@
 // `lib/price-chart.ts` y los trazos y colores los pone el CSS por clase. La tabla
 // es la fuente de verdad; el gráfico solo existe si algún precio cambió.
 //
-// D.18 (decisión 222): el gráfico son dos SVG del servidor, compacto (288 × 160) y ancho (544 × 192),
-// del mismo modelo. Cada uno se ve a 1:1 y el CSS enseña uno u otro con una consulta de contenedor
-// (`.price-chart`), sin JavaScript. El `display:none` del oculto lo saca del árbol de accesibilidad.
+// D.18 (decisión 222): el gráfico son varios SVG del servidor del mismo modelo. Cada uno se ve a 1:1 cuando
+// la columna mide lo mismo que él y el CSS enseña uno u otro con una consulta de contenedor
+// (`.price-chart`), sin JavaScript. El `display:none` de los ocultos los saca del árbol de accesibilidad.
+// Pulido tras la revisión (P3): son cuatro (288, 416, 544 y 768 de ancho) para que el gráfico llene la
+// columna, y las series continuas se dibujan debajo de las discontinuas.
 import type { ReactElement } from 'react';
 
 import { derivePriceHistory } from '@buscahogar/core';
@@ -15,8 +17,11 @@ import type { PropertyPriceObservation } from '@buscahogar/db';
 import { formatUtcDate } from '@/lib/format-date';
 import { formatPriceCents, formatPriceChange } from '@/lib/format-price';
 import { UNAVAILABLE_LABEL } from '@/lib/listing-status';
-import { buildPriceChart, chartAriaLabel, labelSeries, markerPath } from '@/lib/price-chart';
+import { buildPriceChart, chartAriaLabel, inDrawOrder, labelSeries, markerPath } from '@/lib/price-chart';
 import type { ChartLayout, ChartSeriesInput, PriceChartModel } from '@/lib/price-chart';
+
+// Del más estrecho al más ancho: el CSS enseña el que cabe en la columna (consultas de contenedor).
+const CHART_LAYOUTS: readonly ChartLayout[] = ['compact', 'medium', 'wide', 'full'];
 
 export interface PriceHistoryProps {
   readonly observations: readonly PropertyPriceObservation[];
@@ -60,7 +65,8 @@ function ChartPlot({ layout, model }: ChartPlotProps): ReactElement {
           {label.text}
         </text>
       ))}
-      {model.series.map((s) => (
+      {/* P3: las series continuas debajo y las discontinuas encima (`inDrawOrder`). */}
+      {inDrawOrder(model.series).map((s) => (
         <g key={s.key} className={`price-chart__series price-chart__series--${String(s.styleIndex)}`}>
           {s.linePath !== null ? <path className="price-chart__line" d={s.linePath} /> : null}
           {s.markerPaths.map((d, i) => (
@@ -87,8 +93,11 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
     withdrawn: withdrawnOf(s.status),
     points: s.points,
   }));
-  const compactModel = history.unchanged ? null : buildPriceChart(chartInput, 'compact');
-  const wideModel = history.unchanged ? null : buildPriceChart(chartInput, 'wide');
+  // Un modelo por diseño; todos comparten series, estilos y orden, así que la leyenda sale del primero.
+  const models = history.unchanged
+    ? []
+    : CHART_LAYOUTS.map((layout) => ({ layout, model: buildPriceChart(chartInput, layout) }));
+  const legendModel = models[0]?.model ?? null;
 
   return (
     <section className="price-history" aria-labelledby="historico-de-precios">
@@ -98,13 +107,14 @@ export function PriceHistory({ observations }: PriceHistoryProps): ReactElement 
           {`Primer precio observado el ${formatUtcDate(history.firstObservedAt)}; aún sin cambios`}
         </p>
       ) : null}
-      {compactModel !== null && wideModel !== null ? (
+      {legendModel !== null ? (
         <figure className="price-chart">
-          <ChartPlot layout="compact" model={compactModel} />
-          <ChartPlot layout="wide" model={wideModel} />
+          {models.map(({ layout, model }) => (
+            <ChartPlot key={layout} layout={layout} model={model} />
+          ))}
           <figcaption>
             <ul className="price-chart__legend">
-              {compactModel.series.map((s) => (
+              {legendModel.series.map((s) => (
                 <li key={s.key} className="price-chart__legend-item">
                   <svg
                     className={`price-chart__swatch price-chart__series price-chart__series--${String(s.styleIndex)}`}

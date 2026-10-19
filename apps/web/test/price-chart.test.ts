@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { formatPriceCents } from '../src/lib/format-price.js';
-import { buildPriceChart, chartAriaLabel, labelSeries } from '../src/lib/price-chart.js';
+import { buildPriceChart, chartAriaLabel, inDrawOrder, labelSeries } from '../src/lib/price-chart.js';
 import type { ChartSeriesInput } from '../src/lib/price-chart.js';
 
 function d(day: number): Date {
@@ -40,9 +40,15 @@ describe('buildPriceChart — escalas compartidas', () => {
     // pad = max(round(30000 * 0,1), round(310000 * 0,01), 100) = 3100
     // dominio 276900..313100 (rango 36200); área útil y 12..132 (alto 120).
     expect(model.viewBox).toBe('0 0 288 160');
-    expect(model.yLabels.map((l) => l.text)).toEqual([formatPriceCents(310_000), formatPriceCents(280_000)]);
+    // P3: además del máximo y el mínimo, una marca intermedia (295.000 €) a mitad de camino.
+    expect(model.yLabels.map((l) => l.text)).toEqual([
+      formatPriceCents(310_000),
+      formatPriceCents(295_000),
+      formatPriceCents(280_000),
+    ]);
     expect(model.yLabels[0]?.y).toBe(22.3); // 12 + 3100 / 36200 * 120
-    expect(model.yLabels[1]?.y).toBe(121.7); // 12 + 33100 / 36200 * 120
+    expect(model.yLabels[1]?.y).toBe(72); // 12 + 18100 / 36200 * 120
+    expect(model.yLabels[2]?.y).toBe(121.7); // 12 + 33100 / 36200 * 120
   });
 
   it('no parte de cero: el rótulo inferior es el mínimo observado', () => {
@@ -53,7 +59,11 @@ describe('buildPriceChart — escalas compartidas', () => {
       ]),
     ]);
 
-    expect(model.yLabels.map((l) => l.text)).toEqual([formatPriceCents(300_000), formatPriceCents(290_000)]);
+    expect(model.yLabels.map((l) => l.text)).toEqual([
+      formatPriceCents(300_000),
+      formatPriceCents(295_000),
+      formatPriceCents(290_000),
+    ]);
   });
 
   it('rotula la primera y la última fecha del eje de tiempo', () => {
@@ -64,21 +74,86 @@ describe('buildPriceChart — escalas compartidas', () => {
       ]),
     ]);
 
+    // P3: los extremos quedan 16 dentro de la rejilla (88 y 252) y sus rótulos van centrados en el punto.
     expect(model.xLabels).toEqual([
-      { x: 72, text: '01/01/2026', anchor: 'start' },
-      { x: 276, text: '11/01/2026', anchor: 'end' },
+      { x: 88, text: '01/01/2026', anchor: 'middle' },
+      { x: 252, text: '11/01/2026', anchor: 'middle' },
     ]);
   });
 
   it('una sola fecha da un único rótulo centrado', () => {
     const model = compactChart([series('a', [[3, 300_000]]), series('b', [[3, 310_000]])]);
 
-    expect(model.xLabels).toEqual([{ x: 174, text: '03/01/2026', anchor: 'middle' }]);
+    expect(model.xLabels).toEqual([{ x: 170, text: '03/01/2026', anchor: 'middle' }]);
   });
 });
 
-describe('gridX2 — borde derecho del área útil', () => {
-  it('coincide con el rótulo final del eje de tiempo, sin 308 fijo', () => {
+// P3 — marca intermedia del eje de precio: a mitad de camino, redondeada al euro y solo si deja aire.
+describe('buildPriceChart — marca intermedia del eje de precio (P3)', () => {
+  it('la marca queda a mitad de camino entre el máximo y el mínimo, redondeada al euro', () => {
+    const model = compactChart([
+      series('a', [
+        [1, 85_000],
+        [11, 90_001],
+      ]),
+    ]);
+
+    // (85.000 + 90.001) / 2 = 87.500,5 → 87.500 (euros enteros).
+    expect(model.yLabels.map((l) => l.text)).toEqual([
+      formatPriceCents(90_001),
+      formatPriceCents(87_500),
+      formatPriceCents(85_000),
+    ]);
+  });
+
+  it('las marcas van de arriba abajo y separadas al menos 16 unidades', () => {
+    const model = compactChart([
+      series('a', [
+        [1, 85_000],
+        [11, 90_000],
+      ]),
+    ]);
+
+    const ys = model.yLabels.map((l) => l.y);
+    expect(ys).toHaveLength(3);
+    for (const [index, y] of ys.slice(1).entries()) {
+      expect(y - (ys[index] ?? 0)).toBeGreaterThanOrEqual(16);
+    }
+  });
+
+  it('se omite si quedaría a menos de 16 unidades de otra marca (rango pequeño frente al precio)', () => {
+    // pad = max(100, 3000, 100) = 3000: el dominio mide 7000 y la mitad del rango, ~8,6 unidades.
+    const model = compactChart([
+      series('a', [
+        [1, 299_000],
+        [11, 300_000],
+      ]),
+    ]);
+
+    expect(model.yLabels.map((l) => l.text)).toEqual([formatPriceCents(300_000), formatPriceCents(299_000)]);
+  });
+
+  it('se omite si, redondeada al euro, coincide con el máximo o el mínimo', () => {
+    const model = compactChart([
+      series('a', [
+        [1, 10_000],
+        [11, 10_100],
+      ]),
+    ]);
+
+    // (10.000 + 10.100) / 2 = 10.050 → 10.100 = el máximo: no hay una tercera marca distinta.
+    expect(model.yLabels.map((l) => l.text)).toEqual([formatPriceCents(10_100), formatPriceCents(10_000)]);
+  });
+
+  it('un precio único conserva una sola marca', () => {
+    expect(compactChart([series('a', [[1, 300_000]])]).yLabels).toHaveLength(1);
+  });
+});
+
+// P3 — relleno interior: la rejilla llega a width - 20 y las fechas extremas quedan 16 por dentro, de
+// modo que el último punto no toca el borde y su rótulo centrado cabe en el lienzo.
+describe('gridX2 — borde derecho de la rejilla', () => {
+  it('la rejilla termina en width - 20 y el rótulo final queda 16 por dentro', () => {
     const model = compactChart([
       series('a', [
         [1, 300_000],
@@ -86,9 +161,34 @@ describe('gridX2 — borde derecho del área útil', () => {
       ]),
     ]);
 
-    expect(model.gridX2).toBe(276);
-    expect(model.xLabels[1]?.x).toBe(model.gridX2);
+    expect(model.gridX1).toBe(72);
+    expect(model.gridX2).toBe(268);
+    expect(model.xLabels[1]?.x).toBe(model.gridX2 - 16);
   });
+
+  it.each(['compact', 'medium', 'wide', 'full'] as const)(
+    'el diseño %s: los puntos extremos están a 16 de la rejilla y el rótulo final cabe en el lienzo',
+    (layout) => {
+      const model = buildPriceChart(
+        [
+          series('a', [
+            [1, 300_000],
+            [11, 290_000],
+          ]),
+        ],
+        layout
+      );
+      const width = Number(model.viewBox.split(' ')[2]);
+
+      expect(model.xLabels[0]?.x).toBe(model.gridX1 + 16);
+      expect(model.xLabels[1]?.x).toBe(model.gridX2 - 16);
+      expect(model.gridX2).toBe(width - 20);
+      expect((model.xLabels[1]?.x ?? 0) + 35).toBeLessThanOrEqual(width);
+      const path = model.series[0]?.linePath ?? '';
+      expect(path.startsWith(`M${String(model.gridX1 + 16)} `)).toBe(true);
+      expect(path).toContain(` H${String(model.gridX2 - 16)} V`);
+    }
+  );
 });
 
 describe('buildPriceChart — rangos degenerados', () => {
@@ -124,7 +224,7 @@ describe('buildPriceChart — trazado en escalón', () => {
 
     // pad = max(1000, 3000, 100) = 3000; dominio 287000..303000 (16000).
     // y(300000) = 12 + 3000/16000*120 = 34.5; y(290000) = 12 + 13000/16000*120 = 109.5.
-    expect(model.series[0]?.linePath).toBe('M72 34.5 H276 V109.5');
+    expect(model.series[0]?.linePath).toBe('M88 34.5 H252 V109.5');
   });
 
   it('encadena varios escalones', () => {
@@ -136,8 +236,8 @@ describe('buildPriceChart — trazado en escalón', () => {
       ]),
     ]);
 
-    // x: 72, 174, 276. y(300000) = 34.5; y(290000) = 109.5.
-    expect(model.series[0]?.linePath).toBe('M72 34.5 H174 V109.5 H276 V34.5');
+    // x: 88, 170, 252. y(300000) = 34.5; y(290000) = 109.5.
+    expect(model.series[0]?.linePath).toBe('M88 34.5 H170 V109.5 H252 V34.5');
   });
 
   it('un anuncio de un solo punto no tiene línea, solo marcador', () => {
@@ -167,9 +267,9 @@ describe('buildPriceChart — trazado en escalón', () => {
       ]),
     ]);
 
-    // El último H de `short` llega a x(día 4) = 72 + 3/10*204 = 133,2, no a 276.
-    expect(model.series[0]?.linePath).toMatch(/H133\.2 V/);
-    expect(model.series[0]?.linePath).not.toContain('H276');
+    // El último H de `short` llega a x(día 4) = 88 + 3/10*164 = 137,2, no a 252.
+    expect(model.series[0]?.linePath).toMatch(/H137\.2 V/);
+    expect(model.series[0]?.linePath).not.toContain('H252');
   });
 
   it('conserva clave, rótulo y estado retirado de cada serie', () => {
@@ -233,8 +333,10 @@ describe('chartAriaLabel', () => {
   });
 });
 
-// D.18 (decisión 222) — dos diseños del mismo modelo: compacto 288 × 160 y ancho 544 × 192, ambos a
-// escala 1:1 (el texto no se encoge). Los rótulos del eje de tiempo miden 70 con 8 de separación.
+// D.18 (decisión 222) — el mismo modelo en varios diseños, cada uno a escala 1:1 cuando la columna mide lo
+// mismo que el diseño (el texto no se encoge). P3 (pulido de D.21): a los dos de D.18 se suman uno
+// intermedio (416 × 176) y uno completo (768 × 208 = 48rem, la columna de la ficha), para que el gráfico
+// llene la columna en vez de quedarse en ~70 %. Los rótulos del eje de tiempo miden 70 con 8 de separación.
 function labelLeft(label: { readonly x: number; readonly anchor: 'start' | 'middle' | 'end' }): number {
   if (label.anchor === 'start') return label.x;
   return label.anchor === 'end' ? label.x - 70 : label.x - 35;
@@ -252,19 +354,21 @@ describe('buildPriceChart — diseños compacto y ancho (D.18)', () => {
     ]),
   ];
 
-  it('el diseño compacto mide 288 × 160 y el ancho 544 × 192', () => {
+  it('los diseños miden 288 × 160, 416 × 176, 544 × 192 y 768 × 208', () => {
     expect(buildPriceChart(two, 'compact').viewBox).toBe('0 0 288 160');
+    expect(buildPriceChart(two, 'medium').viewBox).toBe('0 0 416 176');
     expect(buildPriceChart(two, 'wide').viewBox).toBe('0 0 544 192');
+    expect(buildPriceChart(two, 'full').viewBox).toBe('0 0 768 208');
   });
 
-  it('el diseño ancho amplía el área útil: inicio en 72 y fin en 532', () => {
+  it('el diseño ancho amplía el área útil: inicio en 88 y fin en 508', () => {
     const wide = buildPriceChart(two, 'wide');
 
     expect(wide.xLabels).toEqual([
-      { x: 72, text: '01/01/2026', anchor: 'start' },
-      { x: 532, text: '11/01/2026', anchor: 'end' },
+      { x: 88, text: '01/01/2026', anchor: 'middle' },
+      { x: 508, text: '11/01/2026', anchor: 'middle' },
     ]);
-    expect(wide.gridX2).toBe(532);
+    expect(wide.gridX2).toBe(524);
     expect(wide.xLabelY).toBe(184);
     expect(wide.yLabelX).toBe(68);
   });
@@ -279,7 +383,7 @@ describe('buildPriceChart — diseños compacto y ancho (D.18)', () => {
   // D.19 (decisión 230): Figtree es más ancha que la pila del sistema y «1.234.567 €» (12px, unos 66 de
   // ancho) se salía 2px por la izquierda del lienzo con el hueco de 8 (e2e `fixed-boxes.spec.ts`). El hueco
   // entre el rótulo de precio y el inicio de la rejilla pasa a 4: el rótulo termina en gridX1 - 4.
-  it.each(['compact', 'wide'] as const)(
+  it.each(['compact', 'medium', 'wide', 'full'] as const)(
     'el rótulo de precio del diseño %s termina 4 antes de donde empieza la rejilla',
     (layout) => {
       const model = buildPriceChart(two, layout);
@@ -304,15 +408,15 @@ describe('buildPriceChart — diseños compacto y ancho (D.18)', () => {
       'wide'
     );
 
-    // día 11 de 1..21 → mitad del área útil: 72 + 10/20 * 460 = 302.
+    // día 11 de 1..21 → mitad del área útil: 88 + 10/20 * 420 = 298.
     expect(wide.xLabels).toEqual([
-      { x: 72, text: '01/01/2026', anchor: 'start' },
-      { x: 532, text: '21/01/2026', anchor: 'end' },
-      { x: 302, text: '11/01/2026', anchor: 'middle' },
+      { x: 88, text: '01/01/2026', anchor: 'middle' },
+      { x: 508, text: '21/01/2026', anchor: 'middle' },
+      { x: 298, text: '11/01/2026', anchor: 'middle' },
     ]);
   });
 
-  it('el compacto no tiene hueco para un rótulo intermedio: lo descarta', () => {
+  it('el compacto aprovecha los rótulos centrados: caben tres fechas con 12 de hueco', () => {
     const compact = buildPriceChart(
       [
         series('a', [
@@ -327,7 +431,9 @@ describe('buildPriceChart — diseños compacto y ancho (D.18)', () => {
       'compact'
     );
 
-    expect(compact.xLabels.map((l) => l.text)).toEqual(['01/01/2026', '21/01/2026']);
+    // 88 − 35..123, 170 − 35..205 y 252 − 35..287: separados 12 (≥ 8) y dentro del lienzo de 288.
+    expect(compact.xLabels.map((l) => l.text)).toEqual(['01/01/2026', '21/01/2026', '11/01/2026']);
+    expect(Math.max(...compact.xLabels.map((l) => l.x + 35))).toBeLessThanOrEqual(288);
   });
 
   it('un inicio que solapa con el rótulo de inicio se descarta aunque quepa en el ancho', () => {
@@ -349,7 +455,7 @@ describe('buildPriceChart — diseños compacto y ancho (D.18)', () => {
       'wide'
     );
 
-    // b empieza el día 2 (x = 72 + 1/30 * 460 ≈ 87): solapa con «01/01/2026». c queda en ≈ 302.
+    // b empieza el día 2 (x = 88 + 1/30 * 420 = 102): solapa con «01/01/2026». c queda en 298.
     expect(wide.xLabels.map((l) => l.text)).toEqual(['01/01/2026', '31/01/2026', '16/01/2026']);
     expect(wide.xLabels.length).toBeGreaterThan(2);
     for (const [index, label] of wide.xLabels.entries()) {
@@ -402,20 +508,48 @@ describe('buildPriceChart — diseños compacto y ancho (D.18)', () => {
       'wide'
     );
 
-    // mid (día 13, x = 256) llega antes que late (día 16, x ≈ 302): 46 < 78, late se descarta.
+    // mid (día 13, x = 256) llega antes que late (día 16, x = 298): 42 < 78, late se descarta.
     expect(wide.xLabels.map((l) => l.text)).toEqual(['01/01/2026', '31/01/2026', '13/01/2026']);
   });
 
   it('con una sola fecha el rótulo único se centra en cada diseño', () => {
     const one = [series('a', [[3, 300_000]]), series('b', [[3, 310_000]])];
 
-    expect(buildPriceChart(one, 'compact').xLabels).toEqual([{ x: 174, text: '03/01/2026', anchor: 'middle' }]);
-    expect(buildPriceChart(one, 'wide').xLabels).toEqual([{ x: 302, text: '03/01/2026', anchor: 'middle' }]);
+    expect(buildPriceChart(one, 'compact').xLabels).toEqual([{ x: 170, text: '03/01/2026', anchor: 'middle' }]);
+    expect(buildPriceChart(one, 'wide').xLabels).toEqual([{ x: 298, text: '03/01/2026', anchor: 'middle' }]);
   });
 
-  it('la geometría de las series escala con el diseño: el último punto llega al borde derecho', () => {
+  it('la geometría de las series escala con el diseño: el último punto llega a 16 de la rejilla', () => {
     const wide = buildPriceChart(two, 'wide');
 
-    expect(wide.series[0]?.linePath).toMatch(/^M72 [\d.]+ H532 V[\d.]+$/);
+    expect(wide.series[0]?.linePath).toMatch(/^M88 [\d.]+ H508 V[\d.]+$/);
+  });
+});
+
+// P3 — orden de dibujo: las series de trazo continuo van primero y las discontinuas encima, de modo que
+// dos series que coinciden en una vertical se distingan (la discontinua deja ver la continua en sus
+// huecos). Hay cuatro estilos y el quinto anuncio repite el estilo 0 (continuo).
+describe('inDrawOrder — series continuas debajo de las discontinuas (P3)', () => {
+  const five = ['a', 'b', 'c', 'd', 'e'].map((key, i) => series(key, [[1, 100_000 + i]]));
+
+  it('con cinco series, la quinta (estilo 0, continuo) se dibuja junto a la primera y antes de las discontinuas', () => {
+    const model = compactChart(five);
+    expect(model.series.map((s) => s.styleIndex)).toEqual([0, 1, 2, 3, 0]);
+
+    expect(inDrawOrder(model.series).map((s) => [s.key, s.styleIndex])).toEqual([
+      ['a', 0],
+      ['e', 0],
+      ['b', 1],
+      ['c', 2],
+      ['d', 3],
+    ]);
+  });
+
+  it('con cuatro series el orden no cambia y no se altera la lista original', () => {
+    const model = compactChart(five.slice(0, 4));
+    const before = model.series.map((s) => s.key);
+
+    expect(inDrawOrder(model.series).map((s) => s.key)).toEqual(['a', 'b', 'c', 'd']);
+    expect(model.series.map((s) => s.key)).toEqual(before);
   });
 });

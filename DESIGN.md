@@ -495,7 +495,8 @@ reducido el fondo cambia al instante y la foto no se amplía; en táctil no hay 
 En la ficha, cada anuncio activo dice «Disponible» en `vegetation` y el más barato de los activos lleva la
 marca «Más económico» con borde `vegetation` y fondo `vegetation-wash`. Desde D.20 ambas llevan delante un icono `check`
 decorativo (`currentColor`, trazo de 2) que es una señal más que no depende del color; «Último precio más bajo» no lo
-lleva. El texto va siempre; el verde no es la única señal. Los anuncios no activos conservan la tinta apagada.
+lleva. Las dos etiquetas comparten el trazo discreto (borde `rule-control` salvo el verde de la activa, peso normal): la
+segunda ya no pesa más que la primera. El texto va siempre; el verde no es la única señal. Los anuncios no activos conservan la tinta apagada.
 
 ### Mapa
 
@@ -505,10 +506,14 @@ El marco del mapa es un filete de `rule-control`, sin sombra. Las etiquetas de p
 
 ### Gráfico de precios
 
-La ficha dibuja el historial con dos SVG del mismo modelo, cada uno a escala 1:1 para que el texto de 12px
-no se encoja: uno compacto (288 × 160, hasta 24rem) y otro ancho (544 × 192, 34rem) que sustituye al
-primero cuando el contenedor mide 34rem o más. Solo uno está en el árbol de accesibilidad; la tabla del
-historial sigue junto al gráfico. Las etiquetas del eje x son el inicio, el final y la primera captura de
+La ficha dibuja el historial con cuatro SVG del mismo modelo (288 × 160, 416 × 176, 544 × 192 y 768 × 208),
+cada uno a escala 1:1 cuando la columna mide 18rem, 26rem, 34rem o 48rem; entre dos anchos el elegido se estira
+al 100 % de la columna (el texto de 12px crece como mucho ~1,4×, nunca se encoge), así que el gráfico llena la
+columna. Solo uno está en el árbol de accesibilidad; la tabla del historial sigue junto al gráfico, con columnas
+de ancho fijo para que no cambien de sitio entre fichas. El eje de precio lleva máximo, mínimo y una marca
+intermedia redondeada al euro cuando deja aire; la rejilla termina 20 antes del borde y las fechas extremas
+quedan 16 por dentro, centradas en su punto. Las series continuas se dibujan debajo de las discontinuas. Las
+etiquetas del eje x son el inicio, el final y la primera captura de
 cada serie; la que se solapa con otra de más prioridad se omite.
 
 ### Aviso de cobertura

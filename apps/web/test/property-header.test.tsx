@@ -34,21 +34,23 @@ describe('PropertyHeader (D8/AR-8) — atributo consolidado NULL, dos estados', 
     const header: PropertyDetailHeader = { ...FULL_HEADER, bathrooms: null };
     const html = renderToStaticMarkup(<PropertyHeader property={header} activeSourceCount={2} />);
 
-    expect(html).toContain('No consolidado — ver anuncios de origen');
+    // P6 (pulido de D.21): la nota es la clave de la leyenda del «—» de las celdas.
+    expect(html).toContain('<span aria-hidden="true">—:</span> no consolidado; consulta los anuncios de origen');
+    expect(html).not.toContain('— No consolidado');
   });
 
   it('cuando bathrooms tiene valor, muestra el valor y no el indicador', () => {
     const html = renderToStaticMarkup(<PropertyHeader property={FULL_HEADER} activeSourceCount={2} />);
 
     expect(html).toMatch(/Baños<\/dt><dd[^>]*>2</);
-    expect(html).not.toContain('No consolidado');
+    expect(html).not.toMatch(/no consolidado/i);
   });
 
   it('propertyType NULL también muestra el indicador explícito (spec lo nombra por su nombre)', () => {
     const header: PropertyDetailHeader = { ...FULL_HEADER, propertyType: null };
     const html = renderToStaticMarkup(<PropertyHeader property={header} activeSourceCount={2} />);
 
-    expect(html).toContain('No consolidado — ver anuncios de origen');
+    expect(html).toContain('<span aria-hidden="true">—:</span> no consolidado; consulta los anuncios de origen');
   });
 
   it('el precio consolidado se formatea como el más económico del grupo', () => {
@@ -133,8 +135,8 @@ describe('PropertyHeader (D.9) — datos clave y aviso único', () => {
     const header: PropertyDetailHeader = { ...FULL_HEADER, rooms: null, bathrooms: null, address: null };
     const html = renderToStaticMarkup(<PropertyHeader property={header} activeSourceCount={2} />);
 
-    expect(html.match(/No consolidado/g)).toHaveLength(1);
-    expect(html.indexOf('No consolidado')).toBeGreaterThan(html.indexOf('</dl>'));
+    expect(html.match(/no consolidado/gi)).toHaveLength(1);
+    expect(html.indexOf('no consolidado')).toBeGreaterThan(html.indexOf('</dl>'));
   });
 
   it('sin datos que falten no hay «—» ni aviso', () => {

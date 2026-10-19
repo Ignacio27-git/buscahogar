@@ -5,8 +5,8 @@
 //
 // D.9 (decisiones 173 y 174): los datos clave son un `<dl>` con rótulos en
 // español; un dato que falta muestra «—» (y «Sin dato» solo para lectores de
-// pantalla) y UNA nota bajo la lista dice «No consolidado — ver anuncios de
-// origen». El resumen (precio y número de fuentes) se pinta dos veces, una por
+// pantalla) y UNA nota bajo la lista, escrita como clave de leyenda
+// («—: no consolidado; consulta los anuncios de origen», P6 de D.21). El resumen (precio y número de fuentes) se pinta dos veces, una por
 // punto de corte; el CSS oculta la copia que no toca. El número de fuentes es el
 // de fuentes distintas con algún anuncio activo (decisión 176), no `listingCount`.
 //
@@ -34,7 +34,8 @@ export interface PropertySummaryProps {
   readonly placement: SummaryPlacement;
 }
 
-const NOT_CONSOLIDATED_NOTE = 'No consolidado — ver anuncios de origen';
+// P6 (pulido de D.21): la nota es la clave de la leyenda del «—» de las celdas, no una frase suelta.
+const NOT_CONSOLIDATED_NOTE = 'no consolidado; consulta los anuncios de origen';
 const FALLBACK_TITLE = 'Ficha de la vivienda';
 
 // El título es el del anuncio, recortado; sin título (nulo, vacío o en blanco) se usa un
@@ -120,8 +121,7 @@ export function PropertyHeader({ property, activeSourceCount }: PropertyHeaderPr
         </dl>
         {hasMissing ? (
           <p className="property-facts__note">
-            <span aria-hidden="true">— </span>
-            {NOT_CONSOLIDATED_NOTE}
+            <span aria-hidden="true">—:</span> {NOT_CONSOLIDATED_NOTE}
           </p>
         ) : null}
       </div>

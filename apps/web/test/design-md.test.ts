@@ -412,7 +412,9 @@ describe('DESIGN.md: componentes de D.18 salen del código enviado', () => {
     expect(flat).toContain('Describe lo que buscas');
     expect(flat).toContain('Quitar los demás filtros');
     expect(flat).toContain('Quitar todos los filtros');
-    expect(flat).toContain('dos SVG');
+    // P3 (pulido de D.21): el gráfico son cuatro SVG del mismo modelo.
+    expect(flat).toContain('cuatro SVG');
+    expect(flat).not.toContain('dos SVG');
   });
 
   it('no queda rastro del pie de zona ni de la leyenda de D.17', () => {

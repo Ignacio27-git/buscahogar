@@ -49,10 +49,13 @@ describe('PriceHistory', () => {
   it('con cambios: un svg role=img con nombre accesible y una leyenda por serie', () => {
     const html = render(TWO_LISTINGS);
 
-    // D.18 (decisión 222): dos SVG del mismo modelo (compacto y ancho); el CSS enseña uno.
-    expect(html.match(/<svg[^>]*role="img"/g)).toHaveLength(2);
+    // D.18 (decisión 222) y P3: cuatro SVG del mismo modelo (compacto, medio, ancho y completo); el CSS
+    // enseña uno.
+    expect(html.match(/<svg[^>]*role="img"/g)).toHaveLength(4);
     expect(html.match(/<svg[^>]*price-chart__plot--compact[^>]*viewBox="0 0 288 160"/g)).toHaveLength(1);
+    expect(html.match(/<svg[^>]*price-chart__plot--medium[^>]*viewBox="0 0 416 176"/g)).toHaveLength(1);
     expect(html.match(/<svg[^>]*price-chart__plot--wide[^>]*viewBox="0 0 544 192"/g)).toHaveLength(1);
+    expect(html.match(/<svg[^>]*price-chart__plot--full[^>]*viewBox="0 0 768 208"/g)).toHaveLength(1);
     expect(html).toContain(`aria-label="${chartAriaLabel(2)}"`);
     expect(html).toContain('price-chart__series--0');
     expect(html).toContain('price-chart__series--1');
@@ -153,8 +156,8 @@ describe('PriceHistory', () => {
       obs('b', 'kyero', 87000, '2026-09-10T10:00:00Z'),
     ]);
 
-    // Solo la serie «b» tiene línea; se dibuja una vez en cada uno de los dos SVG (D.18).
-    expect(html.match(/<path[^>]*class="price-chart__line/g)).toHaveLength(2);
+    // Solo la serie «b» tiene línea; se dibuja una vez en cada uno de los cuatro SVG (D.18, P3).
+    expect(html.match(/<path[^>]*class="price-chart__line/g)).toHaveLength(4);
     expect(html).toContain('Idealista');
   });
 
@@ -164,6 +167,24 @@ describe('PriceHistory', () => {
     expect(html).toMatch(
       /<div class="price-history__scroll" role="region" aria-label="Tabla del histórico de precios" tabindex="0"><table/
     );
+  });
+
+  // P3: con cinco anuncios el quinto repite el estilo continuo (0); se dibuja con el primero, debajo de
+  // los discontinuos, para que dos series que coinciden en una vertical se distingan.
+  it('en cada SVG las series continuas se dibujan antes que las discontinuas', () => {
+    const html = render(
+      ['a', 'b', 'c', 'd', 'e'].flatMap((id, index) => [
+        obs(id, 'idealista', 90000 + index * 1000, '2026-07-01T10:00:00Z'),
+        obs(id, 'idealista', 80000 + index * 1000, '2026-08-01T10:00:00Z'),
+      ])
+    );
+
+    const plots = [...html.matchAll(/<svg[^>]*role="img"[^>]*>([\s\S]*?)<\/svg>/g)].map((match) => match[1] ?? '');
+    expect(plots).toHaveLength(4);
+    for (const plot of plots) {
+      const styles = [...plot.matchAll(/price-chart__series price-chart__series--(\d)/g)].map((match) => match[1]);
+      expect(styles).toEqual(['0', '0', '1', '2', '3']);
+    }
   });
 
   it('no emite atributos style (CSP)', () => {

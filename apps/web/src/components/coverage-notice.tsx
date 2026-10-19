@@ -93,8 +93,19 @@ function resetTime(resetsAt: Date): ReactElement {
   );
 }
 
-function startedSentence(startedAt: Date | null): string {
-  return startedAt === null ? '' : `Empezó el ${formatMadridDateTime(startedAt)}.`;
+// P7 (pulido de D.21): la fecha va en un `<time>` con `white-space: nowrap` (CSS) para que a 320px no se
+// parta entre el día y el mes; el ISO de `dateTime` es para máquinas y no se ve.
+function startedSentence(startedAt: Date | null): ReactNode {
+  if (startedAt === null) return null;
+  return (
+    <>
+      Empezó el{' '}
+      <time className="coverage-notice__date" dateTime={startedAt.toISOString()}>
+        {formatMadridDateTime(startedAt)}
+      </time>
+      .
+    </>
+  );
 }
 
 function copyFor(variant: CoverageNoticeVariant): NoticeCopy {
@@ -167,25 +178,41 @@ function jobCopy(variant: Extract<CoverageNoticeVariant, { kind: 'job' }>): Noti
       return {
         role: 'status',
         title: `La actualización de ${variant.municipality} está en curso.`,
-        detail: `${started} Las viviendas aparecerán en esta lista cuando termine.`.trim(),
+        detail: (
+          <>
+            {started}
+            {started !== null ? ' ' : null}
+            Las viviendas aparecerán en esta lista cuando termine.
+          </>
+        ),
         stateLabel: 'En curso',
       };
     case 'done':
       return {
         role: 'status',
         title: `La actualización de ${variant.municipality} ha terminado.`,
-        detail: `${started} Pulsa «Comprobar de nuevo» si aún no ves sus viviendas.`.trim(),
+        detail: (
+          <>
+            {started}
+            {started !== null ? ' ' : null}
+            Pulsa «Comprobar de nuevo» si aún no ves sus viviendas.
+          </>
+        ),
         stateLabel: 'Terminada',
       };
     case 'failed':
       return {
         role: 'alert',
         title: `La actualización de ${variant.municipality} ha fallado.`,
-        detail: `${
-          variant.retriesLeft
-            ? 'Lo volveremos a intentar más tarde; pulsa «Comprobar de nuevo» dentro de un rato.'
-            : 'No lo volveremos a intentar de forma automática. Mientras tanto, prueba con un municipio cercano.'
-        } ${started}`.trim(),
+        detail: (
+          <>
+            {variant.retriesLeft
+              ? 'Lo volveremos a intentar más tarde; pulsa «Comprobar de nuevo» dentro de un rato.'
+              : 'No lo volveremos a intentar de forma automática. Mientras tanto, prueba con un municipio cercano.'}
+            {started !== null ? ' ' : null}
+            {started}
+          </>
+        ),
         stateLabel: 'Fallida',
       };
   }

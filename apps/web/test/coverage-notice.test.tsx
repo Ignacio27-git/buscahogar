@@ -81,7 +81,8 @@ const VARIANTS: readonly {
     role: 'status',
     reloadable: true,
     title: /La actualización de Leganés está en curso\./,
-    detail: /Empezó el 8 oct 2026, 14:05\./,
+    // P7 (pulido de D.21): la fecha va en un `<time>` que no se parte (CSS `white-space: nowrap`).
+    detail: /Empezó el <time class="coverage-notice__date" dateTime="2026-10-08T12:05:00.000Z">8 oct 2026, 14:05<\/time>\./,
   },
   {
     id: 'V7 job done',
@@ -192,6 +193,27 @@ describe('CoverageNotice — fecha de inicio solo si existe', () => {
     });
     expect(html).toMatch(/está en curso/);
     expect(html).not.toContain('Empezó');
+  });
+});
+
+// P7 (pulido de D.21): la fecha de inicio es un `<time>` con su ISO para máquinas, en el detalle de los
+// tres estados que la llevan; sin `startedAt` no hay ni frase ni elemento.
+describe('CoverageNotice — fecha de inicio en un <time> que no se parte (P7)', () => {
+  it.each(['running', 'done', 'failed'] as const)('el job %s envuelve la fecha en un <time>', (status) => {
+    const html = render({ kind: 'job', municipality: MUNICIPALITY, status, startedAt: STARTED_AT, retriesLeft: false });
+
+    expect(html.match(/<time /g)).toHaveLength(1);
+    expect(html).toContain(
+      '<time class="coverage-notice__date" dateTime="2026-10-08T12:05:00.000Z">8 oct 2026, 14:05</time>'
+    );
+    expect(visibleText(html)).toMatch(/Empezó el\s+8 oct 2026, 14:05\s*\./);
+  });
+
+  it('sin startedAt no hay <time> en el aviso del job', () => {
+    for (const status of ['pending', 'running', 'done', 'failed'] as const) {
+      const html = render({ kind: 'job', municipality: MUNICIPALITY, status, startedAt: null, retriesLeft: true });
+      expect(html).not.toContain('<time');
+    }
   });
 });
 

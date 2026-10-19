@@ -14,10 +14,13 @@ export interface ChartSeriesInput {
   readonly points: readonly { readonly capturedAt: Date; readonly priceCents: number }[];
 }
 
-// D.18 (decisión 222) — el mismo modelo se dibuja en dos diseños, cada uno a escala 1:1 para que el
-// texto no se encoja: `compact` (288 × 160, columna a 320 px) y `wide` (544 × 192 = 34rem). El CSS
-// enseña uno u otro con una consulta de contenedor; ambos SVG salen del servidor.
-export type ChartLayout = 'compact' | 'wide';
+// D.18 (decisión 222) — el mismo modelo se dibuja en varios diseños, cada uno a escala 1:1 cuando la
+// columna mide lo mismo que él, para que el texto no se encoja: `compact` (288 × 160, columna a 320 px)
+// y `wide` (544 × 192 = 34rem). Pulido tras la revisión (P3): a esos dos se suman `medium` (416 × 176 =
+// 26rem) y `full` (768 × 208 = 48rem, la columna entera de la ficha), porque con solo dos el gráfico se
+// quedaba en ~70 % de la columna. El CSS enseña uno u otro con una consulta de contenedor y lo estira
+// al 100 % (entre dos diseños el texto crece como mucho ~1,4×, nunca se encoge); todos salen del servidor.
+export type ChartLayout = 'compact' | 'medium' | 'wide' | 'full';
 
 export interface PriceChartModel {
   readonly viewBox: string;
@@ -45,11 +48,16 @@ export interface PriceChartModel {
 
 const LAYOUTS = {
   compact: { width: 288, height: 160 },
+  medium: { width: 416, height: 176 },
   wide: { width: 544, height: 192 },
+  full: { width: 768, height: 208 },
 } as const satisfies Record<ChartLayout, { readonly width: number; readonly height: number }>;
 
 const PAD_TOP = 12;
-const PAD_RIGHT = 12;
+// P3: la rejilla termina 20 antes del borde y las fechas extremas quedan INSET_X dentro de ella, así el
+// último punto no toca el borde y su rótulo, centrado en él, cabe en el lienzo (35 de media anchura).
+const PAD_RIGHT = 20;
+const INSET_X = 16;
 const PAD_BOTTOM = 28;
 const PAD_LEFT = 72;
 // Un rótulo de fecha («dd/mm/aaaa» a 12px) mide unos 70 de ancho; entre dos rótulos queda un hueco.
@@ -60,6 +68,8 @@ const X_LABEL_GAP = 8;
 const Y_LABEL_GAP = 4;
 const MARKER_RADIUS = 3;
 const STYLE_COUNT = 4;
+// Separación mínima entre dos marcas del eje de precio: un rótulo de 12px y aire.
+const Y_TICK_MIN_GAP = 16;
 
 // Coordenadas a 0,1 para un marcado corto y estable.
 function round1(value: number): number {
@@ -108,6 +118,9 @@ export function buildPriceChart(series: readonly ChartSeriesInput[], layout: Cha
   const { width, height } = LAYOUTS[layout];
   const plotLeft = PAD_LEFT;
   const plotRight = width - PAD_RIGHT;
+  // Los puntos y las fechas extremas viven en el área interior; la rejilla llega a `plotLeft`/`plotRight`.
+  const pointLeft = plotLeft + INSET_X;
+  const pointRight = plotRight - INSET_X;
   const plotTop = PAD_TOP;
   const plotBottom = height - PAD_BOTTOM;
 
@@ -125,20 +138,27 @@ export function buildPriceChart(series: readonly ChartSeriesInput[], layout: Cha
   const domainHi = hi + pad;
   const domainSpan = domainHi - domainLo;
   const plotHeight = plotBottom - plotTop;
-  const plotWidth = plotRight - plotLeft;
+  const plotWidth = pointRight - pointLeft;
 
   const yOf = (priceCents: number): number =>
     round1(plotTop + ((domainHi - priceCents) / domainSpan) * plotHeight);
   const xOf = (time: number): number =>
     tMax === tMin
-      ? round1(plotLeft + plotWidth / 2)
-      : round1(plotLeft + ((time - tMin) / (tMax - tMin)) * plotWidth);
+      ? round1(pointLeft + plotWidth / 2)
+      : round1(pointLeft + ((time - tMin) / (tMax - tMin)) * plotWidth);
 
+  // Marcas del eje de precio: máximo, mínimo y, si deja aire, una intermedia redondeada al euro (P3).
+  // Con un solo precio hay una sola marca.
+  const mid = Math.round((hi + lo) / 2 / 100) * 100;
+  const midY = yOf(mid);
+  const hasMid =
+    hi !== lo && mid > lo && mid < hi && midY - yOf(hi) >= Y_TICK_MIN_GAP && yOf(lo) - midY >= Y_TICK_MIN_GAP;
   const yLabels =
     hi === lo
       ? [{ y: yOf(hi), text: formatPriceCents(hi) }]
       : [
           { y: yOf(hi), text: formatPriceCents(hi) },
+          ...(hasMid ? [{ y: midY, text: formatPriceCents(mid) }] : []),
           { y: yOf(lo), text: formatPriceCents(lo) },
         ];
 
@@ -149,8 +169,8 @@ export function buildPriceChart(series: readonly ChartSeriesInput[], layout: Cha
     tMax === tMin
       ? [{ x: xOf(tMin), text: formatUtcDate(new Date(tMin)), anchor: 'middle' }]
       : [
-          { x: plotLeft, text: formatUtcDate(new Date(tMin)), anchor: 'start' },
-          { x: plotRight, text: formatUtcDate(new Date(tMax)), anchor: 'end' },
+          { x: pointLeft, text: formatUtcDate(new Date(tMin)), anchor: 'middle' },
+          { x: pointRight, text: formatUtcDate(new Date(tMax)), anchor: 'middle' },
         ];
   if (tMax !== tMin) {
     const starts = series
@@ -211,4 +231,12 @@ export function labelSeries(sourceKeys: readonly string[]): readonly string[] {
 export function chartAriaLabel(seriesCount: number): string {
   const noun = seriesCount === 1 ? '1 anuncio' : `${String(seriesCount)} anuncios`;
   return `Gráfico escalonado del precio de ${noun}. Los datos detallados están en la tabla de abajo.`;
+}
+
+// P3 — las series de trazo continuo (estilo 0) se dibujan primero y las discontinuas encima: si dos
+// series coinciden en una vertical, la discontinua deja ver la continua en sus huecos. El quinto anuncio
+// repite el estilo 0, así que el orden de entrada no basta. Ordenación estable; no altera la lista.
+export function inDrawOrder<T extends { readonly styleIndex: number }>(series: readonly T[]): readonly T[] {
+  const rank = (s: T): number => (s.styleIndex === 0 ? 0 : 1);
+  return [...series].sort((a, b) => rank(a) - rank(b));
 }

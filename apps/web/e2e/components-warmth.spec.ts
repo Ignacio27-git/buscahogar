@@ -402,3 +402,102 @@ test.describe('D.21 pulido: motivo y etiqueta de estado', () => {
     expect(Number.parseFloat(measured.title)).toBeGreaterThan(Number.parseFloat(measured.fontSize));
   });
 });
+
+// D.21, lote de pulido tras la revisión (P3, P6 y P7).
+test.describe('D.21 pulido: ficha (gráfico, tabla y etiquetas)', () => {
+  test('P3 el gráfico llena la columna: un solo diseño visible, al 100 % del ancho de la figura', async ({ page }) => {
+    await openRoute(page, route('detail-history'));
+    const measured = await page.locator('.price-chart').evaluate((figure) => {
+      const visible = [...figure.querySelectorAll<SVGSVGElement>('.price-chart__plot')].filter(
+        (plot) => getComputedStyle(plot).display !== 'none'
+      );
+      return {
+        visible: visible.length,
+        plot: visible[0]?.getBoundingClientRect().width ?? 0,
+        figure: figure.getBoundingClientRect().width,
+        name: visible[0]?.getAttribute('aria-label') ?? '',
+      };
+    });
+    expect(measured.visible).toBe(1);
+    expect(measured.plot).toBeGreaterThanOrEqual(measured.figure - 1);
+    expect(measured.name).toMatch(/^Gráfico escalonado/);
+  });
+
+  test('P3 el eje de precio tiene tres marcas y el último punto queda dentro de la rejilla', async ({ page }) => {
+    await openRoute(page, route('detail-history'));
+    const geometry = await page.locator('.price-chart').evaluate((figure) => {
+      const plot = [...figure.querySelectorAll<SVGSVGElement>('.price-chart__plot')].find(
+        (candidate) => getComputedStyle(candidate).display !== 'none'
+      );
+      if (plot === undefined) return null;
+      const ticks = [...plot.querySelectorAll('text.price-chart__label')]
+        .map((label) => label.textContent)
+        .filter((text) => text.includes('€'));
+      const rightEdge = (element: SVGGraphicsElement): number => {
+        const box = element.getBBox();
+        return box.x + box.width;
+      };
+      const gridEnd = Math.max(...[...plot.querySelectorAll<SVGGraphicsElement>('.price-chart__grid')].map(rightEdge));
+      const pointsEnd = Math.max(...[...plot.querySelectorAll<SVGGraphicsElement>('.price-chart__marker')].map(rightEdge));
+      return { ticks, gridEnd, pointsEnd };
+    });
+    expect(geometry).not.toBeNull();
+    if (geometry === null) return;
+    expect(geometry.ticks).toHaveLength(3);
+    expect(geometry.gridEnd - geometry.pointsEnd).toBeGreaterThanOrEqual(12);
+  });
+
+  test('P6 las columnas del histórico están en las mismas posiciones en todas las fichas', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name.startsWith('w320'), 'bajo 30rem la tabla se apila');
+    const columns: Array<ReadonlyArray<readonly [number, number]>> = [];
+    for (const name of ['detail-history', 'detail', 'detail-gallery']) {
+      await openRoute(page, route(name));
+      columns.push(
+        await page.locator('.price-history__table th').evaluateAll((heads) => {
+          const table = heads[0]?.closest('table')?.getBoundingClientRect().x ?? 0;
+          return heads.map((head) => {
+            const box = head.getBoundingClientRect();
+            return [Math.round(box.x - table), Math.round(box.width)] as const;
+          });
+        })
+      );
+    }
+    expect(columns[0]).toHaveLength(4);
+    expect(columns[1]).toEqual(columns[0]);
+    expect(columns[2]).toEqual(columns[0]);
+  });
+
+  test('P6 la nota de datos que faltan es la clave de la leyenda del guion', async ({ page }) => {
+    await openRoute(page, route('detail-gallery'));
+    const notes = await page.locator('.property-facts__note').allTextContents();
+    for (const note of notes) expect(note.trim()).toBe('—: no consolidado; consulta los anuncios de origen');
+  });
+
+  test('P7 «Último precio más bajo» y «Más económico» comparten peso, tamaño y trazo discreto', async ({ page }) => {
+    const measure = async (name: string): Promise<{ weight: string; size: string; border: string; colour: string } | null> => {
+      await openRoute(page, route(name));
+      return page.locator('.source-row__highlight').first().evaluate((node) => {
+        const style = getComputedStyle(node);
+        return { weight: style.fontWeight, size: style.fontSize, border: style.borderTopColor, colour: style.color };
+      });
+    };
+    const cheapest = await measure('detail-single');
+    const lowest = await measure('detail-gallery');
+    expect(cheapest).not.toBeNull();
+    expect(lowest).not.toBeNull();
+    if (cheapest === null || lowest === null) return;
+    expect(lowest.weight).toBe(cheapest.weight);
+    expect(lowest.weight).toBe('400');
+    expect(lowest.size).toBe(cheapest.size);
+    // El borde de «Último precio más bajo» ya no es la tinta del texto.
+    expect(lowest.border).not.toBe(lowest.colour);
+    await openRoute(page, route('detail-gallery'));
+    await expect(page.locator('.source-row__highlight').first()).toHaveText('Último precio más bajo');
+  });
+
+  test('P7 la fecha de inicio del aviso fallido no se parte en dos líneas', async ({ page }) => {
+    await openRoute(page, route('coverage-failed'));
+    const lines = await page.locator('.coverage-notice__date').evaluate((node) => node.getClientRects().length);
+    expect(lines).toBe(1);
+  });
+});
