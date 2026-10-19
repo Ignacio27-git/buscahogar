@@ -4016,9 +4016,13 @@ Los márgenes que dependen del ancho se prueban en 320 y 768 antes de generaliza
 4. El agente del lote 3a sobrescribió en Engram la observación detallada de `apply-progress` con un resumen, y se perdió la evidencia previa.
 5. `--update-snapshots=changed` no regeneró las capturas con cambios bajo el umbral (pie y motivo), así que hubo que borrar los 102 PNG y
    escribirlos de nuevo (decisión 239).
+6. El spec se escribió con requisitos numerados («R1.1…») en lugar de bloques `### Requirement:` / `#### Scenario:`, y el informe de
+   verificación se guardó en Engram sin el sobre `gentle-ai.verify-result/v1`. El estado nativo contaba 0 requisitos y bloqueaba el archivo;
+   se reestructuró el spec (27 requisitos, 25 escenarios, mismo texto) y se guardó el informe validado.
 
 **Cómo se detectó:** 1 al revisar el proceso del paso; 2 en la revisión visual de las capturas; 3 por el validador del diseño; 4 al
-leer la observación en el lote siguiente; 5 al contrastar los PNG cambiados con los esperados.
+leer la observación en el lote siguiente; 5 al contrastar los PNG cambiados con los esperados; 6 por el bloqueo de `gentle-ai sdd-status`
+antes de archivar.
 
 **Observación:** una restricción numérica («la fila no crece») hay que cuantificarla en el diseño y fijarla con una prueba antes de tocar CSS. Una
 observación de progreso se actualiza con `find`/`replace` o se anexa, no se sobrescribe con un resumen.
