@@ -867,3 +867,28 @@ describe('panel de revisión: aviso junto al botón (D.17, B8)', () => {
     expect(html.split('La búsqueda no empieza hasta que pulses «Buscar».')).toHaveLength(2);
   });
 });
+
+// D.20 (decisión 235): el motivo de curvas de nivel solo acompaña al título de los resultados y la
+// home; la revisión de `?q=` y los rechazos de parámetros no lo llevan.
+describe('motivo de curvas de nivel (D.20)', () => {
+  it.each([
+    ['rechazo de q vacío', { q: '' }],
+    ['interpretación', { q: 'piso en alquiler' }],
+    ['rechazo de parámetros', { minPrice: 'abc' }],
+  ] as const)('%s: ningún motivo', async (_name, params) => {
+    searchMapPointsMock.mockResolvedValue({ points: [], total: 0, truncated: false });
+    const html = await render({ ...params });
+    expect(html).not.toContain('contour-motif');
+    expect(html).toContain('<h1>Buscar vivienda</h1>');
+  });
+
+  it.each([
+    ['resultados en lista', {}],
+    ['resultados en mapa', { view: 'map' }],
+  ] as const)('%s: un único motivo y el <h1> exacto', async (_name, params) => {
+    searchMapPointsMock.mockResolvedValue({ points: [], total: 0, truncated: false });
+    const html = await render({ ...params });
+    expect(html.match(/class="contour-motif"/g)).toHaveLength(1);
+    expect(html).toContain('<h1>Buscar vivienda</h1>');
+  });
+});

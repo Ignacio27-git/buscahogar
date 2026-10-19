@@ -14,6 +14,7 @@ import type { CoverageJobState, ZoneGeometry, ZoneSuggestion } from '@buscahogar
 import { AppliedFilters, offersClearAll } from '@/components/applied-filters';
 import { CoverageNotice, isReloadable, noticeForOutcome } from '@/components/coverage-notice';
 import type { CoverageNoticeVariant } from '@/components/coverage-notice';
+import { ContourMotif } from '@/components/contour-motif';
 import { CoverageStatus } from '@/components/coverage-status';
 import { CriteriaForm } from '@/components/criteria-form';
 import { EmptyResults } from '@/components/empty-results';
@@ -403,6 +404,9 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
           de CSS: título, [pasos], buscador, barra de herramientas, recuento y chips, sugerencias,
           panel de cobertura, aviso del polígono y conmutador de vista. */}
       <div className="search-header">
+        {/* D.20 (decisión 235): motivo decorativo, fuera del flujo y aria-hidden; solo aquí, no en las
+            ramas de `?q=` ni en los rechazos. Va antes del h1 en el DOM para que este pinte por encima. */}
+        <ContourMotif />
         <h1>Buscar vivienda</h1>
         {/* D.17 (B6): los pasos «Describe · Revisa · Busca» solo se muestran en la home sin parámetros
             y en la revisión de `?q=`: son el recorrido del texto libre. Con una búsqueda ya hecha la

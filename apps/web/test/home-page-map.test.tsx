@@ -207,6 +207,19 @@ describe('lista y mapa en cada petición válida (SMV-15, WSL-D8a-1)', () => {
     expect(header).toContain('coverage-notice');
   });
 
+  // D.20 (decisión 235): el motivo de curvas de nivel es el primer hijo de .search-header, antes del h1.
+  it('exactamente un motivo de curvas de nivel dentro de .search-header, antes del <h1>', async () => {
+    const html = await render({ polygon: POLYGON });
+    expect(html.match(/class="contour-motif"/g)).toHaveLength(1);
+    const header = html.indexOf('<div class="search-header">');
+    const motif = html.indexOf('class="contour-motif"');
+    const title = html.indexOf('<h1');
+    expect(header).toBeGreaterThanOrEqual(0);
+    expect(motif).toBeGreaterThan(header);
+    expect(motif).toBeLessThan(title);
+    expect(html.indexOf('</svg>', motif)).toBeLessThan(title);
+  });
+
   it('las consultas arrancan a la vez: la del mapa se lanza sin esperar a que termine la de la lista', async () => {
     let releaseList: (value: { results: never[]; hasNextPage: boolean }) => void = () => undefined;
     searchPropertiesMock.mockReturnValue(

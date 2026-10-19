@@ -1030,6 +1030,7 @@
   /* Cabecera de la búsqueda (D.13b): título, formularios, aviso de cobertura y chips son hermanos
      directos; un único ritmo vertical en vez de márgenes sueltos que se pisan. */
   .search-header {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 1rem;
@@ -1037,6 +1038,36 @@
 
   .search-header > * {
     margin-block: 0;
+  }
+
+  /* D.20 (decisión 235): el título pinta por encima del motivo sin `z-index` (Layer Ladder Rule): un
+     hermano posicionado posterior se pinta sobre uno anterior. */
+  .search-header > h1 {
+    position: relative;
+  }
+
+  /* Motivo de curvas de nivel (D.20, decisión 235): decorativo, fuera del flujo (no reserva espacio ni
+     mueve nada), sin puntero y con el trazo de la regla fina. Va a continuación del texto del título
+     (13.5rem) y, bajo ~34rem, se recorta por los lados con `slice` en vez de desbordar: la caja
+     termina en el borde de la cabecera. Sube 0.75rem sobre el título, dentro del relleno de `main`. */
+  .contour-motif {
+    position: absolute;
+    inset-block-start: -0.75rem;
+    inset-inline-start: 13.5rem;
+    inline-size: min(18.75rem, calc(100% - 13.5rem));
+    block-size: calc(var(--text-heading-1--line-height) + 1.5rem);
+    pointer-events: none;
+    fill: none;
+    stroke: var(--rule);
+    stroke-width: 1;
+  }
+
+  .contour-motif path {
+    vector-effect: non-scaling-stroke;
+  }
+
+  .contour-motif .contour-motif__index {
+    stroke-width: 2;
   }
 
   /* Pulido tras el gate G-D: el hueco entre bloques de la cabecera lo da su `gap` de 1rem, así que el
