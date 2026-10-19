@@ -903,9 +903,10 @@ describe('dirección de la fila de resultado (D.15)', () => {
 
 // D.16 (specs motion-tokens MT-1..MT-10 y ui-motion-surfaces UM-1..UM-10, decisiones 205-208) — sustituye a
 // la guarda de D.3 que prohibía cualquier token de movimiento. El movimiento es solo CSS con
-// tokens: transiciones escritas con longhands, solo `transform`, `opacity` y `content-visibility`,
-// y un único interruptor de movimiento reducido que pone las tres duraciones a 0s.
-describe('movimiento (D.16)', () => {
+// tokens: transiciones escritas con longhands y un único interruptor de movimiento reducido.
+// D.21 (decisiones 240-243) la estrecha en vez de borrarla: siete tokens, cinco duraciones a 0s,
+// color solo en la lista cerrada de controles y un único fundido de opacidad para los avisos.
+describe('movimiento (D.16, ampliado en D.21)', () => {
   const MAP_CSS_RAW = readFileSync(join(SRC_DIR, 'components', 'search-map-canvas.css'), 'utf8');
   const STYLESHEETS: Array<[string, string]> = [
     ['globals.css', RAW_CSS],
@@ -913,8 +914,47 @@ describe('movimiento (D.16)', () => {
   ];
   const REDUCE = '@media (prefers-reduced-motion: reduce)';
   const ALLOWED_PROPERTIES = ['transform', 'opacity', 'content-visibility'];
-  const DURATION_TOKENS = ['--duration-feedback', '--duration-panel-enter', '--duration-panel-exit'];
+  const COLOUR_PROPERTIES = ['color', 'background-color', 'border-color', 'text-decoration-color'];
+  const DURATION_TOKENS = [
+    '--duration-feedback',
+    '--duration-hover',
+    '--duration-appear',
+    '--duration-panel-enter',
+    '--duration-panel-exit',
+  ];
   const EASE_TOKENS = ['--ease-enter', '--ease-exit'];
+
+  /**
+   * Controles cuyo color puede transicionar (D.21, M2). Selectores normalizados; la lista es cerrada:
+   * el enlace de salto, el selector de tema y los campos quedan fuera a propósito.
+   */
+  const COLOUR_TRANSITION_SELECTORS = [
+    'button:not(.theme-selector button)',
+    '.filter-tray > summary',
+    '.applied-filters__chip',
+    '.nl-disclosure > summary',
+    'a:not(.skip-link)',
+    '.sort-presets__link',
+    '.result-row__link',
+  ];
+
+  /** Selector exacto de la única regla que anima (D.21, M6): los avisos que aparecen al montarse. */
+  const FADE_SELECTOR = [
+    ".coverage-panel:not(:has(> .coverage-notice[role='alert']))",
+    ".search-header > .coverage-notice:not([role='alert'])",
+    '.nl-issues',
+    '.source-list__warning',
+    '.empty-results',
+  ]
+    .join(', ')
+    .replace(/['"]/g, '');
+  /** Las cuatro declaraciones del fundido, ordenadas por nombre. */
+  const FADE_DECLARATIONS = [
+    ['animation-duration', 'var(--duration-appear)'],
+    ['animation-fill-mode', 'none'],
+    ['animation-name', 'notice-appear'],
+    ['animation-timing-function', 'var(--ease-enter)'],
+  ];
 
   interface Located {
     node: CssNode;
@@ -956,10 +996,141 @@ describe('movimiento (D.16)', () => {
       ])
     );
 
+  /** Parte una lista de selectores por las comas de primer nivel (fuera de paréntesis y corchetes). */
+  function splitList(list: string): string[] {
+    const parts: string[] = [];
+    let depth = 0;
+    let current = '';
+    for (const char of list) {
+      if (char === '(' || char === '[') depth += 1;
+      if (char === ')' || char === ']') depth -= 1;
+      if (char === ',' && depth === 0) {
+        parts.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    parts.push(current.trim());
+    return parts;
+  }
+
+  /** Quita los `:not(...)` con paréntesis equilibrados: lo que excluyen no cuenta como objetivo. */
+  function stripNot(selector: string): string {
+    let result = '';
+    for (let index = 0; index < selector.length; index += 1) {
+      if (selector.startsWith(':not(', index)) {
+        let depth = 0;
+        let end = index + 4;
+        for (; end < selector.length; end += 1) {
+          if (selector[end] === '(') depth += 1;
+          if (selector[end] === ')') {
+            depth -= 1;
+            if (depth === 0) break;
+          }
+        }
+        index = end;
+      } else {
+        result += selector.charAt(index);
+      }
+    }
+    return result;
+  }
+
+  const MOTION_PROPERTY = /^(-webkit-)?(transition|animation)/;
+  const MOTION_SHORTHAND = /^(-webkit-)?(transition|animation)$/;
+  const EXCLUDED_TARGET =
+    /(^|[\s>+~,(])(input|select|textarea)(?![\w-])|\.theme-selector|:focus-visible|alert/;
+
+  /**
+   * Auditoría del movimiento de una hoja (S-MT-4, S-MT-5, S-UI-4, S-UI-9, S-UI-10). Devuelve una
+   * descripción por infracción; vacío significa que la hoja cumple. Los autotests de abajo
+   * comprueban que cada infracción sintética se detecta.
+   */
+  function auditMotion(css: string): string[] {
+    const found: string[] = [];
+    const text = stripComments(css);
+    if (/@starting-style|@view-transition/.test(text))
+      found.push('@starting-style o @view-transition');
+    if (/scroll-behavior\s*:\s*smooth/.test(text)) found.push('scroll suave');
+
+    const nodes = locate(css).map(({ node }) => node);
+    const keyframes = nodes.filter((node) => /^@(-webkit-)?keyframes\b/.test(node.prelude));
+    if (keyframes.length > 1) found.push('más de un @keyframes');
+    for (const frames of keyframes) {
+      const [frame] = frames.children;
+      const shape =
+        frames.prelude === '@keyframes notice-appear' &&
+        frames.children.length === 1 &&
+        frame?.prelude === 'from' &&
+        JSON.stringify(frame.declarations) === JSON.stringify([['opacity', '0']]);
+      if (!shape) found.push(`@keyframes ajeno al fundido: «${frames.prelude}»`);
+    }
+
+    for (const node of nodes) {
+      if (
+        node.prelude === '' ||
+        node.prelude.startsWith('@') ||
+        /^(from|to|\d+%)$/.test(node.prelude)
+      ) {
+        continue;
+      }
+      const selector = normalizeSelector(node.prelude);
+      const target = stripNot(selector);
+      const motion = node.declarations.filter(([name]) => MOTION_PROPERTY.test(name));
+      const own = new Map(node.declarations);
+
+      for (const [name] of motion) {
+        if (MOTION_SHORTHAND.test(name)) found.push(`atajo ${name} en «${selector}»`);
+      }
+
+      // Campos, selector de tema, foco visible y alertas jamás transicionan ni animan (S-UI-4).
+      if (EXCLUDED_TARGET.test(target) && motion.length > 0) {
+        found.push(`movimiento en una regla excluida: «${selector}»`);
+      }
+      if (/:focus-visible/.test(target)) {
+        for (const [name] of node.declarations) {
+          if (COLOUR_PROPERTIES.includes(name))
+            found.push(`color en :focus-visible: «${selector}»`);
+        }
+      }
+
+      const properties = own.has('transition-property')
+        ? splitList(own.get('transition-property') ?? '')
+        : [];
+      for (const property of properties) {
+        const colour =
+          COLOUR_PROPERTIES.includes(property) &&
+          splitList(selector).every((part) => COLOUR_TRANSITION_SELECTORS.includes(part));
+        if (!ALLOWED_PROPERTIES.includes(property) && !colour) {
+          found.push(`transition-property «${property}» no permitida en «${selector}»`);
+        }
+      }
+      for (const name of ['transition-duration', 'transition-timing-function']) {
+        const count = splitList(own.get(name) ?? '').length;
+        if (properties.length > 0 && own.has(name) && count !== 1 && count !== properties.length) {
+          found.push(`${name} no empareja transition-property en «${selector}»`);
+        }
+      }
+
+      const animations = node.declarations.filter(([name]) => name.startsWith('animation'));
+      if (animations.length > 0) {
+        const sorted = [...animations].sort(([a], [b]) => a.localeCompare(b));
+        const exact =
+          selector === FADE_SELECTOR &&
+          JSON.stringify(sorted) === JSON.stringify(FADE_DECLARATIONS);
+        if (!exact) found.push(`animation-* fuera de la regla del fundido: «${selector}»`);
+      }
+    }
+    return found;
+  }
+
   describe('tokens (MT-1..MT-3, S-MT-1, S-MT-2)', () => {
-    it('declara exactamente los cinco tokens con sus valores en @theme static', () => {
+    it('declara exactamente los siete tokens con sus valores en @theme static', () => {
       const all = tokens();
       expect(all.get('--duration-feedback')).toBe('100ms');
+      expect(all.get('--duration-hover')).toBe('150ms');
+      expect(all.get('--duration-appear')).toBe('200ms');
       expect(all.get('--duration-panel-enter')).toBe('250ms');
       expect(all.get('--duration-panel-exit')).toBe('200ms');
       expect(all.get('--ease-enter')).toBe('cubic-bezier(0.23, 1, 0.32, 1)');
@@ -987,14 +1158,16 @@ describe('movimiento (D.16)', () => {
   });
 
   describe('movimiento reducido (MT-7, UM-9)', () => {
-    it('un bloque sin capa, entre @theme static y @layer base, pone las tres duraciones a 0s', () => {
+    it('un bloque sin capa, entre @theme static y @layer base, pone las cinco duraciones a 0s', () => {
       const names = ROOT.children.map((child) => child.prelude.replace(/\s+/g, ' '));
       const reduce = names.indexOf(REDUCE);
       expect(reduce).toBeGreaterThan(-1);
       expect(reduce).toBeGreaterThan(names.indexOf('@theme static'));
       expect(reduce).toBeLessThan(names.indexOf('@layer base'));
       const rule = findBlock(findBlock(ROOT, REDUCE), ':root');
+      // Exactamente cinco declaraciones: ninguna duración nueva queda fuera del interruptor.
       expect(rule.declarations).toEqual(DURATION_TOKENS.map((name) => [name, '0s']));
+      expect(rule.declarations).toHaveLength(5);
     });
   });
 
@@ -1021,20 +1194,8 @@ describe('movimiento (D.16)', () => {
       }
     });
 
-    it('transition-property solo nombra transform, opacity y content-visibility', () => {
-      for (const { values } of entriesOf(css, 'transition-property')) {
-        for (const value of values) expect(ALLOWED_PROPERTIES).toContain(value);
-      }
-    });
-
-    it('no declara animation*, @keyframes, @starting-style, @view-transition ni scroll suave', () => {
-      const text = stripComments(css);
-      const animations = locate(css).flatMap(({ node }) =>
-        node.declarations.filter(([property]) => property.startsWith('animation'))
-      );
-      expect(animations).toEqual([]);
-      expect(text).not.toMatch(/@keyframes|@starting-style|@view-transition/);
-      expect(text).not.toMatch(/scroll-behavior\s*:\s*smooth/);
+    it('pasa la auditoría de movimiento (S-MT-4, S-MT-5, S-UI-4, S-UI-9, S-UI-10)', () => {
+      expect(auditMotion(css)).toEqual([]);
     });
 
     it('ninguna transición anima block-size ni height (UM-5)', () => {
@@ -1047,9 +1208,76 @@ describe('movimiento (D.16)', () => {
   it('el escáner no es decorativo: globals.css declara longhands y un literal sí se detectaría', () => {
     expect(entriesOf(RAW_CSS, 'transition-duration').length).toBeGreaterThanOrEqual(3);
     expect(entriesOf(RAW_CSS, 'transition-property').length).toBeGreaterThanOrEqual(3);
-    expect(entriesOf('a { transition-duration: 200ms }', 'transition-duration')[0]?.values).toEqual([
-      '200ms',
-    ]);
+    expect(entriesOf('a { transition-duration: 200ms }', 'transition-duration')[0]?.values).toEqual(
+      ['200ms']
+    );
+  });
+
+  it('el mapa no declara animation* ni @keyframes (S-MT-5, fuera de alcance: decisión 206)', () => {
+    const text = stripComments(MAP_CSS_RAW);
+    expect(text).not.toMatch(/@keyframes|animation/);
+  });
+
+  describe('autotest de la auditoría: cada infracción sintética se detecta', () => {
+    const FADE_RULE = `${FADE_SELECTOR} {
+      animation-name: notice-appear;
+      animation-duration: var(--duration-appear);
+      animation-timing-function: var(--ease-enter);
+      animation-fill-mode: none;
+    }`;
+    const FADE_FRAMES = '@keyframes notice-appear { from { opacity: 0; } }';
+    const GOOD_COLOUR = `a:not(.skip-link) {
+      transition-property: color;
+      transition-duration: var(--duration-hover);
+      transition-timing-function: var(--ease-enter);
+    }`;
+
+    it('acepta el diseño previsto: fundido único y color en un control de la lista', () => {
+      expect(auditMotion(`${FADE_FRAMES} ${FADE_RULE} ${GOOD_COLOUR}`)).toEqual([]);
+    });
+
+    it.each([
+      ['.skip-link { transition-property: color; }', 'transition-property «color»'],
+      [
+        '.pagination__edge { transition-property: background-color; }',
+        'transition-property «background-color»',
+      ],
+      ['button { transition-property: outline; }', 'transition-property «outline»'],
+      ['.x { transition-property: box-shadow; }', 'transition-property «box-shadow»'],
+      ['.x { transition-property: all; }', 'transition-property «all»'],
+      ['input { transition-property: opacity; }', 'regla excluida'],
+      ['select { transition-duration: var(--duration-hover); }', 'regla excluida'],
+      ['.theme-selector button { transition-property: transform; }', 'regla excluida'],
+      ['.nl-review__alert { transition-property: opacity; }', 'regla excluida'],
+      ['a:focus-visible { color: red; }', 'color en :focus-visible'],
+      ['a:focus-visible { transition-duration: var(--duration-hover); }', 'regla excluida'],
+      ['.x { transition: color 150ms; }', 'atajo transition'],
+      ['.x { animation: notice-appear 200ms; }', 'atajo animation'],
+      ['.x { animation-name: notice-appear; }', 'animation-* fuera'],
+      [
+        '.x { transition-property: opacity, transform; transition-duration: var(--duration-hover), var(--duration-hover), var(--duration-hover); }',
+        'no empareja',
+      ],
+      [`${FADE_FRAMES} @keyframes other { from { opacity: 0; } }`, 'más de un @keyframes'],
+      [
+        '@keyframes notice-appear { from { opacity: 0; transform: translateY(4px); } }',
+        '@keyframes ajeno',
+      ],
+      ['@keyframes notice-appear { from { opacity: 0; } to { opacity: 1; } }', '@keyframes ajeno'],
+      ['@keyframes slide { from { opacity: 0; } }', '@keyframes ajeno'],
+      ['@starting-style { .x { opacity: 0; } }', '@starting-style'],
+      ['@view-transition { navigation: auto; }', '@view-transition'],
+      ['html { scroll-behavior: smooth; }', 'scroll suave'],
+    ])('detecta «%s»', (css, expected) => {
+      expect(auditMotion(css).join('\n')).toContain(expected);
+    });
+
+    it('rechaza una regla del fundido con otra declaración o un selector distinto', () => {
+      const extra = FADE_RULE.replace('animation-fill-mode: none;', 'animation-fill-mode: both;');
+      expect(auditMotion(`${FADE_FRAMES} ${extra}`).join('\n')).toContain('animation-* fuera');
+      const other = FADE_RULE.replace('.empty-results {', '.empty-results, .skip-link {');
+      expect(auditMotion(`${FADE_FRAMES} ${other}`).join('\n')).toContain('animation-* fuera');
+    });
   });
 
   describe('sin utilidades de movimiento de Tailwind en los componentes (MT-4)', () => {
@@ -1115,7 +1343,9 @@ describe('movimiento (D.16)', () => {
     });
 
     it.each(BASE_SELECTORS)('«%s» declara el estado base con longhands y tokens', (selector) => {
-      const rules = ruleFor(selector).filter((node) => declarations(node).has('transition-property'));
+      const rules = ruleFor(selector).filter((node) =>
+        declarations(node).has('transition-property')
+      );
       expect(rules).toHaveLength(1);
       const declared = declarations(rules[0] as CssNode);
       expect(declared.get('transition-property')).toBe('transform');
@@ -1130,7 +1360,10 @@ describe('movimiento (D.16)', () => {
       expect(themeRules.length).toBeGreaterThan(0);
       for (const rule of themeRules) {
         const names = rule.declarations.map(([name]) => name);
-        expect(names.filter((name) => /^(transform|transition)/.test(name)), rule.prelude).toEqual([]);
+        expect(
+          names.filter((name) => /^(transform|transition)/.test(name)),
+          rule.prelude
+        ).toEqual([]);
       }
     });
   });
