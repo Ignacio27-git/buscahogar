@@ -1333,13 +1333,39 @@ describe('movimiento (D.16, ampliado en D.21)', () => {
       expect(factor).toBeLessThanOrEqual(0.99);
     });
 
-    it('toda regla con scale() es una de las tres de pulsación (con :active:not(:focus-visible))', () => {
+    // D.21 (S-UI-5, S-UI-15): las tres reglas de pulsación siguen siendo las únicas con
+    // :active, y la ampliación de la imagen de la fila es la única otra regla con scale().
+    const HOVER_SCALE_SELECTOR = '.result-row__link:hover .result-row__img';
+
+    it('toda regla con scale() es una de las tres de pulsación o la ampliación de la imagen de la fila', () => {
       const scaled = nodes().filter((node) =>
         node.declarations.some(([name, value]) => name === 'transform' && value.includes('scale('))
       );
       expect(scaled.map((node) => normalizeSelector(node.prelude)).sort()).toEqual(
-        [...SCALE_SELECTORS].sort()
+        [...SCALE_SELECTORS, HOVER_SCALE_SELECTOR].sort()
       );
+      expect(scaled.filter((node) => /:active/.test(node.prelude))).toHaveLength(SCALE_SELECTORS.length);
+    });
+
+    it('la ampliación de la fila va entre (hover: hover), (pointer: fine) y sin movimiento reducido, con factor en (1, 1,03]', () => {
+      const ancestors: string[][] = [];
+      const walk = (node: CssNode, chain: string[]): void => {
+        for (const child of node.children) {
+          if (normalizeSelector(child.prelude) === HOVER_SCALE_SELECTOR) ancestors.push(chain);
+          walk(child, [...chain, child.prelude.replace(/\s+/g, ' ')]);
+        }
+      };
+      walk(ROOT, []);
+      expect(ancestors).toHaveLength(1);
+      const media = (ancestors[0] ?? []).join(' ');
+      expect(media).toContain('(hover: hover)');
+      expect(media).toContain('(pointer: fine)');
+      expect(media).toContain('(prefers-reduced-motion: no-preference)');
+      const rule = ruleFor(HOVER_SCALE_SELECTOR)[0] as CssNode;
+      const transform = declarations(rule).get('transform') ?? '';
+      const factor = Number.parseFloat(/^scale\(([\d.]+)\)$/.exec(transform)?.[1] ?? 'NaN');
+      expect(factor).toBeGreaterThan(1);
+      expect(factor).toBeLessThanOrEqual(1.03);
     });
 
     // D.21: la pulsación (transform, 100 ms) comparte lista con el color (150 ms), emparejados por posición.

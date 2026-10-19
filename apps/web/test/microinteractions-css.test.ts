@@ -120,3 +120,49 @@ describe('hover nuevos de enlaces, paginador y ordenación (UI-1b, S-UI-2b, deci
     }
   });
 });
+
+describe('realce de la fila de resultado (UI-3, S-UI-5, decisión 241)', () => {
+  const GATE_FINE = (rule: Rule): boolean => FINE_POINTER(rule);
+  const ALLOWS_MOTION = (rule: Rule): boolean =>
+    rule.ancestors.some((ancestor) => ancestor.includes('(prefers-reduced-motion: no-preference)'));
+
+  it('al pasar el puntero fino el fondo de la fila toma --surface-sunken, sin mover la caja', () => {
+    const rule = declaring('.result-row__link:hover', 'background-color');
+    expect(rule.declarations.get('background-color')).toBe('var(--surface-sunken)');
+    expect(GATE_FINE(rule)).toBe(true);
+    expect([...rule.declarations.keys()]).toEqual(['background-color']);
+  });
+
+  it('la imagen se amplía como mucho a 1,03 y solo con puntero fino y movimiento normal', () => {
+    const rule = declaring('.result-row__link:hover .result-row__img', 'transform');
+    const match = /^scale\((\d+(?:\.\d+)?)\)$/.exec(rule.declarations.get('transform') ?? '');
+    expect(match, rule.declarations.get('transform')).not.toBeNull();
+    const factor = Number.parseFloat(match?.[1] ?? 'NaN');
+    expect(factor).toBeGreaterThan(1);
+    expect(factor).toBeLessThanOrEqual(1.03);
+    expect(GATE_FINE(rule)).toBe(true);
+    expect(ALLOWS_MOTION(rule)).toBe(true);
+    expect([...rule.declarations.keys()]).toEqual(['transform']);
+  });
+
+  it('el estado base de la imagen transiciona solo transform, en el mismo bloque con las tres condiciones', () => {
+    const rule = declaring('.result-row__img', 'transition-property');
+    expect(rule.declarations.get('transition-property')).toBe('transform');
+    expect(rule.declarations.get('transition-duration')).toBe('var(--duration-hover)');
+    expect(rule.declarations.get('transition-timing-function')).toBe(EASE);
+    expect(GATE_FINE(rule)).toBe(true);
+    expect(ALLOWS_MOTION(rule)).toBe(true);
+  });
+
+  it('sin movimiento normal no hay escala: ninguna regla con scale() de la imagen queda fuera del bloque', () => {
+    const scaled = RULES.filter(
+      (rule) => rule.selector.includes('.result-row__img') && (rule.declarations.get('transform') ?? '').includes('scale(')
+    );
+    expect(scaled).toHaveLength(1);
+    for (const rule of scaled) expect(ALLOWS_MOTION(rule)).toBe(true);
+  });
+
+  it('la caja de la imagen recorta lo que se amplía (overflow: hidden)', () => {
+    expect(declaring('.result-row__media', 'overflow').declarations.get('overflow')).toBe('hidden');
+  });
+});

@@ -723,9 +723,29 @@
   }
 
   @media (hover: hover) and (pointer: fine) {
+    .result-row__link:hover {
+      background-color: var(--surface-sunken);
+    }
+
     .result-row__link:hover .result-row__kind {
       text-decoration-line: underline;
       text-underline-offset: 0.2em;
+    }
+  }
+
+  /* Ampliación de la foto al pasar el puntero (D.21, decisión 241): como mucho 1,03 y recortada por
+     `overflow: hidden` de la caja, así que ninguna caja se mueve. Solo con puntero fino Y con movimiento
+     normal: con movimiento reducido la regla entera no existe (no es «0 s», es que no se amplía), y el
+     tinte de arriba sigue aplicándose al instante. Es la única otra `scale()` además de la pulsación. */
+  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    .result-row__img {
+      transition-property: transform;
+      transition-duration: var(--duration-hover);
+      transition-timing-function: var(--ease-enter);
+    }
+
+    .result-row__link:hover .result-row__img {
+      transform: scale(1.03);
     }
   }
 
