@@ -229,6 +229,7 @@ interface Sidecar {
     >;
     shadows: { name: string; value: string; purpose: string }[];
     motion: { name: string; value: string; purpose: string }[];
+    motionNote: string;
     breakpoints: { name: string; value: string }[];
     zScale: { name: string; value: string }[];
     focusRing: { outline: string; offset: string; source: string };
@@ -273,7 +274,7 @@ describe('.impeccable/design.json: sidecar del esquema 2', () => {
   });
 
   it('movimiento: cada token existe en globals.css con el mismo valor', () => {
-    expect(SIDECAR.extensions.motion.length).toBe(5);
+    expect(SIDECAR.extensions.motion.length).toBe(7);
     for (const token of SIDECAR.extensions.motion) {
       expect(token.value, token.name).toBe(required(THEME_STATIC, `--${token.name}`));
     }
@@ -478,5 +479,97 @@ describe('D.20: la regla de marginalia enmendada es idéntica en los tres docume
     expect(SIDECAR.components).toHaveLength(10);
     const row = SIDECAR.components.find((component) => component.name === 'Fila de resultado');
     expect(row?.css).toContain('.ds-row__operation');
+  });
+});
+
+// D.21 (decisión 240, DS-1..DS-5): la regla «sin movimiento decorativo» deja de ser una prohibición
+// absoluta y admite el movimiento que responde a una acción o anuncia un estado. La misma redacción
+// vive en DESIGN.md (resumen y «Don't») y en el sidecar, y este bloque impide que se separen. PRODUCT.md
+// no cambia: el principio de producto sigue siendo el mismo.
+const MOTION_RULE =
+  'Sin movimiento decorativo: el movimiento solo responde a una acción o anuncia un estado (pulsación, bandeja de filtros, color de los controles, realce de la fila y aparición de los avisos); nada se repite en bucle, no hay paralaje ni movimiento ligado al desplazamiento, y con movimiento reducido todo es instantáneo y la imagen de la fila no se amplía.';
+const MOTION_DONT =
+  "**Don't** añadir movimiento decorativo, en bucle, de paralaje o ligado al desplazamiento: solo la pulsación (100 ms), la bandeja de filtros bajo 64rem, el color de los controles y el realce de la fila (150 ms) y la aparición de los avisos (200 ms, solo opacidad); nunca en las alertas ni con movimiento reducido.";
+const OLD_MOTION_RULE = 'Sin movimiento decorativo: solo la respuesta de pulsación y la bandeja de filtros.';
+const OLD_MOTION_DONT = 'solo la respuesta de pulsación (100 ms) y la bandeja de filtros bajo 64rem.';
+
+describe('D.21: la regla de movimiento enmendada es idéntica en DESIGN.md y el sidecar', () => {
+  it('el resumen de DESIGN.md y las características del sidecar repiten la misma frase', () => {
+    expect(flatten(body)).toContain(`- ${MOTION_RULE}`);
+    expect(SIDECAR.narrative.keyCharacteristics).toContain(MOTION_RULE);
+  });
+
+  it("el «Don't» de DESIGN.md y el del sidecar repiten la misma frase", () => {
+    expect(flatten(body)).toContain(`- ${MOTION_DONT}`);
+    expect(SIDECAR.narrative.donts).toContain(MOTION_DONT);
+  });
+
+  it('ya no queda la redacción absoluta en ninguno de los dos', () => {
+    expect(flatten(DESIGN_MD)).not.toContain(OLD_MOTION_RULE);
+    expect(flatten(DESIGN_MD)).not.toContain(OLD_MOTION_DONT);
+    expect(flatten(SIDECAR_TEXT)).not.toContain(OLD_MOTION_RULE);
+    expect(flatten(SIDECAR_TEXT)).not.toContain(OLD_MOTION_DONT);
+  });
+
+  it('el sidecar lista los siete tokens de movimiento, con los valores de la hoja, y habla de cinco duraciones', () => {
+    const names = SIDECAR.extensions.motion.map((token) => token.name);
+    expect(names).toEqual([
+      'duration-feedback',
+      'duration-hover',
+      'duration-appear',
+      'duration-panel-enter',
+      'duration-panel-exit',
+      'ease-enter',
+      'ease-exit',
+    ]);
+    expect(SIDECAR.extensions.motionNote).toContain('las cinco duraciones');
+    expect(SIDECAR.extensions.motionNote).not.toContain('las tres duraciones');
+  });
+
+  it('la fecha del sidecar es la de D.21 o posterior', () => {
+    expect(Date.parse(SIDECAR.generatedAt)).toBeGreaterThanOrEqual(Date.parse('2026-10-19T00:00:00Z'));
+  });
+});
+
+describe('D.21: DESIGN.md describe lo que se envió (DS-3, DS-5)', () => {
+  const flat = flatten(body);
+
+  it('los tokens y el interruptor: 150 ms de color, 200 ms de aparición y cinco duraciones a 0s', () => {
+    expect(flat).toContain('`--duration-hover`');
+    expect(flat).toContain('`--duration-appear`');
+    expect(flat).toContain('las cinco duraciones');
+  });
+
+  it('los controles, los enlaces nuevos y la ordenación con vista previa suave', () => {
+    expect(flat).toContain('hover de enlaces');
+    expect(flat).toContain('12% de tinta');
+    expect(flat).toContain('vista previa');
+    expect(flat).not.toContain('Sin transición.');
+  });
+
+  it('la fila: tinte al pasar el puntero y foto ampliada hasta 1,03 solo con movimiento normal', () => {
+    expect(flat).toContain('1,03');
+    expect(flat).toContain('no se amplía');
+  });
+
+  it('los avisos aparecen con un fundido de opacidad; las alertas, al instante', () => {
+    expect(flat).toContain('fundido de opacidad');
+    expect(flat).toContain('alertas aparecen al instante');
+  });
+
+  it('el pulido: marcador cuadrado del estado, máscara de alfa del motivo y filete de la banda al ancho de la columna', () => {
+    expect(flat).toContain('marcador cuadrado');
+    expect(flat).toContain('máscara de alfa');
+    expect(flat).toContain('al ancho de la columna');
+    expect(flat).not.toContain('240 × 48');
+  });
+
+  it('el sidecar documenta el mismo comportamiento en los componentes con prefijo ds-', () => {
+    const css = (name: string): string => SIDECAR.components.find((component) => component.name === name)?.css ?? '';
+    expect(css('Botón')).toContain('transition-property: transform, background-color, border-color');
+    expect(css('Botón')).not.toMatch(/transition:/);
+    expect(css('Enlace de ordenación')).toContain('border-block-end-color: var(--rule-control)');
+    expect(css('Fila de resultado')).toContain('.ds-row:hover');
+    expect(css('Panel de cobertura')).toContain('.ds-panel__state::before');
   });
 });

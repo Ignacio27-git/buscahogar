@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-15T09:00:00Z",
+  "generatedAt": "2026-10-19T18:00:00Z",
   "title": "Design System: Buscahogar",
   "extensions": {
     "colorMeta": {
@@ -309,6 +309,16 @@
         "purpose": "Respuesta de pulsación (escala 0,97) solo con puntero y sin foco de teclado."
       },
       {
+        "name": "duration-hover",
+        "value": "150ms",
+        "purpose": "Cambio de color y de borde de los controles y realce de la fila al pasar el puntero."
+      },
+      {
+        "name": "duration-appear",
+        "value": "200ms",
+        "purpose": "Fundido de opacidad de los avisos al montarse; las alertas no se animan."
+      },
+      {
         "name": "duration-panel-enter",
         "value": "250ms",
         "purpose": "Entrada de la bandeja de filtros bajo 64rem."
@@ -329,7 +339,7 @@
         "purpose": "Aceleración corta para lo que sale."
       }
     ],
-    "motionNote": "Con prefers-reduced-motion: reduce las tres duraciones pasan a 0s desde un único interruptor.",
+    "motionNote": "Con prefers-reduced-motion: reduce las cinco duraciones pasan a 0s desde un único interruptor, y la foto de la fila no se amplía.",
     "breakpoints": [
       {
         "name": "compact",
@@ -371,7 +381,7 @@
       "refersTo": "button",
       "description": "Botón estándar de borde fino y alto fijo; el hover solo con puntero fino.",
       "html": "<button class=\"ds-btn\">Ver mapa</button>",
-      "css": ".ds-btn { font: 16px/24px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; min-height: 2.5rem; padding: 0.5rem 0.75rem; border-radius: var(--radius-control, 0.375rem); cursor: pointer; background-color: var(--surface-raised); color: var(--ink); border: 1px solid var(--rule-control); transition: transform 100ms cubic-bezier(0.23, 1, 0.32, 1); } .ds-btn:hover { background-color: var(--surface-sunken); } .ds-btn:active { background-color: var(--surface-sunken); border-color: var(--ink); transform: scale(0.97); } .ds-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }"
+      "css": ".ds-btn { font: 16px/24px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; min-height: 2.5rem; padding: 0.5rem 0.75rem; border-radius: var(--radius-control, 0.375rem); cursor: pointer; background-color: var(--surface-raised); color: var(--ink); border: 1px solid var(--rule-control); transition-property: transform, background-color, border-color; transition-duration: 100ms, 150ms, 150ms; transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1); } .ds-btn:hover { background-color: var(--surface-sunken); } .ds-btn:active { background-color: var(--surface-sunken); border-color: var(--ink); transform: scale(0.97); } .ds-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }"
     },
     {
       "name": "Botón principal",
@@ -395,7 +405,7 @@
       "refersTo": "chip-filter",
       "description": "Filtro aplicado y quitable: texto denso, icono de cierre y borde de control.",
       "html": "<a class=\"ds-chip\" href=\"#\">Operación: Venta <svg class=\"ds-chip__icon\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" aria-hidden=\"true\"><path d=\"M4 4l8 8M12 4l-8 8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/></svg></a>",
-      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 0.25rem; box-sizing: border-box; min-height: 2rem; padding: 0 0.75rem; background-color: var(--accent-wash); color: var(--ink); border: 1px solid var(--rule-control); border-radius: var(--radius-control, 0.375rem); font: 14px/20px system-ui, sans-serif; text-decoration: none; } .ds-chip__icon { color: var(--ink-muted); } .ds-chip:hover { border-color: var(--ink); } .ds-chip:active { background-color: var(--surface-sunken); } .ds-chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }"
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 0.25rem; box-sizing: border-box; min-height: 2rem; padding: 0 0.75rem; background-color: var(--accent-wash); color: var(--ink); border: 1px solid var(--rule-control); border-radius: var(--radius-control, 0.375rem); font: 14px/20px system-ui, sans-serif; text-decoration: none; transition-property: transform, background-color, border-color; transition-duration: 100ms, 150ms, 150ms; transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1); } .ds-chip__icon { color: var(--ink-muted); } .ds-chip:hover { border-color: var(--ink); } .ds-chip:active { background-color: var(--surface-sunken); } .ds-chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }"
     },
     {
       "name": "Insignia de varias fuentes",
@@ -411,7 +421,7 @@
       "refersTo": "sort-preset",
       "description": "Una de las cinco ordenaciones predefinidas como enlace de 40px; la vigente lleva tinta, peso 600 y una barra de 2px.",
       "html": "<p class=\"ds-sort-label\">Ordenar por</p><ul class=\"ds-sort\"><li><a class=\"ds-sort__link\" href=\"#\" aria-current=\"true\">Más recientes</a></li><li><a class=\"ds-sort__link\" href=\"#\">Precio: de menor a mayor</a></li></ul>",
-      "css": ".ds-sort-label { margin: 0; color: var(--ink-muted); font: 14px/20px system-ui, sans-serif; } .ds-sort { display: flex; flex-wrap: wrap; gap: 0 0.5rem; margin: 0; padding: 0; list-style: none; } .ds-sort__link { display: inline-flex; align-items: center; min-block-size: 2.5rem; padding-inline: 0.5rem; border-block-end: 2px solid transparent; color: var(--accent, #1f5fa8); font: 14px/20px system-ui, sans-serif; text-decoration: underline; text-underline-offset: 0.2em; } .ds-sort__link[aria-current='true'] { border-block-end-color: var(--ink); color: var(--ink); font-weight: 600; text-decoration: none; } .ds-sort__link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }"
+      "css": ".ds-sort-label { margin: 0; color: var(--ink-muted); font: 14px/20px system-ui, sans-serif; } .ds-sort { display: flex; flex-wrap: wrap; gap: 0 0.5rem; margin: 0; padding: 0; list-style: none; } .ds-sort__link { display: inline-flex; align-items: center; min-block-size: 2.5rem; padding-inline: 0.5rem; border-block-end: 2px solid transparent; color: var(--accent, #1f5fa8); font: 14px/20px system-ui, sans-serif; text-decoration: underline; text-underline-offset: 0.2em; transition-property: color, border-color; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1); } .ds-sort__link:hover { color: color-mix(in oklab, var(--accent, #1f5fa8), var(--ink, #1e1c19) 12%); } .ds-sort__link:not([aria-current='true']):hover { border-block-end-color: var(--rule-control); } .ds-sort__link[aria-current='true'] { border-block-end-color: var(--ink); color: var(--ink); font-weight: 600; text-decoration: none; } .ds-sort__link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }"
     },
     {
       "name": "Botón de icono (tema)",
@@ -427,7 +437,7 @@
       "refersTo": "",
       "description": "Una vivienda como fila fina: miniatura, datos y precio, separada por un filete. Desde D.20 el precio pesa 700, la operación es una etiqueta neutra y «Sin foto» lleva una pauta cuadrada.",
       "html": "<div class=\"ds-row\"><div class=\"ds-row__media\">Sin foto</div><div class=\"ds-row__facts\"><span class=\"ds-row__kind\">Piso · <span class=\"ds-row__operation\">Venta</span></span><span class=\"ds-row__figures\">3 hab. · 85 m²</span><span class=\"ds-row__address\">Calle Mayor, Getafe</span></div><strong class=\"ds-row__price\">185.000 €</strong></div>",
-      "css": ".ds-row { display: grid; grid-template-columns: 10rem minmax(0, 1fr) 10rem; column-gap: 1rem; align-items: start; padding: 0.75rem 0.5rem; color: var(--ink); border-bottom: 1px solid var(--rule); font: 16px/24px system-ui, sans-serif; } .ds-row__media { aspect-ratio: 4 / 3; display: grid; place-items: center; background-color: color-mix(in oklab, var(--surface), var(--ink) 5%); border-radius: var(--radius-control, 0.375rem); color: var(--ink-muted); font-size: 12px; line-height: 16px; position: relative; font-weight: 600; } .ds-row__media::after { content: ''; position: absolute; inset: 0.375rem; border: 1px solid var(--rule); } .ds-row__operation { display: inline-block; padding-inline: 0.375rem; border: 1px solid var(--rule); border-radius: var(--radius-control, 0.375rem); font-size: 12px; line-height: 16px; font-weight: 400; } .ds-row__facts { display: flex; flex-direction: column; gap: 0.125rem; font-size: 14px; line-height: 20px; } .ds-row__address { color: var(--ink-muted); } .ds-row__price { font-size: 22px; line-height: 28px; font-weight: 700; text-align: end; font-variant-numeric: tabular-nums; }"
+      "css": ".ds-row { display: grid; grid-template-columns: 10rem minmax(0, 1fr) 10rem; column-gap: 1rem; align-items: start; padding: 0.75rem 0.5rem; color: var(--ink); border-bottom: 1px solid var(--rule); font: 16px/24px system-ui, sans-serif; transition-property: background-color; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1); } .ds-row:hover { background-color: var(--surface-sunken); } .ds-row__media { aspect-ratio: 4 / 3; display: grid; place-items: center; background-color: color-mix(in oklab, var(--surface), var(--ink) 5%); border-radius: var(--radius-control, 0.375rem); color: var(--ink-muted); font-size: 12px; line-height: 16px; position: relative; overflow: hidden; font-weight: 600; } .ds-row__media::after { content: ''; position: absolute; inset: 0.375rem; border: 1px solid var(--rule); } .ds-row__operation { display: inline-block; padding-inline: 0.375rem; border: 1px solid var(--rule); border-radius: var(--radius-control, 0.375rem); font-size: 12px; line-height: 16px; font-weight: 400; } .ds-row__facts { display: flex; flex-direction: column; gap: 0.125rem; font-size: 14px; line-height: 20px; } .ds-row__address { color: var(--ink-muted); } .ds-row__price { font-size: 22px; line-height: 28px; font-weight: 700; text-align: end; font-variant-numeric: tabular-nums; }"
     },
     {
       "name": "Panel de cobertura",
@@ -435,7 +445,7 @@
       "refersTo": "panel",
       "description": "Panel único de 1px con aviso, frase de refresco y enlace de recarga al final.",
       "html": "<div class=\"ds-panel\"><p class=\"ds-panel__title\">Estamos buscando viviendas en Leganés <span class=\"ds-panel__state\">En curso</span></p><p class=\"ds-panel__detail\">La página se actualiza sola cada pocos segundos.</p><p class=\"ds-panel__reload\"><a href=\"#\">Comprobar de nuevo</a></p></div>",
-      "css": ".ds-panel { box-sizing: border-box; max-inline-size: 48rem; padding: 0.75rem 1rem; border: 1px solid var(--rule); border-radius: var(--radius-panel, 0.5rem); color: var(--ink); font: 16px/24px system-ui, sans-serif; } .ds-panel p { margin: 0.25rem 0 0; } .ds-panel__title { margin: 0; font-weight: 600; } .ds-panel__state { display: inline-block; padding: 0 0.375rem; border: 1px solid var(--rule-control); border-radius: var(--radius-control, 0.375rem); font-size: 12px; line-height: 16px; font-weight: 400; vertical-align: 0.125em; } .ds-panel__detail { color: var(--ink-muted); font-size: 14px; line-height: 20px; } .ds-panel__reload a { display: inline-flex; align-items: center; min-height: 2rem; color: var(--accent, #1f5fa8); text-decoration: underline; text-underline-offset: 0.2em; }"
+      "css": ".ds-panel { box-sizing: border-box; max-inline-size: 48rem; padding: 0.75rem 1rem; border: 1px solid var(--rule); border-radius: var(--radius-panel, 0.5rem); color: var(--ink); font: 16px/24px system-ui, sans-serif; } .ds-panel p { margin: 0.25rem 0 0; } .ds-panel__title { margin: 0; font-weight: 600; } .ds-panel__state { display: inline-block; padding: 0 0.375rem; border: 1px solid var(--rule-control); border-radius: var(--radius-control, 0.375rem); font-size: 12px; line-height: 16px; font-weight: 400; vertical-align: 0.125em; } .ds-panel__state::before { content: ''; display: inline-block; inline-size: 0.375rem; block-size: 0.375rem; margin-inline-end: 0.25rem; background-color: currentColor; vertical-align: 0.0625em; } .ds-panel__detail { color: var(--ink-muted); font-size: 14px; line-height: 20px; } .ds-panel__reload a { display: inline-flex; align-items: center; min-height: 2rem; color: var(--accent, #1f5fa8); text-decoration: underline; text-underline-offset: 0.2em; }"
     },
     {
       "name": "Etiqueta de precio del mapa",
@@ -456,7 +466,7 @@
       "Una sola trama (siena) reservada a la ubicación aproximada.",
       "Un único motivo decorativo de curvas de nivel junto al título de la búsqueda, en trazo fino y por debajo de los datos.",
       "Una sola familia, Figtree autoalojada, con cifras tabulares donde se comparan precios, recuentos y fechas.",
-      "Sin movimiento decorativo: solo la respuesta de pulsación y la bandeja de filtros."
+      "Sin movimiento decorativo: el movimiento solo responde a una acción o anuncia un estado (pulsación, bandeja de filtros, color de los controles, realce de la fila y aparición de los avisos); nada se repite en bucle, no hay paralaje ni movimiento ligado al desplazamiento, y con movimiento reducido todo es instantáneo y la imagen de la fila no se amplía."
     ],
     "rules": [
       {
@@ -520,7 +530,7 @@
       "**Don't** usar `hatch` (siena) como texto, fondo ni acento.",
       "**Don't** pintar de verde un enlace, un botón ni «Último precio más bajo»; el verde no es interactivo.",
       "**Don't** proyectar sombra en reposo; las dos sombras son para lo que flota sobre el mapa o surge al enfocar.",
-      "**Don't** añadir movimiento decorativo: solo la respuesta de pulsación (100 ms) y la bandeja de filtros bajo 64rem.",
+      "**Don't** añadir movimiento decorativo, en bucle, de paralaje o ligado al desplazamiento: solo la pulsación (100 ms), la bandeja de filtros bajo 64rem, el color de los controles y el realce de la fila (150 ms) y la aparición de los avisos (200 ms, solo opacidad); nunca en las alertas ni con movimiento reducido.",
       "**Don't** cargar fuentes, iconos ni scripts de terceros (Figtree se sirve desde el propio origen; las páginas independientes usan la pila del sistema), ni usar lados con un borde de color más grueso que el resto."
     ]
   }

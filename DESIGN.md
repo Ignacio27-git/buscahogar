@@ -185,7 +185,7 @@ Esa excepción es de D.20 (decisión 235). Todo lo demás es papel cálido, tint
 - Una sola trama (siena) reservada a la ubicación aproximada.
 - Un único motivo decorativo de curvas de nivel junto al título de la búsqueda, en trazo fino y por debajo de los datos.
 - Una sola familia, Figtree autoalojada, con cifras tabulares donde se comparan precios, recuentos y fechas.
-- Sin movimiento decorativo: solo la respuesta de pulsación y la bandeja de filtros.
+- Sin movimiento decorativo: el movimiento solo responde a una acción o anuncia un estado (pulsación, bandeja de filtros, color de los controles, realce de la fila y aparición de los avisos); nada se repite en bucle, no hay paralaje ni movimiento ligado al desplazamiento, y con movimiento reducido todo es instantáneo y la imagen de la fila no se amplía.
 
 ## Colors
 
@@ -355,14 +355,15 @@ principal y nada decorativo: se leen como instrumentos técnicos.
   `ink-on-accent`, peso 600; pulsado y con puntero fino se oscurece con una mezcla del acento con la tinta
   (20% y 12%).
 - **Hover / Active:** el hover solo con puntero fino (en táctil se queda pegado); pulsado, fondo `surface-sunken`
-  y borde `ink`, con una respuesta de escala 0,97 de 100 ms solo con puntero y sin foco de teclado.
-- **Focus:** aro global de 2px en `focus` con 2px de separación.
+  y borde `ink`, con una respuesta de escala 0,97 de 100 ms solo con puntero y sin foco de teclado. Desde D.21 el color y
+  el borde cambian en 150 ms (`--duration-hover`, curva `--ease-enter`); el selector de tema queda fuera y cambia al instante.
+- **Focus:** aro global de 2px en `focus` con 2px de separación; nunca transiciona, aparece al instante.
 
 ### Chips
 
 - **Style:** chip de filtro aplicado: fondo `primary-wash`, borde `rule-control`, texto `dense`, alto de 2rem,
   con un icono de cierre en `ink-muted`; los chips que no se pueden quitar usan `surface-sunken`.
-- **State:** hover fino con borde `ink`; pulsado, fondo `surface-sunken`.
+- **State:** hover fino con borde `ink`; pulsado, fondo `surface-sunken`; el cambio de borde y de fondo dura 150 ms.
 
 ### Cards / Containers
 
@@ -391,7 +392,29 @@ principal y nada decorativo: se leen como instrumentos técnicos.
   `rule`, como la cabecera de la app. La marca no se pone como línea suelta sobre el título.
 - **Pasos de la búsqueda:** el paso actual lleva peso 600 y el número relleno de tinta.
 - **Paginador:** «anterior» y «siguiente» como enlaces de 2,5rem; el extremo que no existe es texto y
-  conserva su sitio.
+  conserva su sitio. Los enlaces llevan el hover de enlaces de abajo.
+
+### Enlaces
+
+Todo enlace va en `primary` y subrayado. Con puntero fino, el hover de enlaces (D.21, decisión 240) mezcla el
+acento con un 12% de tinta, la misma receta que el botón primario: mezclar hacia la tinta sube el contraste en los dos
+temas, y el color cambia en 150 ms. Vale para los enlaces de texto y para el paginador. El enlace de salto aparece al
+instante y no lleva hover; en táctil no hay hover. Las reglas de la fila y del enlace vigente de la ordenación
+ganan por capa y no cambian de color.
+
+### Movimiento
+
+Siete tokens en `@theme static` (los valores viven en `extensions.motion` del sidecar): `--duration-feedback` (100 ms,
+pulsación), `--duration-hover` (150 ms, color de los controles y realce de la fila), `--duration-appear` (200 ms,
+aparición de los avisos), `--duration-panel-enter` (250 ms) y `--duration-panel-exit` (200 ms) de la bandeja de
+filtros bajo 64rem, y las curvas `--ease-enter` y `--ease-exit`. Con `prefers-reduced-motion: reduce` las cinco duraciones
+pasan a 0s desde un único interruptor y la foto de la fila no se amplía (esa regla no existe, no es «cero segundos»).
+
+Transicionan de color los botones, los resúmenes de la bandeja y de la caja de texto, los chips, los enlaces, los enlaces
+de ordenación y la fila de resultado; los campos, el selector de tema y el aro de enfoque son instantáneos. Los avisos
+(el panel de cobertura o el aviso suelto, las incidencias de la búsqueda, la advertencia de fuentes y el vacío) aparecen
+con un fundido de opacidad de 200 ms, sin desplazamiento; las alertas aparecen al instante. El fundido se repite en cada
+carga completa de la página, no en una navegación suave sobre lo que ya estaba montado, y nunca deja contenido oculto.
 
 ### Ordenación (sort-preset)
 
@@ -400,7 +423,9 @@ defecto, que no ensucia la URL), «Precio: de menor a mayor», «Precio: de mayo
 mayor a menor» y «Superficie: de menor a mayor». Son enlaces reales de 40px de alto y 0,5rem de relleno
 lateral, en `primary` y `dense`. El vigente lleva `aria-current="true"`, tinta, peso 600 y una barra de 2px
 bajo el texto, sin subrayado; una combinación fuera de los cinco, como `updated` ascendente en la URL, no
-marca ninguno. Sin transición. En la revisión de `?q=` la misma ordenación son cinco opciones de radio.
+marca ninguno. Con puntero fino, un enlace no vigente muestra una vista previa suave (D.21, decisión 13): el borde
+inferior toma `rule-control`, nunca la tinta del vigente, para que se distingan, y el vigente no cambia con el puntero. El
+color y el borde duran 150 ms. En la revisión de `?q=` la misma ordenación son cinco opciones de radio.
 
 ### Caja de texto plegable (disclosure-summary)
 
@@ -408,13 +433,16 @@ La búsqueda en lenguaje natural es un `<details>` dentro del landmark `search`,
 anchos. El resumen «Describe lo que buscas» es el único texto visible: botón de 40px, borde `rule-control`,
 fondo `surface-raised` y peso 600. La etiqueta del campo existe pero queda oculta a la vista, así que el
 campo conserva el mismo nombre. Se abre sola en la portada, con `?q=`, con parámetros no válidos y cuando la
-zona no se reconoce; en una página de resultados queda cerrada. Sin movimiento.
+zona no se reconoce; en una página de resultados queda cerrada. Su color y su borde transicionan en 150 ms como los de
+los botones, sin escala de pulsación.
 
 ### Motivo de curvas de nivel
 
 Único momento decorativo del sistema (D.20, decisión 235). Cinco anillos cerrados e irregulares anidados alrededor de una cima,
-con el tercero como curva maestra (trazo de 2), en un SVG propio de 240 × 48 incrustado en la cabecera de la búsqueda
-(`contour-motif`, `aria-hidden`, sin foco ni texto). Va junto al título de resultados y solo ahí: ni en la portada con consulta en
+con el tercero como curva maestra (trazo de 2), en un SVG propio incrustado en la cabecera de la búsqueda
+(`contour-motif`, `aria-hidden`, sin foco ni texto). Desde D.21 (decisión 243) el dibujo se encuadra en una caja 5:1
+centrada en la cima, de modo que ningún anillo queda cortado en plano por el borde del SVG, y los bordes visibles se
+desvanecen con una máscara de alfa en línea (sin color y sin recurso servido). Va junto al título de resultados y solo ahí: ni en la portada con consulta en
 lenguaje natural, ni en la ficha, ni en los 404. Es un trazo fino que no reserva espacio (posición absoluta, sin eventos de
 puntero), pinta por debajo del título y no cambia ni el alto de la cabecera ni el orden del DOM. El trazo es `rule-control` al
 35% de opacidad en claro y `rule` entero en oscuro, para que los dos temas pesen parecido (contraste de línea de 1,49:1 y
@@ -424,6 +452,9 @@ puntero), pinta por debajo del título y no cambia ni el alto de la cabecera ni 
 
 El precio de la ficha es un panel elevado neutro (`surface-raised`, borde de `rule`, radio `panel`). A partir de 64rem es una
 banda lateral cuyo texto se alinea con la rejilla de datos (sangrado lateral de 1rem compensado con el mismo relleno).
+Su filete inferior es de 1px en `rule` y va al ancho de la columna, alineado con los filetes de la lista de fuentes y
+igual en claro y en oscuro (D.21, decisión 243): un pseudoelemento con `inset-inline: 1rem` en lugar del borde de la caja,
+que sobresalía del sangrado. La banda no cambia de alto ni de fondo.
 
 ### Pie de página
 
@@ -436,7 +467,7 @@ El vacío filtrado es un panel de 1px con tres cosas: el estado («Ninguna vivie
 búsqueda.»), una frase que remite a los chips de arriba y una única acción. La acción se llama «Quitar los
 demás filtros» si hay un polígono que conservar y «Quitar todos los filtros» en los demás casos; no se
 muestra si la fila de chips ya ofrece «Quitar todos», para que nunca haya dos enlaces idénticos. El panel no
-repite la lista de filtros.
+repite la lista de filtros y aparece con el fundido de opacidad de 200 ms.
 
 ### Fila de resultado
 
@@ -452,6 +483,10 @@ operación («Venta», «Alquiler») es la etiqueta neutra `result-row__operatio
 («Piso · Venta»), de peso 400, borde de 1px en `rule`, tamaño `small` y sin tono, con el mismo texto
 accesible de antes; y «Sin foto» dibuja una pauta cuadrada interior (`rule`, 1px, a 0,375rem del borde) con el
 texto en peso 600 sobre el tinte de D.17. La etiqueta de operación queda fuera del subrayado del enlace.
+
+Desde D.21 (decisión 241), con puntero fino, el fondo de la fila toma `surface-sunken` al pasar el puntero y la foto se
+amplía hasta 1,03 dentro de su caja, que la recorta; ninguna caja se mueve. El cambio dura 150 ms. Con movimiento
+reducido el fondo cambia al instante y la foto no se amplía; en táctil no hay hover.
 
 ### Comparativa de fuentes
 
@@ -477,7 +512,10 @@ cada serie; la que se solapa con otra de más prioridad se omite.
 ### Aviso de cobertura
 
 Un panel único de 1px con el aviso (región viva), la frase de refresco y, al final, el enlace «Comprobar de
-nuevo». El estado (pendiente, en curso, hecho o fallido) lleva una etiqueta de texto además del borde.
+nuevo». El estado (pendiente, en curso, hecho o fallido) lleva una etiqueta de texto además del borde. Desde D.21
+(decisión 243) la etiqueta lleva delante un marcador cuadrado relleno de 0,375rem, del color del texto: una señal de
+forma que la distingue de la etiqueta de operación de la fila, que no lo lleva, sin depender del color ni del grosor
+del borde. El panel aparece con el fundido de opacidad de 200 ms, salvo si es una alerta.
 
 ## Do's and Don'ts
 
@@ -498,5 +536,5 @@ nuevo». El estado (pendiente, en curso, hecho o fallido) lleva una etiqueta de 
 - **Don't** usar `hatch` (siena) como texto, fondo ni acento.
 - **Don't** pintar de verde un enlace, un botón ni «Último precio más bajo»; el verde no es interactivo.
 - **Don't** proyectar sombra en reposo; las dos sombras son para lo que flota sobre el mapa o surge al enfocar.
-- **Don't** añadir movimiento decorativo: solo la respuesta de pulsación (100 ms) y la bandeja de filtros bajo 64rem.
+- **Don't** añadir movimiento decorativo, en bucle, de paralaje o ligado al desplazamiento: solo la pulsación (100 ms), la bandeja de filtros bajo 64rem, el color de los controles y el realce de la fila (150 ms) y la aparición de los avisos (200 ms, solo opacidad); nunca en las alertas ni con movimiento reducido.
 - **Don't** cargar fuentes, iconos ni scripts de terceros (Figtree se sirve desde el propio origen; las páginas independientes usan la pila del sistema), ni usar lados con un borde de color más grueso que el resto.
