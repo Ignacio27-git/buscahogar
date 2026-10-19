@@ -801,6 +801,7 @@
     block-size: 1.25rem;
     border: 1px solid var(--rule-control);
     border-radius: var(--radius-control);
+    background-color: var(--surface-raised);
   }
 
   .steps > [aria-current='step'] {
@@ -939,6 +940,9 @@
     padding: 0.75rem 1rem;
     border: 1px solid var(--rule);
     border-radius: var(--radius-panel);
+    /* D.20 (decisión 237): los avisos son superficies elevadas neutras; las alertas, las incidencias
+       y el estado vacío cambian el fondo más abajo. */
+    background-color: var(--surface-raised);
   }
 
   .nl-review__alert,
@@ -1267,8 +1271,13 @@
     gap: 0.25rem;
   }
 
+  /* D.20 (decisión 237): por debajo de 64rem el precio de la ficha es un panel elevado neutro. */
   .property-summary--lead {
     display: flex;
+    padding: 0.75rem 1rem;
+    background-color: var(--surface-raised);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-panel);
   }
 
   .property-summary--panel {
@@ -1411,6 +1420,7 @@
     padding: 0.75rem 1rem;
     border: 1px solid var(--rule);
     border-radius: var(--radius-panel);
+    background-color: var(--surface-raised);
     color: var(--ink);
   }
 
@@ -1451,6 +1461,7 @@
   .empty-results {
     max-inline-size: 48rem;
     margin: 0 0 0.75rem;
+    background-color: var(--surface-sunken);
     color: var(--ink);
   }
 
@@ -1974,7 +1985,8 @@
       z-index: var(--z-sticky-header);
       margin-block-start: calc(-1 * var(--scroll-offset));
       padding-block: var(--scroll-offset) 0.75rem;
-      background-color: var(--surface);
+      padding-inline: 1rem;
+      background-color: var(--surface-raised);
       border-block-end: 1px solid var(--rule);
     }
 

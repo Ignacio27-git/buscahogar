@@ -117,6 +117,53 @@ describe('fila de resultado: etiqueta de operación (S2.2, A4)', () => {
   });
 });
 
+describe('superficies neutras (S5.1-S5.3, decisión 237)', () => {
+  const NOTICES = ['.nl-review__alert', '.nl-issues', '.source-list__warning', '.coverage-notice', '.empty-results'];
+
+  it('los avisos comparten una superficie elevada y conservan borde, relleno y radio', () => {
+    for (const selector of NOTICES) {
+      const notice = rule(selector);
+      expect(notice.get('border'), selector).toBe('1px solid var(--rule)');
+      expect(notice.get('border-radius'), selector).toBe('var(--radius-panel)');
+    }
+    for (const selector of ['.source-list__warning', '.coverage-notice']) {
+      expect(rule(selector).get('background-color'), selector).toBe('var(--surface-raised)');
+    }
+  });
+
+  it('el panel de cobertura es una superficie elevada', () => {
+    expect(rule('.coverage-panel').get('background-color')).toBe('var(--surface-raised)');
+  });
+
+  it('el estado vacío y las incidencias de la revisión se rebajan; las alertas siguen en danger-wash', () => {
+    expect(rule('.empty-results').get('background-color')).toBe('var(--surface-sunken)');
+    expect(rule('.nl-issues').get('background-color')).toBe('var(--surface-sunken)');
+    expect(rule('.nl-review__alert').get('background-color')).toBe('var(--danger-wash)');
+    expect(rule(".coverage-notice[role='alert']").get('background-color')).toBe('var(--danger-wash)');
+  });
+
+  it('el número de paso es una superficie elevada y el paso actual sigue invertido', () => {
+    expect(rule('.steps__number').get('background-color')).toBe('var(--surface-raised)');
+    expect(rule(".steps > [aria-current='step'] .steps__number").get('background-color')).toBe('var(--ink)');
+  });
+
+  it('el resumen de precio de la ficha estrecha es un panel elevado con borde y radio de panel', () => {
+    const lead = rule('.property-summary--lead');
+    expect(lead.get('display')).toBe('flex');
+    expect(lead.get('padding')).toBe('0.75rem 1rem');
+    expect(lead.get('background-color')).toBe('var(--surface-raised)');
+    expect(lead.get('border')).toBe('1px solid var(--rule)');
+    expect(lead.get('border-radius')).toBe('var(--radius-panel)');
+  });
+
+  it('las superficies usan solo tokens existentes', () => {
+    const tokens = declaredTokens();
+    for (const token of ['--color-surface-raised', '--color-surface-sunken', '--color-rule']) {
+      expect(tokens, token).toContain(token);
+    }
+  });
+});
+
 describe('fila de resultado: insignias y «Sin foto» (S2.3, A5, A6)', () => {
   it('«1 fuente» se enmarca con outline --rule hacia dentro, sin borde ni sombra (alto cero)', () => {
     const badge = rule('.result-row__badge');

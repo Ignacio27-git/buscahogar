@@ -40,7 +40,11 @@ describe('ficha desde 64rem: solo el precio es sticky (decisión 183)', () => {
     const summary = rule(wideDetail(), '.property-summary--panel');
     expect(summary.get('position')).toBe('sticky');
     expect(summary.get('top')).toBe('0');
-    expect(summary.get('background-color')).toBe('var(--surface)');
+    // D.20 (decisión 237): la banda del precio es una superficie elevada neutra, con sangría lateral
+    // (el relleno vertical no cambia, así que la reserva de foco de 5.5rem + 1px sigue valiendo).
+    expect(summary.get('background-color')).toBe('var(--surface-raised)');
+    expect(summary.get('padding-inline')).toBe('1rem');
+    expect(summary.get('padding-block')).toBe('var(--scroll-offset) 0.75rem');
     expect(summary.get('border-block-end')).toBe('1px solid var(--rule)');
     expect(summary.get('z-index')).toBe('var(--z-sticky-header)');
   });
@@ -48,7 +52,7 @@ describe('ficha desde 64rem: solo el precio es sticky (decisión 183)', () => {
   it('el panel ya no es una caja con scroll propio ni sticky', () => {
     const panel = rule(wideDetail(), '.property-detail__panel');
     expect(panel.get('align-self')).toBe('stretch');
-    for (const property of ['position', 'max-block-size', 'overflow-y', 'border', 'padding']) {
+    for (const property of ['position', 'max-block-size', 'overflow-y', 'border', 'padding', 'background-color', 'box-shadow']) {
       expect(panel.has(property), property).toBe(false);
     }
   });

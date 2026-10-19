@@ -50,6 +50,11 @@ describe('RootLayout — enlace de salto y orden de landmarks (R1, R2)', () => {
     expect(html.indexOf('<main')).toBeLessThan(html.indexOf('<footer'));
   });
 
+  // D.20 (decisión 237): el pie es una superficie rebajada neutra, con filete superior.
+  it('el pie lleva el filete superior y la superficie rebajada', () => {
+    expect(html).toContain('<footer class="border-t border-rule bg-surface-sunken">');
+  });
+
   it('main envuelve a los hijos y el layout no pinta ningún h1', () => {
     const mainOpen = html.indexOf('<main');
     expect(html.indexOf(MARKER)).toBeGreaterThan(mainOpen);

@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 // Component, así que no cuesta JavaScript.
 function AttributionFooter(): ReactElement {
   return (
-    <footer className="border-t border-rule">
+    <footer className="border-t border-rule bg-surface-sunken">
       <div className={`${SHELL_CONTAINER} py-6 text-dense text-ink-muted`}>
         <p className="max-w-prose">
           Datos geográficos derivados del Nomenclátor Geográfico de Municipios y Entidades de
