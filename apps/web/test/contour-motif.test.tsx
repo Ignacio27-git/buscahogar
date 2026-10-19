@@ -81,14 +81,19 @@ describe('ContourMotif (S1.1)', () => {
     }
   });
 
-  it('el desvanecido de los bordes es una máscara de alfa en línea: degradado, máscara y rect (D.21, M7)', () => {
-    const gradient = /<linearGradient [^>]*>([\s\S]*?)<\/linearGradient>/.exec(html);
-    expect(attributesOf(/<linearGradient [^>]*>/.exec(html)?.[0] ?? '').get('id')).toBe('contour-motif-fade');
+  it('el desvanecido de los bordes es una máscara de alfa en línea y radial: degradado, máscara y rect (D.21, M7, P1)', () => {
+    // P1: un degradado lineal horizontal dejaba los anillos exteriores como arcos sueltos; el radial
+    // (elipse inscrita en la caja) apaga cada anillo por igual por todos sus lados.
+    expect(html).not.toContain('<linearGradient');
+    const gradient = /<radialGradient [^>]*>([\s\S]*?)<\/radialGradient>/.exec(html);
+    expect(gradient).not.toBeNull();
+    const gradientAttributes = attributesOf(/<radialGradient [^>]*>/.exec(html)?.[0] ?? '');
+    expect(gradientAttributes.get('id')).toBe('contour-motif-fade');
+    expect(gradientAttributes.has('gradientUnits')).toBe(false);
     const stops = [...(gradient?.[1] ?? '').matchAll(/<stop [^>]*>/g)].map((match) => attributesOf(match[0]));
     expect(stops.map((stop) => [stop.get('offset'), stop.get('stop-opacity')])).toEqual([
-      ['0', '0'],
-      ['0.2', '1'],
-      ['0.8', '1'],
+      ['0', '1'],
+      ['0.5', '1'],
       ['1', '0'],
     ]);
 
@@ -121,7 +126,9 @@ describe('ContourMotif (S1.1)', () => {
     expect(paths).toHaveLength(5);
     expect(paths[2]).toContain('class="contour-motif__index"');
     paths.forEach((attributes, index) => {
-      if (index !== 2) expect(attributes).not.toContain('class=');
+      // P1: los dos anillos exteriores llevan una clase para poder retirarlos en pantallas estrechas.
+      if (index < 2) expect(attributes).not.toContain('class=');
+      if (index > 2) expect(attributes).toContain('class="contour-motif__outer"');
       expect(attributes).toMatch(/^d="M[\d.]+ [\d.]+(C[-\d. ]+)+Z"/);
     });
   });

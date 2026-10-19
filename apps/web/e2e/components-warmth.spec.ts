@@ -349,8 +349,8 @@ test.describe('D.21 marcador del estado de cobertura', () => {
         text: node.textContent,
       };
     });
-    expect(marker.width).toBe('6px');
-    expect(marker.height).toBe('6px');
+    expect(marker.width).toBe('8px');
+    expect(marker.height).toBe('8px');
     expect(marker.display).toBe('inline-block');
     expect(marker.background).toBe(marker.colour);
     expect(marker.content).toBe('""');
@@ -366,5 +366,39 @@ test.describe('D.21 marcador del estado de cobertura', () => {
     expect(before).toBe('none');
     await page.addStyleTag({ content: 'html{filter:grayscale(1)}' });
     await testInfo.attach('etiqueta-operacion-grises', { body: await operation.screenshot(), contentType: 'image/png' });
+  });
+});
+
+// D.21, lote de pulido tras la revisión (P1 y P2).
+test.describe('D.21 pulido: motivo y etiqueta de estado', () => {
+  test('P1 bajo 400 px se retiran los dos anillos exteriores; desde 400 px se ven los cinco', async ({ page }) => {
+    await openRoute(page, route('home'));
+    const projectWidth = page.viewportSize()?.width ?? 0;
+    const displays = await page
+      .locator('.contour-motif path')
+      .evaluateAll((paths) => paths.map((path) => getComputedStyle(path).display));
+    expect(displays).toHaveLength(5);
+    const expected = projectWidth < 400 ? ['inline', 'inline', 'inline', 'none', 'none'] : Array<string>(5).fill('inline');
+    expect(displays).toEqual(expected);
+  });
+
+  test('P1 el desvanecido es radial: el degradado de la máscara es un radialGradient', async ({ page }) => {
+    await openRoute(page, route('home'));
+    await expect(page.locator('.contour-motif radialGradient#contour-motif-fade')).toHaveCount(1);
+    await expect(page.locator('.contour-motif linearGradient')).toHaveCount(0);
+  });
+
+  test('P2 la etiqueta de estado mide 14 px y su marcador 8 px', async ({ page }) => {
+    await openRoute(page, route('coverage-running'));
+    const state = page.locator('.coverage-notice__state').first();
+    await expect(state).toBeVisible();
+    const measured = await state.evaluate((node) => ({
+      fontSize: getComputedStyle(node).fontSize,
+      marker: getComputedStyle(node, '::before').width,
+      title: getComputedStyle(node.closest('.coverage-notice')?.querySelector('.coverage-notice__title') ?? node).fontSize,
+    }));
+    expect(measured.fontSize).toBe('14px');
+    expect(measured.marker).toBe('8px');
+    expect(Number.parseFloat(measured.title)).toBeGreaterThan(Number.parseFloat(measured.fontSize));
   });
 });

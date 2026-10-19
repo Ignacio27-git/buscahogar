@@ -442,7 +442,9 @@ los botones, sin escala de pulsación.
 con el tercero como curva maestra (trazo de 2), en un SVG propio incrustado en la cabecera de la búsqueda
 (`contour-motif`, `aria-hidden`, sin foco ni texto). Desde D.21 (decisión 243) el dibujo se encuadra en una caja 5:1
 centrada en la cima, de modo que ningún anillo queda cortado en plano por el borde del SVG, y los bordes visibles se
-desvanecen con una máscara de alfa en línea (sin color y sin recurso servido). Va junto al título de resultados y solo ahí: ni en la portada con consulta en
+desvanecen con una máscara de alfa en línea (sin color y sin recurso servido). Tras la revisión de las capturas el
+desvanecido es radial (una elipse inscrita en la caja, no un degradado horizontal) y, bajo 400px, se retiran los dos
+anillos exteriores: recortados por los lados quedaban como arcos sueltos. Va junto al título de resultados y solo ahí: ni en la portada con consulta en
 lenguaje natural, ni en la ficha, ni en los 404. Es un trazo fino que no reserva espacio (posición absoluta, sin eventos de
 puntero), pinta por debajo del título y no cambia ni el alto de la cabecera ni el orden del DOM. El trazo es `rule-control` al
 35% de opacidad en claro y `rule` entero en oscuro, para que los dos temas pesen parecido (contraste de línea de 1,49:1 y
@@ -513,7 +515,8 @@ cada serie; la que se solapa con otra de más prioridad se omite.
 
 Un panel único de 1px con el aviso (región viva), la frase de refresco y, al final, el enlace «Comprobar de
 nuevo». El estado (pendiente, en curso, hecho o fallido) lleva una etiqueta de texto además del borde. Desde D.21
-(decisión 243) la etiqueta lleva delante un marcador cuadrado relleno de 0,375rem, del color del texto: una señal de
+(decisión 243) la etiqueta lleva delante un marcador cuadrado relleno de 0,5rem, del color del texto (el texto de la
+etiqueta usa el tamaño denso, 14px, junto al título de 16px en negrita): una señal de
 forma que la distingue de la etiqueta de operación de la fila, que no lo lleva, sin depender del color ni del grosor
 del borde. El panel aparece con el fundido de opacidad de 200 ms, salvo si es una alerta.
 

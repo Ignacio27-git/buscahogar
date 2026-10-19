@@ -240,12 +240,12 @@ describe('fundido de los avisos (UI-4..UI-6, S-UI-9, S-UI-10, S-UI-14, decisión
 });
 
 describe('marcador del estado de cobertura (PL-3, S-PL-4, M9)', () => {
-  it('el estado lleva un cuadrado de 0,375rem en currentColor antes del texto: una señal de forma, no de color', () => {
+  it('el estado lleva un cuadrado de 0,5rem en currentColor antes del texto: una señal de forma, no de color', () => {
     const marker = declaring('.coverage-notice__state::before', 'content').declarations;
     expect(marker.get('content')).toBe("''");
     expect(marker.get('display')).toBe('inline-block');
-    expect(marker.get('inline-size')).toBe('0.375rem');
-    expect(marker.get('block-size')).toBe('0.375rem');
+    expect(marker.get('inline-size')).toBe('0.5rem');
+    expect(marker.get('block-size')).toBe('0.5rem');
     expect(marker.get('background-color')).toBe('currentColor');
     expect(marker.get('margin-inline-end')).toBe('0.25rem');
     // Cuadrado: sin radio, a diferencia del punto redondo descartado en el diseño.

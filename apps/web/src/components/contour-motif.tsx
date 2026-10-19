@@ -12,7 +12,9 @@
 // (`-40 -7 330 66`, 5:1, centrado en la cima) y, como la caja de CSS se recorta con `slice` en anchos
 // estrechos, el borde visible se desvanece con una máscara de alfa dibujada EN el svg exterior, que no
 // tiene viewBox: sus unidades son los píxeles de la caja, así que el degradado cae siempre en los
-// bordes visibles y no en los del dibujo. La máscara es de alfa (`mask-type: alpha` en el CSS), por lo
+// bordes visibles y no en los del dibujo. Tras la revisión (P1) el degradado es radial —una elipse
+// inscrita en la caja—: con el lineal horizontal los anillos exteriores se apagaban solo por los lados y
+// quedaban como arcos sueltos; con el radial cada anillo se apaga por igual. La máscara es de alfa (`mask-type: alpha` en el CSS), por lo
 // que no necesita ningún color; las referencias son fragmentos `url(#…)` del propio documento, sin
 // recurso servido ni `url(` en el CSS.
 //
@@ -30,16 +32,22 @@ const CONTOUR_PATHS = [
 
 const INDEX_CONTOUR = 2;
 
+// Clase de cada anillo: el tercero es la curva índice y los dos exteriores se retiran en pantallas
+// estrechas (CSS), donde `slice` los dejaba como arcos sueltos.
+function ringClass(index: number): string | undefined {
+  if (index === INDEX_CONTOUR) return 'contour-motif__index';
+  return index > INDEX_CONTOUR ? 'contour-motif__outer' : undefined;
+}
+
 export function ContourMotif(): ReactElement {
   return (
     <svg className="contour-motif" fill="none" aria-hidden="true" focusable="false">
       <defs>
-        <linearGradient id="contour-motif-fade">
-          <stop offset="0" stopOpacity="0" />
-          <stop offset="0.2" stopOpacity="1" />
-          <stop offset="0.8" stopOpacity="1" />
+        <radialGradient id="contour-motif-fade">
+          <stop offset="0" stopOpacity="1" />
+          <stop offset="0.5" stopOpacity="1" />
           <stop offset="1" stopOpacity="0" />
-        </linearGradient>
+        </radialGradient>
         <mask
           id="contour-motif-mask"
           className="contour-motif__mask"
@@ -55,7 +63,7 @@ export function ContourMotif(): ReactElement {
       <g mask="url(#contour-motif-mask)">
         <svg viewBox="-40 -7 330 66" preserveAspectRatio="xMidYMid slice" width="100%" height="100%">
           {CONTOUR_PATHS.map((path, index) => (
-            <path key={path} d={path} className={index === INDEX_CONTOUR ? 'contour-motif__index' : undefined} />
+            <path key={path} d={path} className={ringClass(index)} />
           ))}
         </svg>
       </g>

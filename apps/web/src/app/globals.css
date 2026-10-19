@@ -1212,6 +1212,15 @@
     stroke: none;
   }
 
+  /* Pulido tras la revisión (P1): bajo 400px la caja mide ~72px y `slice` recorta los dos anillos
+     exteriores por los lados, así que se leían como arcos sueltos. Se retiran; quedan los tres
+     interiores, con la curva índice. */
+  @media (width < 25rem) {
+    .contour-motif .contour-motif__outer {
+      display: none;
+    }
+  }
+
   /* Pulido tras el gate G-D: el hueco entre bloques de la cabecera lo da su `gap` de 1rem, así que el
      aviso de cobertura no lleva el margen propio de su uso suelto; y, en ancho, tras una cabecera con
      aviso los resultados (lista, mapa o estado vacío) empiezan 1rem más abajo. */
@@ -1506,14 +1515,16 @@
 
   /* D.17 (B5): etiqueta del estado de un job. El borde de color no es la única señal. D.21 (decisión
      243, M9) añade un cuadrado relleno antes del texto: es una señal de forma que la distingue de la
-     etiqueta de operación de la fila (sin marcador) sin depender del color ni del grosor del borde. */
+     etiqueta de operación de la fila (sin marcador) sin depender del color ni del grosor del borde.
+     Pulido tras la revisión (P2): el texto pasa del tamaño pequeño al denso (14px) y el marcador de 6 a
+     8px; junto al título de 16px en negrita la etiqueta y su cuadrado se leían demasiado pequeños. */
   .coverage-notice__state {
     display: inline-block;
     padding-inline: 0.375rem;
     border: 1px solid var(--rule-control);
     border-radius: var(--radius-control);
-    font-size: var(--text-small);
-    line-height: var(--text-small--line-height);
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
     font-weight: 400;
     vertical-align: 0.125em;
   }
@@ -1521,8 +1532,8 @@
   .coverage-notice__state::before {
     content: '';
     display: inline-block;
-    inline-size: 0.375rem;
-    block-size: 0.375rem;
+    inline-size: 0.5rem;
+    block-size: 0.5rem;
     margin-inline-end: 0.25rem;
     background-color: currentColor;
     vertical-align: 0.0625em;
