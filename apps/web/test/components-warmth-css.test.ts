@@ -46,10 +46,32 @@ function wideRule(selector: string): Map<string, string> {
 }
 
 describe('motivo de curvas de nivel (S1.2)', () => {
-  it('el trazo sale del token --rule, que existe', () => {
+  it('el trazo sale de tokens existentes y se equilibra por tema: claro --rule-control atenuado, oscuro --rule', () => {
     const motif = rule('.contour-motif');
-    expect(motif.get('stroke')).toBe('var(--rule)');
+    expect(motif.get('stroke')).toBe('var(--rule-control)');
+    const opacity = Number(motif.get('opacity'));
+    expect(opacity).toBeGreaterThan(0);
+    expect(opacity).toBeLessThan(1);
     expect(declaredTokens()).toContain('--color-rule');
+    expect(declaredTokens()).toContain('--color-rule-control');
+
+    const dark = rule('.dark .contour-motif');
+    expect(dark.get('stroke')).toBe('var(--rule)');
+    expect(dark.get('opacity')).toBe('1');
+
+    const system = COMPONENTS.children.find(
+      (child) =>
+        canon(child.prelude) === canon('@media (prefers-color-scheme: dark)') &&
+        child.children.some((inner) => inner.prelude.includes('.contour-motif'))
+    );
+    expect(system).toBeDefined();
+    const systemRule = system?.children.find((inner) =>
+      canon(inner.prelude) === canon(':root:not(.light, .dark) .contour-motif')
+    );
+    expect(systemRule).toBeDefined();
+    const systemDeclarations = declarations(systemRule as CssNode);
+    expect(systemDeclarations.get('stroke')).toBe('var(--rule)');
+    expect(systemDeclarations.get('opacity')).toBe('1');
   });
 
   it('está fuera del flujo, no recibe puntero y no reserva espacio', () => {
@@ -100,11 +122,11 @@ describe('fila de resultado: precio dominante (S2.4, decisión 236)', () => {
 });
 
 describe('fila de resultado: etiqueta de operación (S2.2, A4)', () => {
-  it('es una etiqueta neutra: borde --rule-control, peso 600, sin color ni fondo', () => {
+  it('es una etiqueta discreta: borde --rule, peso normal, sin color ni fondo', () => {
     const operation = rule('.result-row__operation');
     expect(operation.get('display')).toBe('inline-block');
-    expect(operation.get('border')).toBe('1px solid var(--rule-control)');
-    expect(operation.get('font-weight')).toBe('600');
+    expect(operation.get('border')).toBe('1px solid var(--rule)');
+    expect(operation.get('font-weight')).toBe('400');
     expect(operation.has('color')).toBe(false);
     expect(operation.has('background-color')).toBe(false);
     expect(operation.has('background')).toBe(false);

@@ -151,3 +151,35 @@ test.describe('D.20 motivo de curvas de nivel', () => {
     expect(withMotif).toEqual(withoutMotif);
   });
 });
+
+// D.20 (decisión 237, revisión visual) — en ancho el precio de la ficha es una banda elevada que sangra
+// 1rem a cada lado para que su texto caiga en el borde de la columna, alineado con la rejilla de datos.
+// El sangrado no puede desbordar la página a ningún ancho.
+test.describe('D.20 banda de precio de la ficha', () => {
+  test('el texto del precio alinea con la rejilla de datos y la banda no desborda', async ({ page }, testInfo) => {
+    await openRoute(page, route('detail'));
+    const scroll = await page.evaluate(() => ({
+      scroll: document.documentElement.scrollWidth,
+      client: document.documentElement.clientWidth,
+    }));
+    expect(scroll.scroll).toBeLessThanOrEqual(scroll.client);
+
+    const wide = testInfo.project.name.startsWith('w1280');
+    const summary = page.locator('.property-summary--panel');
+    if (!wide) {
+      await expect(summary).toBeHidden();
+      return;
+    }
+    const price = await boxOf(page, '.property-summary--panel .property-summary__price');
+    const facts = await boxOf(page, '.property-facts__list');
+    const band = await boxOf(page, '.property-summary--panel');
+    expect(price).not.toBeNull();
+    expect(facts).not.toBeNull();
+    expect(band).not.toBeNull();
+    if (price === null || facts === null || band === null) return;
+    expect(Math.abs(price.x - facts.x)).toBeLessThanOrEqual(0.5);
+    expect(band.x).toBeCloseTo(facts.x - 16, 0);
+    expect(band.x).toBeGreaterThanOrEqual(0);
+    expect(band.x + band.width).toBeLessThanOrEqual(scroll.client);
+  });
+});

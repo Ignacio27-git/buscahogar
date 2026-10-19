@@ -44,6 +44,9 @@ describe('ficha desde 64rem: solo el precio es sticky (decisión 183)', () => {
     // (el relleno vertical no cambia, así que la reserva de foco de 5.5rem + 1px sigue valiendo).
     expect(summary.get('background-color')).toBe('var(--surface-raised)');
     expect(summary.get('padding-inline')).toBe('1rem');
+    // La superficie sangra 1rem hacia fuera y el relleno devuelve el texto al borde de la columna:
+    // el precio queda alineado con la rejilla de datos de debajo. El panel sigue sin caja.
+    expect(summary.get('margin-inline')).toBe('-1rem');
     expect(summary.get('padding-block')).toBe('var(--scroll-offset) 0.75rem');
     expect(summary.get('border-block-end')).toBe('1px solid var(--rule)');
     expect(summary.get('z-index')).toBe('var(--z-sticky-header)');

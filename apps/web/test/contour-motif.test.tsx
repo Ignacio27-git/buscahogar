@@ -46,13 +46,32 @@ describe('ContourMotif (S1.1)', () => {
     expect(html).toContain('fill="none"');
   });
 
-  it('dibuja cinco curvas y la segunda es la curva índice', () => {
+  it('dibuja cinco anillos cerrados y anidados, y el tercero es la curva índice', () => {
     const paths = [...html.matchAll(/<path ([^>]*)>/g)].map((match) => match[1] ?? '');
     expect(paths).toHaveLength(5);
-    expect(paths[1]).toContain('class="contour-motif__index"');
+    expect(paths[2]).toContain('class="contour-motif__index"');
     paths.forEach((attributes, index) => {
-      if (index !== 1) expect(attributes).not.toContain('class=');
-      expect(attributes).toMatch(/^d="M0 \d+C/);
+      if (index !== 2) expect(attributes).not.toContain('class=');
+      expect(attributes).toMatch(/^d="M[\d.]+ [\d.]+(C[-\d. ]+)+Z"/);
+    });
+  });
+
+  it('los anillos crecen alrededor de una misma cima: la caja de cada uno contiene la del anterior', () => {
+    const boxes = [...html.matchAll(/ d="([^"]+)"/g)].map((match) => {
+      const numbers = [...(match[1] ?? '').matchAll(/-?\d+(?:\.\d+)?/g)].map((n) => Number(n[0]));
+      const xs = numbers.filter((_, i) => i % 2 === 0);
+      const ys = numbers.filter((_, i) => i % 2 === 1);
+      return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+    });
+    expect(boxes).toHaveLength(5);
+    boxes.slice(1).forEach((outer, index) => {
+      const inner = boxes[index];
+      expect(inner).toBeDefined();
+      if (inner === undefined) return;
+      expect(outer.x0).toBeLessThan(inner.x0);
+      expect(outer.x1).toBeGreaterThan(inner.x1);
+      expect(outer.y0).toBeLessThan(inner.y0);
+      expect(outer.y1).toBeGreaterThan(inner.y1);
     });
   });
 });

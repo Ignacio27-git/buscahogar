@@ -621,15 +621,16 @@
   }
 
   /* D.20: la operación es la etiqueta neutra de la línea de tipo (sin tono, como el estado del
-     aviso de cobertura). La caja de 16px cabe en el interlineado de la línea: no añade alto. */
+     aviso de cobertura), en peso normal y con el filete fino para que no compita con el tipo ni con el
+     precio. La caja de 16px cabe en el interlineado de la línea: no añade alto. */
   .result-row__operation {
     display: inline-block;
     padding-inline: 0.375rem;
-    border: 1px solid var(--rule-control);
+    border: 1px solid var(--rule);
     border-radius: var(--radius-control);
     font-size: var(--text-small);
     line-height: var(--text-small--line-height);
-    font-weight: 600;
+    font-weight: 400;
     vertical-align: 0.125em;
   }
 
@@ -1087,7 +1088,7 @@
   /* Motivo de curvas de nivel (D.20, decisión 235): decorativo, fuera del flujo (no reserva espacio ni
      mueve nada), sin puntero y con el trazo de la regla fina. Va a continuación del texto del título
      (13.5rem) y, bajo ~34rem, se recorta por los lados con `slice` en vez de desbordar: la caja
-     termina en el borde de la cabecera. Sube 0.75rem sobre el título, dentro del relleno de `main`. */
+     termina en el borde de la cabecera. Son anillos anidados, como las curvas de nivel de un mapa. Sube 0.75rem sobre el título, dentro del relleno de `main`. */
   .contour-motif {
     position: absolute;
     inset-block-start: -0.75rem;
@@ -1096,8 +1097,24 @@
     block-size: calc(var(--text-heading-1--line-height) + 1.5rem);
     pointer-events: none;
     fill: none;
-    stroke: var(--rule);
+    stroke: var(--rule-control);
     stroke-width: 1;
+    opacity: 0.35;
+  }
+
+  /* Equilibrio entre temas: en claro `--rule` casi no se distingue de la superficie y en oscuro se
+     ve de sobra, así que el claro usa `--rule-control` atenuado y el oscuro, `--rule` entero. Los
+     dos selectores repiten lo mismo, como los bloques de tema de arriba. */
+  .dark .contour-motif {
+    stroke: var(--rule);
+    opacity: 1;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not(.light, .dark) .contour-motif {
+      stroke: var(--rule);
+      opacity: 1;
+    }
   }
 
   .contour-motif path {
@@ -1978,13 +1995,16 @@
 
     /* Solo el precio queda fijo: superficie opaca y filete. El margen negativo y el relleno
        superior iguales a --scroll-offset lo pegan al borde sin mover su posición en reposo. Mide
-       5.5rem + 1px, y esa cifra fija la reserva de foco de abajo. */
+       5.5rem + 1px, y esa cifra fija la reserva de foco de abajo. La superficie sangra 1rem a cada lado
+       y el relleno lateral devuelve el texto al borde de la columna (el de la rejilla de datos): el
+       sangrado cae en el hueco de 2rem de la rejilla y en el relleno de `main`, nunca en el borde. */
     .property-summary--panel {
       position: sticky;
       top: 0;
       z-index: var(--z-sticky-header);
       margin-block-start: calc(-1 * var(--scroll-offset));
       padding-block: var(--scroll-offset) 0.75rem;
+      margin-inline: -1rem;
       padding-inline: 1rem;
       background-color: var(--surface-raised);
       border-block-end: 1px solid var(--rule);
