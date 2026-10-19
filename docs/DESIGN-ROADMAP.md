@@ -1670,7 +1670,8 @@ componentes.
   lavados de vegetación, azul y `danger`); verde de estado favorable con texto («Disponible», «Más económico», insignia de varias fuentes);
   chips aplicados con lavado azul; Figtree autoalojada con `next/font/local`; radios 0,375/0,5rem; páginas independientes con la pila del
   sistema y la paleta cálida; `DESIGN.md`, `design.json` y `PRODUCT.md` enmendados.
-- **Tests:** web 92 ficheros / 1.397 tests en verde (más los 58 de `test/db/*`, que necesitan PostgreSQL y no corrieron sin él); typecheck y
+- **Tests:** web 92 ficheros / 1.397 tests en verde, incluidos los 58 de `test/db/*` contra PostgreSQL (en la verificación no corrieron por
+  tener Docker parado; repetidos con la base levantada el 2026-10-19: 92 / 1.397 en verde); typecheck y
   eslint limpios. `pnpm e2e` en Docker dos veces: 786 pasadas y 774 omitidas cada una, axe a cero (huella sin cambios). 120 capturas
   regeneradas más `apple-icon.png`.
 - **Decisiones:** 230 (Figtree), 231 (paleta, tema oscuro y verde), 232 (radios), 233 (páginas independientes) y 234 (acota la 217).
