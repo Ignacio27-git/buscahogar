@@ -1,5 +1,6 @@
 // D.13b (decisión 185) — conjunto de iconos dibujados: sustituye a los glifos ×, ↗, + y −.
 // D.18 (decisión 223) añade `sun`, `moon` y `monitor` para el selector de tema.
+// D.20 (decisión 238) añade `check` para los estados favorables de la comparativa de fuentes.
 // Las constantes del zoom de Leaflet son cadenas de confianza (Leaflet las inserta con innerHTML):
 // el test de igualdad prueba que no llevan datos y que son el mismo marcado que el componente.
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -12,7 +13,7 @@ import {
   type IconName,
 } from '../src/components/icon';
 
-const NAMES: readonly IconName[] = ['close', 'external-link', 'plus', 'minus', 'sun', 'moon', 'monitor'];
+const NAMES: readonly IconName[] = ['close', 'external-link', 'plus', 'minus', 'sun', 'moon', 'monitor', 'check'];
 
 describe('Icon (server-compatible, trazo 2 con currentColor)', () => {
   it.each(NAMES)('%s es un svg 24×24 decorativo de trazo 2 y currentColor', (name) => {
@@ -22,6 +23,7 @@ describe('Icon (server-compatible, trazo 2 con currentColor)', () => {
     expect(html).toContain('stroke="currentColor"');
     expect(html).toContain('stroke-width="2"');
     expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain('focusable="false"');
     expect(html).toMatch(/<path d="[^"]+"><\/path><\/svg>$/);
   });
 

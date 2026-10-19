@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import type { PropertyDetailSource } from '@buscahogar/db';
 
+import { Icon } from '../src/components/icon.js';
 import { SourceList } from '../src/components/source-list.js';
 
 function makeSource(overrides: Partial<PropertyDetailSource>): PropertyDetailSource {
@@ -29,6 +30,14 @@ function makeSource(overrides: Partial<PropertyDetailSource>): PropertyDetailSou
     address: 'Calle Mayor 1',
     ...overrides,
   };
+}
+
+// D.20 (decisión 238): el icono `check` que precede al texto de los estados favorables.
+const CHECK_SVG = renderToStaticMarkup(<Icon name="check" className="me-1" />);
+
+// Texto visible de un fragmento de marcado, sin etiquetas (el icono decorativo no aporta texto).
+function textOf(html: string): string {
+  return html.replace(/<[^>]*>/g, '');
 }
 
 function rowsOf(html: string): string[] {
@@ -72,7 +81,7 @@ describe('SourceList (D3/D6, AR-5) — cada fuente con su propio precio y enlace
     expect(html).toMatch(/<dt>Precio<\/dt><dd[^>]*>100\.000 €<\/dd>/);
     expect(html).toMatch(/<dt>Fotos<\/dt><dd[^>]*>46<\/dd>/);
     expect(html).toMatch(/<dt>Visto por última vez<\/dt><dd[^>]*>10\/09\/2026<\/dd>/);
-    expect(html).toMatch(/<dt>Estado<\/dt><dd[^>]*>Disponible<\/dd>/);
+    expect(html).toMatch(/<dt>Estado<\/dt><dd[^>]*>(?:<svg[^>]*>.*?<\/svg>)?Disponible<\/dd>/);
   });
 
   it('un anuncio sin recuento de fotos muestra «Sin datos» y no inventa una cifra', () => {
@@ -95,7 +104,7 @@ describe('SourceList (D3/D6, AR-5) — cada fuente con su propio precio y enlace
   ])('el estado «%s» se muestra como «%s»', (status, label) => {
     const html = renderToStaticMarkup(<SourceList sources={[makeSource({ status })]} />);
 
-    expect(html).toMatch(new RegExp(`<dt>Estado</dt><dd[^>]*>${label}</dd>`));
+    expect(html).toMatch(new RegExp(`<dt>Estado</dt><dd[^>]*>(?:<svg[^>]*>.*?</svg>)?${label}</dd>`));
   });
 
   it('un anuncio retirado sigue en la lista, con el mismo estado que uno inactivo y sin insignia entre paréntesis', () => {
@@ -206,7 +215,9 @@ describe('SourceList (D.12) — comparación de anuncios', () => {
 
     expect(anchor).toContain('Ver en Idealista');
     expect(anchor).not.toContain('Más económico');
-    expect(html).toContain('<strong class="source-row__highlight source-row__highlight--active">Más económico</strong>');
+    expect(html).toContain(
+      `<strong class="source-row__highlight source-row__highlight--active">${CHECK_SVG}Más económico</strong>`
+    );
   });
 
   it('sin ningún anuncio activo avisa sobre la lista y marca «Último precio más bajo», nunca «Más económico»', () => {
@@ -266,7 +277,7 @@ describe('SourceList (D.12) — comparación de anuncios', () => {
 describe('SourceList (D.19) — claves de estado favorable', () => {
   it('«Más económico» lleva el modificador --active y «Último precio más bajo» no', () => {
     const active = renderToStaticMarkup(<SourceList sources={[makeSource({})]} />);
-    expect(active).toContain('source-row__highlight source-row__highlight--active">Más económico<');
+    expect(active).toContain(`source-row__highlight source-row__highlight--active">${CHECK_SVG}Más económico<`);
 
     const none = renderToStaticMarkup(
       <SourceList sources={[makeSource({ status: 'removed' }), makeSource({ listingId: 'l2', status: 'inactive', priceCents: 9_000_000 })]} />
@@ -289,7 +300,7 @@ describe('SourceList (D.19) — claves de estado favorable', () => {
 
   it('el estado «Disponible» lleva la clase de estado favorable con su texto', () => {
     const html = renderToStaticMarkup(<SourceList sources={[makeSource({ status: 'active' })]} />);
-    expect(html).toContain('<dd class="source-row__status--available">Disponible</dd>');
+    expect(html).toContain(`<dd class="source-row__status--available">${CHECK_SVG}Disponible</dd>`);
   });
 
   it.each(['inactive', 'removed', 'pending-review'])(
@@ -311,5 +322,44 @@ describe('SourceList (D.19) — claves de estado favorable', () => {
   it('el precio y la fecha de la fila llevan cifras tabulares', () => {
     const html = renderToStaticMarkup(<SourceList sources={[makeSource({})]} />);
     expect(html).toContain('<dd class="source-row__price tabular-nums">100.000 €</dd>');
+  });
+});
+
+// D.20 (decisión 238) — el icono `check` refuerza «Disponible» y «Más económico» sin cambiar su texto.
+describe('SourceList (D.20) — icono check en los estados favorables', () => {
+  it('«Disponible» lleva el svg antes del texto y el texto visible no cambia', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[makeSource({ status: 'active' })]} />);
+    const cell = /<dd class="source-row__status--available">(.*?)<\/dd>/.exec(html)?.[1] ?? '';
+    expect(cell.startsWith('<svg')).toBe(true);
+    expect(cell.indexOf('</svg>')).toBeLessThan(cell.indexOf('Disponible'));
+    expect(textOf(cell)).toBe('Disponible');
+  });
+
+  it('«Más económico» activo lleva el svg antes del texto y el texto visible no cambia', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[makeSource({})]} />);
+    const badge = /<strong class="source-row__highlight source-row__highlight--active">(.*?)<\/strong>/.exec(html)?.[1] ?? '';
+    expect(badge.startsWith('<svg')).toBe(true);
+    expect(badge.indexOf('</svg>')).toBeLessThan(badge.indexOf('Más económico'));
+    expect(textOf(badge)).toBe('Más económico');
+  });
+
+  it('«Último precio más bajo» no lleva icono ni el modificador --active', () => {
+    const html = renderToStaticMarkup(
+      <SourceList
+        sources={[
+          makeSource({ status: 'removed' }),
+          makeSource({ listingId: 'l2', status: 'inactive', priceCents: 9_000_000 }),
+        ]}
+      />
+    );
+    expect(html).toContain('<strong class="source-row__highlight">Último precio más bajo</strong>');
+    expect(html).not.toContain('source-row__highlight--active');
+    const badge = /<strong class="source-row__highlight">(.*?)<\/strong>/.exec(html)?.[1] ?? '';
+    expect(badge).not.toContain('<svg');
+  });
+
+  it('un estado no disponible no lleva icono check', () => {
+    const html = renderToStaticMarkup(<SourceList sources={[makeSource({ status: 'removed' })]} />);
+    expect(html).toContain('<dd>No disponible</dd>');
   });
 });

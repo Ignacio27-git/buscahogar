@@ -26,6 +26,9 @@
 // D.19 (decisión 231): «Más económico» y «Disponible» llevan el verde de estado favorable además del
 // texto (el color nunca es la única señal). «Último precio más bajo» es un precio histórico, no un
 // estado favorable, y conserva la caja de tinta sin verde.
+//
+// D.20 (decisión 238): un icono `check` (decorativo, `currentColor`) precede a «Más económico» (solo
+// en modo activo) y a «Disponible». No añade un consumidor del verde: hereda el color del texto.
 import type { ReactElement } from 'react';
 
 import { compareSourceListings } from '@buscahogar/core';
@@ -83,6 +86,7 @@ export function SourceList({ sources }: SourceListProps): ReactElement {
                         : 'source-row__highlight'
                     }
                   >
+                    {comparison.mode === 'active' ? <Icon name="check" className="me-1" /> : null}
                     {HIGHLIGHT_BY_MODE[comparison.mode]}
                   </strong>
                 ) : null}
@@ -105,6 +109,7 @@ export function SourceList({ sources }: SourceListProps): ReactElement {
                 <div>
                   <dt>Estado</dt>
                   <dd className={isListingAvailable(source.status) ? 'source-row__status--available' : undefined}>
+                    {isListingAvailable(source.status) ? <Icon name="check" className="me-1" /> : null}
                     {listingStatusLabel(source.status)}
                   </dd>
                 </div>
