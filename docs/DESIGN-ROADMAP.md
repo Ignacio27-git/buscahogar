@@ -1619,7 +1619,7 @@ quiere más vida sin extravagancia. Eligió **refinar** el mundo de la hoja topo
 **micro-interacciones sutiles**. Se organiza como una fase de tres pasos con una parada de aprobación
 visual al final de D.19, en lugar de un roadmap nuevo o de un paso único.
 
-## [ ] D.19 · Dirección cálida: paleta, tipografía y aprobación
+## [x] D.19 · Dirección cálida: paleta, tipografía y aprobación
 
 ```text
 Paso D.19 de docs/DESIGN-ROADMAP.md (añadido el 2026-10-15). Usa `impeccable colorize` e
@@ -1662,6 +1662,20 @@ componentes.
 - **Tests:** `test/design-tokens.test.ts` (pares WCAG y paridad de temas), `test/design-md.test.ts`, `e2e/fonts.spec.ts` y la suite visual.
 - **Riesgos:** que el refinado derive en un rediseño; que el verde compita con el azul de acción; el peso de la fuente; las capturas
   dejan de depender de Liberation Sans (decisión 217), lo que puede simplificar la imagen e2e.
+- **Estado (2026-10-15): D.19 hecho.** Aplicada con SDD y fase de investigación (Engram `sdd/design-warmth-d19/*`), en un único PR con
+  `size:exception` aceptado. Seis commits en `feature-fase3`: `1e635be`..`7f4ea58` (tokens, consumidores de color, Figtree, e2e y
+  líneas base) más el de documentación. Decisiones 230-234. Puerta de aprobación pasada el 2026-10-15: el responsable aprobó las 12
+  capturas (inicio, inicio filtrado y ficha, a 320 y 1280, en claro y oscuro).
+- **Entregado:** papel cálido `#faf8f3`, tinta `#1e1c19` y carbón cálido en oscuro; cuatro tokens nuevos por tema (`vegetation` y los
+  lavados de vegetación, azul y `danger`); verde de estado favorable con texto («Disponible», «Más económico», insignia de varias fuentes);
+  chips aplicados con lavado azul; Figtree autoalojada con `next/font/local`; radios 0,375/0,5rem; páginas independientes con la pila del
+  sistema y la paleta cálida; `DESIGN.md`, `design.json` y `PRODUCT.md` enmendados.
+- **Tests:** web 92 ficheros / 1.397 tests en verde (más los 58 de `test/db/*`, que necesitan PostgreSQL y no corrieron sin él); typecheck y
+  eslint limpios. `pnpm e2e` en Docker dos veces: 786 pasadas y 774 omitidas cada una, axe a cero (huella sin cambios). 120 capturas
+  regeneradas más `apple-icon.png`.
+- **Decisiones:** 230 (Figtree), 231 (paleta, tema oscuro y verde), 232 (radios), 233 (páginas independientes) y 234 (acota la 217).
+- **Tamaño real:** unas 1.557 líneas cambiadas frente a las ~780 estimadas (tests de tokens y rewrite del sidecar subestimados).
+- **Seguimientos (no entran en D.19):** ninguno abierto. D.20 puede empezar.
 - **Tamaño:** M.
 
 ---
@@ -1946,3 +1960,9 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-15 | D.18 | Se añade el parámetro `order` al formulario de revisión de `?q=` (cinco radios que `canonicalizeFormSubmission` convierte en `sort`/`dir`). | Los desplegables de ordenación desaparecen de la barra; la revisión de `?q=` necesitaba una alternativa sin enlaces que descartaran las ediciones (227). |
 | 2026-10-15 | D.18 | La caja de texto también se abre con zona desconocida. | Extensión del diseño: su aviso remite a escribir el municipio en el buscador (228). |
 | 2026-10-15 | D.19-D.21 | Bloque 7 nuevo, con la hoja de ruta ya cerrada: tres pasos para dar calidez al diseño (paleta y tipografía con parada de aprobación, componentes, y movimiento con cierre). Enmendarán la decisión 132 (pila del sistema) y las reglas de DESIGN.md de un único azul, sin marginalia y sin movimiento decorativo. | Decisión del responsable (2026-10-15): la web se ve demasiado seria; elige refinar con calidez, fuente propia autoalojada y micro-interacciones sutiles, organizado como fase de tres pasos en lugar de un roadmap nuevo o un paso único. |
+| 2026-10-15 | D.19 | `size:exception` aceptado por el responsable: unas 1.557 líneas cambiadas frente al presupuesto de 800, en un único PR. | Trabajo cohesivo (tokens, consumidores, fuente, e2e y documentación) cuyas piezas no se revisan por separado; el grueso son tests y el rewrite de `design.json`. Los 120 PNG, el `woff2` y la licencia no cuentan. |
+| 2026-10-15 | D.19 | `Y_LABEL_GAP` del gráfico de precios pasa de 8 a 4 en `price-chart.ts`. | La medición de cajas fijas del e2e nuevo detectó que «1.234.567 €» desbordaba 2px por la izquierda a 320 y a 1280; el diseño permitía ajustar la columna o el ancho de la etiqueta, no esta constante. |
+| 2026-10-15 | D.19 | Las seis capturas `rate-limit.png` (página 429) no se regeneraron con `--update-snapshots=changed` y se rehicieron con una ejecución dirigida. | El cambio de fondo `#ffffff` → `#faf8f3` en una página casi vacía queda por debajo del umbral de 0,2 de `toHaveScreenshot`; se borraron y se escribieron de nuevo. |
+| 2026-10-15 | D.19 | El módulo de la fuente vive en `apps/web/src/fonts/` y el puente es `var(--font-figtree, system-ui)` en `@theme static`; el spec decía `app/fonts` y `@theme inline`. | `app` está reservado a rutas, y `inline` rompe donde la variable no existe (páginas independientes y tests). Decisión 230. |
+| 2026-10-15 | D.19 | Se añade una fase de investigación (`sdd-research`) que devolvió «parcial»; el hueco de las cifras tabulares lo cerró el orquestador con una comprobación empírica con fontTools. | La investigación no pudo verificar la característica `tnum` del `woff2` sin herramientas; se comprobó directamente en el fichero. |
+| 2026-10-15 | D.19 | «Disponible en 1 fuente» conserva su línea tenue sin caja; el spec decía que no llevaba insignia. | Coincide con el diseño y con `DESIGN.md`: la insignia verde es solo para dos fuentes o más. |

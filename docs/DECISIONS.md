@@ -5998,6 +5998,91 @@ conmutador a 320 y 768).
 
 ---
 
+## 230 — Figtree autoalojada con `next/font/local`
+
+**Estado:** aceptada (D.19); enmienda la 132 (tipografía de la pila del sistema).
+
+**Decisión.** La fuente de la aplicación es Figtree variable (pesos 300-900, subconjunto latino que cubre el español), servida desde el propio
+origen. El módulo vive en `apps/web/src/fonts/figtree.ts` (`localFont` con `display: 'swap'`, `adjustFontFallback: 'Arial'` y la variable
+`--font-figtree`), junto al `woff2` (20.156 B, de `@fontsource-variable/figtree` 5.3.0, copiado sin añadir la dependencia) y su `OFL.txt`.
+`layout.tsx` pone `figtree.variable` en `<html>`. En `globals.css` el puente es `--font-sans: var(--font-figtree, system-ui), <pila del sistema>`
+dentro de `@theme static`. La CSP no cambia (`font-src 'self'`); Figtree es variable, así que el 600 es una cara real. Las páginas
+independientes no la cargan (233).
+
+**Alternativas descartadas.** `next/font/google`: descarga en la build y añade un origen de terceros. `@theme inline` para `--font-sans`: resolvería
+`var(--font-figtree)` en cada utilidad y se rompería donde la variable no existe (páginas independientes, tests); `@theme static` emite la
+variable en `:root` con el respaldo. Colocar el módulo en `app/fonts`: el spec lo decía, pero el directorio `app` está reservado a rutas y
+convenciones; `src/fonts/` lo deja fuera. Instalar `@fontsource-variable/figtree` como dependencia: arrastra un `@font-face` con `url()` que la
+guarda de tokens prohíbe.
+
+**Motivo.** La web se veía demasiado seria; una familia propia es la palanca más barata de calidez y cumple la regla de no llamar a terceros.
+
+---
+
+## 231 — Paleta cálida, tema oscuro compuesto y verde de estado favorable con lavados: el azul sigue siendo el único acento interactivo
+
+**Estado:** aceptada (D.19); enmienda la 132 (paleta) y la regla The One Blue Rule de `DESIGN.md`.
+
+**Decisión.** Los neutros pasan del matiz frío de 235° a uno cálido (70-85°): papel `#faf8f3`, papel sobrepuesto `#fefdfb`, tinta `#1e1c19`; el
+tema oscuro es un carbón cálido compuesto aparte (no una inversión). Se añaden cuatro tokens por tema: `vegetation` y tres lavados
+(`vegetation-wash`, `primary-wash` —utilidad `accent-wash`— y `danger-wash`). El verde señala un estado favorable no interactivo («Disponible»,
+la marca «Más económico», la insignia «Disponible en N fuentes») y siempre con texto. El azul sigue siendo el único acento **interactivo**; los
+chips de filtro aplicados toman el lavado azul (`primary-wash`) y los paneles de alerta el lavado de `danger`. «Último precio más bajo» no se
+pinta de verde: describe una captura, no un estado. Los pares de contraste nuevos se comprueban en `design-tokens.test.ts` en ambos temas.
+
+**Alternativas descartadas.** Que el verde fuese un segundo acento: compite con la acción y rompe la jerarquía que da el azul. Verde en
+«Último precio más bajo»: sugeriría un estado de la vivienda donde solo hay una comparación de capturas. Invertir el tema claro para el oscuro:
+daría blancos hirvientes y sombras de matiz equivocado.
+
+**Motivo.** Calidez sin extravagancia: el cambio de temperatura sale de los neutros y de un verde de estado, no de un segundo acento.
+
+---
+
+## 232 — Radios un paso más amables: 0,375 y 0,5rem
+
+**Estado:** aceptada (D.19); enmienda los radios de D.3.
+
+**Decisión.** `--radius-control` pasa de 0,25 a 0,375rem y `--radius-panel` de 0,375 a 0,5rem, en `globals.css`, `DESIGN.md`, `design.json` y la
+página independiente (`standalone-page.ts`). Sin píldoras ni radios mayores, y los clústeres del mapa siguen siendo círculos.
+
+**Alternativas descartadas.** Un radio de 0,75rem o píldoras en chips: cambia el carácter de la hoja técnica y presiona las cajas de ancho
+fijo (etiquetas de 96×24px). Dejar los radios: la fuente nueva con esquinas casi rectas se leía rígida.
+
+**Motivo.** Un solo escalón basta para acompañar a Figtree sin que el refinado derive en un rediseño.
+
+---
+
+## 233 — Páginas independientes con la pila del sistema y paridad de paleta
+
+**Estado:** aceptada (D.19).
+
+**Decisión.** El error global y la página 429 se renderizan fuera del árbol del layout y por eso no tienen la variable de Figtree ni
+`globals.css`. `standalone-page.ts` conserva la pila del sistema y sus colores en línea, ahora con la paleta cálida y el radio de 0,375rem;
+`standalone-page.test.ts` comprueba la paridad con los tokens de `globals.css`.
+
+**Alternativas descartadas.** Cargar Figtree en estas páginas: el error global puede aparecer justo cuando la carga de recursos falla, y la
+página 429 no debe pedir más al servidor que ya limita. Dejarlas en blanco y azul frío: se verían de otra aplicación.
+
+**Motivo.** Robustez de las páginas de último recurso sin que desentonen con la paleta.
+
+---
+
+## 234 — Texto de la app en capturas = Figtree; Liberation Sans solo de respaldo (acota la 217)
+
+**Estado:** aceptada (D.19); acota la 217.
+
+**Decisión.** La regla de `fontconfig` de la 217 se conserva, pero ya no determina el texto de la aplicación en las capturas: lo pinta Figtree
+(`fonts.spec.ts` comprueba que el cuerpo usa la familia, que existe la cara real `300 900` y que las cifras tabulares funcionan). Liberation Sans
+queda para el respaldo y para las páginas independientes, donde el 600 sigue pintándose como 700. Se retira de `DESIGN.md` la nota «600 se pinta
+como 700» para las páginas de la app. Además, `fixed-boxes.spec.ts` mide las cajas de ancho fijo con «1.234.567 €» a 320 y 1280, y el gráfico
+bajó `Y_LABEL_GAP` de 8 a 4 tras desbordar 2px.
+
+**Alternativas descartadas.** Retirar `fontconfig` de la imagen e2e: las páginas independientes seguirían sin una fuente determinista.
+
+**Motivo.** El determinismo de las capturas pasa a depender del `woff2` del repositorio y no del sistema; el respaldo sigue fijado.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

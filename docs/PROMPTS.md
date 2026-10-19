@@ -30,6 +30,24 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-15 — Dirección cálida: paleta, tipografía y aprobación (paso D.19, decisiones 230-234)
+
+**Tipo de tarea:** interfaz (tokens, color de estado y fuente propia), cobertura e2e y documentación del sistema de diseño
+**Forma de especificación:** SDD con fase de investigación y puerta de aprobación (Engram `sdd/design-warmth-d19/*`): el responsable aprobó
+las 12 capturas (inicio, inicio filtrado y ficha, a 320 y 1280, en claro y oscuro) antes de la documentación. Un solo PR con `size:exception`
+**Resultado:** utilizable con retoques. La propuesta atribuyó a la decisión 217 lo que enmienda la 132, y la especificación situaba la
+regeneración de líneas base después de la puerta, lo que contradice su mecánica; ambos se corrigieron al conciliar. Las capturas de la página
+429 hubo que regenerarlas aparte y el gráfico de precios necesitó un ajuste de 4px.
+
+**Prompt:** el del paso D.19 de `docs/DESIGN-ROADMAP.md`, literal: «Paso D.19 de docs/DESIGN-ROADMAP.md (añadido el 2026-10-15). Usa `impeccable
+colorize` e `impeccable typeset`. La web se ve demasiado seria y sobria. Refina el mundo de la hoja topográfica, no lo sustituyas […]
+Paleta cálida en globals.css […] Tipografía: una familia propia autoalojada con `next/font/local` […] Radios algo más amables […] Todo par
+texto/fondo cumple WCAG 2.2 AA en ambos temas. Parada de aprobación […] Registra las enmiendas en DECISIONS.md, PRODUCT.md y DESIGN.md».
+
+**Observación:** el paso enmendaba compromisos escritos (pila del sistema, un único azul). Separar «acento interactivo» de «estado favorable»
+resolvió la contradicción sin un segundo acento. Las cajas de ancho fijo y la fuente nueva solo se probaron de verdad con medidas en e2e, no con
+los tests unitarios.
+
 ### 2026-10-15 — Planificación de la fase de calidez (bloque 7, pasos D.19-D.21)
 
 **Tipo de tarea:** planificación de diseño (sin código)

@@ -82,8 +82,8 @@ Restricciones:
   elegidas por el responsable: comparadores como Google Flights o Kayak (precio protagonista,
   densidad y filtros visibles).
 - Registro: tuteo uniforme en todo el texto de la interfaz.
-- Tipografía: pila tipográfica del sistema, sin fuentes propias.
-- Dirección general sobria: es una herramienta de uso frecuente con una ficha de lectura.
+- Tipografía: Figtree autoalojada con `next/font/local` (licencia OFL, `font-src 'self'`); las páginas independientes (error global y 429) conservan la pila tipográfica del sistema (D.19, decisión 230).
+- Dirección general: herramienta sobria con calidez. Es una herramienta de uso frecuente con una ficha de lectura; papel cálido, un verde de estado favorable y radios suaves, sin perder densidad (D.19, decisión 231).
 
 ## Evidence on Hand
 

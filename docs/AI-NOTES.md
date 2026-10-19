@@ -40,6 +40,29 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-15 — Cuatro fallos del proceso de D.19 (paleta cálida y Figtree)
+
+**Contexto:** propuesta, especificación, investigación y capturas del paso D.19.
+
+**Categoría:** contradicción con una regla del proyecto / código correcto en apariencia pero incorrecto / suposición sin comprobar.
+
+**Qué ocurrió:**
+
+1. La propuesta mapeó la enmienda de la tipografía a la decisión 217 (Liberation Sans en las capturas) cuando la que fija la pila del sistema es la
+   132. La 217 solo se acota (234).
+2. La especificación decía que las líneas base se regeneran después de la puerta de aprobación. Contradice la mecánica: las 12 capturas de la
+   puerta son las propias líneas base, así que hay que regenerarlas antes.
+3. `--update-snapshots=changed` no regeneró las seis capturas `rate-limit.png`: el cambio de fondo `#ffffff` → `#faf8f3` en una página casi vacía
+   queda por debajo del umbral de 0,2 de `toHaveScreenshot` y Playwright las daba por iguales. Se borraron y se escribieron con una ejecución dirigida.
+4. La fase de investigación volvió «parcial»: no pudo comprobar la característica `tnum` del `woff2`. El orquestador la cerró con fontTools.
+
+**Cómo se detectó:** 1 y 2 al conciliar las tareas con el diseño; 3 al contar 114 de 120 PNG modificados tras `e2e:update`; 4 al leer el resultado de la investigación.
+
+**Coste:** unos 30 minutos entre todos.
+
+**Observación:** `changed` solo vale para diferencias por encima del umbral; un cambio de paleta en una página casi vacía exige comprobar el
+recuento de PNG modificados. Una afirmación sobre un fichero binario (`tnum` en un `woff2`) se comprueba en el fichero.
+
 ### 2026-10-13 — Contrato de Leaflet sobre un campo inexistente y regex `\b` rota otra vez (paso D.16)
 
 **Contexto:** diseño y aplicación del movimiento (D.16): test de contrato del parche de teclado de Leaflet y guardas de `map-guards.test.ts`.

@@ -448,19 +448,19 @@
   ],
   "narrative": {
     "northStar": "La Hoja del Mapa Topográfico",
-    "overview": "Cada búsqueda es una hoja del Mapa Topográfico Nacional del IGN (MTN25): un margen sobrio, una leyenda que filtra y los datos al milímetro. Buscahogar es una herramienta de servicio, no un escaparate. Habla con voz factual, sin lenguaje comercial: el precio va primero, la densidad es alta y los filtros se ven siempre. Las referencias de uso son las de Google Flights o Kayak, no las de un portal inmobiliario. El sistema se reconoce por lo que no lleva. Una vivienda es una fila fina separada por un filete, no una tarjeta con una foto grande como unidad de lectura. No hay marginalia cartográfica más allá de un marco y una trama: el marco del mapa y la trama de la ubicación aproximada. Todo lo demás es papel, tinta y un único azul.",
+    "overview": "Cada búsqueda es una hoja del Mapa Topográfico Nacional del IGN (MTN25): un margen sobrio, una leyenda que filtra y los datos al milímetro. Buscahogar es una herramienta de servicio, no un escaparate, y desde D.19 una herramienta con calidez: el mismo mundo, impreso en papel cálido y con una letra propia. Habla con voz factual, sin lenguaje comercial: el precio va primero, la densidad es alta y los filtros se ven siempre. Las referencias de uso son las de Google Flights o Kayak, no las de un portal inmobiliario. El sistema se reconoce por lo que no lleva. Una vivienda es una fila fina separada por un filete, no una tarjeta con una foto grande como unidad de lectura. No hay marginalia cartográfica más allá de un marco y una trama: el marco del mapa y la trama de la ubicación aproximada. Todo lo demás es papel, tinta y un único azul.",
     "keyCharacteristics": [
-      "Papel blanco o, en oscuro, una plancha casi negra; tinta casi negra y un único acento azul.",
+      "Papel cálido (crema, no blanco puro) o, en oscuro, una plancha de carbón cálido; tinta casi negra, un único acento interactivo azul y un verde de estado favorable.",
       "Estructura con filetes de 1px y superficies, no con sombras ni tarjetas.",
-      "Controles de alto fijo (40px como mínimo en todo lo que se pulsa) y radios casi rectos.",
+      "Controles de alto fijo (40px como mínimo en todo lo que se pulsa) y radios algo más amables (0,375 y 0,5rem).",
       "Una sola trama (siena) reservada a la ubicación aproximada.",
-      "Cifras tabulares donde se comparan precios, recuentos y fechas.",
+      "Una sola familia, Figtree autoalojada, con cifras tabulares donde se comparan precios, recuentos y fechas.",
       "Sin movimiento decorativo: solo la respuesta de pulsación y la bandeja de filtros."
     ],
     "rules": [
       {
         "name": "The One Blue Rule",
-        "body": "El azul de hidrografía es el único acento y señala lo que se puede pulsar o lo que se ha dibujado. Si algo no es interactivo ni es la zona del usuario, no es azul.",
+        "body": "El azul de hidrografía es el único acento interactivo y señala lo que se puede pulsar o lo que se ha dibujado. Si algo no es interactivo ni es la zona del usuario, no es azul. El verde de vegetación es un estado favorable no interactivo: va siempre con una señal de texto («Disponible», «Más económico») y nunca sobre un enlace ni un botón (enmienda de D.19, decisión 231).",
         "section": "colors"
       },
       {
@@ -505,7 +505,7 @@
       }
     ],
     "dos": [
-      "**Do** usar `primary` solo para lo interactivo y para la zona que el usuario ha dibujado.",
+      "**Do** usar `primary` solo para lo interactivo y para la zona que el usuario ha dibujado, y `vegetation` solo para un estado favorable que además se dice con texto.",
       "**Do** separar con filetes de 1px (`rule`) y rodear los controles con `rule-control`.",
       "**Do** mantener 40px de alto mínimo en todo lo que se pulsa, a todos los anchos (decisión 200), también en botones de icono y enlaces de ordenación.",
       "**Do** dar a cada control de solo icono un nombre accesible en texto oculto y una señal de estado que no sea el color.",
@@ -517,9 +517,10 @@
       "**Don't** usar una tarjeta con una foto grande como unidad de lectura de un resultado.",
       "**Don't** añadir marginalia cartográfica más allá del marco del mapa y la trama de la ubicación aproximada.",
       "**Don't** usar `hatch` (siena) como texto, fondo ni acento.",
+      "**Don't** pintar de verde un enlace, un botón ni «Último precio más bajo»; el verde no es interactivo.",
       "**Don't** proyectar sombra en reposo; las dos sombras son para lo que flota sobre el mapa o surge al enfocar.",
       "**Don't** añadir movimiento decorativo: solo la respuesta de pulsación (100 ms) y la bandeja de filtros bajo 64rem.",
-      "**Don't** cargar fuentes, iconos ni scripts de terceros, ni usar lados con un borde de color más grueso que el resto."
+      "**Don't** cargar fuentes, iconos ni scripts de terceros (Figtree se sirve desde el propio origen; las páginas independientes usan la pila del sistema), ni usar lados con un borde de color más grueso que el resto."
     ]
   }
 }
