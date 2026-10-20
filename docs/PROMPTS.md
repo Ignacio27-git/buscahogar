@@ -2169,4 +2169,6 @@ empieces el 3.3»
 
 **Observación.** Con `BENCH_DATABASE_URL` repuntada, `test:db` de ingestion pasa entero. Se borró la base vacía `buscahogar_test`. Al
 comprobar OPS-0 apareció que en `.env` faltan `OPERATION`, `DAILY_SEARCH_CAP` y `BLOCKING_*`, así que el worker de cobertura no arranca.
-Se documentó en el README y en el ROADMAP 3.2.
+Se documentó en el README y en el ROADMAP 3.2. El responsable las añadió después («ya hice el cambio en el env,
+continúa»): se validaron por presencia y formato sin imprimir valores, y `readEnv` del worker acepta la configuración. No se arrancó el bucle
+real, para no gastar cuota en refrescos o verificaciones.

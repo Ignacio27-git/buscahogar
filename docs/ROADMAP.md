@@ -2049,9 +2049,10 @@ parcial por CLI).
 - OPS-0 comprobado sin leer valores (solo presencia): en `.env` faltan `OPERATION`, `DAILY_SEARCH_CAP` y los tres
   `BLOCKING_*`. El worker de cobertura (`scripts/coverage-worker.ts`) se niega a arrancar sin ellos, así que **la
   cobertura bajo demanda no funciona hoy en desarrollo**: los `coverage_jobs` que registre la web no se procesan.
-  Pendiente del responsable (los agentes no pueden editar `.env`): añadirlas. `OPERATION=rent` para no rechazar
-  el cursor de alquiler de 18087 (D6); `BLOCKING_*` con los mismos umbrales del reprocesado (300, 2500000, 10) si
-  no hay otros calibrados.
+  Resuelto después por el responsable: `OPERATION=rent` (no rechaza el cursor de alquiler de 18087, D6),
+  `BLOCKING_*` iguales a los del reprocesado (300, 2500000, 10) y `DAILY_SEARCH_CAP` entero positivo.
+  `readEnv` del worker acepta la configuración. No se arrancó el bucle real, porque refresco y verificación
+  de presencia pueden gastar cuota.
 - Pendiente: `.env.example` sin actualizar (acceso denegado a los agentes); el README ya documenta las bases
   derivadas y las variables del worker.
 
