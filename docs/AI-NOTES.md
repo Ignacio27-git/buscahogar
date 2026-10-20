@@ -4144,7 +4144,8 @@ no debe reescribir en la instrucción una fórmula que ya fija el diseño; basta
 **Qué se generó mal:**
 
 1. La guarda de deriva de la población (PR1) comparaba con `rows.length * 0.9`, en coma flotante, justo en el umbral que decide si se aborta
-   la regeneración del catálogo. Se pasó a aritmética entera y se triangularon los casos 9/10 y 8/10.
+   la regeneración del catálogo. Se pasó a una división (`conPoblación / total < 0.9`), que redondea correctamente, y se triangularon los
+   casos 9/10 (pasa), 8/10 y 0/10 (abortan).
 2. El test S12.1 (PR2) usaba `requestedAt` fijo en 2026-01-01; con la retención, esa fecha dejaba la zona inactiva y la purgaba antes de
    comprobar lo que el test decía comprobar.
 3. Los tests de `apps/ingestion` corrieron contra un `dist` obsoleto de `@buscahogar/db`, anterior a los cambios del lote, y fallaron por el
