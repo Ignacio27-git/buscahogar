@@ -2172,3 +2172,18 @@ comprobar OPS-0 apareció que en `.env` faltan `OPERATION`, `DAILY_SEARCH_CAP` y
 Se documentó en el README y en el ROADMAP 3.2. El responsable las añadió después («ya hice el cambio en el env,
 continúa»): se validaron por presencia y formato sin imprimir valores, y `readEnv` del worker acepta la configuración. No se arrancó el bucle
 real, para no gastar cuota en refrescos o verificaciones.
+
+---
+
+### 2026-10-20 — Desbordamiento de parámetros al consolidar tras el barrido de Granada
+
+**Tipo de tarea:** corrección de un fallo
+**Forma de especificación:** instrucción directa, sin SDD, con TDD estricto (test que reproduce el 08P01 antes del arreglo)
+**Resultado:** utilizable con retoques — el test de atomicidad esperaba el nombre de la restricción en el mensaje y Drizzle lo envuelve en `cause`
+
+**Prompt:** el responsable eligió «Sí, ahora» a la pregunta de corregir el desbordamiento de la consolidación antes de cerrar el 3.2.
+
+**Observación.** El worker completó Granada (36 peticiones, 1 751 anuncios, zona cubierta) y cayó en `writeConsolidation`: un INSERT de
+~99 880 parámetros frente al tope de 65 535 del protocolo. Se corrigió con lotes dentro de la misma transacción (decisión 247), extendidos a
+`property_listings` y a los `inArray` del corpus completo en la hidratación. El reprocesado sobre la base de desarrollo queda para el
+responsable.

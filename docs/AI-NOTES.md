@@ -4085,3 +4085,25 @@ con `node --env-file` sin imprimir valores.
 **Observación:** un identificador con aspecto de código oficial hay que cotejarlo con el catálogo y con las fixtures antes de darlo por real, y
 un recuento de incidentes se cita con su fuente o no se cita. Lo mismo con la configuración: «el valor está en el `.env`» es una afirmación
 que se verifica, aunque el fichero no se pueda leer.
+
+---
+
+### 2026-10-20 — INSERT sin lotes en la consolidación (pasos 1.10 y 3.2)
+
+**Contexto:** el worker de cobertura cayó al consolidar tras barrer Granada (1 751 anuncios); arreglo de la decisión 247.
+
+**Categoría:** código que compilaba y pasaba los tests pero no hacía lo correcto a escala.
+
+**Qué se generó mal:**
+
+1. `writeConsolidation` (paso 1.10) insertaba toda la evidencia por pares en un único INSERT multi-fila, y `hydrateListingsForDedup` filtraba
+   el corpus completo con un único `inArray`. Ambos ligan un parámetro por columna o por id, sin cota. Los tests usaban pocos anuncios y
+   nunca se acercaron al tope de 65 535 del protocolo. El paso 2.5 añadió a esa misma función `refreshPropertyVisibility`, cuyo comentario ya
+   cita ese tope, pero nadie lo aplicó a las inserciones de al lado.
+2. En el arreglo, el test de atomicidad esperaba `toThrow(/dedup_pair_evidence_listing_order_check/)`. Drizzle envuelve el error de `pg` en
+   «Failed query: …» y la restricción viaja en `cause.constraint`; el test falló por la aserción, no por el código.
+
+**Cómo se detectó:** 1 con el primer barrido real completo (08P01, recuento desbordado a 34 344); 2 al ejecutar la suite en verde.
+
+**Observación:** toda escritura o filtro cuyo número de parámetros crece con el corpus necesita un lote explícito y un test por encima del
+tope, igual que la paginación de Idealista necesita un corte explícito.

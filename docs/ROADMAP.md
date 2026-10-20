@@ -2055,6 +2055,12 @@ parcial por CLI).
   de presencia pueden gastar cuota.
 - Pendiente: `.env.example` sin actualizar (acceso denegado a los agentes); el README ya documenta las bases
   derivadas y las variables del worker.
+- Fallo destapado al arrancar el worker: completó el barrido de Granada (36 peticiones, 1 751 anuncios, zona
+  `covered`) y cayó en el reprocesado. `writeConsolidation` insertaba toda la evidencia por pares en un único
+  INSERT (~99 880 parámetros, por encima del tope de 65 535 del protocolo: error 08P01). La transacción se
+  revirtió sin dejar nada a medias. Corregido en `936ad7b` (decisión 247): inserciones e `inArray` del corpus
+  por lotes de como mucho 30 000 parámetros, en la misma transacción. Tests nuevos con 12 720 pares y con
+  70 000 ids. Pendiente del responsable: relanzar el reprocesado sobre la base de desarrollo.
 
 **Riesgos abiertos.** El mapeo de `studio` en el normalizador de Idealista sigue sin existir (los estudios
 no entran en el corpus).
@@ -2165,3 +2171,4 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-20 | 3.2 | El texto del aviso difiere del diseño: añade el nexo causal y quita la repetición de «Los filtros aplicados» | Resultado de `impeccable clarify`; decisión 246. |
 | 2026-10-20 | 3.2 | `.env.example` no se actualizó; el nombre de las bases `_test` se documenta solo en el README | Ningún agente puede leer ni escribir ese fichero (permisos). Como no hay variable de test nueva, no hay nada que añadir salvo la nota sobre `BENCH_DATABASE_URL`, pendiente del responsable. |
 | 2026-10-20 | 3.2 | Los datos reales de Granada (alquiler) se cargaron en operativa, tras el commit 1, con un barrido de 2 peticiones y umbrales de reprocesado elegidos por el responsable | La base de desarrollo estaba vacía de anuncios; los umbrales `BLOCKING_*` solo viven en `.env`. Nuevo paso 3.3 para ampliar la cobertura real. |
+| 2026-10-20 | 3.2 | Tras el cierre se corrigió un fallo del reprocesado que solo aparece con volumen real (decisión 247) | El primer barrido completo del worker (1 751 anuncios) desbordó el tope de 65 535 parámetros de un INSERT. |

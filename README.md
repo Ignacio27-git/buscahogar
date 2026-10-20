@@ -38,8 +38,10 @@ pnpm dev
 Solo la base de datos se levanta con Docker. `web` e `ingestion` se ejecutan en local con
 `pnpm dev:web` y `pnpm dev:ingestion`.
 
-El worker de cobertura (`apps/ingestion/scripts/coverage-worker.ts`) no arranca si en el `.env` falta alguna
-de estas variables: `IDEALISTA_API_KEY`, `IDEALISTA_API_SECRET`, `DATABASE_URL`, `OPERATION` (`sale` o
+El worker de cobertura (`apps/ingestion/scripts/coverage-worker.ts`) no lo arranca `pnpm dev:ingestion`: se
+lanza aparte con `pnpm --filter @buscahogar/ingestion worker`, con los paquetes ya compilados. Al arrancar retoma
+cualquier `coverage_job` pendiente y gasta cuota real, con el límite de `DAILY_SEARCH_CAP` al día. No arranca si en
+el `.env` falta alguna de estas variables: `IDEALISTA_API_KEY`, `IDEALISTA_API_SECRET`, `DATABASE_URL`, `OPERATION` (`sale` o
 `rent`), `DAILY_SEARCH_CAP`, `BLOCKING_RADIUS_METERS`, `BLOCKING_PRICE_BAND_CENTS` y
 `BLOCKING_SURFACE_TOLERANCE_M2`. Sin worker, las zonas que se piden desde la web quedan en cola y nunca se
 cubren.

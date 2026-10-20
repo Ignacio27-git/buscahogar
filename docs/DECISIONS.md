@@ -6332,6 +6332,30 @@ al día: sería falso, el aviso de cobertura ya explica ahí por qué puede falt
 
 ---
 
+## 247 — Escrituras masivas por lotes bajo el tope de parámetros, dentro de la misma transacción
+
+**Estado:** aceptada (paso 3.2, seguimiento).
+
+**Decisión.** Ninguna sentencia del reproceso liga más parámetros que un presupuesto fijo de 30 000, por debajo del tope de 65 535 del
+protocolo de PostgreSQL (el recuento viaja como uint16). `chunkByBindParameters` (`packages/db/src/bind-parameters.ts`) parte filas o ids en
+lotes consecutivos, sin perder ni reordenar ninguno. En `writeConsolidation` la evidencia por par y `property_listings` se insertan por
+lotes cuyo coste por fila es el número total de columnas de la tabla (derivado del esquema con `getTableColumns`, como cota superior). Todos
+los lotes van en la misma transacción: la escritura sigue siendo todo o nada (D8 del paso 1.10). `hydrateListingsForDedup` y
+`fetchCurrentVersionInfo`, que filtran el corpus completo con `inArray` (un parámetro por id), consultan también por lotes.
+
+**Alternativas descartadas.** (1) No hacer nada y subir el límite: no se puede, es del protocolo, no del servidor. (2) `COPY`: Drizzle no lo
+expone, obliga a otro camino de escritura con serialización propia de `jsonb` y no aporta nada a este volumen. (3) Un único INSERT con
+`unnest` de arrays por columna (un parámetro por columna): evita el tope, pero sustituye el INSERT tipado de Drizzle por SQL a mano con
+conversiones explícitas de tipos para cada columna, y no sirve para `inArray`. Los lotes resuelven los tres casos con el mismo ayudante.
+
+**Motivo.** El worker de cobertura cayó al consolidar tras barrer Granada (1 751 anuncios): un INSERT de ~12 485 pares × 8 parámetros =
+99 880, que llegó al servidor como 34 344 (08P01). La transacción se revirtió sin dejar nada a medias, pero ningún reproceso podía terminar.
+
+**Consecuencias.** El margen absorbe columnas con `default` (no ligan parámetro) y cualquier parámetro fuera de las filas. Siguen sin lotes
+`fetchGroupMinPriceCents` (`inArray` por miembros de un grupo, acotado por el tamaño del grupo) y las inserciones de una sola fila.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
