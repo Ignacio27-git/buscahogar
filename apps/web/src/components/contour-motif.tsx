@@ -31,10 +31,13 @@ const CONTOUR_PATHS = [
 ] as const;
 
 const INDEX_CONTOUR = 2;
+const NARROW_INDEX_CONTOUR = 1;
 
 // Clase de cada anillo: el tercero es la curva índice y los dos exteriores se retiran en pantallas
-// estrechas (CSS), donde `slice` los dejaba como arcos sueltos.
+// estrechas (CSS), donde `slice` los dejaba como arcos sueltos. El segundo anillo es la curva gruesa
+// en esas pantallas (F3): sin los exteriores, el tercero queda como borde y sus extremos se apagan.
 function ringClass(index: number): string | undefined {
+  if (index === NARROW_INDEX_CONTOUR) return 'contour-motif__narrow-index';
   if (index === INDEX_CONTOUR) return 'contour-motif__index';
   return index > INDEX_CONTOUR ? 'contour-motif__outer' : undefined;
 }

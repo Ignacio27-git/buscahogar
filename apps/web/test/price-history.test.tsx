@@ -51,10 +51,11 @@ describe('PriceHistory', () => {
 
     // D.18 (decisión 222) y P3: cuatro SVG del mismo modelo (compacto, medio, ancho y completo); el CSS
     // enseña uno.
-    expect(html.match(/<svg[^>]*role="img"/g)).toHaveLength(4);
+    expect(html.match(/<svg[^>]*role="img"/g)).toHaveLength(5);
     expect(html.match(/<svg[^>]*price-chart__plot--compact[^>]*viewBox="0 0 288 160"/g)).toHaveLength(1);
     expect(html.match(/<svg[^>]*price-chart__plot--medium[^>]*viewBox="0 0 416 176"/g)).toHaveLength(1);
     expect(html.match(/<svg[^>]*price-chart__plot--wide[^>]*viewBox="0 0 544 192"/g)).toHaveLength(1);
+    expect(html.match(/<svg[^>]*price-chart__plot--large[^>]*viewBox="0 0 704 200"/g)).toHaveLength(1);
     expect(html.match(/<svg[^>]*price-chart__plot--full[^>]*viewBox="0 0 768 208"/g)).toHaveLength(1);
     expect(html).toContain(`aria-label="${chartAriaLabel(2)}"`);
     expect(html).toContain('price-chart__series--0');
@@ -157,7 +158,7 @@ describe('PriceHistory', () => {
     ]);
 
     // Solo la serie «b» tiene línea; se dibuja una vez en cada uno de los cuatro SVG (D.18, P3).
-    expect(html.match(/<path[^>]*class="price-chart__line/g)).toHaveLength(4);
+    expect(html.match(/<path[^>]*class="price-chart__line/g)).toHaveLength(5);
     expect(html).toContain('Idealista');
   });
 
@@ -180,7 +181,7 @@ describe('PriceHistory', () => {
     );
 
     const plots = [...html.matchAll(/<svg[^>]*role="img"[^>]*>([\s\S]*?)<\/svg>/g)].map((match) => match[1] ?? '');
-    expect(plots).toHaveLength(4);
+    expect(plots).toHaveLength(5);
     for (const plot of plots) {
       const styles = [...plot.matchAll(/price-chart__series price-chart__series--(\d)/g)].map((match) => match[1]);
       expect(styles).toEqual(['0', '0', '1', '2', '3']);

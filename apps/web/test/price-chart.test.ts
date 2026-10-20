@@ -166,7 +166,7 @@ describe('gridX2 — borde derecho de la rejilla', () => {
     expect(model.xLabels[1]?.x).toBe(model.gridX2 - 16);
   });
 
-  it.each(['compact', 'medium', 'wide', 'full'] as const)(
+  it.each(['compact', 'medium', 'wide', 'large', 'full'] as const)(
     'el diseño %s: los puntos extremos están a 16 de la rejilla y el rótulo final cabe en el lienzo',
     (layout) => {
       const model = buildPriceChart(
@@ -354,10 +354,13 @@ describe('buildPriceChart — diseños compacto y ancho (D.18)', () => {
     ]),
   ];
 
-  it('los diseños miden 288 × 160, 416 × 176, 544 × 192 y 768 × 208', () => {
+  // Segunda revisión (F4): el quinto diseño (704) existe para que, con la columna de 704px (viewport de
+  // 768), el texto se vea a 1:1 como a 320 y a 1280; con 544 se ampliaba a ~1,3×.
+  it('los diseños miden 288 × 160, 416 × 176, 544 × 192, 704 × 200 y 768 × 208', () => {
     expect(buildPriceChart(two, 'compact').viewBox).toBe('0 0 288 160');
     expect(buildPriceChart(two, 'medium').viewBox).toBe('0 0 416 176');
     expect(buildPriceChart(two, 'wide').viewBox).toBe('0 0 544 192');
+    expect(buildPriceChart(two, 'large').viewBox).toBe('0 0 704 200');
     expect(buildPriceChart(two, 'full').viewBox).toBe('0 0 768 208');
   });
 
@@ -383,7 +386,7 @@ describe('buildPriceChart — diseños compacto y ancho (D.18)', () => {
   // D.19 (decisión 230): Figtree es más ancha que la pila del sistema y «1.234.567 €» (12px, unos 66 de
   // ancho) se salía 2px por la izquierda del lienzo con el hueco de 8 (e2e `fixed-boxes.spec.ts`). El hueco
   // entre el rótulo de precio y el inicio de la rejilla pasa a 4: el rótulo termina en gridX1 - 4.
-  it.each(['compact', 'medium', 'wide', 'full'] as const)(
+  it.each(['compact', 'medium', 'wide', 'large', 'full'] as const)(
     'el rótulo de precio del diseño %s termina 4 antes de donde empieza la rejilla',
     (layout) => {
       const model = buildPriceChart(two, layout);

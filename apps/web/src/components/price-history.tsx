@@ -7,7 +7,7 @@
 // D.18 (decisión 222): el gráfico son varios SVG del servidor del mismo modelo. Cada uno se ve a 1:1 cuando
 // la columna mide lo mismo que él y el CSS enseña uno u otro con una consulta de contenedor
 // (`.price-chart`), sin JavaScript. El `display:none` de los ocultos los saca del árbol de accesibilidad.
-// Pulido tras la revisión (P3): son cuatro (288, 416, 544 y 768 de ancho) para que el gráfico llene la
+// Pulido tras la revisión (P3, F4): son cinco (288, 416, 544, 704 y 768 de ancho) para que el gráfico llene la
 // columna, y las series continuas se dibujan debajo de las discontinuas.
 import type { ReactElement } from 'react';
 
@@ -21,7 +21,7 @@ import { buildPriceChart, chartAriaLabel, inDrawOrder, labelSeries, markerPath }
 import type { ChartLayout, ChartSeriesInput, PriceChartModel } from '@/lib/price-chart';
 
 // Del más estrecho al más ancho: el CSS enseña el que cabe en la columna (consultas de contenedor).
-const CHART_LAYOUTS: readonly ChartLayout[] = ['compact', 'medium', 'wide', 'full'];
+const CHART_LAYOUTS: readonly ChartLayout[] = ['compact', 'medium', 'wide', 'large', 'full'];
 
 export interface PriceHistoryProps {
   readonly observations: readonly PropertyPriceObservation[];

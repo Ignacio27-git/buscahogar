@@ -412,8 +412,8 @@ describe('DESIGN.md: componentes de D.18 salen del código enviado', () => {
     expect(flat).toContain('Describe lo que buscas');
     expect(flat).toContain('Quitar los demás filtros');
     expect(flat).toContain('Quitar todos los filtros');
-    // P3 (pulido de D.21): el gráfico son cuatro SVG del mismo modelo.
-    expect(flat).toContain('cuatro SVG');
+    // P3 y F4 (pulido de D.21): el gráfico son cinco SVG del mismo modelo.
+    expect(flat).toContain('cinco SVG');
     expect(flat).not.toContain('dos SVG');
   });
 

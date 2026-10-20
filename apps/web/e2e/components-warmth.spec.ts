@@ -654,3 +654,55 @@ test.describe('D.21 pulido: formulario de revisión, chips y cobertura sin resul
     expect(Math.abs(tops.map - tops.list)).toBeLessThanOrEqual(1);
   });
 });
+
+// D.21, segunda revisión visual (F1-F4).
+test.describe('D.21 segunda revisión: separación, pares, rótulos del gráfico y motivo', () => {
+  test('F1 con 0 resultados la última fila de chips no toca el estado vacío (separación ≥ 16 px)', async ({ page }) => {
+    await openRoute(page, route('home-filtered'));
+    const gap = await page.evaluate(() => {
+      const chips = [...document.querySelectorAll('.applied-filters__chip')].map((chip) => chip.getBoundingClientRect().bottom);
+      const empty = document.querySelector('.empty-results')?.getBoundingClientRect().top ?? -1;
+      return empty - Math.max(...chips);
+    });
+    expect(gap).toBeGreaterThanOrEqual(16);
+  });
+
+  test('F2 los tres pares del formulario de revisión comparten las posiciones de sus columnas', async ({ page }) => {
+    await openRoute(page, route('nl-query'));
+    const pairs = await page.locator('.criteria-range').evaluateAll((ranges) =>
+      ranges.map((range) =>
+        [...range.querySelectorAll('input')].map((input) => {
+          const box = input.getBoundingClientRect();
+          return [Math.round(box.x), Math.round(box.x + box.width)];
+        })
+      )
+    );
+    expect(pairs).toHaveLength(3);
+    expect(pairs[1]).toEqual(pairs[0]);
+    expect(pairs[2]).toEqual(pairs[0]);
+  });
+
+  test('F4 el texto del gráfico se ve a 1:1 (12 px ± 1) en este ancho', async ({ page }) => {
+    await openRoute(page, route('detail-history'));
+    const rendered = await page.locator('.price-chart').evaluate((figure) => {
+      const plot = [...figure.querySelectorAll<SVGSVGElement>('.price-chart__plot')].find(
+        (candidate) => getComputedStyle(candidate).display !== 'none'
+      );
+      const label = plot?.querySelector('text.price-chart__label');
+      if (plot === undefined || label === null || label === undefined) return null;
+      const viewBoxWidth = plot.viewBox.baseVal.width;
+      return parseFloat(getComputedStyle(label).fontSize) * (plot.getBoundingClientRect().width / viewBoxWidth);
+    });
+    expect(rendered).not.toBeNull();
+    expect(Math.abs((rendered ?? 0) - 12)).toBeLessThanOrEqual(1);
+  });
+
+  test('F3 bajo 400 px la curva gruesa es el segundo anillo; desde 400 px, el tercero', async ({ page }) => {
+    await openRoute(page, route('home'));
+    const widths = await page
+      .locator('.contour-motif path')
+      .evaluateAll((paths) => paths.map((path) => parseFloat(getComputedStyle(path).strokeWidth)));
+    const narrow = (page.viewportSize()?.width ?? 0) < 400;
+    expect(widths).toEqual(narrow ? [1, 2, 1, 1, 1] : [1, 1, 2, 1, 1]);
+  });
+});

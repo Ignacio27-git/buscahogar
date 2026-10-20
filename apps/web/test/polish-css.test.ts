@@ -77,6 +77,20 @@ describe('P1 — motivo de curvas de nivel en pantallas estrechas', () => {
     expect(outer.get('display')).toBe('none');
   });
 
+  // Segunda revisión (F3): sin los anillos exteriores el tercero (curva gruesa) queda como borde y sus
+  // extremos se apagan casi del todo; bajo 25rem la curva gruesa es el segundo anillo y el tercero, fino.
+  it('bajo 25rem la curva gruesa pasa al segundo anillo y la índice se afina', () => {
+    expect(within('@media (width < 25rem)', '.contour-motif .contour-motif__narrow-index').get('stroke-width')).toBe('2');
+    expect(within('@media (width < 25rem)', '.contour-motif .contour-motif__index').get('stroke-width')).toBe('1');
+  });
+
+  it('desde 25rem el segundo anillo no es grueso: su regla solo existe bajo ese ancho', () => {
+    const unconditional = rulesFor('.contour-motif .contour-motif__narrow-index').filter(
+      (rule) => !rule.ancestors.some((ancestor) => ancestor.startsWith('@media'))
+    );
+    expect(unconditional).toEqual([]);
+  });
+
   it('desde 25rem los anillos exteriores se ven: la regla que los oculta solo existe bajo ese ancho', () => {
     const unconditional = rulesFor('.contour-motif .contour-motif__outer').filter(
       (rule) => !rule.ancestors.some((ancestor) => ancestor.startsWith('@media'))
@@ -107,7 +121,7 @@ describe('P2 — etiqueta de estado de la cobertura', () => {
 
 // P3 — el gráfico llena la columna: varios diseños, uno visible por ancho de contenedor.
 describe('P3 — el gráfico del histórico llena la columna', () => {
-  const LAYOUT_CLASSES = ['compact', 'medium', 'wide', 'full'] as const;
+  const LAYOUT_CLASSES = ['compact', 'medium', 'wide', 'large', 'full'] as const;
   const REM = 16;
 
   /** Diseño visible con un contenedor de `width` px: la regla base y luego cada consulta que ya se cumple. */
@@ -145,7 +159,9 @@ describe('P3 — el gráfico del histórico llena la columna', () => {
     [416, 'medium'],
     [543, 'medium'],
     [544, 'wide'],
-    [767, 'wide'],
+    [703, 'wide'],
+    [704, 'large'],
+    [767, 'large'],
     [768, 'full'],
   ] as const)('con un contenedor de %ipx se ve solo el diseño %s', (width, layout) => {
     expect(visibleAt(width)).toEqual([layout]);
@@ -258,6 +274,14 @@ describe('P8 — avisos dentro de la rejilla de resultados', () => {
     expect(rulesFor('.search-header:has(> .coverage-panel, > .coverage-notice) + .search-results')).toEqual([]);
   });
 
+  // Segunda revisión (F1): sin «Ver mapa» (0 resultados) la última fila de chips tocaba el panel vacío.
+  // Sin aviso de cobertura delante, el estado vacío lleva su propia separación de 1rem.
+  it('sin aviso de cobertura el estado vacío se separa 1rem de los chips; con aviso no se duplica', () => {
+    const selector =
+      '.search-results:not(:has(> .search-results__notices > :is(.coverage-panel, .coverage-notice))) > .search-results__list > .empty-results';
+    expect(base(selector).get('margin-block-start')).toBe('1rem');
+  });
+
   it('el estado vacío usa la misma superficie elevada que el aviso de cobertura (sin fondo propio)', () => {
     const backgrounds = rulesFor('.empty-results').flatMap((rule) => {
       const value = rule.declarations.get('background-color');
@@ -287,6 +311,10 @@ describe('P4 — rejilla de los campos de la revisión de ?q=', () => {
     const legend = base('.criteria-range > legend');
     expect(legend.get('grid-column')).toBe('1 / -1');
     expect(legend.get('margin-block-end')).toBe('0.375rem');
+  });
+
+  it('los tres pares comparten el mismo hueco de 0,5rem (F2: el par de habitaciones usaba 0,75rem)', () => {
+    expect(base('.criteria-range').get('gap')).toBe('0.5rem');
   });
 
   it('los campos de una fila se alinean por abajo: una etiqueta que envuelve no desplaza el campo vecino', () => {

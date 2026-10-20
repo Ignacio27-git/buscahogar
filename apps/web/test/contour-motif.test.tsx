@@ -127,7 +127,10 @@ describe('ContourMotif (S1.1)', () => {
     expect(paths[2]).toContain('class="contour-motif__index"');
     paths.forEach((attributes, index) => {
       // P1: los dos anillos exteriores llevan una clase para poder retirarlos en pantallas estrechas.
-      if (index < 2) expect(attributes).not.toContain('class=');
+      // Segunda revisión (F3): el segundo anillo lleva otra, para ser la curva gruesa cuando el tercero
+      // queda como borde (bajo 25rem).
+      if (index === 0) expect(attributes).not.toContain('class=');
+      if (index === 1) expect(attributes).toContain('class="contour-motif__narrow-index"');
       if (index > 2) expect(attributes).toContain('class="contour-motif__outer"');
       expect(attributes).toMatch(/^d="M[\d.]+ [\d.]+(C[-\d. ]+)+Z"/);
     });

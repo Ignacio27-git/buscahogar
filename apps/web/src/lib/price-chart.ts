@@ -18,9 +18,10 @@ export interface ChartSeriesInput {
 // columna mide lo mismo que él, para que el texto no se encoja: `compact` (288 × 160, columna a 320 px)
 // y `wide` (544 × 192 = 34rem). Pulido tras la revisión (P3): a esos dos se suman `medium` (416 × 176 =
 // 26rem) y `full` (768 × 208 = 48rem, la columna entera de la ficha), porque con solo dos el gráfico se
-// quedaba en ~70 % de la columna. El CSS enseña uno u otro con una consulta de contenedor y lo estira
+// quedaba en ~70 % de la columna. En la segunda revisión se añadió `large` (704 × 200 = 44rem, la columna
+// con un viewport de 768) para que el texto se vea a 1:1 también ahí. El CSS enseña uno u otro con una consulta de contenedor y lo estira
 // al 100 % (entre dos diseños el texto crece como mucho ~1,4×, nunca se encoge); todos salen del servidor.
-export type ChartLayout = 'compact' | 'medium' | 'wide' | 'full';
+export type ChartLayout = 'compact' | 'medium' | 'wide' | 'large' | 'full';
 
 export interface PriceChartModel {
   readonly viewBox: string;
@@ -50,6 +51,7 @@ const LAYOUTS = {
   compact: { width: 288, height: 160 },
   medium: { width: 416, height: 176 },
   wide: { width: 544, height: 192 },
+  large: { width: 704, height: 200 },
   full: { width: 768, height: 208 },
 } as const satisfies Record<ChartLayout, { readonly width: number; readonly height: number }>;
 

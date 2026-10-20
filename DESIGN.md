@@ -445,7 +445,8 @@ con el tercero como curva maestra (trazo de 2), en un SVG propio incrustado en l
 centrada en la cima, de modo que ningún anillo queda cortado en plano por el borde del SVG, y los bordes visibles se
 desvanecen con una máscara de alfa en línea (sin color y sin recurso servido). Tras la revisión de las capturas el
 desvanecido es radial (una elipse inscrita en la caja, no un degradado horizontal) y, bajo 400px, se retiran los dos
-anillos exteriores: recortados por los lados quedaban como arcos sueltos. Va junto al título de resultados y solo ahí: ni en la portada con consulta en
+anillos exteriores (recortados por los lados quedaban como arcos sueltos) y la curva gruesa pasa al segundo anillo, porque el
+tercero quedaba como borde y sus extremos se apagaban. Va junto al título de resultados y solo ahí: ni en la portada con consulta en
 lenguaje natural, ni en la ficha, ni en los 404. Es un trazo fino que no reserva espacio (posición absoluta, sin eventos de
 puntero), pinta por debajo del título y no cambia ni el alto de la cabecera ni el orden del DOM. El trazo es `rule-control` al
 35% de opacidad en claro y `rule` entero en oscuro, para que los dos temas pesen parecido (contraste de línea de 1,49:1 y
@@ -510,8 +511,8 @@ El marco del mapa es un filete de `rule-control`, sin sombra. Las etiquetas de p
 
 ### Gráfico de precios
 
-La ficha dibuja el historial con cuatro SVG del mismo modelo (288 × 160, 416 × 176, 544 × 192 y 768 × 208),
-cada uno a escala 1:1 cuando la columna mide 18rem, 26rem, 34rem o 48rem; entre dos anchos el elegido se estira
+La ficha dibuja el historial con cinco SVG del mismo modelo (288 × 160, 416 × 176, 544 × 192, 704 × 200 y 768 × 208),
+cada uno a escala 1:1 cuando la columna mide 18rem, 26rem, 34rem, 44rem o 48rem; entre dos anchos el elegido se estira
 al 100 % de la columna (el texto de 12px crece como mucho ~1,4×, nunca se encoge), así que el gráfico llena la
 columna. Solo uno está en el árbol de accesibilidad; la tabla del historial sigue junto al gráfico, con columnas
 de ancho fijo para que no cambien de sitio entre fichas. El eje de precio lleva máximo, mínimo y una marca
