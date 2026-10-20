@@ -356,3 +356,151 @@ describe('job-selection — prioridad por días con señal (decisión 251, R13)'
     expect(first).toMatchObject({ jobId: busySale, operation: 'sale' });
   });
 });
+
+// ROADMAP 3.3 (decisión 253; D11, R16; S16.1-S16.3) — promoción de los jobs parciales del presweep. Un job con
+// `presweep_requested_at` es trabajo del carril batch: el worker lo IGNORA salvo que su zona tenga al menos un día
+// con señal de demanda en la misma ventana de 30 días UTC que la prioridad (`day > hoy - 30`); entonces se
+// selecciona en el carril a demanda (puede gastar la reserva) y compite por días con señal como cualquier job a demanda.
+describe('job-selection — promoción de jobs parciales del presweep (decisión 253, R16)', () => {
+  let db: Database;
+  let pool: Pool;
+
+  beforeAll(() => {
+    ({ db, pool } = connectTestDb());
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  beforeEach(async () => {
+    await truncateAll(pool);
+  });
+
+  async function seedSignals(zoneId: string, agesInDays: readonly number[]): Promise<void> {
+    await pool.query(
+      "insert into zone_query_signals (zone_id, day) select $1, (now() at time zone 'utc')::date - age from unnest($2::int[]) as age",
+      [zoneId, [...agesInDays]]
+    );
+  }
+
+  async function presweepJob(
+    zoneId: string,
+    sourceId: string,
+    extra: { readonly status?: 'pending' | 'failed' | 'done'; readonly requestedAt?: string; readonly marked?: boolean; readonly operation?: 'sale' | 'rent' } = {}
+  ): Promise<string> {
+    const [row] = await db
+      .insert(coverageJobs)
+      .values({
+        zoneId,
+        sourceId,
+        operation: extra.operation ?? 'sale',
+        status: extra.status ?? 'pending',
+        cursor: 'opaque-cursor',
+        requestedAt: new Date(extra.requestedAt ?? '2026-03-01T00:00:00Z'),
+        ...(extra.marked === false ? {} : { presweepRequestedAt: new Date('2026-10-01T00:00:00Z') }),
+      })
+      .returning({ id: coverageJobs.id });
+    if (!row) throw new Error('fixture no insertado');
+    return row.id;
+  }
+
+  it('S16.1: un job parcial de presweep con 1 día con señal en 30 días se selecciona como a demanda', async () => {
+    const { zoneId } = await insertLocationWithZone(db, { ineCode: '12001' });
+    const sourceId = await insertSource(db);
+    const id = await presweepJob(zoneId, sourceId);
+    await seedSignals(zoneId, [3]);
+
+    const job = await selectNextClaimableJob(db, 3);
+
+    expect(job).toEqual({ jobId: id, zoneId, sourceId, operation: 'sale', lane: 'on-demand' });
+  });
+
+  it('S16.2: un job parcial de presweep con señales SOLO antiguas (fuera de la ventana) permanece en el carril batch: el worker no lo selecciona', async () => {
+    const { zoneId } = await insertLocationWithZone(db, { ineCode: '12011' });
+    const sourceId = await insertSource(db);
+    await presweepJob(zoneId, sourceId);
+    await seedSignals(zoneId, [30, 31, 90]);
+
+    expect(await selectNextClaimableJob(db, 3)).toBeNull();
+  });
+
+  it('un job de presweep sin ninguna señal no se selecciona y NO oculta a un job a demanda normal', async () => {
+    const { zoneId: presweepZone } = await insertLocationWithZone(db, { ineCode: '12021' });
+    const { zoneId: demandZone } = await insertLocationWithZone(db, { ineCode: '12022' });
+    const sourceId = await insertSource(db);
+    await presweepJob(presweepZone, sourceId, { requestedAt: '2026-01-01T00:00:00Z' });
+    const [demand] = await db
+      .insert(coverageJobs)
+      .values({ zoneId: demandZone, sourceId, operation: 'rent', status: 'pending', requestedAt: new Date('2026-06-01T00:00:00Z') })
+      .returning({ id: coverageJobs.id });
+
+    const job = await selectNextClaimableJob(db, 3);
+
+    expect(job?.jobId).toBe(demand?.id);
+  });
+
+  it('la ventana es la de la prioridad: el día hoy-29 promueve y el día hoy-30 no', async () => {
+    const { zoneId: inside } = await insertLocationWithZone(db, { ineCode: '12031' });
+    const { zoneId: outside } = await insertLocationWithZone(db, { ineCode: '12032' });
+    const sourceId = await insertSource(db);
+    await presweepJob(inside, sourceId);
+    await presweepJob(outside, sourceId, { operation: 'rent' });
+    await seedSignals(inside, [29]);
+    await seedSignals(outside, [30]);
+
+    const job = await selectNextClaimableJob(db, 3);
+
+    expect(job).toMatchObject({ zoneId: inside, lane: 'on-demand' });
+    // Ocupado el primero, el segundo (señal en hoy-30) sigue sin ser candidato.
+    await db.update(coverageJobs).set({ status: 'running' }).where(eq(coverageJobs.zoneId, inside));
+    expect(await selectNextClaimableJob(db, 3)).toBeNull();
+  });
+
+  it('S16.3: un job completado (done) no se promueve aunque conserve una marca de presweep y su zona tenga señales', async () => {
+    const { zoneId } = await insertLocationWithZone(db, { ineCode: '12041' });
+    const sourceId = await insertSource(db);
+    await presweepJob(zoneId, sourceId, { status: 'done' });
+    await seedSignals(zoneId, [0, 1, 2]);
+
+    expect(await selectNextClaimableJob(db, 3)).toBeNull();
+  });
+
+  it('un job promovido compite por días con señal con los jobs a demanda normales (gana el de más días)', async () => {
+    const { zoneId: promoted } = await insertLocationWithZone(db, { ineCode: '12051' });
+    const { zoneId: plain } = await insertLocationWithZone(db, { ineCode: '12052' });
+    const sourceId = await insertSource(db);
+    const promotedId = await presweepJob(promoted, sourceId, { requestedAt: '2026-06-01T00:00:00Z' });
+    await db.insert(coverageJobs).values({
+      zoneId: plain,
+      sourceId,
+      operation: 'rent',
+      status: 'pending',
+      requestedAt: new Date('2026-01-01T00:00:00Z'),
+    });
+    await seedSignals(promoted, [0, 1, 2]);
+    await seedSignals(plain, [0]);
+
+    expect((await selectNextClaimableJob(db, 3))?.jobId).toBe(promotedId);
+  });
+
+  it('un job de presweep fallido con reintentos restantes también se promueve; sin reintentos no', async () => {
+    const { zoneId } = await insertLocationWithZone(db, { ineCode: '12061' });
+    const sourceId = await insertSource(db);
+    const id = await presweepJob(zoneId, sourceId, { status: 'failed' });
+    await seedSignals(zoneId, [1]);
+
+    expect((await selectNextClaimableJob(db, 3))?.jobId).toBe(id);
+
+    await db.update(coverageJobs).set({ attempts: 3 }).where(eq(coverageJobs.id, id));
+    expect(await selectNextClaimableJob(db, 3)).toBeNull();
+  });
+
+  it('un job a demanda sin marca de presweep NO necesita señales para seleccionarse (el comportamiento previo no cambia)', async () => {
+    const { zoneId } = await insertLocationWithZone(db, { ineCode: '12071' });
+    const sourceId = await insertSource(db);
+    const id = await presweepJob(zoneId, sourceId, { marked: false });
+
+    expect((await selectNextClaimableJob(db, 3))?.jobId).toBe(id);
+  });
+});

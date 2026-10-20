@@ -121,8 +121,7 @@ con `operation` en `sale`/`rent`, y los dos índices únicos (el total y el parc
 `pending`/`running`) la incluyen: un par sale+rent pendiente de la misma zona convive. Una
 (zona, operación) está cubierta si y solo si su job tiene `last_completed_at`, que fija
 `finishJob(completed)` y ningún refresco ni fallo limpia. `zones.state` queda como agregado y no decide.
-`presweep_requested_at` (sin uso hasta la prebúsqueda del paso 3.3) marca el trabajo parcial de un
-barrido por lotes.
+`presweep_requested_at` marca el trabajo parcial del presweep (decisión 253).
 
 **Un único worker (decisión 252).** El worker de `apps/ingestion` sirve venta y alquiler: la
 operación de cada barrido es la de su job (`PollJob.operation`), con ella se construye el área y se
@@ -156,6 +155,22 @@ reglas puras de techo viven en `packages/core/src/quota/monthly-allowance.ts`. E
 (`apps/ingestion`): ni `web_readonly` ni `web_coverage` tienen ningún privilegio sobre la tabla (REVOKE explícito
 en la migración 0019 y en `bootstrap-roles-grants.sql`, después de los `GRANT`/privilegios por defecto), así que
 `apps/web` no gana ningún `GRANT`.
+
+**Presweep de las ciudades más pobladas (decisión 253).** `apps/ingestion/scripts/presweep-top-cities.ts` barre las
+N ciudades con más población conocida (`locations.population`, decisión 249), venta y alquiler de cada una, contra el
+carril batch del registro mensual. Flujo: preflight de solo lectura (cuota utilizable y techo del batch, antes de pedir
+ningún token) → candidatos (`selectPresweepCandidates`, `packages/db`) → plan puro (`planPresweep`, `packages/core`) →
+por unidad, concesión `min(tope por barrido, tope de la ejecución restante, margen mensual del batch)`, reserva batch,
+barrido con tope duro igual a lo concedido, cursor persistido y reconciliación con el gasto real. `--top`,
+`--max-requests` y `--max-requests-per-sweep` son obligatorios y sin valor por defecto; la cuota sale solo del
+registro. Cada unidad acaba con un motivo (`unit-exhausted`, `per-sweep-cap`, `run-cap`, `monthly-batch-ceiling`,
+`upstream-signal`) y una unidad completada no se vuelve a barrer. El presweep nunca se ejecuta en el servidor web ni
+durante una búsqueda.
+
+**Promoción de trabajo parcial (decisión 253).** El reclamo batch del presweep marca el job (`presweep_requested_at`). El
+worker lo ignora salvo que la zona tenga al menos un día con señal de demanda en los últimos 30 días UTC (la ventana de la
+prioridad); entonces lo trata como trabajo a demanda (puede gastar la reserva) y su reclamo limpia la marca. La señal la
+escribe `apps/web` al buscar en la zona.
 
 ## Atribución de datos geográficos
 

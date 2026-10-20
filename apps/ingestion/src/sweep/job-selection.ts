@@ -14,7 +14,7 @@
 import { PRIORITY_SIGNAL_WINDOW_DAYS } from '@buscahogar/core';
 import { coverageJobs } from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
-import { and, asc, desc, eq, isNotNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 
 import type { JobOperation } from './store.js';
 
@@ -77,9 +77,15 @@ export async function selectNextClaimableJob(db: Database, maxAttempts: number):
     })
     .from(coverageJobs)
     .where(
-      or(
-        eq(coverageJobs.status, 'pending'),
-        and(eq(coverageJobs.status, 'failed'), lt(coverageJobs.attempts, maxAttempts))
+      and(
+        or(
+          eq(coverageJobs.status, 'pending'),
+          and(eq(coverageJobs.status, 'failed'), lt(coverageJobs.attempts, maxAttempts))
+        ),
+        // ROADMAP 3.3 (decisión 253, D11, R16): un job parcial del presweep (`presweep_requested_at` no nulo) es
+        // trabajo del carril batch; el worker solo lo retoma si su zona tiene demanda reciente (>= 1 día con señal en
+        // la ventana de 30 días de la prioridad). Entonces compite como a demanda y su reclamo limpia la marca.
+        or(isNull(coverageJobs.presweepRequestedAt), sql`${signalDays} >= 1`)
       )
     )
     .orderBy(

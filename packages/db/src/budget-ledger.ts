@@ -10,7 +10,7 @@
 // ninguna rama en la que un fallo de lectura/escritura del ledger permita
 // una petición. El llamador (Unit C, `coverage-worker.ts`) es quien decide
 // saltar el tick ante ese rechazo; este módulo nunca lo convierte en éxito.
-import type { QuotaLane } from '@buscahogar/core';
+import type { MonthlyLedgerState, QuotaLane } from '@buscahogar/core';
 import { and, eq, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { Database } from './db.js';
@@ -368,6 +368,22 @@ export async function reconcileRequestBudget(
       );
     }
   });
+}
+
+// ROADMAP 3.3 (decisión 253; D13) — lectura SIN EFECTOS del registro mensual para el preflight del
+// presweep: cifras del mes en curso o, si aún no existe su fila, las que heredaría (total y reserva de la
+// fila anterior más reciente, gasto 0), exactamente la regla de `reserveRequestBudget` pero sin insertar
+// nada. `null` = ninguna fila en el mes ni en los anteriores: no hay cuota utilizable.
+export async function readMonthlyLedgerState(db: Database, sourceId: string): Promise<MonthlyLedgerState | null> {
+  const { rows } = await db.execute<{ total_cap: number; reserve: number; search_requests: number }>(sql`
+    select total_cap, reserve, case when month = ${CURRENT_MONTH_SQL} then search_requests else 0 end as search_requests
+    from monthly_request_budget
+    where source_id = ${sourceId} and month <= ${CURRENT_MONTH_SQL}
+    order by month desc
+    limit 1
+  `);
+  const [row] = rows;
+  return row ? { totalCap: row.total_cap, reserve: row.reserve, searchRequests: row.search_requests } : null;
 }
 
 export interface MonthlyQuotaSetting {

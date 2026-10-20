@@ -6605,6 +6605,62 @@ comparten `DAILY_SEARCH_CAP` y el carril de refresco. `countZonesOpenedToday` y 
 
 ---
 
+## 253 — Presweep de las ciudades más pobladas: topes obligatorios sin valor por defecto, cuota solo del registro y promoción por demanda
+
+**Estado:** aceptada (paso 3.3, PR4b).
+
+**Decisión.** `presweep-top-cities` (`apps/ingestion/scripts/presweep-top-cities.ts`, script `pnpm --filter @buscahogar/ingestion presweep`)
+barre las N ciudades con más población conocida, venta y alquiler de cada una, contra el **carril batch** del registro mensual (decisión 248).
+
+- **Contrato de argumentos (Zod, sin valores por defecto).** `--top`, `--max-requests` (tope de peticiones de toda la ejecución) y
+  `--max-requests-per-sweep` (tope de cada barrido) son obligatorios, enteros positivos (sin signo, sin ceros a la izquierda, sin notación
+  científica, como máximo el límite de `integer`). `--dry-run` es opcional. Cualquier flag desconocido se rechaza, en particular `--total` y
+  `--reserve`: **el total y la reserva mensuales no son flags de este comando; salen únicamente del registro** (`set-monthly-quota`). Un
+  argumento inválido o ausente sale con código 2 **antes** de abrir la base de datos: cero token, cero peticiones, cero escrituras.
+- **Preflight de solo lectura, antes de cualquier token** (`readMonthlyLedgerState`): sin fila del mes ni heredable → motivo `monthly-missing`,
+  salida 1; techo del batch (`total − reserva − gastado`, mínimo 0) en 0 → motivo `monthly-batch-ceiling`, salida 0. En ambos casos, cero
+  gasto y ningún job tocado. Con `--dry-run` se hace el mismo preflight y se imprime el plan sin reservar ni barrer nada (y sin exigir las
+  credenciales de Idealista).
+- **Planificador puro** (`packages/core/src/presweep/plan.ts`): población DESC y, en empate, código INE ASC; población desconocida (`NULL`)
+  nunca se selecciona; el corte `--top` cuenta **ciudades** (una ciudad ya cubierta ocupa su plaza y no se sustituye por la siguiente);
+  por ciudad, venta y luego alquiler; las unidades completadas (`last_completed_at`) o en curso (`running`) se omiten y se informan; las
+  parciales se reanudan por su cursor persistido. La consulta (`selectPresweepCandidates`) exige población, centroide y radio.
+- **Concesión por barrido** (`packages/core/src/presweep/allowance.ts`): `min(tope por barrido, tope de la ejecución restante, margen mensual del
+  batch)`. Se reserva exactamente esa cifra y el **tope duro del barrido es lo concedido** (`maxSearchRequestsPerSweep` del conector), así que
+  ningún bucle de paginación puede pedir más de lo reservado. Motivos de parada de una unidad: `unit-exhausted`, `per-sweep-cap`, `run-cap`,
+  `monthly-batch-ceiling`, `upstream-signal`; si coinciden varios términos manda el más global (techo mensual > tope de la ejecución > tope por
+  barrido). El techo mensual, el tope de la ejecución y la señal de la fuente detienen toda la ejecución; el tope por barrido y la unidad
+  agotada pasan a la siguiente. Una concesión menor que la pedida (otro proceso gastó margen entre la lectura y la reserva) se informa como
+  `monthly-batch-ceiling`. Un reclamo que falla (job ya en curso o cursor no reanudable) devuelve toda la reserva y se informa como omitida.
+- **El gasto real manda:** la reconciliación devuelve al mes de la reserva lo concedido y no gastado. Un token por barrido.
+- **Marca de presweep y promoción por demanda (PD11, R16).** El reclamo del carril batch del presweep fija `coverage_jobs.presweep_requested_at`
+  (`claimJob(..., { presweep: 'mark' })`); el ciclo completado la limpia. El worker **ignora** los jobs con esa marca salvo que su zona tenga al
+  menos un día con señal de demanda en la misma ventana de 30 días UTC de la prioridad (`day > hoy − 30`); entonces el job se selecciona en el
+  carril a demanda —puede gastar la reserva, siempre acotado por el cupo diario y el total mensual (R14)— y compite por días con señal como
+  cualquier job a demanda. El reclamo del worker limpia la marca (`{ presweep: 'clear' }`), así que desde ese momento es trabajo a demanda. El
+  barrido manual (`sweep-zone`) no toca la marca.
+- **Informe:** una línea por unidad (ciudad, operación, peticiones, motivo) y un resumen de la ejecución con su motivo (`plan-complete`,
+  `run-cap`, `monthly-batch-ceiling`, `upstream-signal`, `monthly-missing`, `dry-run`). Salida 0 en los topes (son el diseño), 1 si no hay cuota
+  o la fuente señala un error (cursor persistido), 2 si el uso o el entorno son inválidos.
+- Cualquier fallo del barrido (transporte, envelope, cursor) se trata como `upstream-signal` y **detiene** la ejecución: con cuota mensual de
+  pago es preferible parar y que el responsable mire el error a seguir gastando contra una fuente que está fallando.
+- Sin variables de entorno nuevas (el presweep usa `DATABASE_URL`, `IDEALISTA_API_KEY` e `IDEALISTA_API_SECRET`, ya existentes). Sin `GRANT`
+  nuevo ni migración nueva.
+
+**Alternativas descartadas.** (1) Valores por defecto de los topes: en un sistema con cuota mensual limitada y de pago sería gasto contra un
+techo que nadie decidió (decisión 066). (2) Pasar el total y la reserva como flags del presweep: dos fuentes de verdad para la cuota; el
+worker y el barrido manual no las verían. (3) Que el worker procese siempre el trabajo parcial del presweep: gastaría la reserva sin ninguna
+demanda detrás. (4) Que el worker nunca lo toque: el trabajo parcial de una ciudad en la que ya hay usuarios buscando quedaría esperando a la
+siguiente ejecución manual. (5) Limitar el top-N a «las N primeras pendientes»: `--top 100` dejaría de significar «las 100 mayores» según se
+vayan cubriendo.
+
+**Consecuencias.** La primera ejecución real gasta cuota de Idealista: la lanza el propietario con topes explícitos (paso manual, no una
+tarea). Un job parcial de presweep cuya zona no recibe nunca demanda permanece pendiente hasta que se relance el presweep. Sin migración
+propia: la columna `presweep_requested_at` llegó con la 0018 (decisión 250). Reversión: no hay SQL (solo código); para olvidar la marca
+`UPDATE coverage_jobs SET presweep_requested_at = NULL`.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

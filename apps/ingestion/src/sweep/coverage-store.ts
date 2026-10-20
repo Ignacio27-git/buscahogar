@@ -19,7 +19,7 @@ import type { Database } from '@buscahogar/db';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { decodeJobCursor, encodeJobCursor } from './job-cursor.js';
-import type { ClaimedJob, JobOperation, JobOutcome } from './store.js';
+import type { ClaimedJob, ClaimOptions, JobOperation, JobOutcome } from './store.js';
 
 export class JobAlreadyClaimedError extends Error {
   readonly zoneId: string;
@@ -43,7 +43,13 @@ export class JobAlreadyClaimedError extends Error {
 const RECLAIMABLE_STATUSES = ['pending', 'done', 'failed'] as const;
 
 export interface CoverageStore {
-  claimJob(zoneId: string, sourceId: string, operation: JobOperation, fingerprint: string): Promise<ClaimedJob>;
+  claimJob(
+    zoneId: string,
+    sourceId: string,
+    operation: JobOperation,
+    fingerprint: string,
+    options?: ClaimOptions
+  ): Promise<ClaimedJob>;
   finishJob(jobId: string, outcome: JobOutcome): Promise<void>;
 }
 
@@ -54,7 +60,8 @@ export function createCoverageStore(db: Database): CoverageStore {
     zoneId: string,
     sourceId: string,
     operation: JobOperation,
-    fingerprint: string
+    fingerprint: string,
+    options?: ClaimOptions
   ): Promise<ClaimedJob> {
     const [existing] = await db
       .select({ id: coverageJobs.id, status: coverageJobs.status, cursor: coverageJobs.cursor })
@@ -74,6 +81,11 @@ export function createCoverageStore(db: Database): CoverageStore {
     // (`last_seen_at >= cycle_started_at`) compara dos marcas del mismo reloj.
     const claimedAt = new Date();
 
+    // ROADMAP 3.3 (decisión 253, D11): el carril batch del presweep MARCA el job (trabajo parcial que el
+    // worker solo retoma si hay demanda); el worker lo LIMPIA al promoverlo. Sin opción, la marca no cambia.
+    const presweepMark =
+      options?.presweep === 'mark' ? claimedAt : options?.presweep === 'clear' ? null : undefined;
+
     if (!existing) {
       // Ninguna fila previa: crearla YA reclamada evita la ventana entre
       // "crear" y "reclamar" que un INSERT + UPDATE separados dejarían
@@ -88,6 +100,7 @@ export function createCoverageStore(db: Database): CoverageStore {
           attempts: 1,
           startedAt: claimedAt,
           cycleStartedAt: claimedAt,
+          ...(presweepMark !== undefined ? { presweepRequestedAt: presweepMark } : {}),
         })
         .returning({ id: coverageJobs.id, cursor: coverageJobs.cursor });
       if (!inserted) {
@@ -112,6 +125,7 @@ export function createCoverageStore(db: Database): CoverageStore {
           // reintento con cursor) conserva el inicio del primer tick. En un
           // SET de UPDATE la columna `cursor` es el valor PREVIO.
           cycleStartedAt: sql`case when ${coverageJobs.cursor} is null then ${claimedAt.toISOString()}::timestamptz else ${coverageJobs.cycleStartedAt} end`,
+          ...(presweepMark !== undefined ? { presweepRequestedAt: presweepMark } : {}),
         })
         .where(and(eq(coverageJobs.id, existing.id), inArray(coverageJobs.status, RECLAIMABLE_STATUSES)))
         .returning({ id: coverageJobs.id, cursor: coverageJobs.cursor });

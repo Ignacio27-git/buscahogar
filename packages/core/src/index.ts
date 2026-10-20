@@ -245,6 +245,23 @@ export type { PartitionedPresence, PresenceCandidate } from './retention/presenc
 // Cuota mensual de peticiones (ROADMAP 3.3, decisión 248): techo por carril. Puro.
 export { laneCeiling, laneRemaining, monthlyGrant } from './quota/monthly-allowance.js';
 export type { MonthlyLedgerState, QuotaLane } from './quota/monthly-allowance.js';
+// Presweep de las ciudades más pobladas (ROADMAP 3.3, decisión 253): planificador y concesión por barrido. Puro.
+export { planPresweep } from './presweep/plan.js';
+export type {
+  PresweepCityCandidate,
+  PresweepPlan,
+  PresweepSkippedUnit,
+  PresweepUnit,
+  PresweepUnitState,
+} from './presweep/plan.js';
+export { stopsRun, sweepAllowance, unitStopReason } from './presweep/allowance.js';
+export type {
+  AllowanceBinding,
+  SweepAllowance,
+  SweepAllowanceInput,
+  SweepRunOutcome,
+  SweepStopReason,
+} from './presweep/allowance.js';
 // Histórico de precios de la ficha (D.10, decisión 178): derivación pura.
 export { derivePriceHistory, priceChangePercentTenths } from './price-history/derive-price-history.js';
 export type {

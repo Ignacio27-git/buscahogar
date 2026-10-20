@@ -28,6 +28,7 @@ export * from './detail.js';
 export * from './locations-query.js';
 export * from './time.js';
 export * from './budget-ledger.js';
+export * from './presweep.js';
 export * from './client-quota.js';
 export * from './query-signals.js';
 export * from './zone-lifecycle.js';

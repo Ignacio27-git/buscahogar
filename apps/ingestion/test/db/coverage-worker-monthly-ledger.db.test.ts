@@ -52,6 +52,25 @@ function createExhaustingSearchPort(): IdealistaSearchPort & { readonly calls: n
   };
 }
 
+// `totalPages` enorme: solo el tope duro del barrido (maxSearchRequestsPerSweep) puede detener el bucle.
+function createNeverExhaustingSearchPort(): IdealistaSearchPort & { readonly calls: number } {
+  const state = { calls: 0 };
+  return {
+    get calls(): number {
+      return state.calls;
+    },
+    search(): Promise<TransportOutcome> {
+      state.calls += 1;
+      return Promise.resolve({
+        kind: 'ok',
+        status: 200,
+        headers: {},
+        body: { elementList: [fakeElement(state.calls)], totalPages: 999, actualPage: state.calls, itemsPerPage: 1, total: 999 },
+      });
+    },
+  };
+}
+
 function createFakeTokenPort(): IdealistaTokenPort {
   return {
     acquire(): Promise<TransportOutcome> {
@@ -269,5 +288,74 @@ describe('puertos reales del worker — registro mensual por carril (decisión 2
     expect(searchPort.calls).toBe(0);
     expect(await counters()).toMatchObject({ search_requests: 0, on_demand_requests: 0, token_requests: 0 });
     expect(await dailySpent()).toBe(0);
+  });
+  // ROADMAP 3.3 (decisión 253; D11, R16; S16.1, S16.2) — promoción de jobs parciales del presweep.
+  describe('jobs parciales del presweep (D11)', () => {
+    async function seedPresweepJob(sourceId: string): Promise<{ readonly zoneId: string }> {
+      const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
+      await db.insert(coverageJobs).values({
+        zoneId,
+        sourceId,
+        operation: 'sale',
+        status: 'pending',
+        presweepRequestedAt: new Date('2026-10-01T00:00:00Z'),
+      });
+      return { zoneId };
+    }
+
+    async function seedSignal(zoneId: string, ageInDays: number): Promise<void> {
+      await pool.query("insert into zone_query_signals (zone_id, day) values ($1, (now() at time zone 'utc')::date - $2::int)", [
+        zoneId,
+        ageInDays,
+      ]);
+    }
+
+    it('S16.1: con 1 día con señal el worker lo barre en el carril a demanda, GASTA LA RESERVA (fondo del batch agotado) y su reclamo limpia presweep_requested_at', async () => {
+      const sourceId = await insertSource(db);
+      await seedMonthlyQuota(db, sourceId, { totalCap: 100, reserve: 30, batch: 70 });
+      const { zoneId } = await seedPresweepJob(sourceId);
+      await seedSignal(zoneId, 2);
+      const searchPort = createNeverExhaustingSearchPort();
+
+      await runCoverageWorker(buildPorts(sourceId, searchPort), options());
+
+      // Tope duro del barrido = 10; sigue pendiente (reanudable) y ya no es trabajo del presweep.
+      expect(searchPort.calls).toBe(10);
+      const [job] = await db.select().from(coverageJobs).where(eq(coverageJobs.zoneId, zoneId));
+      expect(job?.status).toBe('pending');
+      expect(job?.cursor).not.toBeNull();
+      expect(job?.presweepRequestedAt).toBeNull();
+      expect(await counters()).toMatchObject({ search_requests: 80, on_demand_requests: 10, batch_requests: 70 });
+    });
+
+    it('S16.2: con señales solo antiguas el worker NO lo toca: cero peticiones, la marca y el ledger intactos', async () => {
+      const sourceId = await insertSource(db);
+      await seedMonthlyQuota(db, sourceId, { totalCap: 100, reserve: 30 });
+      const { zoneId } = await seedPresweepJob(sourceId);
+      await seedSignal(zoneId, 30);
+      const searchPort = createNeverExhaustingSearchPort();
+
+      await runCoverageWorker(buildPorts(sourceId, searchPort), options());
+
+      expect(searchPort.calls).toBe(0);
+      const [job] = await db.select().from(coverageJobs).where(eq(coverageJobs.zoneId, zoneId));
+      expect(job?.status).toBe('pending');
+      expect(job?.attempts).toBe(0);
+      expect(job?.presweepRequestedAt).toBeInstanceOf(Date);
+      expect(await counters()).toMatchObject({ search_requests: 0 });
+    });
+
+    it('un job a demanda normal no cambia: el reclamo del worker no inventa ni limpia nada (marca NULL antes y después)', async () => {
+      const sourceId = await insertSource(db);
+      await seedMonthlyQuota(db, sourceId, { totalCap: 100, reserve: 30 });
+      const { zoneId } = await seedPendingJob(sourceId, 'on-demand');
+      const searchPort = createExhaustingSearchPort();
+
+      await runCoverageWorker(buildPorts(sourceId, searchPort), options());
+
+      const [job] = await db.select().from(coverageJobs).where(eq(coverageJobs.zoneId, zoneId));
+      expect(job?.status).toBe('done');
+      expect(job?.presweepRequestedAt).toBeNull();
+    });
   });
 });

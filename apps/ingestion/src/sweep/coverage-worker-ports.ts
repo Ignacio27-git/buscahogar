@@ -294,7 +294,10 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
     },
 
     async claimAndSweep(job: PollJob, area: AreaQuery, fingerprint: string): Promise<SweepTickResult> {
-      const claimed = await store.claimJob(job.zoneId, job.sourceId, job.operation, fingerprint);
+      // ROADMAP 3.3 (decisión 253, D11): el worker solo recibe jobs a demanda, de refresco o PARCIALES DEL PRESWEEP
+      // PROMOVIDOS (zona con demanda reciente, `selectNextClaimableJob`). Reclamar uno promovido lo saca del carril
+      // batch: se limpia `presweep_requested_at`. En cualquier otro job la marca ya es NULL (no-op).
+      const claimed = await store.claimJob(job.zoneId, job.sourceId, job.operation, fingerprint, { presweep: 'clear' });
 
       const source = createIdealistaSource({
         searchPort: deps.searchPort,

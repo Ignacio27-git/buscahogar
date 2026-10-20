@@ -26,6 +26,20 @@ describe('barril público de @buscahogar/core', () => {
     expect(barrel.monthlyGrant('batch', 10, { totalCap: 100, reserve: 30, searchRequests: 67 })).toBe(3);
   });
 
+  it('ROADMAP 3.3: expone el planificador del presweep y la concesión por barrido', () => {
+    const plan = barrel.planPresweep(
+      [{ id: '18087', population: 230000, units: { sale: 'pending', rent: 'completed' } }],
+      1
+    );
+    expect(plan.units).toEqual([{ cityId: '18087', operation: 'sale' }]);
+    expect(barrel.sweepAllowance({ perSweepCap: 5, runRemaining: 9, monthlyBatchRemaining: 3 })).toEqual({
+      allowance: 3,
+      binding: 'monthly-batch-ceiling',
+    });
+    expect(barrel.unitStopReason('run-cap', 'budget-exhausted')).toBe('run-cap');
+    expect(barrel.stopsRun('per-sweep-cap')).toBe(false);
+  });
+
   it('ROADMAP 1.11: expone searchQuerySchema, utilizable como validador Zod', () => {
     expect(barrel.searchQuerySchema).toBeDefined();
     const result = barrel.searchQuerySchema.safeParse({ operation: 'sale' });

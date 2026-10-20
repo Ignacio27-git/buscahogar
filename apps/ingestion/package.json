@@ -23,6 +23,7 @@
     "compare-strategies": "node --import tsx scripts/compare-dedup-strategies.ts",
     "reprocess": "node --env-file=../../.env --import tsx scripts/reprocess-dedup.ts",
     "worker": "node --env-file=../../.env --import tsx scripts/coverage-worker.ts",
+    "presweep": "node --env-file=../../.env --import tsx scripts/presweep-top-cities.ts",
     "set-monthly-quota": "node --env-file=../../.env --import tsx scripts/set-monthly-quota.ts",
     "backfill-thumbnails": "node --env-file=../../.env --import tsx scripts/backfill-thumbnails.ts",
     "gen-corpus": "node --env-file=../../.env --import tsx scripts/generate-search-corpus.ts",

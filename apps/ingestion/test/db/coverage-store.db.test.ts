@@ -371,6 +371,59 @@ describe('coverage-store — COVERAGE-1..6, D6, D7', () => {
       await store.finishJob(resumed.id, { kind: 'completed' });
       expect((await jobOf(zoneId, sourceId, 'sale'))?.presweepRequestedAt).toBeNull();
     });
+
+    // ROADMAP 3.3 (decisión 253; D11): el reclamo del carril batch del presweep MARCA el job; el reclamo
+    // del worker de un job promovido lo LIMPIA; cualquier otro reclamo (barrido manual) no lo toca.
+    describe('presweep_requested_at en el reclamo (D11, decisión 253)', () => {
+      it('un reclamo con presweep "mark" sobre un job nuevo lo crea ya marcado', async () => {
+        const { zoneId, sourceId } = await seedZoneAndSource();
+        const store = createCoverageStore(db);
+
+        await store.claimJob(zoneId, sourceId, 'sale', FINGERPRINT, { presweep: 'mark' });
+
+        expect((await jobOf(zoneId, sourceId, 'sale'))?.presweepRequestedAt).toBeInstanceOf(Date);
+      });
+
+      it('un reclamo con presweep "mark" sobre un job existente pendiente lo marca y conserva su cursor', async () => {
+        const { zoneId, sourceId } = await seedZoneAndSource();
+        const store = createCoverageStore(db);
+        const first = await store.claimJob(zoneId, sourceId, 'sale', FINGERPRINT);
+        await store.finishJob(first.id, { kind: 'budget-exhausted', resumeCursor: 'homes:4' });
+        expect((await jobOf(zoneId, sourceId, 'sale'))?.presweepRequestedAt).toBeNull();
+
+        const resumed = await store.claimJob(zoneId, sourceId, 'sale', FINGERPRINT, { presweep: 'mark' });
+
+        expect(resumed.cursor).toBe('homes:4');
+        expect((await jobOf(zoneId, sourceId, 'sale'))?.presweepRequestedAt).toBeInstanceOf(Date);
+      });
+
+      it('un reclamo con presweep "clear" limpia la marca (promoción al carril a demanda)', async () => {
+        const { zoneId, sourceId } = await seedZoneAndSource();
+        const store = createCoverageStore(db);
+        const first = await store.claimJob(zoneId, sourceId, 'sale', FINGERPRINT, { presweep: 'mark' });
+        await store.finishJob(first.id, { kind: 'budget-exhausted', resumeCursor: 'homes:4' });
+        expect((await jobOf(zoneId, sourceId, 'sale'))?.presweepRequestedAt).toBeInstanceOf(Date);
+
+        await store.claimJob(zoneId, sourceId, 'sale', FINGERPRINT, { presweep: 'clear' });
+
+        expect((await jobOf(zoneId, sourceId, 'sale'))?.presweepRequestedAt).toBeNull();
+      });
+
+      it('un reclamo sin opción (barrido manual) conserva la marca existente y no marca un job sin ella', async () => {
+        const { zoneId, sourceId } = await seedZoneAndSource();
+        const store = createCoverageStore(db);
+        const marked = await store.claimJob(zoneId, sourceId, 'sale', FINGERPRINT, { presweep: 'mark' });
+        await store.finishJob(marked.id, { kind: 'budget-exhausted', resumeCursor: 'homes:2' });
+        const before = (await jobOf(zoneId, sourceId, 'sale'))?.presweepRequestedAt;
+        expect(before).toBeInstanceOf(Date);
+
+        await store.claimJob(zoneId, sourceId, 'sale', FINGERPRINT);
+        expect((await jobOf(zoneId, sourceId, 'sale'))?.presweepRequestedAt?.getTime()).toBe(before?.getTime());
+
+        await store.claimJob(zoneId, sourceId, 'rent', FINGERPRINT);
+        expect((await jobOf(zoneId, sourceId, 'rent'))?.presweepRequestedAt).toBeNull();
+      });
+    });
   });
 
   it('una inserción duplicada de coverage_jobs pendiente para la misma zona+fuente es rechazada por el índice único de la BD', async () => {
