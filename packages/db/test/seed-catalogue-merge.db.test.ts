@@ -4,7 +4,7 @@
 // habría probado a favor de la regresión que CR-15 identificó: aquí Granada
 // conserva su cita hand-cited Y gana el centroide importado, nunca uno solo
 // de los dos.
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 
@@ -84,5 +84,49 @@ describeWithDb('seedReferenceData(mergeCatalogues(...)) — Granada conserva su 
 
     const sourceRows = await db.select().from(sources).where(eq(sources.key, 'idealista'));
     expect(sourceRows).toHaveLength(1);
+  });
+
+  // ROADMAP 3.3 (decisión 249, migración 0017) — `locations.population`.
+  it('3.3: la migración 0017 añade locations.population como integer NULLABLE', async () => {
+    const result = await pool.query<{ data_type: string; is_nullable: string }>(
+      `SELECT data_type, is_nullable FROM information_schema.columns
+       WHERE table_name = 'locations' AND column_name = 'population'`
+    );
+
+    expect(result.rows).toEqual([{ data_type: 'integer', is_nullable: 'YES' }]);
+  });
+
+  it('3.3: re-sembrar con población rellena las filas YA existentes sin cambiar sus ids ni sus zonas', async () => {
+    await seedReferenceData(db, [IMPORTED_GRANADA]); // estado previo a la migración: sin población
+    const [before] = await db.select().from(locations).where(eq(locations.ineCode, '18087'));
+    expect(before?.population).toBeNull();
+    const zonesBefore = await db.select().from(zones).where(eq(zones.locationId, before?.id ?? ''));
+
+    await seedReferenceData(db, [{ ...IMPORTED_GRANADA, population: 232462 }]);
+
+    const [after] = await db.select().from(locations).where(eq(locations.ineCode, '18087'));
+    expect(after?.id).toBe(before?.id);
+    expect(after?.population).toBe(232462);
+    const zonesAfter = await db.select().from(zones).where(eq(zones.locationId, after?.id ?? ''));
+    expect(zonesAfter.map((zone) => zone.id)).toEqual(zonesBefore.map((zone) => zone.id));
+    const total = await db.select({ n: sql<number>`count(*)::int` }).from(locations);
+    expect(total[0]?.n).toBe(1);
+  });
+
+  it('3.3: un municipio sin población en el catálogo queda NULL (desconocida), nunca 0', async () => {
+    await seedReferenceData(db, [IMPORTED_GRANADA, { ...IMPORTED_GRANADA, ineCode: '18088', municipality: 'Otro' }]);
+
+    const rows = await db.select().from(locations);
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.population === null)).toBe(true);
+  });
+
+  it('3.3: re-sembrar con un catálogo SIN población no borra la población ya guardada', async () => {
+    await seedReferenceData(db, [{ ...IMPORTED_GRANADA, population: 232462 }]);
+
+    await seedReferenceData(db, [IMPORTED_GRANADA]);
+
+    const [granada] = await db.select().from(locations).where(eq(locations.ineCode, '18087'));
+    expect(granada?.population).toBe(232462);
   });
 });

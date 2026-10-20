@@ -16,6 +16,9 @@
 //   - centroide/radio se RELLENAN desde el importado SOLO si el hand-cited
 //     no trae ya uno propio — nunca se sobrescribe un valor hand-cited
 //     existente;
+//   - la población (3.3, decisión 249) solo la trae el importado: se RELLENA
+//     si el hand-cited no tiene una propia; si ninguno la trae queda sin
+//     clave (desconocida), nunca 0;
 //   - la fuente fusionada nombra AMBAS procedencias, para que la fusión
 //     misma quede auditable.
 import type { MunicipalitySeed } from './seed-data.js';
@@ -33,8 +36,11 @@ export function mergeCatalogues(
     }
     importedByIneCode.delete(entry.ineCode);
 
+    const population = entry.population ?? match.population;
+
     return {
       ...entry,
+      ...(population === undefined ? {} : { population }),
       centroid: entry.centroid ?? match.centroid,
       sweepRadiusM: entry.sweepRadiusM ?? match.sweepRadiusM,
       source: `${entry.source} + ${match.source}`,

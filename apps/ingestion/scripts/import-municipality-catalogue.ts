@@ -46,6 +46,7 @@ import { buildImportReport } from '../src/catalogue/import-report.js';
 import { joinCatalogue } from '../src/catalogue/join.js';
 import { NGMEP_FIELD_MAP, parseNgmepCsv } from '../src/catalogue/ngmep-parse.js';
 import type { NgmepFieldMap } from '../src/catalogue/ngmep-parse.js';
+import { assertPopulationCoverage } from '../src/catalogue/population-guard.js';
 import { buildProvenanceHeader } from '../src/catalogue/provenance.js';
 import type { ProvenanceHeader } from '../src/catalogue/provenance.js';
 import { PROVINCIAS_FIELD_MAP, parseProvinciasCsv } from '../src/catalogue/provincias-parse.js';
@@ -74,6 +75,7 @@ interface ResolvedMunicipality {
   readonly provinceCode: string;
   readonly autonomousCommunity: string;
   readonly searchName: string;
+  readonly population: number | null;
   readonly centroid: { readonly latitude: number; readonly longitude: number } | null;
   readonly sweepRadiusM: number | null;
 }
@@ -96,6 +98,9 @@ export function importMunicipalityCatalogue(options: ImportMunicipalityCatalogue
     options.provinciasFieldMap ?? PROVINCIAS_FIELD_MAP
   );
 
+  // ROADMAP 3.3 (decisión 249): guarda de deriva ANTES de cualquier escritura.
+  assertPopulationCoverage(municipioRows);
+
   const joined = joinCatalogue(municipioRows, provinciaRows);
 
   let sanityGateDrops = 0;
@@ -108,6 +113,7 @@ export function importMunicipalityCatalogue(options: ImportMunicipalityCatalogue
       provinceCode: candidate.provinceCode,
       autonomousCommunity: candidate.autonomousCommunity,
       searchName: candidate.searchName,
+      population: candidate.population,
     };
 
     const provinceBounds = options.provinceBounds?.[candidate.provinceCode] ?? null;
@@ -184,6 +190,8 @@ function renderMunicipalityLiteral(row: ResolvedMunicipality): string {
       ? 'undefined'
       : `{ latitude: ${String(row.centroid.latitude)}, longitude: ${String(row.centroid.longitude)} }`;
   const sweepRadiusLiteral = row.sweepRadiusM === null ? 'undefined' : String(row.sweepRadiusM);
+  // La población desconocida se omite (campo opcional): nunca se emite 0.
+  const populationLine = row.population === null ? '' : `    population: ${String(row.population)},\n`;
 
   return (
     `  {\n` +
@@ -193,6 +201,7 @@ function renderMunicipalityLiteral(row: ResolvedMunicipality): string {
     `    provinceCode: ${JSON.stringify(row.provinceCode)},\n` +
     `    autonomousCommunity: ${JSON.stringify(row.autonomousCommunity)},\n` +
     `    searchName: ${JSON.stringify(row.searchName)},\n` +
+    populationLine +
     `    centroid: ${centroidLiteral},\n` +
     `    sweepRadiusM: ${sweepRadiusLiteral},\n` +
     `    source: ${JSON.stringify(`NGMEP/INE, tier=tier-1, importado ${new Date().toISOString().slice(0, 10)}`)},\n` +

@@ -6356,6 +6356,34 @@ conversiones explícitas de tipos para cada columna, y no sirve para `inArray`. 
 
 ---
 
+## 249 — Población municipal en el catálogo: columna nulable, parseo estricto y guarda de deriva
+
+**Estado:** aceptada (paso 3.3, PR1).
+
+**Decisión.** `locations` gana `population integer` **nulable** (migración 0017, solo `ADD COLUMN`). NULL significa «desconocida», nunca 0. El
+valor sale de `POBLACION_MUNI` del NGMEP: solo una celda que cumple `/^[1-9]\d*$/` y es ≤ 2^31−1 (el tope de `integer`) es un dato; vacía,
+solo espacios, `0`, decimales, signo, separador de miles o texto es NULL y el parseo continúa. Solo hay dos fallos ruidosos: la cabecera sin
+`POBLACION_MUNI` (`MissingNgmepColumnError`, el camino existente) y la guarda de deriva del importador (`assertPopulationCoverage`): si menos
+del 90 % de las filas trae población, aborta **antes** de escribir el catálogo generado. El seed pasa de `ON CONFLICT DO NOTHING` a
+`DO UPDATE SET population = coalesce(excluded.population, locations.population)` sobre `ine_code`: las filas anteriores a la migración
+ganan su población en el re-seed conservando `id` (de él cuelgan zonas y jobs), y un catálogo sin población nunca borra una ya guardada.
+`mergeCatalogues` rellena la población desde el importado si la entrada hand-cited no la trae, y no inventa la clave si ninguna la tiene.
+
+**Alternativas descartadas.** (1) Fallar ante cualquier celda inválida: una celda dudosa tumbaría las 8 132 filas por un dato que solo ordena
+el top-N. (2) Guardar 0 como «sin dato»: un 0 es indistinguible de una población real y alteraría el orden DESC en silencio. (3) `DO UPDATE`
+de todas las columnas: sobrescribiría centroides y radios que el responsable haya corregido a mano. (4) Una tabla aparte de poblaciones: un
+join más sin ganancia, la población es un atributo del municipio.
+
+**Motivo.** La prebúsqueda de las ciudades más pobladas (paso 3.3) necesita ordenar municipios por población; el dato ya viaja en el fichero
+que importamos pero se descartaba.
+
+**Consecuencias.** El umbral del 90 % es una hipótesis: con el fichero real de marzo de 2026 el 100 % de las filas (8 132) trae población
+válida, así que hay margen; hay que reconfirmarlo si el IGN cambia el formato. El catálogo generado se vuelve a emitir (la fecha de
+«importado» de cada fila pasa a la del día de la regeneración). **SQL inverso (manual, las migraciones son solo hacia delante):**
+`ALTER TABLE locations DROP COLUMN population;`
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

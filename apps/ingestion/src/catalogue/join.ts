@@ -35,6 +35,8 @@ export interface JoinedMunicipality {
   readonly searchName: string;
   readonly centroidCandidate: Coordinates;
   readonly superficieHectares: number;
+  // Población municipal (3.3); `null` = desconocida.
+  readonly population: number | null;
   // Para la puerta de cordura (sanity.ts): COD_PROV tal como lo declara la
   // propia fila frente al prefijo de 2 dígitos del código ya derivado.
   readonly declaredProvinceCode: string;
@@ -91,6 +93,7 @@ export function joinCatalogue(
       searchName: normalizeSearchName(row.name),
       centroidCandidate: { latitude: row.latitude, longitude: row.longitude },
       superficieHectares: row.superficieHectares,
+      population: row.population,
       declaredProvinceCode: row.provinceCode,
       expectedProvinceCode: ineCode.slice(0, 2),
     };

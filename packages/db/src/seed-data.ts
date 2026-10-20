@@ -28,6 +28,9 @@ export interface MunicipalitySeed {
   readonly centroid?: { readonly latitude: number; readonly longitude: number };
   readonly sweepRadiusM?: number;
   readonly searchName: string;
+  // ROADMAP 3.3 (decisión 249): población municipal del NGMEP. Ausente =
+  // desconocida (NULL en base de datos), nunca 0.
+  readonly population?: number;
   // Cita de dónde sale el código INE — la evidencia de que no se ha
   // fabricado, no un campo decorativo.
   readonly source: string;

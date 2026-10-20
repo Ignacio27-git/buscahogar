@@ -22,6 +22,7 @@ function municipio(overrides: Partial<NgmepRow> = {}): NgmepRow {
     entityCode: '18087000000',
     name: 'Granada',
     provinceCode: '18',
+    population: 232462,
     superficieHectares: 8806.81,
     latitude: 37.17428891,
     longitude: -3.598691013,
@@ -55,6 +56,12 @@ describe('joinCatalogue (adaptación real) — deriva el código de municipio y 
     expect(result[0]?.centroidCandidate).toEqual({ latitude: 37.17428891, longitude: -3.598691013 });
     expect(result[0]?.superficieHectares).toBeCloseTo(8806.81, 2);
     expect(result[0]?.searchName).toBe('granada');
+  });
+
+  it('3.3: arrastra la población del NgmepRow, y conserva null (desconocida) sin convertirla en 0', () => {
+    const result = joinCatalogue([municipio(), municipio({ entityCode: '18088000000', population: null })], [provincia()]);
+
+    expect(result.map((row) => row.population)).toEqual([232462, null]);
   });
 
   it('expone declaredProvinceCode (COD_PROV de la fila) y expectedProvinceCode (prefijo del código derivado) para la puerta de cordura', () => {
