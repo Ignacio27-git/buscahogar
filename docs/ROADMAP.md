@@ -2033,18 +2033,27 @@ Paso no previsto en la hoja de ruta, nacido de un fallo reportado por el respons
 ubicación 18009; con guarda de `listings`/`properties` vacías), `pnpm db:migrate` y `pnpm db:seed` (8132
 ubicaciones; 18087 presente, 18009 ausente). Barrido `--zone 18087 --operation rent --max-requests 2`:
 2 peticiones, 100 anuncios creados, `resumeCursor homes:3`, aviso «studio» sin mapeo. Reprocesado con los
-umbrales de la suite (`--radius 300 --price-band 2500000 --surface-tolerance 10`, elegidos por el responsable
-porque `BLOCKING_*` solo vive en `.env`): 39 pares candidatos (2 aceptados, 5 indecisos, 32 rechazados), 98
+umbrales de la suite (`--radius 300 --price-band 2500000 --surface-tolerance 10`, elegidos por el responsable;
+`BLOCKING_*` no existe en `.env`, ver abajo): 39 pares candidatos (2 aceptados, 5 indecisos, 32 rechazados), 98
 viviendas, 2 grupos multi-miembro; 100 filas de `property_listings`, todas con desglose. Granada, alquiler:
 98 visibles, 83 pisos, 3 pisos ≤600 €, 51 con ≥3 habitaciones, **0 con ambos**: los filtros exactos del
 responsable son legítimamente vacíos (el más barato cuesta 450 €). La zona 18087 sigue `uncovered` (barrido
 parcial por CLI).
 
-**Pendiente del responsable (los agentes no pueden tocar `.env`).**
+**Seguimiento (2026-10-20, tras el cierre).**
 
-- `BENCH_DATABASE_URL` del `.env` apunta a `buscahogar_bench`, pero la suite espera la base vacía
-  `buscahogar_test_bench` (existe): `test:db` falla en `search-bench` hasta que se repunte.
-- OPS-0 (que el worker use `OPERATION=rent`) no se pudo comprobar: no hay acceso a `.env`.
+- Resuelto: el responsable repuntó `BENCH_DATABASE_URL` a `buscahogar_test_bench`; `test:db` de `apps/ingestion`
+  pasa entero (11 ficheros, 108 tests).
+- Resuelto: se borró la base antigua `buscahogar_test` (17 tablas, 0 filas, sin conexiones), sin uso desde la
+  decisión 245.
+- OPS-0 comprobado sin leer valores (solo presencia): en `.env` faltan `OPERATION`, `DAILY_SEARCH_CAP` y los tres
+  `BLOCKING_*`. El worker de cobertura (`scripts/coverage-worker.ts`) se niega a arrancar sin ellos, así que **la
+  cobertura bajo demanda no funciona hoy en desarrollo**: los `coverage_jobs` que registre la web no se procesan.
+  Pendiente del responsable (los agentes no pueden editar `.env`): añadirlas. `OPERATION=rent` para no rechazar
+  el cursor de alquiler de 18087 (D6); `BLOCKING_*` con los mismos umbrales del reprocesado (300, 2500000, 10) si
+  no hay otros calibrados.
+- Pendiente: `.env.example` sin actualizar (acceso denegado a los agentes); el README ya documenta las bases
+  derivadas y las variables del worker.
 
 **Riesgos abiertos.** El mapeo de `studio` en el normalizador de Idealista sigue sin existir (los estudios
 no entran en el corpus).

@@ -2155,3 +2155,18 @@ del responsable pedía averiguar por qué y arreglarlo.
 `apps/web/test/db/coverage-registration.test.ts` porque las suites habían vaciado la base de desarrollo (decisión 046). Se cerró la causa
 (decisión 245), se añadió el aviso de zona cubierta (decisión 246) y se recargaron datos reales de Granada. Los filtros exactos del
 responsable siguen vacíos con datos reales (0 pisos ≤600 € con ≥3 habitaciones). Detalle en `docs/ROADMAP.md`, paso 3.2.
+
+---
+
+### 2026-10-20 — Seguimiento de los pendientes de 3.2
+
+**Tipo de tarea:** operativa y documentación
+**Forma de especificación:** instrucción directa, sin SDD
+**Resultado:** utilizable sin cambios para lo que estaba al alcance de los agentes; `.env` y `.env.example` siguen fuera de su alcance
+
+**Prompt:** «ya hice el cambio en el env, los demás cambios que haga falta hacer hazlos tú y continúa si no hay ningún problema, pero no
+empieces el 3.3»
+
+**Observación.** Con `BENCH_DATABASE_URL` repuntada, `test:db` de ingestion pasa entero. Se borró la base vacía `buscahogar_test`. Al
+comprobar OPS-0 apareció que en `.env` faltan `OPERATION`, `DAILY_SEARCH_CAP` y `BLOCKING_*`, así que el worker de cobertura no arranca.
+Se documentó en el README y en el ROADMAP 3.2.

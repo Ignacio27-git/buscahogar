@@ -4074,9 +4074,14 @@ separación) y no un proxy (el ancho), y una regla nueva hay que compararla en e
    diseño lo descartó por un `globalSetup`. Se enmendó la spec (revisión 2).
 4. El guardián nuevo destapó un fallo que nadie había previsto: el `afterAll` de `search-bench.db.test.ts` habría vaciado `buscahogar_bench`
    (1M de filas).
+5. El diseño y el runbook dieron por hecho que los umbrales `BLOCKING_*` y `OPERATION` estaban en el `.env` («con los valores del `.env`»).
+   Al comprobar solo su presencia, después del cierre, ninguno existía. Esa suposición ocultó que el worker de cobertura no puede arrancar
+   en desarrollo.
 
 **Cómo se detectó:** 1 al buscar el código en el repositorio y en la base; 2 al contrastar la propuesta con la decisión 046 y el ROADMAP;
-3 al leer ambos artefactos antes de las tareas; 4 al ejecutar la suite con el guardián activo.
+3 al leer ambos artefactos antes de las tareas; 4 al ejecutar la suite con el guardián activo; 5 al comprobar la presencia de las variables
+con `node --env-file` sin imprimir valores.
 
 **Observación:** un identificador con aspecto de código oficial hay que cotejarlo con el catálogo y con las fixtures antes de darlo por real, y
-un recuento de incidentes se cita con su fuente o no se cita.
+un recuento de incidentes se cita con su fuente o no se cita. Lo mismo con la configuración: «el valor está en el `.env`» es una afirmación
+que se verifica, aunque el fichero no se pueda leer.

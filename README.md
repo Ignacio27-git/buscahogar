@@ -38,6 +38,12 @@ pnpm dev
 Solo la base de datos se levanta con Docker. `web` e `ingestion` se ejecutan en local con
 `pnpm dev:web` y `pnpm dev:ingestion`.
 
+El worker de cobertura (`apps/ingestion/scripts/coverage-worker.ts`) no arranca si en el `.env` falta alguna
+de estas variables: `IDEALISTA_API_KEY`, `IDEALISTA_API_SECRET`, `DATABASE_URL`, `OPERATION` (`sale` o
+`rent`), `DAILY_SEARCH_CAP`, `BLOCKING_RADIUS_METERS`, `BLOCKING_PRICE_BAND_CENTS` y
+`BLOCKING_SURFACE_TOLERANCE_M2`. Sin worker, las zonas que se piden desde la web quedan en cola y nunca se
+cubren.
+
 ```bash
 docker compose up -d      # levantar en segundo plano
 docker compose stop       # parar, conservando los datos
