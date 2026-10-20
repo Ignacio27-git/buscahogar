@@ -17,7 +17,14 @@
 // `process.env`/argv de este camino (D9).
 import { buildPropertyGroups, classify, ruleBasedDedupStrategy, selectWinningListing } from '@buscahogar/core';
 import type { BlockingThresholds, ClassifiedPair, WinnerCandidate } from '@buscahogar/core';
-import { findCandidatePairs, hydrateListingsForDedup, listingVersions, listings, writeConsolidation } from '@buscahogar/db';
+import {
+  chunkByBindParameters,
+  findCandidatePairs,
+  hydrateListingsForDedup,
+  listingVersions,
+  listings,
+  writeConsolidation,
+} from '@buscahogar/db';
 import type { ConsolidationGroupInput, ConsolidationPairInput, Database } from '@buscahogar/db';
 import { and, inArray, sql } from 'drizzle-orm';
 
@@ -47,21 +54,21 @@ async function fetchCurrentVersionInfo(
   db: Database,
   listingIds: readonly string[]
 ): Promise<Map<string, CurrentVersionInfo>> {
-  if (listingIds.length === 0) {
-    return new Map();
-  }
-  const rows = await db
-    .select({
-      listingId: listingVersions.listingId,
-      versionId: listingVersions.id,
-      capturedAt: listingVersions.capturedAt,
-    })
-    .from(listingVersions)
-    .where(and(inArray(listingVersions.listingId, listingIds), sql`${listingVersions.isCurrent}`));
-
+  // Por lotes de ids (decisión 247): corpus COMPLETO, un parámetro por id en
+  // `inArray`, y una sentencia admite como mucho 65 535.
   const result = new Map<string, CurrentVersionInfo>();
-  for (const row of rows) {
-    result.set(row.listingId, { versionId: row.versionId, capturedAt: row.capturedAt });
+  for (const batch of chunkByBindParameters(listingIds, 1)) {
+    const rows = await db
+      .select({
+        listingId: listingVersions.listingId,
+        versionId: listingVersions.id,
+        capturedAt: listingVersions.capturedAt,
+      })
+      .from(listingVersions)
+      .where(and(inArray(listingVersions.listingId, batch), sql`${listingVersions.isCurrent}`));
+    for (const row of rows) {
+      result.set(row.listingId, { versionId: row.versionId, capturedAt: row.capturedAt });
+    }
   }
   return result;
 }

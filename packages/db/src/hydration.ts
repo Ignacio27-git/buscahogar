@@ -35,6 +35,7 @@
 // no se detectaría aquí, solo por el test de ida y vuelta.
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Listing, OperationType, PropertyType } from '@buscahogar/core';
+import { chunkByBindParameters } from './bind-parameters.js';
 import type { Database } from './db.js';
 import { listingVersions, listings, sources } from './tables.js';
 
@@ -72,11 +73,23 @@ export async function hydrateListingsForDedup(
   db: Database,
   listingIds: readonly string[]
 ): Promise<Map<string, Listing>> {
-  if (listingIds.length === 0) {
-    return new Map();
+  // Por lotes de ids (decisión 247): el reproceso hidrata el corpus COMPLETO
+  // y `inArray` liga un parámetro por id; por encima de 65 535 ids una sola
+  // consulta desbordaría el tope de parámetros del protocolo (08P01).
+  const result = new Map<string, Listing>();
+  for (const batch of chunkByBindParameters(listingIds, 1)) {
+    for (const row of await selectHydratedRows(db, batch)) {
+      result.set(row.listingId, hydrateRow(row));
+    }
   }
+  return result;
+}
 
-  const rows: HydratedRow[] = await db
+async function selectHydratedRows(
+  db: Database,
+  listingIds: readonly string[]
+): Promise<HydratedRow[]> {
+  return db
     .select({
       listingId: listings.id,
       sourceKey: sources.key,
@@ -101,12 +114,6 @@ export async function hydrateListingsForDedup(
     )
     .innerJoin(sources, eq(sources.id, listings.sourceId))
     .where(inArray(listings.id, listingIds));
-
-  const result = new Map<string, Listing>();
-  for (const row of rows) {
-    result.set(row.listingId, hydrateRow(row));
-  }
-  return result;
 }
 
 function hydrateRow(row: HydratedRow): Listing {
