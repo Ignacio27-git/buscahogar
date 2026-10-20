@@ -2073,7 +2073,7 @@ no entran en el corpus).
 
 ---
 
-## [ ] 3.3 · Datos reales más allá de Granada: pre-barrido de las ciudades más pobladas
+## [x] 3.3 · Datos reales más allá de Granada: pre-barrido de las ciudades más pobladas
 
 Decisión de producto del responsable (2026-10-20): los datos reales deben cubrir más que Granada.
 
@@ -2085,9 +2085,59 @@ municipios pequeños (coverage_jobs con prioridad de zone_query_signals).
 
 **Notas:**
 
-**Estado: pendiente.** Sin ejecutar. Antes de empezar: el responsable fija el tope de peticiones y la
-reserva. Todo barrido pagina con corte explícito (regla de `CLAUDE.md`). El adaptador de Kyero existe pero
-no tiene feed real (decisión 071), así que no es alternativa hoy.
+**Estado: hecho en código (2026-10-20); el pre-barrido real queda en manos del responsable.** Ciclo SDD
+`prescan-top-cities` (ritmo automático, almacén Engram), cinco commits de trabajo en `feature-fase3`, entregados
+como una sola PR con `size:exception`. Migraciones 0017-0019. Decisiones 248-253. El adaptador de Kyero sigue
+sin feed real (decisión 071), así que la única fuente del pre-barrido es Idealista.
+
+| Lote | Contenido | Decisión | Commit |
+|---|---|---|---|
+| PR1 | población municipal en el catálogo (columna nulable, parseo estricto, guarda de deriva), migración 0017 | 249 | `5c7da44` |
+| PR2 | `coverage_jobs` por operación (relleno con `rent`, claves únicas con la operación) y un único worker para venta y alquiler, migración 0018 | 250, 252 | `02ebf24` |
+| PR3 | la web registra cobertura por operación; el worker prioriza el carril a demanda por días con señal | 251 | `5313540` |
+| PR4a | registro mensual de cuota con reserva por carril, CLI `set-monthly-quota`, `REVOKE` a los roles de `web`, migración 0019 | 248 | `16ca832` |
+| PR4b | CLI `presweep` (pre-barrido de las N ciudades más pobladas) y promoción de parciales con demanda | 253 | `62be3c8` |
+| — | documentación | — | este commit |
+
+**Decisiones de producto del responsable (PD1-PD12, tres rondas).**
+
+- El tope de peticiones del pre-barrido es obligatorio y no tiene valor por defecto; también el tope por barrido
+  (`--max-requests`, `--max-requests-per-sweep`, `--top`).
+- Registro mensual persistido con reserva (`set-monthly-quota --total N --reserve M`); el total y la reserva no son
+  flags del pre-barrido, salen solo del registro.
+- Las ciudades se eligen por población (top-N, empate por código INE); población desconocida no entra.
+- `operation` en `coverage_jobs`, con estado de cobertura por (zona, operación). Un único worker atiende ambas
+  operaciones; `OPERATION` se rechaza al arrancar.
+- Prioridad del carril a demanda por número de días con señal en los últimos 30 días.
+- Una búsqueda sin operación cuenta como cubierta solo si lo están venta y alquiler.
+- Un mes sin cuota registrada hereda la del anterior; sin ninguna previa no se gasta nada (fallo cerrado).
+- Los parciales del lote que tienen demanda se promueven al carril a demanda (PD11).
+- El refresco comparte con el lote el saldo `total − reserva`; la reserva queda para la cobertura a demanda.
+
+**Verificación.** `sdd-verify`: **PASS WITH WARNINGS**, 0 críticos, 20/20 requisitos y 49/49 escenarios. Lint y
+typecheck limpios. Recuentos: `core` 964; `db` 442 + bloqueo 18 + consolidación 22 + detalle 24; `ingestion` 938 +
+`test:db` 172; `web` 1633; e2e en Docker 1026 superados y 0 fallos. Los avisos: documentación pendiente (este
+commit), `OPERATION` en `.env`/`.env.example` y el tamaño de la PR.
+
+**Coste de referencia.** El barrido completo de Granada en alquiler costó unas 36 peticiones (paso 3.2). Cada
+ciudad son dos unidades (venta y alquiler), y el tope de la ejecución las cuenta por separado.
+
+**Pendiente del responsable.**
+
+- Aplicar las migraciones 0017-0019 (`pnpm db:migrate`) y `pnpm db:seed` (población en el catálogo).
+- Registrar la cuota del mes: `set-monthly-quota --total N --reserve M`. Sin ella, el worker y el pre-barrido no
+  gastan nada.
+- Quitar `OPERATION` de `.env` y de `.env.example`: el worker ya no arranca si existe. La edición de
+  `.env.example` quedó bloqueada por los permisos de la herramienta.
+- Bajar `DAILY_SEARCH_CAP` (hoy 1000, muy por encima de la cuota mensual estimada).
+- Relanzar el bootstrap de roles (`packages/db/sql/bootstrap-roles-grants.sql`), opcional: la migración 0019 ya
+  revoca la tabla mensual a los roles de `web` que existan.
+- Lanzar el pre-barrido real con topes explícitos (`presweep --top N --max-requests M --max-requests-per-sweep K`,
+  primero con `--dry-run`). Gasta cuota real.
+- Confirmar que la cuota de Idealista se reinicia por mes natural UTC, que es lo que asume el registro.
+
+**Riesgos abiertos.** Las ciudades grandes superan el radio máximo de búsqueda de 15 km, así que un único barrido
+por ciudad puede no cubrir todo el término municipal. El mapeo de `studio` sigue sin existir (paso 3.2).
 
 ---
 
@@ -2178,3 +2228,6 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-20 | 3.2 | `.env.example` no se actualizó; el nombre de las bases `_test` se documenta solo en el README | Ningún agente puede leer ni escribir ese fichero (permisos). Como no hay variable de test nueva, no hay nada que añadir salvo la nota sobre `BENCH_DATABASE_URL`, pendiente del responsable. |
 | 2026-10-20 | 3.2 | Los datos reales de Granada (alquiler) se cargaron en operativa, tras el commit 1, con un barrido de 2 peticiones y umbrales de reprocesado elegidos por el responsable | La base de desarrollo estaba vacía de anuncios; los umbrales `BLOCKING_*` solo viven en `.env`. Nuevo paso 3.3 para ampliar la cobertura real. |
 | 2026-10-20 | 3.2 | Tras el cierre se corrigió un fallo del reprocesado que solo aparece con volumen real (decisión 247) | El primer barrido completo del worker (1 751 anuncios) desbordó el tope de 65 535 parámetros de un INSERT. |
+| 2026-10-20 | 3.3 | Partido en cinco commits de trabajo (PR1-PR4b) entregados como una sola PR con `size:exception`, aceptada por el responsable | ~7.5k líneas escritas frente a las ~2.98k previstas. Mismo patrón de subestimación de `sdd-tasks` que en los pasos 1.6 y 1.7; el grueso son tests. |
+| 2026-10-20 | 3.3 | El diseño necesitó una re-ejecución correctiva tras el validador de contexto limpio, y aparecieron tres decisiones de producto nuevas (PD10-PD12) que la propuesta no cubría | El validador detectó el índice único parcial sin `operation`, los privilegios por defecto que exponían la tabla mensual a `web_readonly`, una asignación por barrido que ignoraba el techo mensual y migraciones solo hacia delante que contradecían la spec. Detalle en `AI-NOTES.md`. |
+| 2026-10-20 | 3.3 | `.env.example` sin actualizar: sigue declarando `OPERATION`, que el worker ya rechaza | Los permisos de la herramienta denegaron la edición. Queda como paso manual del responsable, junto con quitarla de `.env`. |

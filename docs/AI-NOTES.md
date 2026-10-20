@@ -4107,3 +4107,77 @@ que se verifica, aunque el fichero no se pueda leer.
 
 **Observación:** toda escritura o filtro cuyo número de parámetros crece con el corpus necesita un lote explícito y un test por encima del
 tope, igual que la paginación de Idealista necesita un corte explícito.
+
+---
+
+### 2026-10-20 — Fallos del orquestador y del primer diseño en 3.3
+
+**Contexto:** pre-barrido de las ciudades más pobladas (`prescan-top-cities`), fases de diseño y de instrucción de los lotes.
+
+**Categoría:** contradicción con el diseño / hueco de diseño que habría fallado en silencio / privilegio expuesto.
+
+**Qué se generó mal:**
+
+1. El orquestador escribió en la instrucción del lote PR3 una ventana de señal `day >= hoy − 30`, que abarca 31 días y contradice el diseño
+   (30 días, `day > hoy − 30`). El subagente siguió el diseño y los tests de frontera (hoy − 29 dentro, hoy − 30 fuera) lo fijan.
+2. El primer diseño no rehízo el índice único parcial `coverage_jobs_zone_source_pending_idx` para incluir `operation`. Con el
+   `ON CONFLICT DO NOTHING` sin destino del registro de cobertura, el segundo job pendiente de la misma zona (venta tras alquiler, o al revés)
+   se habría descartado en silencio, sin error ni test en rojo.
+3. El mismo diseño no vio que `ALTER DEFAULT PRIVILEGES` y `GRANT SELECT ON ALL TABLES` del bootstrap de roles darían lectura de la tabla
+   mensual nueva a `web_readonly`. Hizo falta un `REVOKE` en la migración 0019 y en el bootstrap (decisión 248).
+4. El diseño repartía el tope por barrido sin tener en cuenta el techo mensual del carril, y proponía migraciones solo hacia delante cuando
+   la spec pedía otra cosa.
+
+**Cómo se detectó:** 1 al leer el resultado del subagente frente al diseño; 2-4 por el validador de contexto limpio, que obligó a una
+re-ejecución correctiva del diseño.
+
+**Observación:** una restricción `UNIQUE` que se amplía con una columna nueva arrastra a todo `ON CONFLICT` que dependa de ella, y una tabla
+nueva hereda los privilegios por defecto: ambas cosas hay que revisarlas en el diseño, no esperar a que un test las encuentre. El orquestador
+no debe reescribir en la instrucción una fórmula que ya fija el diseño; basta con citarlo.
+
+### 2026-10-20 — Fallos intermedios en la aplicación de 3.3
+
+**Contexto:** `prescan-top-cities`, lotes PR1-PR4b.
+
+**Categoría:** código que compilaba pero no hacía lo correcto / test que no probaba lo que decía / entorno de test desactualizado.
+
+**Qué se generó mal:**
+
+1. La guarda de deriva de la población (PR1) comparaba con `rows.length * 0.9`, en coma flotante, justo en el umbral que decide si se aborta
+   la regeneración del catálogo. Se pasó a aritmética entera y se triangularon los casos 9/10 y 8/10.
+2. El test S12.1 (PR2) usaba `requestedAt` fijo en 2026-01-01; con la retención, esa fecha dejaba la zona inactiva y la purgaba antes de
+   comprobar lo que el test decía comprobar.
+3. Los tests de `apps/ingestion` corrieron contra un `dist` obsoleto de `@buscahogar/db`, anterior a los cambios del lote, y fallaron por el
+   entorno, no por el código. Hubo que recompilar el paquete antes de ejecutarlos.
+4. El SQL del ciclo de vida de las zonas tomaba el `requested_at` de cada job por separado, así que con dos operaciones podía planificar a la
+   vez la purga y el refresco de la misma zona.
+5. Insertar `operation: 'rent'` en bloque en los ayudantes de test cambió en silencio la semántica de los tests de venta, que pasaron a
+   probar alquiler.
+6. El primer diseño del tope diario de zonas nuevas (PR3) bloqueaba la segunda operación de una zona que ya se había contado ese día. Pasó a
+   contar zonas distintas y a eximir la zona ya contada.
+7. Un test de privilegios (PR4a) pasaba la cadena `'current_user'` a `has_table_privilege` como nombre de rol («role "current_user" does not
+   exist»); debía ser la función `current_user`.
+8. La migración 0019 se editó después de haberse aplicado en las bases de test. Drizzle no reaplica una migración ya registrada, así que las
+   bases seguían con la versión vieja; se borraron y recrearon.
+9. Un test de base de datos del pre-barrido (PR4b) esperaba 4 peticiones con `--top 1 --max-requests-per-sweep 4`, olvidando que una ciudad
+   son dos unidades (venta y alquiler): se hicieron 8. Se corrigió la aritmética del test, no el código.
+
+**Cómo se detectó:** al ejecutar las suites (rojo inesperado o un recuento que no cuadraba con la cifra esperada) y al revisar el diff de los
+ayudantes de test.
+
+**Observación:** con la operación como dimensión nueva, todo lo que antes era «una zona» pasa a ser «una zona por operación», y eso afecta
+a recuentos, topes, ciclos de vida y aritmética de los tests por igual. Una migración aplicada no se edita: se añade otra o se recrea la base.
+
+### 2026-10-20 — Heredocs y comillas en la shell corrompieron ediciones (3.3, recurrente)
+
+**Contexto:** `prescan-top-cities`, ediciones de documentación y de tests desde Bash en los lotes PR2, PR3, PR4a y PR4b.
+
+**Categoría:** herramienta.
+
+**Qué se generó mal:** los heredocs de Bash con apóstrofos (abundantes en español) abortaron con «unexpected EOF» o truncaron la edición, y un
+`node -e` con plantillas entre comillas invertidas y comillas anidadas produjo un test roto. Ya había pasado en D.21.
+
+**Cómo se detectó:** al ejecutar el comando (error de la shell) o al revisar el diff antes de confirmar.
+
+**Observación:** el texto con comillas va con las herramientas de ficheros (Write/Edit), que además conservan los finales de línea CRLF de
+`docs/*.md`. Un script, si hace falta, se escribe primero en un fichero y no se pasa en línea.

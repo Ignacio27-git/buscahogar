@@ -2187,3 +2187,23 @@ real, para no gastar cuota en refrescos o verificaciones.
 ~99 880 parámetros frente al tope de 65 535 del protocolo. Se corrigió con lotes dentro de la misma transacción (decisión 247), extendidos a
 `property_listings` y a los `inArray` del corpus completo en la hidratación. El reprocesado sobre la base de desarrollo queda para el
 responsable.
+
+---
+
+### 2026-10-20 — Pre-barrido de las ciudades más pobladas (3.3)
+
+**Tipo de tarea:** feature de backend e ingesta (catálogo, `coverage_jobs`, registro mensual de cuota, CLI de pre-barrido) + web (cobertura
+por operación)
+**Forma de especificación:** ciclo SDD completo (`prescan-top-cities`, `/gentle-sdd-new`, ritmo automático) — exploración → propuesta →
+spec → diseño con una re-ejecución correctiva → tareas → apply en cinco lotes (PR1-PR4b) → verify
+**Resultado:** utilizable con retoques — hicieron falta tres rondas de decisiones de producto del responsable (PD1-PD12), una re-ejecución
+correctiva del diseño tras el validador de contexto limpio, y `.env.example` queda como paso manual.
+
+**Prompt:** «Pre-barre las ciudades más pobladas (venta y alquiler) con un tope explícito de peticiones fijado por el responsable a partir de
+la cuota mensual restante, y deja reserva para la cobertura bajo demanda de los municipios pequeños (coverage_jobs con prioridad de
+zone_query_signals).»
+
+**Observación.** El prompt daba por hechas tres piezas que no existían: la población en el catálogo, la operación en `coverage_jobs` y un
+registro de cuota mensual con reserva. El cambio las construyó antes del propio pre-barrido (decisiones 248-253). Verificación PASS WITH
+WARNINGS, 0 críticos, 49/49 escenarios. No se gastó cuota real: el pre-barrido lo lanza el responsable con topes explícitos. Detalle en
+`docs/ROADMAP.md`, paso 3.3.

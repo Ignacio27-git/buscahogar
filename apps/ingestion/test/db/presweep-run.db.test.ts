@@ -175,7 +175,7 @@ describe('presweep-top-cities — comando de punta a punta (decisión 253)', () 
     '--top', String(top), '--max-requests', String(maxRequests), '--max-requests-per-sweep', String(perSweep),
   ];
 
-  it('S4.1/S5.1: tope por barrido 5 de una unidad de 40 peticiones hace EXACTAMENTE 5, persiste el cursor y la siguiente ejecución reanuda en la página 6 sin repetir', async () => {
+  it('S4.1/S5.1: tope por barrido 5 de una unidad de 36 páginas hace EXACTAMENTE 5, persiste el cursor y la siguiente ejecución reanuda en la página 6 sin repetir', async () => {
     await setup();
     const madridZone = await seedCity(MADRID);
     const fake = createFakeIdealista({ homesPages: 36 });
