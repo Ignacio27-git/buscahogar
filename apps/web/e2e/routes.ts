@@ -5,6 +5,7 @@ import {
   E2E_COVERAGE_ZONES,
   E2E_DETAIL_LISTING_ID,
   E2E_GALLERY_LISTING_ID,
+  E2E_GETAFE,
   E2E_HISTORY_LISTING_ID,
   E2E_MISSING_LISTING_ID,
   E2E_SINGLE_SOURCE_LISTING_ID,
@@ -65,6 +66,9 @@ export const ROUTES: readonly E2eRoute[] = [
   { name: 'coverage-failed', path: coverageZonePath('failed'), map: 'empty' },
   { name: 'coverage-not-sweepable', path: coverageZonePath('notSweepable'), map: 'empty' },
   { name: 'coverage-cap', path: coverageZonePath('cap'), map: 'empty' },
+  // Paso 3.2 (decisión 246): Getafe es la zona sembrada CUBIERTA; ninguna vivienda tiene cincuenta
+  // habitaciones, así que el filtro vacía la lista y el estado vacío nombra el municipio.
+  { name: 'zone-covered-empty', path: `/?zone=${E2E_GETAFE.ineCode}&minRooms=50`, map: 'empty' },
   { name: 'not-found-route', path: '/no-existe', map: 'none' },
   { name: 'not-found-property', path: `/properties/${E2E_MISSING_LISTING_ID}`, map: 'none' },
 ];

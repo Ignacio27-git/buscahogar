@@ -306,6 +306,8 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
   let zoneName: string | null = null;
   let zoneUnlocatable = false;
   let zoneUnknown = false;
+  // Paso 3.2 (decisión 246): municipio de una zona cubierta Y localizable; el vacío filtrado lo nombra.
+  let coveredZoneName: string | null = null;
 
   if (criteria.zone !== undefined) {
     const zoneGeometry = await resolveZoneGeometry(db, criteria.zone);
@@ -339,6 +341,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
             radiusMeters: zoneGeometry.sweepRadiusM,
           },
         };
+        coveredZoneName = zoneGeometry.state === 'covered' ? zoneGeometry.municipality : null;
       } else {
         zoneUnlocatable = true;
       }
@@ -462,6 +465,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
                 params={rawSearchParams}
                 keepOnClear={emptyScope.keepOnClear}
                 clearAllOffered={offersClearAll(countAppliedFilters(criteria))}
+                coveredZone={coveredZoneName}
               />
             ) : null
           ) : (

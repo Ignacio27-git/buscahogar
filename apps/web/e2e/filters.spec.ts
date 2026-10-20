@@ -94,6 +94,31 @@ test.describe('barra de filtros y filtros aplicados', () => {
     await expect(results.getByRole('link', { name: 'Quitar todos los filtros' })).toHaveAttribute('href', '/');
   });
 
+  // Paso 3.2 (decisión 246, enmienda la 225): zona cubierta sin resultados. El detalle nombra el
+  // municipio; no es una región viva (160) y la acción sigue siendo una sola (los chips ya ofrecen
+  // «Quitar todos»). Una zona NO cubierta conserva el detalle de siempre.
+  test('zona cubierta sin resultados: el detalle nombra el municipio y no hay región viva propia', async ({
+    page,
+  }) => {
+    await openRoute(page, route('zone-covered-empty'));
+    const results = page.getByRole('region', { name: 'Resultados', exact: true });
+    await expect(results.getByText('Ninguna vivienda coincide con tu búsqueda.')).toBeVisible();
+    const detail = results.getByText('Los anuncios de Getafe están al día', { exact: false });
+    await expect(detail).toBeVisible();
+    await expect(detail).not.toHaveAttribute('role', /.+/);
+    await expect(results.locator('[role="status"], [role="alert"], [aria-live]')).toHaveCount(0);
+    await expect(results.getByRole('link')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Quitar todos los filtros' })).toHaveCount(1);
+  });
+
+  test('zona no cubierta sin resultados: el detalle de siempre, sin el aviso de zona cubierta', async ({
+    page,
+  }) => {
+    await openRoute(page, route('coverage-done'));
+    const results = page.getByRole('region', { name: 'Resultados', exact: true });
+    await expect(results.getByText('al día')).toHaveCount(0);
+  });
+
   test('sin filtros no hay chips ni «Quitar todos», pero el recuento sigue', async ({ page }) => {
     await openRoute(page, route('home'));
     await expect(page.getByRole('region', { name: 'Filtros aplicados' })).toHaveCount(0);

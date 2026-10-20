@@ -890,7 +890,8 @@ describe('estado vacío filtrado con una sola acción (D.18)', () => {
     expect(count(listSection(html), '>Quitar')).toBe(1);
   });
 
-  it('zona cubierta con filtros: filtered, sin aviso de cobertura y sin acción repetida', async () => {
+  // Paso 3.2 (decisión 246, enmienda la 225): la zona cubierta y localizable nombra el municipio.
+  it('zona cubierta con filtros: filtered con el municipio, sin aviso de cobertura y sin acción repetida', async () => {
     resolveZoneGeometryMock.mockResolvedValue({ ...geometry, state: 'covered' });
     resolveCoverageForZoneMock.mockResolvedValue({ kind: 'covered' });
     resolveNewZonesDailyCapMock.mockReturnValue(10);
@@ -898,8 +899,27 @@ describe('estado vacío filtrado con una sola acción (D.18)', () => {
     const html = await render({ zone: '28074', operation: 'sale' });
     expect(html).not.toContain('coverage-notice');
     expect(listSection(html)).toContain('Ninguna vivienda coincide con tu búsqueda.');
-    expect(listSection(html)).toContain(SENTENCE);
+    expect(listSection(html)).toContain('Los anuncios de Leganés están al día');
+    expect(listSection(html)).toContain('Están arriba; pulsa uno para quitarlo');
+    expect(listSection(html)).not.toMatch(/role="|aria-live/);
     expect(count(listSection(html), '>Quitar')).toBe(0);
+  });
+
+  it('zona cubierta pero sin centroide (inlocalizable): lista vacía sin el aviso de zona cubierta', async () => {
+    resolveZoneGeometryMock.mockResolvedValue({ ...geometry, state: 'covered', centroid: null, sweepRadiusM: null });
+    resolveCoverageForZoneMock.mockResolvedValue({ kind: 'not-sweepable' });
+    resolveNewZonesDailyCapMock.mockReturnValue(10);
+    resolveCoverageClientLimitMock.mockResolvedValue(null);
+    const html = await render({ zone: '28074', operation: 'sale' });
+    expect(listSection(html)).toContain('Ninguna vivienda coincide con tu búsqueda.');
+    expect(listSection(html)).toContain(SENTENCE);
+    expect(listSection(html)).not.toContain('al día');
+  });
+
+  it('zona no cubierta: el detalle de siempre, sin el aviso de zona cubierta', async () => {
+    const html = await renderUncovered({ operation: 'sale' });
+    expect(listSection(html)).toContain(SENTENCE);
+    expect(listSection(html)).not.toContain('al día');
   });
 });
 

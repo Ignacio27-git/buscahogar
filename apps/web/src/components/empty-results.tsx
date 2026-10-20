@@ -18,7 +18,13 @@ export interface EmptyResultsProps {
   // `true` si la fila de chips ya ofrece «Quitar todos»: el vacío filtrado no repite un enlace
   // idéntico. Con algo que conservar (polígono) la acción es distinta y se muestra siempre.
   readonly clearAllOffered?: boolean;
+  // Paso 3.2 (decisión 246, enmienda la 225): municipio de una zona CUBIERTA cuyo filtrado no deja
+  // nada. Solo lo usa el tipo `filtered`: el detalle nombra el municipio y atribuye el vacío a los
+  // filtros. Sigue siendo el mismo párrafo: ni rol vivo (160) ni segunda acción (225).
+  readonly coveredZone?: string | null;
 }
+
+const FILTERED_DETAIL = 'Los filtros aplicados están arriba; pulsa uno para quitarlo.';
 
 function Panel({
   title,
@@ -38,7 +44,13 @@ function Panel({
   );
 }
 
-export function EmptyResults({ kind, params, keepOnClear, clearAllOffered = false }: EmptyResultsProps): ReactElement {
+export function EmptyResults({
+  kind,
+  params,
+  keepOnClear,
+  clearAllOffered = false,
+  coveredZone = null,
+}: EmptyResultsProps): ReactElement {
   if (kind === 'unfiltered') {
     return (
       <Panel
@@ -66,7 +78,11 @@ export function EmptyResults({ kind, params, keepOnClear, clearAllOffered = fals
   return (
     <Panel
       title="Ninguna vivienda coincide con tu búsqueda."
-      detail="Los filtros aplicados están arriba; pulsa uno para quitarlo."
+      detail={
+        coveredZone === null
+          ? FILTERED_DETAIL
+          : `Los anuncios de ${coveredZone} están al día, así que son los filtros los que dejan la lista vacía. Están arriba; pulsa uno para quitarlo.`
+      }
     >
       {showAction ? (
         <p className="empty-results__action">

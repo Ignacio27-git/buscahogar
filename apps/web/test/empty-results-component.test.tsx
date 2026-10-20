@@ -61,6 +61,62 @@ describe('EmptyResults — filtered', () => {
   });
 });
 
+// Paso 3.2 (decisión 246, enmienda la 225): en una zona cubierta el vacío filtrado nombra el municipio y
+// atribuye el vacío a los filtros. Mismo párrafo de detalle: sin rol vivo (160), sin segunda acción ni
+// repetición de los chips (225).
+describe('EmptyResults — zona cubierta sin resultados', () => {
+  const params = { operation: 'sale', propertyType: 'flat', zone: '28065', minRooms: '50' };
+  const covered = (clearAllOffered: boolean, coveredZone: string | null = 'Getafe'): string =>
+    renderToStaticMarkup(
+      <EmptyResults kind="filtered" params={params} keepOnClear={[]} clearAllOffered={clearAllOffered} coveredZone={coveredZone} />
+    );
+
+  it('nombra el municipio y atribuye el vacío a los filtros, en el párrafo de detalle', () => {
+    const html = covered(true);
+
+    expect(text(html)).toContain('Ninguna vivienda coincide con tu búsqueda.');
+    expect(html).toContain(
+      '<p class="empty-results__detail">Los anuncios de Getafe están al día, así que son los filtros los que dejan la lista vacía. Están arriba; pulsa uno para quitarlo.</p>'
+    );
+    expect(text(html)).not.toMatch(IMPERSONAL);
+  });
+
+  it('con otro municipio cambia el nombre (no está fijado)', () => {
+    expect(text(covered(true, 'Alcalá de Henares'))).toContain('Los anuncios de Alcalá de Henares están al día');
+  });
+
+  it('sin coveredZone, o con null, mantiene el detalle de siempre y no menciona «al día»', () => {
+    const without = renderToStaticMarkup(
+      <EmptyResults kind="filtered" params={params} keepOnClear={[]} clearAllOffered />
+    );
+
+    for (const html of [without, covered(true, null)]) {
+      expect(text(html)).toContain('Los filtros aplicados están arriba; pulsa uno para quitarlo.');
+      expect(text(html)).not.toContain('al día');
+    }
+  });
+
+  it('no declara un rol vivo ni repite los chips', () => {
+    const html = covered(true);
+
+    expect(html).not.toMatch(/role="|aria-live/);
+    expect(text(html)).not.toContain('Habitaciones');
+    expect(text(html)).not.toContain('50');
+  });
+
+  it('con «Quitar todos» ya en los chips, la acción sigue oculta; sin él, es una sola', () => {
+    expect(linkNames(covered(true))).toEqual([]);
+    expect(linkNames(covered(false))).toEqual(['Quitar todos los filtros']);
+  });
+
+  it('en unfiltered y past-last-page no hay aviso aunque llegue coveredZone', () => {
+    for (const kind of ['unfiltered', 'past-last-page'] as const) {
+      const html = renderToStaticMarkup(<EmptyResults kind={kind} params={{}} keepOnClear={[]} coveredZone="Getafe" />);
+      expect(text(html)).not.toContain('Getafe');
+    }
+  });
+});
+
 describe('EmptyResults — acción que conserva el polígono (WCAG 3.2.4)', () => {
   const params = { view: 'map', polygon: POLYGON, operation: 'sale', propertyType: 'flat' };
 
