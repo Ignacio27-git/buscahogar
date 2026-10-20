@@ -48,6 +48,8 @@ export default defineConfig({
     // de esta unidad (`test/db/*.test.ts`) se OMITEN por sí solas
     // (describeWithDb/describeWithCoverageDb) cuando la variable
     // correspondiente no está definida — nunca fallan por su ausencia.
+    // Decisión 245: crea y migra la base `_web_test` (y sus GRANT) una vez por ejecución.
+    globalSetup: ['./test/global-setup.ts'],
     setupFiles: ['./test/setup-env.ts'],
     // Las pruebas DB-backed de esta unidad comparten el mismo contenedor de
     // PostgreSQL; ejecutarlas en paralelo interferiría de forma no

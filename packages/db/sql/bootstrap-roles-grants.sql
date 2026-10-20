@@ -36,7 +36,14 @@
 
 -- Conexión: ambos roles deben poder autenticarse contra `buscahogar` en
 -- absoluto, antes de que importe ningún otro privilegio.
-GRANT CONNECT ON DATABASE buscahogar TO web_readonly, web_coverage;
+-- Agnóstico de la base (decisión 245): usa `current_database()`, así que el mismo
+-- fichero sirve a la de desarrollo (`psql -d buscahogar`) y a la `_web_test`, que
+-- el `globalSetup` de `apps/web` aprovisiona ejecutándolo.
+DO $$
+BEGIN
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO web_readonly, web_coverage', current_database());
+END
+$$;
 
 -- Uso del esquema `public`: sin esto, ningún SELECT/INSERT posterior sobre
 -- una tabla de `public` es alcanzable, aunque el GRANT sobre la tabla en
@@ -83,4 +90,8 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO web_readonly
 -- (~550 ms) dominaba una consulta de ~50 ms. Acotado al rol y a esta base de
 -- datos: la ingesta y la deduplicación (propietario) conservan el JIT.
 -- Idempotente: `ALTER ROLE ... SET` sustituye el valor previo.
-ALTER ROLE web_readonly IN DATABASE buscahogar SET jit = off;
+DO $$
+BEGIN
+  EXECUTE format('ALTER ROLE web_readonly IN DATABASE %I SET jit = off', current_database());
+END
+$$;

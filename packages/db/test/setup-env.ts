@@ -9,8 +9,15 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { redirectToTestDatabase } from '../src/test-database.js';
+
 const rootEnvPath = fileURLToPath(new URL('../../../.env', import.meta.url));
 
 if (existsSync(rootEnvPath)) {
   process.loadEnvFile(rootEnvPath);
 }
+
+// Decisión 245: ninguna suite alcanza la base de desarrollo. Tras cargar el `.env`,
+// `DATABASE_URL` se reescribe en este proceso hacia `<dev>_db_test` (la que
+// `global-setup.ts` ya creó y migró); los helpers siguen leyendo `DATABASE_URL`.
+redirectToTestDatabase(process.env, 'db', ['DATABASE_URL']);

@@ -18,11 +18,19 @@ import { summarizePlan } from '../../src/bench/measure.js';
 import { benchQuerySql } from '../../src/bench/query-dispatch.js';
 import { BENCH_COMBINATIONS } from '../../src/bench/query-matrix.js';
 import { runGenerate } from '../../scripts/generate-search-corpus.js';
-import { truncateAll } from './helpers/db-client.js';
 
 const BENCH_DATABASE_URL = process.env.BENCH_DATABASE_URL;
 const GENERATED_ROWS = 20_000;
 const SEED = 20240229;
+
+// Vacía solo las cuatro tablas que genera el corpus. No usa `truncateAll`, que exige una base
+// `_test` (decisión 245): esta suite trabaja sobre una base de banco (`_bench`) por diseño, ya
+// validada por `assertBenchDatabaseUrl` y por la precondición de tabla vacía.
+async function truncateBenchTables(target: Pool): Promise<void> {
+  await target.query(
+    'TRUNCATE TABLE property_listings, listing_versions, listings, properties RESTART IDENTITY CASCADE'
+  );
+}
 
 async function countRows(
   db: Database,
@@ -35,6 +43,9 @@ async function countRows(
 describe.skipIf(!BENCH_DATABASE_URL)('corpus sintético contra BENCH_DATABASE_URL (diseño decisión 10, tarea 1.7)', () => {
   let db: Database;
   let pool: Pool;
+  // Solo se vacía lo que esta suite generó: si la precondición de tabla vacía falla, la base
+  // de banco tiene datos previos (p. ej. el corpus de 1M) y NO debe tocarse.
+  let generated = false;
 
   beforeAll(async () => {
     // Mismo guard que ambas CLIs (diseño D4): esta suite nunca debe poder
@@ -52,6 +63,7 @@ describe.skipIf(!BENCH_DATABASE_URL)('corpus sintético contra BENCH_DATABASE_UR
       );
     }
 
+    generated = true;
     const io = { log: (): void => {} };
     const exitCode = await runGenerate(
       ['--database-url', BENCH_DATABASE_URL, '--rows', String(GENERATED_ROWS), '--seed', String(SEED), '--batch-size', '5000'],
@@ -64,10 +76,11 @@ describe.skipIf(!BENCH_DATABASE_URL)('corpus sintético contra BENCH_DATABASE_UR
   });
 
   afterAll(async () => {
-    // Trunca ÚNICAMENTE la base de banco de este test (diseño decisión 10):
-    // nunca puede alcanzar el corpus de 1M de buscahogar_bench ni la base de
-    // desarrollo — son bases de datos físicamente distintas.
-    await truncateAll(pool);
+    // Trunca ÚNICAMENTE lo generado por este test (diseño decisión 10) y solo si llegó a
+    // generar: si la precondición de tabla vacía falló, la base tiene datos previos.
+    if (generated) {
+      await truncateBenchTables(pool);
+    }
     await pool.end();
   });
 
@@ -190,7 +203,7 @@ describe.skipIf(!BENCH_DATABASE_URL)('corpus sintético contra BENCH_DATABASE_UR
     // reproduces the same corpus shape"): se trunca, se genera dos veces con
     // idéntica seed/volumen/anchor, y se comparan agregados baratos
     // (recuento y SUMA de min_price_cents) entre ambas corridas.
-    await truncateAll(pool);
+    await truncateBenchTables(pool);
     const io = { log: (): void => {} };
     const smallRunArgs = [
       '--database-url',
@@ -210,7 +223,7 @@ describe.skipIf(!BENCH_DATABASE_URL)('corpus sintético contra BENCH_DATABASE_UR
     const firstCount = await countRows(db, 'properties');
     const firstSum = await db.execute<{ total: number | null }>(sql`SELECT sum(min_price_cents)::bigint AS total FROM properties`);
 
-    await truncateAll(pool);
+    await truncateBenchTables(pool);
     exitCode = await runGenerate(smallRunArgs, process.env, io);
     expect(exitCode).toBe(0);
     const secondCount = await countRows(db, 'properties');

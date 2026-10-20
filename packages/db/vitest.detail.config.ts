@@ -17,6 +17,8 @@ export default defineConfig({
     // vitest.consolidation.config.ts: un único contenedor de PostgreSQL
     // compartido por todos los ficheros de esta suite.
     fileParallelism: false,
+    // Decisión 245: crea y migra la base `_db_test` una vez por ejecución (no se hereda).
+    globalSetup: ['./test/global-setup.ts'],
     setupFiles: ['./test/setup-env.ts', './test/blocking/setup-require-db.ts'],
   },
 });

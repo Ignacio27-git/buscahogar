@@ -14,6 +14,8 @@ export default defineConfig({
     // Carga `DATABASE_URL` desde el `.env` de la raíz antes de cada fichero
     // de test, sin que este paquete lea ni imprima su contenido (ver
     // `test/setup-env.ts`).
+    // Decisión 245: crea y migra la base `_db_test` una vez por ejecución (no se hereda).
+    globalSetup: ['./test/global-setup.ts'],
     setupFiles: ['./test/setup-env.ts'],
     // ROADMAP 1.8 (diseño D-T1): la suite de bloqueo vive en su propia
     // config (vitest.blocking.config.ts, script `test:blocking`) porque es

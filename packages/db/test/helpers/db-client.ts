@@ -6,6 +6,7 @@
 // ficheros distintos.
 import type { Pool } from 'pg';
 import { createDb } from '../../src/db.js';
+import { assertConnectedToTestDatabase } from '../../src/test-database.js';
 import type { Database } from '../../src/db.js';
 
 export function connectTestDb(): { db: Database; pool: Pool } {
@@ -57,6 +58,8 @@ const TABLES_IN_FK_ORDER = [
 // contadores de identidad. No toca las tablas propias de PostGIS
 // (`geometry_columns`, `geography_columns`, `spatial_ref_sys`).
 export async function truncateAll(pool: Pool): Promise<void> {
+  // Decisión 245: última barrera, la conexión REAL debe ser a una base `_test`.
+  await assertConnectedToTestDatabase(pool);
   const tableList = TABLES_IN_FK_ORDER.map((table) => `"${table}"`).join(', ');
   await pool.query(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE`);
 }

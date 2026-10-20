@@ -1,8 +1,8 @@
 // ROADMAP 2.6 (decisiones 116 y 117) — polígono y puntos del mapa contra
-// PostgreSQL real. SOLO se ejecuta con `TEST_DATABASE_URL` apuntando a una base
-// `*_test` (ver `test/helpers/test-db-gate.ts`): esta suite hace TRUNCATE y
-// nunca debe alcanzar la base de desarrollo (decisión 046). Sin la variable se
-// omite y no lee `DATABASE_URL`.
+// PostgreSQL real. Se ejecuta contra la base `<dev>_db_test` que `test/setup-env.ts`
+// deja en `DATABASE_URL` (ver `test/helpers/test-db-gate.ts`): esta suite hace TRUNCATE y
+// nunca debe alcanzar la base de desarrollo (decisiones 046 y 245). Sin `DATABASE_URL`
+// se omite.
 import type { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 

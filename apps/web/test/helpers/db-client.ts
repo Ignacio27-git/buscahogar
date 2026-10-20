@@ -10,6 +10,7 @@
 // RESTRINGIDO real vive aparte, en `test/db/coverage-role-privileges.test.ts`
 // (gateada en `WEB_COVERAGE_DATABASE_URL`, todavía sin provisionar — R3).
 import { createDb } from '@buscahogar/db';
+import { assertConnectedToTestDatabase } from '@buscahogar/db/test-database';
 
 // Tipo derivado de `createDb`, nunca un `import type { Pool } from 'pg'`
 // directo: `pg` no es una dependencia declarada de `apps/web` (decisión
@@ -39,6 +40,8 @@ const TABLES_IN_FK_ORDER = [
 ] as const;
 
 export async function truncateAll(pool: TestDbHandle['pool']): Promise<void> {
+  // Decisión 245: última barrera, la conexión REAL debe ser a una base `_test`.
+  await assertConnectedToTestDatabase(pool);
   const tableList = TABLES_IN_FK_ORDER.map((table) => `"${table}"`).join(', ');
   await pool.query(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE`);
 }
