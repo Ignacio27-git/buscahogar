@@ -115,7 +115,10 @@ export interface CoverageWorkerPorts {
   failJob(jobId: string, reason: string): Promise<void>;
   // ROADMAP 2.5: la reserva se hace POR CARRIL. 'refresh' se compara contra el
   // techo `floor(cap × fracción)` sobre el gasto TOTAL del día; 'on-demand'
-  // no lleva techo (ZRS-11).
+  // no lleva techo (ZRS-11). ROADMAP 3.3 (decisión 248): además, TODA reserva
+  // pasa por el registro mensual de cuota (techo por carril; sin cuota
+  // utilizable se deniega, también a demanda). La verificación de presencia
+  // reserva en el carril 'refresh' (mismo fondo que el batch).
   reserveBudget(reservation: BudgetReservation, lane: JobLane): Promise<LedgerState | null>;
   reconcileBudget(reserved: BudgetReservation, actual: BudgetSnapshotLike): Promise<void>;
   claimAndSweep(job: PollJob, area: AreaQuery, fingerprint: string): Promise<SweepTickResult>;
@@ -337,7 +340,7 @@ async function runSweepStep(ports: CoverageWorkerPorts, options: CoverageWorkerO
   const reserved = await ports.reserveBudget(reservation, job.lane ?? 'on-demand');
   if (reserved === null) {
     ports.log(
-      `coverage-worker: presupuesto diario agotado, el trabajo job_id="${job.jobId}" permanece pendiente, cero peticiones emitidas.`
+      `coverage-worker: presupuesto agotado (diario o mensual), el trabajo job_id="${job.jobId}" permanece pendiente, cero peticiones emitidas.`
     );
     return { dirty: false, onDemandSelected, idle: true };
   }

@@ -38,14 +38,21 @@ import {
   purgeExpiredClientQuota,
   purgeExpiredZoneQuerySignals,
   purgeZones,
-  reconcileDailyBudget,
+  reconcileRequestBudget,
   refreshLaneCeiling,
-  reserveDailyBudget,
+  reserveRequestBudget,
   resolveZoneGeometryById,
   scheduleRefresh,
   tombstoneExpiredListings,
 } from '@buscahogar/db';
-import type { BudgetReservation, BudgetSnapshotLike, Database, LedgerState, ZoneGeometry } from '@buscahogar/db';
+import type {
+  BudgetReservation,
+  BudgetSnapshotLike,
+  Database,
+  LedgerState,
+  RequestBudgetGrant,
+  ZoneGeometry,
+} from '@buscahogar/db';
 
 import { runReprocessCore } from '../dedup/reprocess-core.js';
 import type { ReprocessIo } from '../dedup/reprocess-core.js';
@@ -103,6 +110,9 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
   // UNA instancia compartida por el proceso — composeStore ya es la misma
   // composición reutilizada por scripts/sweep-zone.ts (CR-2).
   const store = composeStore(deps.db);
+
+  // Recibos de las reservas mensuales en curso, por objeto de reserva (ver `reserveBudget`).
+  const grants = new WeakMap<BudgetReservation, RequestBudgetGrant>();
 
   // ROADMAP 2.5 — mantenimiento de zonas sobre el MISMO pool propietario.
   // Solo delega en `packages/db`: la política (qué zonas, cuándo) vive en
@@ -233,18 +243,45 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
       return markJobFailedWithoutClaim(deps.db, jobId, reason);
     },
 
-    // ROADMAP 2.5 (ZRS-11): el carril de refresco reserva contra el TECHO
+    // ROADMAP 3.3 (decisión 248): TODO gasto pasa por `reserveRequestBudget`, que en una sola
+    // transacción aplica el techo MENSUAL del carril (registro `monthly_request_budget`; sin
+    // fila utilizable no se gasta nada, tampoco a demanda) y el cupo DIARIO.
+    // ROADMAP 2.5 (ZRS-11): el carril de refresco reserva contra el TECHO diario
     // `least(cap, floor(cap × fracción))` sobre el gasto total del día — el
-    // gasto a demanda también cuenta contra él. La demanda no lleva techo y
+    // gasto a demanda también cuenta contra él. La demanda no lleva techo diario y
     // conserva siempre al menos `cap × (1 - fracción)`.
-    reserveBudget(reservation: BudgetReservation, lane: JobLane): Promise<LedgerState | null> {
-      const ceiling =
+    async reserveBudget(reservation: BudgetReservation, lane: JobLane): Promise<LedgerState | null> {
+      const laneCeiling =
         lane === 'refresh' ? refreshLaneCeiling(deps.dailySearchCap, deps.refreshBudgetFraction ?? 0) : undefined;
-      return reserveDailyBudget(deps.db, deps.sourceUuid, reservation, deps.dailySearchCap, ceiling);
+      const result = await reserveRequestBudget(
+        deps.db,
+        deps.sourceUuid,
+        { lane, searchRequested: reservation.searchReserved, tokenReserved: reservation.tokenReserved },
+        { cap: deps.dailySearchCap, ...(laneCeiling !== undefined ? { laneCeiling } : {}) }
+      );
+      if (!result.granted) {
+        // Sin fila mensual el operador debe fijar la cuota (decisión 066): se dice en claro.
+        const hint =
+          result.reason === 'monthly-missing'
+            ? ' No hay cuota mensual utilizable: ejecuta `set-monthly-quota --total <n> --reserve <n>`.'
+            : '';
+        deps.io.log(`coverage-worker: reserva del carril "${lane}" denegada (${result.reason}).${hint}`);
+        return null;
+      }
+      // El recibo lleva el MES de la reserva: la reconciliación devuelve lo no gastado a ese mes
+      // aunque el tick cruce el cambio de mes. El driver crea un objeto de reserva nuevo por cada
+      // reserva, así que el propio objeto sirve de clave.
+      grants.set(reservation, result);
+      return { searchRequests: result.searchGranted, tokenRequests: result.tokenReserved };
     },
 
-    reconcileBudget(reserved: BudgetReservation, actual: BudgetSnapshotLike): Promise<void> {
-      return reconcileDailyBudget(deps.db, deps.sourceUuid, reserved, actual);
+    async reconcileBudget(reserved: BudgetReservation, actual: BudgetSnapshotLike): Promise<void> {
+      const grant = grants.get(reserved);
+      if (!grant) {
+        throw new Error('reconcileBudget: la reserva no se hizo con este puerto (no hay recibo mensual que reconciliar).');
+      }
+      grants.delete(reserved);
+      await reconcileRequestBudget(deps.db, deps.sourceUuid, grant, actual);
     },
 
     // ROADMAP 1.15 (security-hardening, decisión #263 D9) — purga

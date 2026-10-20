@@ -39,6 +39,8 @@ const TABLES_IN_FK_ORDER = [
   'listings',
   'properties',
   'dedup_runs',
+  // ROADMAP 3.3: registro mensual de cuota; referencia `sources` (va antes).
+  'monthly_request_budget',
   'zones',
   'sources',
   'locations',

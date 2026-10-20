@@ -134,6 +134,13 @@
       "when": 1792519476898,
       "tag": "0018_coverage_jobs_operation",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792522706397,
+      "tag": "0019_monthly_request_budget",
+      "breakpoints": true
     }
   ]
 }

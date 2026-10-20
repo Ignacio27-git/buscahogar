@@ -27,7 +27,7 @@ import type { IdealistaSearchPort, IdealistaTokenPort, TransportOutcome } from '
 import { DELISTED_OMISSION_CONFIRMED } from '../../src/sources/idealista/presence-evidence.js';
 import type { SearchField } from '../../src/sources/idealista/search-request.js';
 import { connectTestDb, truncateAll } from './helpers/db-client.js';
-import { insertLocationWithZone, insertSource } from './helpers/seed-fixtures.js';
+import { insertLocationWithZone, insertSourceWithQuota } from './helpers/seed-fixtures.js';
 
 const GRANADA = { latitude: 37.177336, longitude: -3.598557 };
 const RADIUS_M = 4500;
@@ -206,7 +206,7 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
   }
 
   it('un barrido COMPLETADO nomina al anuncio no visto y lo verifica en el mismo tick: la petición lleva el círculo de la zona, el filtro y el id', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     await seedZone(sourceId, 'refresh');
     const ghostId = await seedGhost(sourceId, 'ghost-1', 'flat');
     const searchPort = createSearchPort((ids) => reply(ids));
@@ -229,7 +229,7 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
   });
 
   it('S-LR-16: un id devuelto es present: sube last_seen_at, sigue activo y sale de la cola', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     await seedZone(sourceId, 'refresh');
     const ghostId = await seedGhost(sourceId, 'ghost-1', 'flat');
     const searchPort = createSearchPort((ids) => reply(ids));
@@ -246,7 +246,7 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
   });
 
   it('S-LR-9: con el valor commiteado de la constante, una omisión NO retira el anuncio (queda ambiguo, intento +1)', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     await seedZone(sourceId, 'refresh');
     const ghostId = await seedGhost(sourceId, 'ghost-1', 'flat');
     const searchPort = createSearchPort(() => reply([]));
@@ -263,7 +263,7 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
   });
 
   it('S-LR-8: un id ajeno en la respuesta (adIds ignorado) deja el lote ambiguo y nada se retira', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     await seedZone(sourceId, 'refresh');
     const ghostId = await seedGhost(sourceId, 'ghost-1', 'flat');
     const searchPort = createSearchPort(() => reply(['otro-id']));
@@ -275,7 +275,7 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
   });
 
   it('S-LR-7: un error 429 de la fuente deja el anuncio activo, intento +1 y sin reintento antes de 7 días', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     await seedZone(sourceId, 'refresh');
     const ghostId = await seedGhost(sourceId, 'ghost-1', 'flat');
     const searchPort = createSearchPort(() => ({ kind: 'http-error', status: 429, bodyText: 'cuota', headers: {} }));
@@ -290,7 +290,7 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
   });
 
   it('S-LR-11: un tipo crudo sin filtro de la fuente no genera ninguna petición; el id queda ambiguo', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     await seedZone(sourceId, 'refresh');
     const ghostId = await seedGhost(sourceId, 'ghost-chalet', 'chalet');
     const searchPort = createSearchPort((ids) => reply(ids));
@@ -303,7 +303,7 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
   });
 
   it('S-LR-14: con maxVerificationRequestsPerTick = 1 y dos grupos (homes y premises) sale UNA sola petición de verificación', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     await seedZone(sourceId, 'refresh');
     await seedGhost(sourceId, 'ghost-flat', 'flat');
     await seedGhost(sourceId, 'ghost-premise', 'premise');
@@ -318,7 +318,7 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
   });
 
   it('el gasto de verificación queda en el ledger: 5 búsquedas de barrido + 1 de verificación', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     await seedZone(sourceId, 'refresh');
     await seedGhost(sourceId, 'ghost-1', 'flat');
     const searchPort = createSearchPort((ids) => reply(ids));
@@ -327,10 +327,15 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
 
     const [budget] = await db.select().from(dailyRequestBudget).where(eq(dailyRequestBudget.sourceId, sourceId));
     expect(budget?.searchRequests).toBe(6);
+    // ROADMAP 3.3 (S8.3): barrido de refresco y verificación comparten el carril refresh del mes.
+    const { rows } = await db.execute<{ search: number; refresh: number }>(
+      sql`select search_requests as search, refresh_requests as refresh from monthly_request_budget`
+    );
+    expect(rows).toEqual([{ search: 6, refresh: 6 }]);
   });
 
   it('S-LR-13: si el techo del carril de refresco está agotado no sale ninguna petición de verificación y nada cambia', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     await seedZone(sourceId, 'refresh');
     const ghostId = await seedGhost(sourceId, 'ghost-1', 'flat');
     const searchPort = createSearchPort((ids) => reply(ids));
@@ -358,7 +363,7 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
   });
 
   it('S-LR-15: con un job A DEMANDA en el tick se barre y se nomina, pero la verificación espera', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     await seedZone(sourceId, 'on-demand');
     const ghostId = await seedGhost(sourceId, 'ghost-1', 'flat');
     const searchPort = createSearchPort((ids) => reply(ids));
@@ -371,7 +376,7 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
   });
 
   it('S-LR-2: un barrido INCOMPLETO (tope por barrido) no nomina a nadie', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     await seedZone(sourceId, 'refresh');
     const ghostId = await seedGhost(sourceId, 'ghost-1', 'flat');
     const searchPort = createSearchPort((ids) => reply(ids));
@@ -397,7 +402,7 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
   });
 
   it('un anuncio visto DURANTE el barrido nunca se nomina aunque exista en la base de datos', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     await seedZone(sourceId, 'refresh');
     // Mismo external_id que el primer elemento del barrido falso (901).
     const seenId = await seedGhost(sourceId, '901', 'flat');

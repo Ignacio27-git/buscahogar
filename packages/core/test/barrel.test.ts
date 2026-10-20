@@ -20,6 +20,12 @@ describe('barril público de @buscahogar/core', () => {
     expect(barrel.hasRetriesLeft(3)).toBe(false);
   });
 
+  it('ROADMAP 3.3: expone las reglas puras del techo mensual por carril', () => {
+    expect(barrel.laneCeiling('batch', { totalCap: 100, reserve: 30 })).toBe(70);
+    expect(barrel.laneRemaining('on-demand', { totalCap: 100, reserve: 30, searchRequests: 40 })).toBe(60);
+    expect(barrel.monthlyGrant('batch', 10, { totalCap: 100, reserve: 30, searchRequests: 67 })).toBe(3);
+  });
+
   it('ROADMAP 1.11: expone searchQuerySchema, utilizable como validador Zod', () => {
     expect(barrel.searchQuerySchema).toBeDefined();
     const result = barrel.searchQuerySchema.safeParse({ operation: 'sale' });

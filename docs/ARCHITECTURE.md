@@ -142,6 +142,21 @@ escribe `apps/web` y las lee el worker (`zone_query_signals`).
 **Cuota.** Presupuesto diario de peticiones y tope de zonas nuevas por día y por sesión.
 Degradación explícita al alcanzarlo.
 
+**Cuota mensual por carril (decisión 248).** Toda petición a la fuente se reserva con una única función,
+`reserveRequestBudget` (`packages/db/src/budget-ledger.ts`), contra `monthly_request_budget`: una fila por
+(mes UTC, fuente) con `total_cap`, `reserve` y el gasto por carril. El total y la reserva solo se fijan con
+`set-monthly-quota` (sin valores por defecto); un mes nuevo hereda de la fila anterior más reciente con los
+contadores a 0, y sin ninguna fila previa **ningún** carril gasta (fail-closed). Los carriles son tres: el
+**batch** (presweep y barrido manual), el **refresco** (barrido de refresco y verificación de presencia) y la
+**demanda** (on-demand). Batch y refresco comparten `total − reserva`; solo la demanda puede gastar la reserva,
+hasta `total`. El batch recibe una concesión parcial (`min(pedido, margen)`) y solo reserva contra el mes; el
+refresco y la demanda reservan además contra el cupo diario en la misma transacción (un rechazo diario revierte
+el paso mensual). Consecuencia asumida: un batch grande puede dejar sin margen al refresco el resto del mes. Las
+reglas puras de techo viven en `packages/core/src/quota/monthly-allowance.ts`. El registro es del propietario
+(`apps/ingestion`): ni `web_readonly` ni `web_coverage` tienen ningún privilegio sobre la tabla (REVOKE explícito
+en la migración 0019 y en `bootstrap-roles-grants.sql`, después de los `GRANT`/privilegios por defecto), así que
+`apps/web` no gana ningún `GRANT`.
+
 ## Atribución de datos geográficos
 
 El catálogo de municipios (centroide y radio de barrido por municipio, ROADMAP 1.13) se deriva

@@ -242,6 +242,9 @@ export type {
 } from './contracts/listing-presence-verifier.js';
 export { partitionPresenceVerdicts, planPresenceBatches } from './retention/presence-batches.js';
 export type { PartitionedPresence, PresenceCandidate } from './retention/presence-batches.js';
+// Cuota mensual de peticiones (ROADMAP 3.3, decisión 248): techo por carril. Puro.
+export { laneCeiling, laneRemaining, monthlyGrant } from './quota/monthly-allowance.js';
+export type { MonthlyLedgerState, QuotaLane } from './quota/monthly-allowance.js';
 // Histórico de precios de la ficha (D.10, decisión 178): derivación pura.
 export { derivePriceHistory, priceChangePercentTenths } from './price-history/derive-price-history.js';
 export type {

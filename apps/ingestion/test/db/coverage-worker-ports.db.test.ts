@@ -38,7 +38,7 @@ import { runCoverageWorker } from '../../src/sweep/coverage-worker.js';
 import type { CoverageWorkerOptions } from '../../src/sweep/coverage-worker.js';
 import type { IdealistaSearchPort, IdealistaTokenPort, TransportOutcome } from '../../src/sources/idealista/ports.js';
 import { connectTestDb, truncateAll } from './helpers/db-client.js';
-import { insertLocationWithZone, insertSource } from './helpers/seed-fixtures.js';
+import { insertLocationWithZone, insertSourceWithQuota } from './helpers/seed-fixtures.js';
 
 const GRANADA = { latitude: 37.177336, longitude: -3.598557 };
 
@@ -117,7 +117,7 @@ describe('createRealCoverageWorkerPorts — CR-2: reutiliza runSweep/composeStor
 
   it('A-8: un trabajo pending sin --zone de CLI se reclama y se barre hasta completarse, vía el puerto real', async () => {
     const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     const [jobRow] = await db
       .insert(coverageJobs)
       .values({ zoneId, sourceId, operation: 'sale', status: 'pending' })
@@ -170,7 +170,7 @@ describe('createRealCoverageWorkerPorts — CR-2: reutiliza runSweep/composeStor
   // misma zona; cada barrido usa la operación de SU job y deja SU cobertura.
   it('S12.1: un único worker barre el job de sale y el de rent de la misma zona, cada uno con su operación y su cobertura', async () => {
     const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     await db.insert(coverageJobs).values([
       // Fechas recientes: el mantenimiento del tick purgaría una zona sin demanda desde hace >= 180 días.
       { zoneId, sourceId, operation: 'sale', status: 'pending', requestedAt: new Date(Date.now() - 2_000) },
@@ -213,7 +213,7 @@ describe('createRealCoverageWorkerPorts — CR-2: reutiliza runSweep/composeStor
 
   it('A-8.1: un trabajo ya reclamado por otro proceso lanza JobAlreadyClaimedError REAL (coverage-store.ts CAS)', async () => {
     const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     // Simula un proceso concurrente que ya tiene este trabajo.
     await db.insert(coverageJobs).values({ zoneId, sourceId, operation: 'sale', status: 'running' });
 
@@ -236,7 +236,7 @@ describe('createRealCoverageWorkerPorts — CR-2: reutiliza runSweep/composeStor
   });
 
   it('DD-10/CR-2: runDedup reutiliza el reproceso GLOBAL — agrupa un listing PREEXISTENTE fuera de este trabajo, sin filtro de zona', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     // Dos anuncios YA en el corpus antes de esta llamada, simulando que
     // pertenecen a un barrido anterior/otra zona — ninguno lo insertó
     // claimAndSweep en este tick. blocking.ts:4-6 no filtra por zona ni por
@@ -392,7 +392,7 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
   }
 
   it('S-ZRS-9: reserveBudget("refresh") aplica el techo floor(cap × fracción) sobre el gasto TOTAL; "on-demand" no tiene techo', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     const ports = buildPorts(sourceId, { dailySearchCap: 100, refreshBudgetFraction: 0.2 });
     const reservation = { searchReserved: 10, tokenReserved: 1 };
 
@@ -403,7 +403,7 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
   });
 
   it('S-ZRS-10: sin fracción (o 0) ninguna reserva de refresco se concede, y la demanda sigue reservando', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     const ports = buildPorts(sourceId, { dailySearchCap: 100 });
     const reservation = { searchReserved: 1, tokenReserved: 0 };
 
@@ -413,7 +413,7 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
 
   it('S-ZRS-12: con 95 de 100 gastados a demanda y fracción 0.2, un job de refresco pendiente NO se barre (cero peticiones) y sigue pendiente', async () => {
     const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     await db.insert(coverageJobs).values({ zoneId, sourceId, operation: 'sale', status: 'pending', refreshRequestedAt: new Date() });
     await reserveDailyBudget(db, sourceId, { searchReserved: 95, tokenReserved: 0 }, 100);
     const searchPort = createExhaustingSearchPort();
@@ -429,7 +429,7 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
 
   it('S-ZRS-13: un job de refresco con una fuente que NUNCA se agota se corta en el tope por barrido — el ciclo queda incompleto y en el carril de refresco', async () => {
     const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     await db.insert(coverageJobs).values({ zoneId, sourceId, operation: 'sale', status: 'pending', refreshRequestedAt: new Date() });
     const searchPort = createNeverExhaustingSearchPort();
     const ports = buildPorts(sourceId, { searchPort, maxSearchRequestsPerSweep: 3, refreshBudgetFraction: 1 });
@@ -447,7 +447,7 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
 
   it('maintenance.purgeZoneQuerySignals borra las señales de más de 180 días y conserva las recientes', async () => {
     const { zoneId } = await insertLocationWithZone(db);
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     await db.execute(sql`
       insert into zone_query_signals (zone_id, day) values
         (${zoneId}, (now() at time zone 'utc')::date - 200),
@@ -463,7 +463,7 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
   });
 
   it('un tick completo: zona covered vencida (barrida hace 8 días, señal de hoy) se re-encola, se barre en el MISMO tick y vuelve a estado "a demanda"', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     const { zoneId, jobId } = await seedCoveredZoneWithDoneJob(sourceId, 8);
     const [before] = await db.select().from(coverageJobs).where(eq(coverageJobs.id, jobId));
     const searchPort = createExhaustingSearchPort();
@@ -481,7 +481,7 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
   });
 
   it('el mismo tick con fracción 0: la zona vencida NO se re-encola y no hay ninguna petición a la fuente', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     const { jobId } = await seedCoveredZoneWithDoneJob(sourceId, 8);
     const searchPort = createExhaustingSearchPort();
     const ports = buildPorts(sourceId, { searchPort, refreshBudgetFraction: 0 });
@@ -494,7 +494,7 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
   });
 
   it('una zona covered NO vencida (barrida hace 2 días) no se re-encola: cero peticiones', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     const { jobId } = await seedCoveredZoneWithDoneJob(sourceId, 2);
     const searchPort = createExhaustingSearchPort();
     const ports = buildPorts(sourceId, { searchPort, refreshBudgetFraction: 0.2 });
@@ -534,7 +534,7 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
   }
 
   it('maintenance.purgeZones reinicia la zona (job y señales fuera, zona uncovered) y retira sus anuncios huérfanos', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     const { zoneId } = await seedPurgeableZone(sourceId);
     const listingId = await seedListingAt(sourceId, 'in-zone', { x: GRANADA.longitude, y: GRANADA.latitude });
     const ports = buildPorts(sourceId);
@@ -552,7 +552,7 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
   });
 
   it('maintenance.tombstoneExpiredListings redacta los inactivos de >= 180 días y devuelve cuántos', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     const listingId = await seedListingAt(sourceId, 'old-inactive', { x: GRANADA.longitude, y: GRANADA.latitude });
     await pool.query(
       `update listings set status = 'inactive', inactive_reason = 'delisted', inactive_since = now() - interval '181 days' where id = $1`,
@@ -570,7 +570,7 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
   });
 
   it('un tick completo: zona sin consultas desde hace 200 días se purga SIN ninguna petición a la fuente y no se refresca', async () => {
-    const sourceId = await insertSource(db);
+    const sourceId = await insertSourceWithQuota(db);
     const { zoneId } = await seedPurgeableZone(sourceId);
     const searchPort = createExhaustingSearchPort();
     const ports = buildPorts(sourceId, { searchPort, refreshBudgetFraction: 0.2 });

@@ -95,3 +95,17 @@ BEGIN
   EXECUTE format('ALTER ROLE web_readonly IN DATABASE %I SET jit = off', current_database());
 END
 $$;
+
+-- Registro MENSUAL de cuota de peticiones (ROADMAP 3.3, decisión 248, NF2): es solo del
+-- propietario (`apps/ingestion`). Los `GRANT SELECT ON ALL TABLES` de arriba y los privilegios por
+-- defecto de la línea anterior le darían SELECT a `web_readonly`, así que este REVOKE va SIEMPRE
+-- DESPUÉS de ambos y hay que conservarlo ahí: moverlo antes lo anularía. Un REVOKE no es un GRANT
+-- nuevo. `monthly_request_budget` aparece con la migración 0019; si el bootstrap corre antes,
+-- no hay nada que revocar (la migración revoca al crearla).
+DO $$
+BEGIN
+  IF to_regclass('public.monthly_request_budget') IS NOT NULL THEN
+    REVOKE ALL ON TABLE monthly_request_budget FROM web_readonly, web_coverage;
+  END IF;
+END
+$$;

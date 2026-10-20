@@ -6356,6 +6356,79 @@ conversiones explícitas de tipos para cada columna, y no sirve para `inArray`. 
 
 ---
 
+## 248 — Registro mensual de cuota con reserva por carril: herencia entre meses, reserva única de peticiones y privilegios cerrados
+
+**Estado:** aceptada (paso 3.3, PR4a). Decisiones de producto PD10 y PD12 del propietario.
+
+**Contexto.** La cuota de la API de Idealista es mensual y de pago (CLAUDE.md), pero el único tope que el código conocía era el diario
+(`daily_request_budget`, 066/104), una cifra de entorno que nada ligaba al total del mes. La prebúsqueda de las ciudades más pobladas
+(PR4b) puede gastar miles de peticiones de golpe: necesita un techo mensual que **garantice** una reserva para la demanda de usuario y que
+ningún proceso pueda saltarse.
+
+**Decisión.**
+
+1. **Tabla `monthly_request_budget`** (migración 0019), una fila por (mes UTC, fuente), PK `(month, source_id)`: `total_cap`, `reserve`,
+   `search_requests` y su desglose por carril (`batch_requests`, `on_demand_requests`, `refresh_requests`), más `token_requests` aparte (el
+   token no consume cuota de búsqueda). CHECK estructurales: `total_cap > 0`, `0 <= reserve < total_cap`, contadores ≥ 0, `search_requests =
+   batch + on_demand + refresh` y `search_requests <= total_cap`. El mes lo fija el reloj de Postgres (`date_trunc('month', now() at time
+   zone 'utc')`), nunca el de Node. Supuesto abierto: Idealista reinicia la cuota el mes natural UTC (por confirmar).
+2. **Herencia (PD10).** Un mes sin fila hereda `total_cap` y `reserve` de la fila anterior más reciente de la fuente, con los contadores a 0:
+   dentro de la reserva, `INSERT … SELECT … ON CONFLICT DO NOTHING` sobre la PK (dos primeras reservas del mes concurrentes crean una sola
+   fila). **Sin ninguna fila previa no se inserta nada y TODO carril se deniega con `monthly-missing`**, también el de demanda de usuario
+   (decisión 066: nunca una cifra por defecto). El total y la reserva solo se fijan con `set-monthly-quota`.
+3. **Techo por carril (PD12).** El techo es sobre el gasto **total** del mes: batch, refresco y verificación de presencia comparten
+   `total − reserva`; la demanda de usuario (on-demand, incluidos los jobs de presweep promovidos en PR4b) llega hasta `total`. La verificación
+   de presencia reserva en el carril de refresco (mismo contador). La regla pura está en `packages/core/src/quota/monthly-allowance.ts`
+   (`laneCeiling`, `laneRemaining`, `monthlyGrant`) y la sentencia SQL la implementa; el test de base de datos recorre los mismos casos
+   contra ambas.
+4. **Una sola función de gasto: `reserveRequestBudget`** (`packages/db/src/budget-ledger.ts`). En **una transacción**: (a) herencia; (b)
+   `UPDATE … RETURNING` condicional sobre un `SELECT … FOR UPDATE` de la fila (dos procesos concurrentes se serializan sobre ella: con 1
+   unidad de margen, solo uno gana); (c) para los carriles del worker, `reserveDailyBudget` sobre la **misma** transacción; un rechazo
+   diario **revierte** el paso mensual entero, incluida la fila heredada. Devuelve un recibo con el **mes** de la reserva: la reconciliación
+   (`reconcileRequestBudget`) devuelve lo no gastado a ese mes y a su carril aunque el tick cruce el cambio de mes. Si el proceso muere antes
+   de reconciliar la reserva queda: sobre-cuenta, nunca sub-cuenta.
+5. **Concesión parcial del batch (D6b).** El batch pide *hasta* n y recibe `min(n, margen)`; se deniega solo con margen 0. Con 3 de margen y
+   `max-requests` 10, el barrido hace 3 peticiones (el tope duro del barrido es lo concedido). On-demand y refresco son exactos (todo o
+   nada), como hasta ahora.
+6. **El batch solo reserva contra el mes (D7).** No toca `daily_request_budget`: un día de barrido masivo no debe agotar el cupo diario de
+   la demanda de usuario. `sweep-zone` (barrido manual) es gasto de este carril: reserva **antes** de reclamar el job (reclamar incrementa
+   `attempts`), recibe una concesión posible parcial y sale con código 4 sin reclamar ni emitir nada si no hay cuota utilizable o margen.
+7. **Privilegios (NF2, D8b).** `GRANT SELECT ON ALL TABLES` (bootstrap, línea 55) y `ALTER DEFAULT PRIVILEGES … GRANT SELECT ON TABLES TO
+   web_readonly` (línea 84) darían a `web_readonly` lectura del registro. La migración 0019 y `bootstrap-roles-grants.sql` ejecutan
+   `REVOKE ALL ON TABLE monthly_request_budget FROM web_readonly, web_coverage`. En el bootstrap va **después de ambos** (moverlo antes lo
+   anularía) y solo si la tabla existe; en la migración, solo para los roles que existen (los roles se crean fuera de las migraciones,
+   decisión 064). Un REVOKE no es un GRANT nuevo: **`apps/web` no gana ningún GRANT y la regla de credenciales de CLAUDE.md no cambia**.
+   Lo prueba `apps/web/test/db/monthly-ledger-role-privileges.test.ts` con `has_table_privilege` (SELECT/INSERT/UPDATE/DELETE de ambos roles),
+   tras re-ejecutar el bootstrap y con una conexión real de `web_readonly`; y comprueba que el propietario lee `zone_query_signals` (R16).
+8. **`set-monthly-quota`** (`apps/ingestion/scripts/set-monthly-quota.ts`, script `pnpm --filter @buscahogar/ingestion set-monthly-quota`):
+   `--total` (entero > 0) y `--reserve` (entero ≥ 0, `< total`) **obligatorios y sin defecto**, `--month YYYY-MM` opcional (defecto: mes UTC
+   en curso). Zod valida el argv antes de abrir ninguna conexión: negativos, decimales, notación científica, ceros a la izquierda y valores
+   fuera de `integer` se rechazan; la reserva 0 solo con `--reserve 0` explícito. Hace *upsert* de total y reserva y **nunca** toca los
+   contadores; bajar el total por debajo de lo ya gastado lo rechaza el CHECK (salida 1, registro intacto).
+
+**Alternativas descartadas.** (1) Total y reserva en variables de entorno por proceso: tres procesos (worker, barrido manual, presweep)
+podrían discrepar y el mes no persistiría. (2) Lectura-modificación-escritura en Node: carrera entre procesos; el bloqueo de fila lo hace
+atómico. (3) Que el refresco gaste la reserva: la reserva existe para la cobertura bajo demanda de municipios pequeños. (4) Batch
+todo-o-nada: con 3 de margen y 10 pedidas el barrido no haría nada en lugar de aprovechar las 3. (5) Confiar en que `web_readonly` no tenga
+el privilegio: los privilegios por defecto se lo conceden. (6) Una fila de cuota por defecto en la migración: una cifra inventada
+(decisión 066).
+
+**Consecuencias.**
+
+- **Inanición del refresco (PD12, asumida).** Un batch grande puede consumir todo `total − reserva` y dejar al refresco y a la
+  verificación de presencia sin margen **el resto del mes**; la demanda de usuario conserva la reserva. Es el compromiso elegido: el
+  refresco no sale de la reserva. La mitigación es operativa: elegir `--max-requests` del presweep con cabeza y revisar el desglose por carril.
+- **Todo gasto falla cerrado sin cuota.** Hasta ejecutar `set-monthly-quota` por primera vez el worker no barre nada (ni a demanda), el
+  barrido manual sale con 4 y el presweep (PR4b) saldrá con 1. El worker lo dice en el log con el comando a ejecutar.
+- **Lo concedido por el batch es el tope duro del barrido**, no `--max-requests`; el informe del barrido refleja lo realmente gastado.
+- El mes de una reserva se guarda en un recibo en memoria (puerto del worker, `WeakMap` por objeto de reserva): suficiente porque un
+  proceso que muere no reconcilia de todas formas (sobre-cuenta).
+- No se añade ninguna variable de entorno ni ningún `GRANT`. Para el propietario: aplicar la migración 0019, ejecutar `set-monthly-quota`
+  y, opcionalmente, volver a ejecutar el bootstrap (el REVOKE también va en la migración).
+- **SQL inverso (manual, las migraciones son solo hacia delante):** `DROP TABLE monthly_request_budget;`
+
+---
+
 ## 249 — Población municipal en el catálogo: columna nulable, parseo estricto y guarda de deriva
 
 **Estado:** aceptada (paso 3.3, PR1).
