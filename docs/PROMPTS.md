@@ -2207,3 +2207,18 @@ zone_query_signals).»
 registro de cuota mensual con reserva. El cambio las construyó antes del propio pre-barrido (decisiones 248-253). Verificación PASS WITH
 WARNINGS, 0 críticos, 49/49 escenarios. No se gastó cuota real: el pre-barrido lo lanza el responsable con topes explícitos. Detalle en
 `docs/ROADMAP.md`, paso 3.3.
+
+---
+
+### 2026-10-20 — Puesta en marcha del pre-barrido (3.3, operación)
+
+**Tipo de tarea:** operación sobre la base de desarrollo (migraciones, seed, registro de cuota, simulación)
+**Forma de especificación:** instrucción directa, sin SDD («continúa con lo demás si no hay ningún problema»), con decisiones del
+responsable por cuestionario
+**Resultado:** utilizable sin cambios
+
+**Prompt:** «ya quité operation del env, continúa con lo demás si no hay ningún problema».
+
+**Observación.** El responsable pidió fijar la cuota «según la documentación de Idealista menos lo gastado», pero ninguno de los dos PDF de
+`docs/api_idealista` documenta una cuota mensual. Se registró 62/31 (100 no oficiales − 38 gastadas, reserva del 50 %) y se simuló el plan
+sin gastar. El barrido real queda preparado y sin lanzar, por decisión del responsable.

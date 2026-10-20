@@ -2124,17 +2124,25 @@ ciudad son dos unidades (venta y alquiler), y el tope de la ejecución las cuent
 
 **Pendiente del responsable.**
 
-- Aplicar las migraciones 0017-0019 (`pnpm db:migrate`) y `pnpm db:seed` (población en el catálogo).
-- Registrar la cuota del mes: `set-monthly-quota --total N --reserve M`. Sin ella, el worker y el pre-barrido no
-  gastan nada.
-- Quitar `OPERATION` de `.env` y de `.env.example`: el worker ya no arranca si existe. La edición de
-  `.env.example` quedó bloqueada por los permisos de la herramienta.
-- Bajar `DAILY_SEARCH_CAP` (hoy 1000, muy por encima de la cuota mensual estimada).
-- Relanzar el bootstrap de roles (`packages/db/sql/bootstrap-roles-grants.sql`), opcional: la migración 0019 ya
-  revoca la tabla mensual a los roles de `web` que existan.
-- Lanzar el pre-barrido real con topes explícitos (`presweep --top N --max-requests M --max-requests-per-sweep K`,
-  primero con `--dry-run`). Gasta cuota real.
-- Confirmar que la cuota de Idealista se reinicia por mes natural UTC, que es lo que asume el registro.
+- Hecho el 2026-10-20: el responsable quitó `OPERATION` de `.env`. Queda comprobar `.env.example`, cuya edición
+  bloquearon los permisos de la herramienta.
+- Hecho el 2026-10-20: migraciones 0017-0019 aplicadas en la base de desarrollo (20/20) y `pnpm db:seed`, con
+  población en los 8 132 municipios. El job de Granada quedó como `rent`, `done`, con `last_completed_at`; ni
+  `web_readonly` ni `web_coverage` tienen privilegios sobre `monthly_request_budget`. El bootstrap de roles no hace
+  falta relanzarlo.
+- Hecho el 2026-10-20: cuota de octubre registrada con `set-monthly-quota --total 62 --reserve 31`, es decir, la
+  cifra no oficial de 100 al mes menos las 38 búsquedas ya gastadas en octubre (2 del CLI y 36 del worker, Granada)
+  y la reserva del 50 % de lo restante que fijó el responsable. Ninguno de los dos PDF de `docs/api_idealista`
+  documenta una cuota mensual; la cifra real solo está en el panel de socio. **En noviembre hay que fijar de nuevo
+  la cuota completa**: por la decisión 248 se heredaría 62/31.
+- Hecho el 2026-10-20: simulación `presweep --top 3 --max-requests 31 --max-requests-per-sweep 31 --dry-run`, con
+  6 unidades (Madrid, Barcelona y Valencia, en venta y alquiler) y 0 peticiones gastadas.
+- Pendiente: el barrido real que eligió el responsable, Madrid en venta y alquiler,
+  `pnpm --filter @buscahogar/ingestion presweep --top 1 --max-requests 31 --max-requests-per-sweep 15`. Gasta cuota
+  real y deja ambas operaciones parciales y reanudables. Después, reprocesar la deduplicación para que Madrid
+  aparezca en la búsqueda.
+- Pendiente: bajar `DAILY_SEARCH_CAP` (hoy 1000) antes de arrancar el worker.
+- Pendiente: confirmar que la cuota de Idealista se reinicia por mes natural UTC, que es lo que asume el registro.
 
 **Riesgos abiertos.** Las ciudades grandes superan el radio máximo de búsqueda de 15 km, así que un único barrido
 por ciudad puede no cubrir todo el término municipal. El mapeo de `studio` sigue sin existir (paso 3.2).
