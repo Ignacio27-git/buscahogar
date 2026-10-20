@@ -231,7 +231,7 @@ export {
 } from './retention/policy.js';
 export type { ZoneCadence } from './retention/policy.js';
 export { MAX_ZONE_PURGES_PER_PASS, planZoneMaintenance } from './retention/zone-maintenance.js';
-export type { ZoneLifecycleSnapshot, ZoneMaintenancePlan } from './retention/zone-maintenance.js';
+export type { RefreshTarget, ZoneLifecycleSnapshot, ZoneMaintenancePlan } from './retention/zone-maintenance.js';
 // Verificación de presencia por `adIds` (S3, decisión 105): capacidad separada
 // de `PropertySource` y planificación pura de lotes.
 export type {

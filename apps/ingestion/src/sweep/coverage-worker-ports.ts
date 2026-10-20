@@ -28,6 +28,7 @@ import type {
   PresenceBatch,
   PresenceCandidate,
   PresenceVerdict,
+  RefreshTarget,
 } from '@buscahogar/core';
 import {
   applyPresenceVerdicts,
@@ -82,11 +83,10 @@ export interface CoverageWorkerRealDeps {
   // composition root). Ausente = 0: el refresco no gasta nada por defecto.
   readonly refreshBudgetFraction?: number;
   // ROADMAP 2.5 (S3; decisión 105): verificación de presencia por `adIds`.
-  // Ausente = sin verificación (composiciones anteriores a S3). `operation` es
-  // la del worker (un proceso cubre UNA operación); `radiusMarginM` se suma al
-  // radio de la zona en la petición.
+  // Ausente = sin verificación (composiciones anteriores a S3). El worker único
+  // verifica anuncios de las dos operaciones (decisión 252); `radiusMarginM` se
+  // suma al radio de la zona en la petición.
   readonly presenceVerification?: {
-    readonly operation: 'sale' | 'rent';
     readonly radiusMarginM: number;
   };
   readonly blockingThresholds: BlockingThresholds;
@@ -130,8 +130,8 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
       }
       return result.purged.length;
     },
-    scheduleRefresh(zoneIds: readonly string[]): Promise<number> {
-      return scheduleRefresh(deps.db, { sourceId: deps.sourceUuid, zoneIds, maxAttempts: deps.maxAttempts });
+    scheduleRefresh(targets: readonly RefreshTarget[]): Promise<number> {
+      return scheduleRefresh(deps.db, { sourceId: deps.sourceUuid, targets, maxAttempts: deps.maxAttempts });
     },
     tombstoneExpiredListings(): Promise<number> {
       return tombstoneExpiredListings(deps.db, {
@@ -143,8 +143,9 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
 
   const presenceDeps = deps.presenceVerification;
   const verification: PresenceVerificationPorts | undefined = presenceDeps && {
-    markAbsenceCandidates(job: PollJob, area: AreaQuery): Promise<number> {
-      return markAbsenceCandidates(deps.db, { jobId: job.jobId, operation: area.operation });
+    // La operación que se juzga es la del job (`coverage_jobs.operation`).
+    markAbsenceCandidates(job: PollJob): Promise<number> {
+      return markAbsenceCandidates(deps.db, { jobId: job.jobId });
     },
 
     async nextPresenceBatches(maxBatches: number): Promise<PresencePlan> {
@@ -152,7 +153,6 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
       // verificación de un tick nunca es ilimitada (corte explícito).
       const due = await listDuePresenceCandidates(deps.db, {
         sourceId: deps.sourceUuid,
-        operation: presenceDeps.operation,
         limit: maxBatches * PRESENCE_BATCH_SIZE,
         retryBackoffDays: PRESENCE_RETRY_BACKOFF_DAYS,
       });
@@ -257,7 +257,7 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
     },
 
     async claimAndSweep(job: PollJob, area: AreaQuery, fingerprint: string): Promise<SweepTickResult> {
-      const claimed = await store.claimJob(job.zoneId, job.sourceId, fingerprint);
+      const claimed = await store.claimJob(job.zoneId, job.sourceId, job.operation, fingerprint);
 
       const source = createIdealistaSource({
         searchPort: deps.searchPort,

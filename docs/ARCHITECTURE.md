@@ -83,7 +83,9 @@ antes de normalizar — nunca un `Listing`.
   produjo la decisión.
 - **`sources`** — fuentes registradas.
 - **`zones`** — zonas cubiertas: identificador canónico, estado, fecha del último barrido.
-- **`coverage_jobs`** — cola de barridos pendientes (`pending`, `running`, `done`, `failed`).
+- **`coverage_jobs`** — cola de barridos (`pending`, `running`, `done`, `failed`), un job por
+  (zona, fuente, **operación**) (decisión 250): venta y alquiler de una zona son jobs independientes,
+  con cursores independientes. `last_completed_at` es la cobertura de (zona, operación).
 - **`locations`**, **`features`** — datos normalizados auxiliares.
 
 ## Cobertura bajo demanda
@@ -113,6 +115,19 @@ interfaz ofrece autocompletado sobre zonas canónicas en lugar de texto libre.
 
 **Cola.** `coverage_jobs` en la propia base de datos. No se introduce Redis ni un sistema
 de colas externo.
+
+**Cobertura por operación (decisión 250).** La clave de un job es `(zone_id, source_id, operation)`
+con `operation` en `sale`/`rent`, y los dos índices únicos (el total y el parcial de
+`pending`/`running`) la incluyen: un par sale+rent pendiente de la misma zona convive. Una
+(zona, operación) está cubierta si y solo si su job tiene `last_completed_at`, que fija
+`finishJob(completed)` y ningún refresco ni fallo limpia. `zones.state` queda como agregado y no decide.
+`presweep_requested_at` (sin uso hasta la prebúsqueda del paso 3.3) marca el trabajo parcial de un
+barrido por lotes.
+
+**Un único worker (decisión 252).** El worker de `apps/ingestion` sirve venta y alquiler: la
+operación de cada barrido es la de su job (`PollJob.operation`), con ella se construye el área y se
+reclama el job. La variable `OPERATION` se retiró y `readEnv` la rechaza al arrancar. La
+verificación de presencia no filtra por operación y nomina según la operación del job.
 
 **Cuota.** Presupuesto diario de peticiones y tope de zonas nuevas por día y por sesión.
 Degradación explícita al alcanzarlo.
@@ -146,7 +161,8 @@ reloj de Postgres (días UTC).
 | ≥ 180 | purga de zona |
 
 **Refresco.** El mantenimiento del tick (primer tick y luego cada `MAINTENANCE_EVERY_TICKS`) re-encola
-los jobs vencidos en un carril propio, tras los jobs a demanda. El gasto de refresco y de
+los jobs vencidos en un carril propio, tras los jobs a demanda. El vencimiento es **por (zona, operación)**:
+cada operación vence según su propio `last_completed_at`. El gasto de refresco y de
 verificación tiene un techo sobre el gasto total del día (`REFRESH_BUDGET_FRACTION` × tope diario);
 con fracción 0 no hay refresco.
 
@@ -161,7 +177,8 @@ conserva y se reactiva si la fuente vuelve a publicarlo.
 **Purga en dos planos.**
 
 - *Zonas*, a los 180 días sin consultas: la zona vuelve a `uncovered` (la fila de `zones` es el
-  catálogo INE y no se borra), se borran su job y sus señales, y los anuncios que solo cubría su
+  catálogo INE y no se borra), se borran sus jobs (venta y alquiler; se purga solo si ninguno está en
+  curso) y sus señales, y los anuncios que solo cubría su
   círculo pasan a `inactive` / `zone_purged`. No gasta cuota.
 - *Anuncios*, a los 180 días inactivos: tombstone. Se redactan la descripción y el `raw` de todas sus
   versiones y la miniatura, y pasan a `removed`. Se conservan el historial de precios y la

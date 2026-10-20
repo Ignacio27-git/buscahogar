@@ -6384,6 +6384,105 @@ válida, así que hay margen; hay que reconfirmarlo si el IGN cambia el formato.
 
 ---
 
+## 250 — `coverage_jobs` por operación: relleno con `rent`, cobertura por (zona, operación) y claves únicas con la operación
+
+**Estado:** aceptada (paso 3.3, PR2).
+
+**Decisión.** Venta y alquiler de una zona pasan a ser jobs **independientes**, cada uno con su cursor (migración 0018).
+
+- `coverage_jobs.operation text NOT NULL` con `CHECK (operation in ('sale','rent'))` y **sin valor por defecto** (el mismo patrón que
+  `listing_versions.operation`): cada escritor debe decidirla. Los jobs existentes se rellenan con **`rent`**: hasta el paso 3.2 solo se
+  barrió con `OPERATION=rent`. Un rellenado erróneo es *fail-safe*: el cursor lleva la huella del área (que incluye la operación) y se
+  rechaza como `invalid-cursor` con cero gasto, nunca reanuda otra búsqueda. Un job cuya operación no se pudiera determinar también recibe
+  `rent`, así que la migración no falla ni pierde jobs ni cursores.
+- **Cobertura por (zona, operación) = `coverage_jobs.last_completed_at` no nulo.** La fija `finishJob(completed)` (y limpia a la vez
+  `presweep_requested_at`); un refresco, un fallo o un presupuesto agotado **nunca** la limpian. La migración la rellena desde
+  `zones.last_swept_at` en las zonas `covered`. `zones.state` y `zones.last_swept_at` quedan como agregado y ya no deciden nada en el
+  ciclo de vida: el planificador de refresco usa el último barrido **de la operación** (`last_completed_at`) y la elegibilidad exige la
+  operación cubierta. Una purga de zona borra los jobs de las dos operaciones, así que la zona vuelve a no estar cubierta para ambas.
+- **Los dos índices únicos incluyen la operación:** `coverage_jobs_zone_source_op_idx (zone_id, source_id, operation)` y el parcial
+  `coverage_jobs_zone_source_op_pending_idx (zone_id, source_id, operation) WHERE status in ('pending','running')`. Los dos anteriores se
+  eliminan. Con el parcial antiguo, un par sale+rent pendiente de la misma zona chocaba y el `ON CONFLICT DO NOTHING` sin `target` de
+  `registerCoverageJob` descartaba uno en silencio, rompiendo la cobertura por operación de la web (PD9, PR3).
+- `registerCoverageJob` y `getCoverageJobState` reciben la operación. El `GRANT INSERT` de `web_coverage` es a nivel de tabla, así que
+  cubre la columna nueva: **no se añade ningún `GRANT`** (el test de privilegios inserta con `operation` y pasa).
+- `presweep_requested_at timestamptz` queda creada y sin uso en este paso: la fijará el reclamo del carril por lotes y la limpiará el
+  ciclo completado; una zona con demanda reciente promoverá esos jobs parciales al carril a demanda (PR4b).
+- **Hasta PR3 la web registra `rent`** (constante provisional en `apps/web/src/server/coverage.ts`): un único job por zona, como hasta
+  3.2, sin cambio de comportamiento. `countZonesOpenedToday` sigue contando filas; PR3 lo cambiará a zonas distintas.
+
+**Alternativas descartadas.** (1) Deducir la operación decodificando el cursor (hash `sha256` de la huella, no reversible) o inferirla de los
+anuncios de la zona: más complejo y no más correcto que el hecho histórico de que solo se corrió `rent`. (2) Borrar los jobs existentes:
+perdería cursores ya pagados. (3) Una tabla `zone_coverage` o columnas por operación en `zones`: una tabla más y el mismo dato que ya vive
+en el job; la purga borra el job y la zona queda sin cobertura sin lógica extra. (4) Mantener el índice parcial antiguo: choca con el par
+sale+rent.
+
+**Motivo.** La prebúsqueda de las ciudades más pobladas barre venta y alquiler de cada una (paso 3.3) y la web debe saber qué operación
+está cubierta sin mentir al usuario.
+
+**Consecuencias.** Las migraciones son solo hacia delante (0000-0019, sin ficheros *down*). **SQL inverso completo, manual, por orden
+inverso de aplicación** (si un día hiciera falta volver a antes de 3.3):
+
+```sql
+-- 0019 (PR4a, tabla del ledger mensual)
+DROP TABLE monthly_request_budget;
+
+-- 0018: conservar el job de rent y descartar el de sale de la misma zona y fuente (se pierde su cursor y su cobertura)
+DELETE FROM coverage_jobs s USING coverage_jobs r
+ WHERE s.zone_id = r.zone_id AND s.source_id = r.source_id
+   AND s.operation = 'sale' AND r.operation = 'rent';
+DROP INDEX coverage_jobs_zone_source_op_pending_idx;
+DROP INDEX coverage_jobs_zone_source_op_idx;
+ALTER TABLE coverage_jobs DROP CONSTRAINT coverage_jobs_operation_check;
+ALTER TABLE coverage_jobs
+  DROP COLUMN operation,
+  DROP COLUMN last_completed_at,
+  DROP COLUMN presweep_requested_at;
+CREATE UNIQUE INDEX coverage_jobs_zone_source_idx ON coverage_jobs (zone_id, source_id);
+CREATE UNIQUE INDEX coverage_jobs_zone_source_pending_idx ON coverage_jobs (zone_id, source_id)
+  WHERE status IN ('pending', 'running');
+-- y restaurar OPERATION=rent en el .env del worker
+
+-- 0017
+ALTER TABLE locations DROP COLUMN population;
+```
+
+Un job de `sale` sin su par de `rent` sobreviviría al `DELETE` y el worker antiguo lo trataría con la `OPERATION` que tenga. Los jobs
+de `sale` que se creen a partir de 3.3 solo existen si alguien los pidió (web, tras PR3) o los lanzó la prebúsqueda.
+
+---
+
+## 252 — Un único worker de cobertura para venta y alquiler; `OPERATION` se rechaza al arrancar
+
+**Estado:** aceptada (paso 3.3, PR2).
+
+**Decisión.** El worker de cobertura sirve las dos operaciones. La operación de cada barrido es la de su job (`PollJob.operation`, leída de
+`coverage_jobs.operation`): con ella se construye el área, se reclama el job (`claimJob(zoneId, sourceId, operation, fingerprint)`, cuya clave
+ya incluye la operación) y se juzga la ausencia. La huella del área incluye la operación, así que un cursor de `sale` no se reanuda como
+`rent`. El orden de selección **no cambia** (carril a demanda antes que refresco, `requested_at` ascendente); la prioridad por señales es
+PR3.
+
+- **`readEnv` rechaza `OPERATION`** con un `WorkerEnvError` que explica que fue retirada y pide quitarla del `.env`, venga con valor o vacía.
+  `CoverageWorkerOptions` ya no tiene `operation`.
+- **Verificación de presencia:** `listDuePresenceCandidates` deja de filtrar por operación (el worker único verifica las dos; el lote ya
+  agrupa por operación); `markAbsenceCandidates` nomina solo anuncios cuya versión vigente tiene la operación **del job** (`lv.operation =
+  j.operation`): un job de `sale` no juzga anuncios de `rent`.
+- **Mantenimiento de zonas:** el plan puro recibe una foto por (zona, operación). La **purga es de la zona** (se deduplica por zona y el tope
+  de 20 por pasada cuenta zonas) y la demanda de la zona es la señal más reciente o, sin señales, el `requested_at` más reciente de sus
+  jobs, de modo que una zona no se purga y se refresca a la vez. El **refresco es por (zona, operación)** (`RefreshTarget`): cada operación
+  vence según su propio último barrido y `scheduleRefresh` re-encola solo las pedidas.
+- `sweep-zone.ts` conserva `--operation` (es una invocación puntual y explícita) y la pasa a `claimJob`.
+
+**Alternativas descartadas.** (1) Ignorar `OPERATION` en silencio: el operador creería acotar el gasto por proceso mientras el worker barre
+`sale` por su cuenta. (2) Un worker por operación: duplica el sondeo, el ledger diario se comparte igualmente y la prebúsqueda de PR4 ya no
+tendría un único punto de gasto. (3) Que la zona se purgue por operación: la purga reinicia la cobertura de la zona (decisión 108) y
+dejaría anuncios huérfanos de una operación cubiertos por el círculo de la otra.
+
+**Consecuencias.** Hay que quitar `OPERATION` del `.env` antes de arrancar el worker (paso manual del propietario). Las dos operaciones
+comparten `DAILY_SEARCH_CAP` y el carril de refresco. `countZonesOpenedToday` y el tope global siguen contando filas hasta PR3.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

@@ -97,7 +97,7 @@ export async function runSweepZone(options: SweepOptions, env: SweepEnv, io: Swe
     // COVERAGE-3a.
     let job: ClaimedJob;
     try {
-      job = await store.claimJob(zoneId, sourceUuid, fingerprint);
+      job = await store.claimJob(zoneId, sourceUuid, options.operation, fingerprint);
     } catch (error) {
       io.log(error instanceof Error ? error.message : 'No se pudo reclamar el trabajo de barrido.');
       return 3;

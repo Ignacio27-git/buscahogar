@@ -152,7 +152,7 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     });
     const [sourceRow] = await db.select({ id: sources.id }).from(sources);
     if (!sourceRow) throw new Error('sin source');
-    await registerCoverageJob(db, zoneId, sourceRow.id);
+    await registerCoverageJob(db, zoneId, sourceRow.id, 'rent');
 
     const html = await renderHome({ zone: ineCode });
     expect(html).toContain('La actualización de Zona Pendiente está en cola.');
@@ -173,7 +173,7 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     });
     const [sourceRow] = await db.select({ id: sources.id }).from(sources);
     if (!sourceRow) throw new Error('sin source');
-    await registerCoverageJob(db, already.zoneId, sourceRow.id);
+    await registerCoverageJob(db, already.zoneId, sourceRow.id, 'rent');
 
     const ineCode = randomIneCode();
     await insertMunicipality(db, { ineCode, municipality: 'Sin Plaza', searchName: 'sin plaza', centroid: { latitude: 37.2, longitude: -3.7 } });
@@ -264,7 +264,7 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     const [sourceRow] = await db.select({ id: sources.id }).from(sources);
     if (!sourceRow) throw new Error('sin source');
     // Con el job ya registrado la página no escribe nada: solo lee el estado.
-    await registerCoverageJob(db, zoneId, sourceRow.id);
+    await registerCoverageJob(db, zoneId, sourceRow.id, 'rent');
     await seedNearAndFar(centre);
 
     const html = await renderHome({ zone: ineCode });

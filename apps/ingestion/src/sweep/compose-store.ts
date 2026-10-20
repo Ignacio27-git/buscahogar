@@ -26,7 +26,8 @@ export function composeStore(db: Database): SweepStore {
   // ignora `this`), así que se envuelve en su propia función flecha.
   return {
     persistPage: (input) => listingWriter.persistPage(input),
-    claimJob: (zoneId, sourceId, fingerprint) => coverageStore.claimJob(zoneId, sourceId, fingerprint),
+    claimJob: (zoneId, sourceId, operation, fingerprint) =>
+      coverageStore.claimJob(zoneId, sourceId, operation, fingerprint),
     finishJob: (jobId, outcome) => coverageStore.finishJob(jobId, outcome),
   };
 }

@@ -31,6 +31,9 @@ async function insertZone(db: Database, overrides: Partial<typeof zones.$inferIn
 
 interface JobSeed {
   readonly status: string;
+  readonly operation?: 'sale' | 'rent';
+  // La operación está cubierta: `last_completed_at` fijado (decisión 250).
+  readonly completed?: boolean;
   readonly attempts?: number;
   readonly requestedDaysAgo?: number;
   readonly error?: string | null;
@@ -38,9 +41,19 @@ interface JobSeed {
 
 async function insertJob(pool: Pool, zoneId: string, sourceId: string, seed: JobSeed): Promise<string> {
   const { rows } = await pool.query<{ id: string }>(
-    `insert into coverage_jobs (zone_id, source_id, status, attempts, error, requested_at)
-     values ($1, $2, $3, $4, $5, now() - ($6::integer * interval '1 day')) returning id`,
-    [zoneId, sourceId, seed.status, seed.attempts ?? 0, seed.error ?? null, seed.requestedDaysAgo ?? 0]
+    `insert into coverage_jobs (zone_id, source_id, operation, status, attempts, error, requested_at, last_completed_at)
+     values ($1, $2, $3, $4, $5, $6, now() - ($7::integer * interval '1 day'), case when $8::boolean then now() end)
+     returning id`,
+    [
+      zoneId,
+      sourceId,
+      seed.operation ?? 'rent',
+      seed.status,
+      seed.attempts ?? 0,
+      seed.error ?? null,
+      seed.requestedDaysAgo ?? 0,
+      seed.completed ?? false,
+    ]
   );
   const id = rows[0]?.id;
   if (!id) {
@@ -49,11 +62,19 @@ async function insertJob(pool: Pool, zoneId: string, sourceId: string, seed: Job
   return id;
 }
 
-async function setSweptAgo(pool: Pool, zoneId: string, secondsAgo: number): Promise<void> {
-  await pool.query(`update zones set last_swept_at = now() - ($2::integer * interval '1 second') where id = $1`, [
-    zoneId,
-    secondsAgo,
-  ]);
+// El último barrido de una operación es `coverage_jobs.last_completed_at` (decisión
+// 250), no `zones.last_swept_at` (agregado por zona).
+async function setSweptAgo(
+  pool: Pool,
+  zoneId: string,
+  secondsAgo: number,
+  operation: 'sale' | 'rent' = 'rent'
+): Promise<void> {
+  await pool.query(
+    `update coverage_jobs set last_completed_at = now() - ($3::integer * interval '1 second')
+      where zone_id = $1 and operation = $2`,
+    [zoneId, operation, secondsAgo]
+  );
 }
 
 async function insertSignal(db: Database, zoneId: string, daysAgo: number): Promise<void> {
@@ -90,6 +111,17 @@ describeWithDb('listZoneLifecycle — días desde la última demanda y elegibili
     expect(snapshot?.daysSinceLastDemand).toBe(10);
   });
 
+  it('sin señales, la referencia de la zona es el requested_at MÁS RECIENTE de sus jobs: ambas operaciones comparten d', async () => {
+    const sourceId = await insertSource(db);
+    const zoneId = await insertZone(db);
+    await insertJob(pool, zoneId, sourceId, { status: 'done', operation: 'rent', requestedDaysAgo: 200 });
+    await insertJob(pool, zoneId, sourceId, { status: 'pending', operation: 'sale', requestedDaysAgo: 4 });
+
+    const snapshots = await listZoneLifecycle(db, { sourceId, maxAttempts: MAX_ATTEMPTS });
+
+    expect(snapshots.map((snapshot) => snapshot.daysSinceLastDemand)).toEqual([4, 4]);
+  });
+
   it('con señales, la referencia es la MÁS RECIENTE (max(day)), aunque requested_at sea mucho más antiguo', async () => {
     const sourceId = await insertSource(db);
     const zoneId = await insertZone(db);
@@ -117,7 +149,7 @@ describeWithDb('listZoneLifecycle — días desde la última demanda y elegibili
     const sourceId = await insertSource(db);
     const swept = await insertZone(db);
     const never = await insertZone(db);
-    await insertJob(pool, swept, sourceId, { status: 'done' });
+    await insertJob(pool, swept, sourceId, { status: 'done', completed: true });
     await insertJob(pool, never, sourceId, { status: 'pending' });
     await setSweptAgo(pool, swept, 8 * DAY_SECONDS);
 
@@ -130,20 +162,21 @@ describeWithDb('listZoneLifecycle — días desde la última demanda y elegibili
     expect(neverSnapshot?.secondsSinceLastSweep).toBeNull();
   });
 
-  it('refreshEligible: solo zona covered con job done, o failed con reintentos AGOTADOS', async () => {
+  it('refreshEligible: solo operación cubierta con job done, o failed con reintentos AGOTADOS', async () => {
     const sourceId = await insertSource(db);
     const doneCovered = await insertZone(db, { state: 'covered' });
     const failedExhausted = await insertZone(db, { state: 'covered' });
     const failedRetrying = await insertZone(db, { state: 'covered' });
     const pending = await insertZone(db, { state: 'covered' });
     const running = await insertZone(db, { state: 'covered' });
-    const doneUncovered = await insertZone(db, { state: 'uncovered' });
-    await insertJob(pool, doneCovered, sourceId, { status: 'done' });
-    await insertJob(pool, failedExhausted, sourceId, { status: 'failed', attempts: MAX_ATTEMPTS });
-    await insertJob(pool, failedRetrying, sourceId, { status: 'failed', attempts: MAX_ATTEMPTS - 1 });
-    await insertJob(pool, pending, sourceId, { status: 'pending' });
-    await insertJob(pool, running, sourceId, { status: 'running' });
-    await insertJob(pool, doneUncovered, sourceId, { status: 'done' });
+    const doneNeverCompleted = await insertZone(db, { state: 'covered' });
+    await insertJob(pool, doneCovered, sourceId, { status: 'done', completed: true });
+    await insertJob(pool, failedExhausted, sourceId, { status: 'failed', attempts: MAX_ATTEMPTS, completed: true });
+    await insertJob(pool, failedRetrying, sourceId, { status: 'failed', attempts: MAX_ATTEMPTS - 1, completed: true });
+    await insertJob(pool, pending, sourceId, { status: 'pending', completed: true });
+    await insertJob(pool, running, sourceId, { status: 'running', completed: true });
+    // `zones.state` es agregado y ya no decide: sin `last_completed_at` no hay cobertura.
+    await insertJob(pool, doneNeverCompleted, sourceId, { status: 'done' });
 
     const snapshots = await listZoneLifecycle(db, { sourceId, maxAttempts: MAX_ATTEMPTS });
     const eligibleZoneIds = snapshots.filter((snapshot) => snapshot.refreshEligible).map((snapshot) => snapshot.zoneId);
@@ -152,13 +185,32 @@ describeWithDb('listZoneLifecycle — días desde la última demanda y elegibili
     expect([...eligibleZoneIds].sort()).toEqual([doneCovered, failedExhausted].sort());
   });
 
+  it('una zona con jobs de sale y rent entrega una foto por operación, cada una con SU último barrido y elegibilidad', async () => {
+    const sourceId = await insertSource(db);
+    const zoneId = await insertZone(db, { state: 'covered' });
+    await insertJob(pool, zoneId, sourceId, { status: 'done', operation: 'rent', completed: true });
+    await insertJob(pool, zoneId, sourceId, { status: 'pending', operation: 'sale' });
+    await setSweptAgo(pool, zoneId, 9 * DAY_SECONDS, 'rent');
+
+    const snapshots = await listZoneLifecycle(db, { sourceId, maxAttempts: MAX_ATTEMPTS });
+
+    const byOperation = new Map(snapshots.map((snapshot) => [snapshot.operation, snapshot]));
+    expect(snapshots).toHaveLength(2);
+    expect(byOperation.get('rent')?.zoneId).toBe(zoneId);
+    expect(byOperation.get('rent')?.refreshEligible).toBe(true);
+    expect(byOperation.get('rent')?.secondsSinceLastSweep).toBeGreaterThanOrEqual(9 * DAY_SECONDS);
+    expect(byOperation.get('sale')?.zoneId).toBe(zoneId);
+    expect(byOperation.get('sale')?.refreshEligible).toBe(false);
+    expect(byOperation.get('sale')?.secondsSinceLastSweep).toBeNull();
+  });
+
   it('solo lista zonas con job de ESA fuente; una zona sin ningún job no aparece', async () => {
     const sourceId = await insertSource(db);
     const otherSource = await insertSource(db);
     const withJob = await insertZone(db);
     const otherSourceZone = await insertZone(db);
     await insertZone(db);
-    await insertJob(pool, withJob, sourceId, { status: 'done' });
+    await insertJob(pool, withJob, sourceId, { status: 'done', completed: true });
     await insertJob(pool, otherSourceZone, otherSource, { status: 'done' });
 
     const snapshots = await listZoneLifecycle(db, { sourceId, maxAttempts: MAX_ATTEMPTS });
@@ -206,10 +258,10 @@ describeWithDb('scheduleRefresh — re-encola jobs vencidos sin tocar requested_
   it('S-ZRS-6: job done de zona covered -> pending, attempts 0, error NULL, refresh_requested_at fijado, requested_at intacto, zona sigue covered', async () => {
     const sourceId = await insertSource(db);
     const zoneId = await insertZone(db, { state: 'covered' });
-    const jobId = await insertJob(pool, zoneId, sourceId, { status: 'done', attempts: 1, requestedDaysAgo: 20 });
+    const jobId = await insertJob(pool, zoneId, sourceId, { status: 'done', attempts: 1, requestedDaysAgo: 20, completed: true });
     const before = await readJob(jobId);
 
-    const flipped = await scheduleRefresh(db, { sourceId, zoneIds: [zoneId], maxAttempts: MAX_ATTEMPTS });
+    const flipped = await scheduleRefresh(db, { sourceId, targets: [{ zoneId, operation: 'rent' }], maxAttempts: MAX_ATTEMPTS });
 
     expect(flipped).toBe(1);
     const after = await readJob(jobId);
@@ -229,9 +281,10 @@ describeWithDb('scheduleRefresh — re-encola jobs vencidos sin tocar requested_
       status: 'failed',
       attempts: MAX_ATTEMPTS,
       error: 'fallo de transporte previo',
+      completed: true,
     });
 
-    const flipped = await scheduleRefresh(db, { sourceId, zoneIds: [zoneId], maxAttempts: MAX_ATTEMPTS });
+    const flipped = await scheduleRefresh(db, { sourceId, targets: [{ zoneId, operation: 'rent' }], maxAttempts: MAX_ATTEMPTS });
 
     expect(flipped).toBe(1);
     const after = await readJob(jobId);
@@ -248,10 +301,10 @@ describeWithDb('scheduleRefresh — re-encola jobs vencidos sin tocar requested_
   it('el re-encolado REINICIA el cursor: un failed agotado con cursor a mitad de paginación queda con cursor NULL', async () => {
     const sourceId = await insertSource(db);
     const zoneId = await insertZone(db, { state: 'covered' });
-    const jobId = await insertJob(pool, zoneId, sourceId, { status: 'failed', attempts: MAX_ATTEMPTS, error: 'x' });
+    const jobId = await insertJob(pool, zoneId, sourceId, { status: 'failed', attempts: MAX_ATTEMPTS, error: 'x', completed: true });
     await pool.query(`update coverage_jobs set cursor = 'cursor-a-mitad-de-paginacion' where id = $1`, [jobId]);
 
-    await scheduleRefresh(db, { sourceId, zoneIds: [zoneId], maxAttempts: MAX_ATTEMPTS });
+    await scheduleRefresh(db, { sourceId, targets: [{ zoneId, operation: 'rent' }], maxAttempts: MAX_ATTEMPTS });
 
     const { rows } = await pool.query<{ cursor: string | null; status: string }>(
       'select cursor, status from coverage_jobs where id = $1',
@@ -264,9 +317,9 @@ describeWithDb('scheduleRefresh — re-encola jobs vencidos sin tocar requested_
   it('un job done (cursor ya NULL) sigue con cursor NULL tras el re-encolado', async () => {
     const sourceId = await insertSource(db);
     const zoneId = await insertZone(db, { state: 'covered' });
-    const jobId = await insertJob(pool, zoneId, sourceId, { status: 'done' });
+    const jobId = await insertJob(pool, zoneId, sourceId, { status: 'done', completed: true });
 
-    await scheduleRefresh(db, { sourceId, zoneIds: [zoneId], maxAttempts: MAX_ATTEMPTS });
+    await scheduleRefresh(db, { sourceId, targets: [{ zoneId, operation: 'rent' }], maxAttempts: MAX_ATTEMPTS });
 
     const { rows } = await pool.query<{ cursor: string | null; status: string }>(
       'select cursor, status from coverage_jobs where id = $1',
@@ -281,13 +334,13 @@ describeWithDb('scheduleRefresh — re-encola jobs vencidos sin tocar requested_
     const retrying = await insertZone(db, { state: 'covered' });
     const running = await insertZone(db, { state: 'covered' });
     const pending = await insertZone(db, { state: 'covered' });
-    const retryingJob = await insertJob(pool, retrying, sourceId, { status: 'failed', attempts: 1, error: 'x' });
-    const runningJob = await insertJob(pool, running, sourceId, { status: 'running', attempts: 1 });
+    const retryingJob = await insertJob(pool, retrying, sourceId, { status: 'failed', attempts: 1, error: 'x', completed: true });
+    const runningJob = await insertJob(pool, running, sourceId, { status: 'running', attempts: 1, completed: true });
     const pendingJob = await insertJob(pool, pending, sourceId, { status: 'pending' });
 
     const flipped = await scheduleRefresh(db, {
       sourceId,
-      zoneIds: [retrying, running, pending],
+      targets: [retrying, running, pending].map((zoneId) => ({ zoneId, operation: 'rent' as const })),
       maxAttempts: MAX_ATTEMPTS,
     });
 
@@ -303,29 +356,50 @@ describeWithDb('scheduleRefresh — re-encola jobs vencidos sin tocar requested_
     const sourceId = await insertSource(db);
     const asked = await insertZone(db, { state: 'covered' });
     const notAsked = await insertZone(db, { state: 'covered' });
-    await insertJob(pool, asked, sourceId, { status: 'done' });
-    const notAskedJob = await insertJob(pool, notAsked, sourceId, { status: 'done' });
+    await insertJob(pool, asked, sourceId, { status: 'done', completed: true });
+    const notAskedJob = await insertJob(pool, notAsked, sourceId, { status: 'done', completed: true });
 
-    const flipped = await scheduleRefresh(db, { sourceId, zoneIds: [asked], maxAttempts: MAX_ATTEMPTS });
+    const flipped = await scheduleRefresh(db, { sourceId, targets: [{ zoneId: asked, operation: 'rent' }], maxAttempts: MAX_ATTEMPTS });
 
     expect(flipped).toBe(1);
     expect((await readJob(notAskedJob)).status).toBe('done');
   });
 
-  it('una zona que ya no está covered (p. ej. uncovered) no se re-encola aunque su job esté done', async () => {
+  it('una operación sin last_completed_at (no cubierta) no se re-encola aunque su job esté done', async () => {
     const sourceId = await insertSource(db);
-    const zoneId = await insertZone(db, { state: 'uncovered' });
+    const zoneId = await insertZone(db, { state: 'covered' });
     const jobId = await insertJob(pool, zoneId, sourceId, { status: 'done' });
 
-    const flipped = await scheduleRefresh(db, { sourceId, zoneIds: [zoneId], maxAttempts: MAX_ATTEMPTS });
+    const flipped = await scheduleRefresh(db, {
+      sourceId,
+      targets: [{ zoneId, operation: 'rent' }],
+      maxAttempts: MAX_ATTEMPTS,
+    });
 
     expect(flipped).toBe(0);
     expect((await readJob(jobId)).status).toBe('done');
   });
 
+  it('solo se re-encola la operación pedida: pedir rent deja el job done de sale de la misma zona intacto', async () => {
+    const sourceId = await insertSource(db);
+    const zoneId = await insertZone(db, { state: 'covered' });
+    const rentJob = await insertJob(pool, zoneId, sourceId, { status: 'done', operation: 'rent', completed: true });
+    const saleJob = await insertJob(pool, zoneId, sourceId, { status: 'done', operation: 'sale', completed: true });
+
+    const flipped = await scheduleRefresh(db, {
+      sourceId,
+      targets: [{ zoneId, operation: 'rent' }],
+      maxAttempts: MAX_ATTEMPTS,
+    });
+
+    expect(flipped).toBe(1);
+    expect((await readJob(rentJob)).status).toBe('pending');
+    expect((await readJob(saleJob)).status).toBe('done');
+  });
+
   it('lista vacía: no toca nada y devuelve 0 (sin sentencia SQL)', async () => {
     const sourceId = await insertSource(db);
 
-    expect(await scheduleRefresh(db, { sourceId, zoneIds: [], maxAttempts: MAX_ATTEMPTS })).toBe(0);
+    expect(await scheduleRefresh(db, { sourceId, targets: [], maxAttempts: MAX_ATTEMPTS })).toBe(0);
   });
 });

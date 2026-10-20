@@ -6,7 +6,7 @@
 // cero DB, cero red, cero process.env.
 import { describe, expect, it } from 'vitest';
 
-import type { ZoneLifecycleSnapshot } from '@buscahogar/core';
+import type { RefreshTarget, ZoneLifecycleSnapshot } from '@buscahogar/core';
 import type { BudgetReservation, LedgerState, ZoneGeometry } from '@buscahogar/db';
 
 import { runCoverageWorker } from '../src/sweep/coverage-worker.js';
@@ -29,11 +29,22 @@ const GEOMETRY: ZoneGeometry = {
   sweepRadiusM: 4500,
 };
 
-const ON_DEMAND_JOB: PollJob = { jobId: 'job-1', zoneId: 'zone-1', sourceId: 'source-1', lane: 'on-demand' };
-const REFRESH_JOB: PollJob = { jobId: 'job-2', zoneId: 'zone-2', sourceId: 'source-1', lane: 'refresh' };
+const ON_DEMAND_JOB: PollJob = {
+  jobId: 'job-1',
+  zoneId: 'zone-1',
+  sourceId: 'source-1',
+  operation: 'sale',
+  lane: 'on-demand',
+};
+const REFRESH_JOB: PollJob = {
+  jobId: 'job-2',
+  zoneId: 'zone-2',
+  sourceId: 'source-1',
+  operation: 'sale',
+  lane: 'refresh',
+};
 
 const BASE_OPTIONS: CoverageWorkerOptions = {
-  operation: 'sale',
   pollIntervalMs: 10,
   maxSearchRequestsPerSweep: 10,
   dailySearchCap: 500,
@@ -45,6 +56,7 @@ const BASE_OPTIONS: CoverageWorkerOptions = {
 // Zona semanal (d = 3) barrida hace 8 días y elegible: vence -> se re-encola.
 const DUE_ZONE: ZoneLifecycleSnapshot = {
   zoneId: 'due-zone',
+  operation: 'sale',
   daysSinceLastDemand: 3,
   secondsSinceLastSweep: 8 * DAY_SECONDS,
   refreshEligible: true,
@@ -65,14 +77,14 @@ interface FakePorts extends CoverageWorkerPorts {
   readonly calls: string[];
   readonly logged: string[];
   readonly reserveCalls: (readonly [BudgetReservation, JobLane])[];
-  readonly scheduledBatches: (readonly string[])[];
+  readonly scheduledBatches: (readonly RefreshTarget[])[];
 }
 
 function createFakePorts(overrides: FakeOverrides = {}): FakePorts {
   const calls: string[] = [];
   const logged: string[] = [];
   const reserveCalls: (readonly [BudgetReservation, JobLane])[] = [];
-  const scheduledBatches: (readonly string[])[] = [];
+  const scheduledBatches: (readonly RefreshTarget[])[] = [];
   const job = overrides.job === undefined ? ON_DEMAND_JOB : overrides.job;
 
   const maintenance: ZoneMaintenancePorts = {
@@ -88,10 +100,10 @@ function createFakePorts(overrides: FakeOverrides = {}): FakePorts {
       calls.push('purgeZones');
       return Promise.resolve(zoneIds.length);
     },
-    scheduleRefresh(zoneIds: readonly string[]): Promise<number> {
+    scheduleRefresh(targets: readonly RefreshTarget[]): Promise<number> {
       calls.push('scheduleRefresh');
-      scheduledBatches.push(zoneIds);
-      return overrides.scheduleRefresh ? overrides.scheduleRefresh() : Promise.resolve(zoneIds.length);
+      scheduledBatches.push(targets);
+      return overrides.scheduleRefresh ? overrides.scheduleRefresh() : Promise.resolve(targets.length);
     },
     tombstoneExpiredListings(): Promise<number> {
       calls.push('tombstoneExpiredListings');
@@ -175,15 +187,15 @@ describe('runCoverageWorker — orden del tick con mantenimiento (S-CWT-1)', () 
     const ports = createFakePorts({
       lifecycle: [
         DUE_ZONE,
-        { zoneId: 'fresh-zone', daysSinceLastDemand: 3, secondsSinceLastSweep: 2 * DAY_SECONDS, refreshEligible: true },
-        { zoneId: 'held-zone', daysSinceLastDemand: 120, secondsSinceLastSweep: 400 * DAY_SECONDS, refreshEligible: true },
-        { zoneId: 'busy-zone', daysSinceLastDemand: 3, secondsSinceLastSweep: 20 * DAY_SECONDS, refreshEligible: false },
+        { zoneId: 'fresh-zone', operation: 'sale', daysSinceLastDemand: 3, secondsSinceLastSweep: 2 * DAY_SECONDS, refreshEligible: true },
+        { zoneId: 'held-zone', operation: 'sale', daysSinceLastDemand: 120, secondsSinceLastSweep: 400 * DAY_SECONDS, refreshEligible: true },
+        { zoneId: 'busy-zone', operation: 'sale', daysSinceLastDemand: 3, secondsSinceLastSweep: 20 * DAY_SECONDS, refreshEligible: false },
       ],
     });
 
     await runCoverageWorker(ports, BASE_OPTIONS);
 
-    expect(ports.scheduledBatches).toEqual([['due-zone']]);
+    expect(ports.scheduledBatches).toEqual([[{ zoneId: 'due-zone', operation: 'sale' }]]);
   });
 
   it('S-CWT-5: nada vencido -> scheduleRefresh no se invoca y no hay trabajo -> cero llamadas a la fuente', async () => {
@@ -210,7 +222,6 @@ describe('runCoverageWorker — fracción de refresco 0 o ausente desactiva el r
   it('sin refreshBudgetFraction (opción ausente) el comportamiento es el mismo: refresco desactivado por defecto', async () => {
     const ports = createFakePorts({ lifecycle: [DUE_ZONE] });
     const withoutFraction: CoverageWorkerOptions = {
-      operation: 'sale',
       pollIntervalMs: 10,
       maxSearchRequestsPerSweep: 10,
       dailySearchCap: 500,
@@ -341,7 +352,7 @@ describe('runCoverageWorker — reserva por carril ANTES de reclamar (S-ZRS-19, 
   });
 
   it('un job sin carril declarado (composición anterior a 2.5) se trata como a demanda', async () => {
-    const ports = createFakePorts({ job: { jobId: 'job-9', zoneId: 'zone-9', sourceId: 'source-1' } });
+    const ports = createFakePorts({ job: { jobId: 'job-9', zoneId: 'zone-9', sourceId: 'source-1', operation: 'sale' } });
 
     await runCoverageWorker(ports, BASE_OPTIONS);
 

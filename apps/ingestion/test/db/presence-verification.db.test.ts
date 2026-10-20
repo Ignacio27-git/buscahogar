@@ -109,7 +109,6 @@ const tokenPort: IdealistaTokenPort = {
 
 function options(overrides: Partial<CoverageWorkerOptions> = {}): CoverageWorkerOptions {
   return {
-    operation: 'sale',
     pollIntervalMs: 1,
     maxSearchRequestsPerSweep: 10,
     dailySearchCap: 500,
@@ -147,7 +146,7 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
       maxAttempts: 3,
       dailySearchCap: 500,
       refreshBudgetFraction: 0.5,
-      presenceVerification: { operation: 'sale', radiusMarginM: MARGIN_M },
+      presenceVerification: { radiusMarginM: MARGIN_M },
       blockingThresholds: { radiusMeters: 300, priceBandCents: 2500000, surfaceToleranceM2: 10 },
       io: { log: (): void => undefined },
     });
@@ -161,7 +160,7 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
     await db.update(zones).set({ state: 'covered', lastSweptAt: new Date() }).where(eq(zones.id, zoneId));
     const [job] = await db
       .insert(coverageJobs)
-      .values({ zoneId, sourceId, status: 'pending', ...(lane === 'refresh' ? { refreshRequestedAt: new Date() } : {}) })
+      .values({ zoneId, sourceId, operation: 'sale', status: 'pending', ...(lane === 'refresh' ? { refreshRequestedAt: new Date() } : {}) })
       .returning({ id: coverageJobs.id });
     if (!job) throw new Error('fixture no insertado');
     return { zoneId, jobId: job.id };
@@ -345,7 +344,7 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
       maxAttempts: 3,
       dailySearchCap: 500,
       refreshBudgetFraction: 0.01,
-      presenceVerification: { operation: 'sale', radiusMarginM: MARGIN_M },
+      presenceVerification: { radiusMarginM: MARGIN_M },
       blockingThresholds: { radiusMeters: 300, priceBandCents: 2500000, surfaceToleranceM2: 10 },
       io: { log: (): void => undefined },
     });
@@ -385,7 +384,7 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
       maxAttempts: 3,
       dailySearchCap: 500,
       refreshBudgetFraction: 0.5,
-      presenceVerification: { operation: 'sale', radiusMarginM: MARGIN_M },
+      presenceVerification: { radiusMarginM: MARGIN_M },
       blockingThresholds: { radiusMeters: 300, priceBandCents: 2500000, surfaceToleranceM2: 10 },
       io: { log: (): void => undefined },
     });

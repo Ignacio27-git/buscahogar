@@ -50,7 +50,7 @@ async function seedZoneAndSource(
   }
   const [job] = await db
     .insert(coverageJobs)
-    .values({ zoneId: zone.id, sourceId: source.id, status: 'pending', cursor: null })
+    .values({ zoneId: zone.id, sourceId: source.id, operation: 'rent', status: 'pending', cursor: null })
     .returning({ id: coverageJobs.id });
   if (!job) {
     throw new Error('No se pudo sembrar coverage_jobs de prueba');
@@ -87,7 +87,7 @@ describeWithCoverageDb('rol INSERT-only de coverage_jobs — rechazo negativo re
     // `seedZoneAndSource` deja un job 'pending' para este mismo par
     // (zone_id, source_id) porque los casos NEGATIVOS necesitan un `jobId`
     // al que apuntar. Aquí estorba: el índice único parcial
-    // `coverage_jobs_zone_source_pending_idx` (DD-16/CR-3) rechazaría el
+    // `coverage_jobs_zone_source_op_pending_idx` (DD-16/CR-3) rechazaría el
     // insert con 23505 antes de que el permiso llegue siquiera a evaluarse,
     // y el caso positivo nunca podría pasar. Se borra con la conexión
     // PROPIETARIA — el rol de cobertura no tiene DELETE, que es justo lo
@@ -96,8 +96,8 @@ describeWithCoverageDb('rol INSERT-only de coverage_jobs — rechazo negativo re
 
     await expect(
       coveragePool.query(
-        'insert into coverage_jobs (zone_id, source_id, status, cursor) values ($1, $2, $3, null)',
-        [zoneId, sourceId, 'pending']
+        'insert into coverage_jobs (zone_id, source_id, operation, status, cursor) values ($1, $2, $3, $4, null)',
+        [zoneId, sourceId, 'rent', 'pending']
       )
     ).resolves.toBeDefined();
   });

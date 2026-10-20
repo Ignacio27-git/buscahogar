@@ -2,10 +2,11 @@
 // coverage_jobs, enrutado de finishJob según la tabla D6, y bookkeeping de
 // zones honestamente acotado al círculo barrido (COVERAGE-6).
 //
-// `coverage_jobs` guarda UNA fila por (zone_id, source_id) a lo largo de
-// toda su vida, no una fila por ejecución: reclamar reutiliza la fila
-// existente (pending/done/failed → running), nunca crea una segunda para el
-// mismo par — así "attempts" cuenta reintentos reales de la misma entidad.
+// `coverage_jobs` guarda UNA fila por (zone_id, source_id, operation) a lo
+// largo de toda su vida, no una fila por ejecución: reclamar reutiliza la fila
+// existente (pending/done/failed → running), nunca crea una segunda para la
+// misma terna — así "attempts" cuenta reintentos reales de la misma entidad.
+// Venta y alquiler de una zona son jobs independientes (decisión 250).
 //
 // El envelope versionado de coverage_jobs.cursor (job-cursor.ts) necesita la
 // huella de área para codificar, pero el puerto SweepStore.finishJob (fase
@@ -18,19 +19,21 @@ import type { Database } from '@buscahogar/db';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { decodeJobCursor, encodeJobCursor } from './job-cursor.js';
-import type { ClaimedJob, JobOutcome } from './store.js';
+import type { ClaimedJob, JobOperation, JobOutcome } from './store.js';
 
 export class JobAlreadyClaimedError extends Error {
   readonly zoneId: string;
   readonly sourceId: string;
+  readonly operation: JobOperation;
 
-  constructor(zoneId: string, sourceId: string) {
+  constructor(zoneId: string, sourceId: string, operation: JobOperation) {
     super(
-      `Ya hay un barrido pendiente o en curso para zone_id="${zoneId}" y source_id="${sourceId}". ` +
-        'Cero peticiones emitidas.'
+      `Ya hay un barrido pendiente o en curso para zone_id="${zoneId}", source_id="${sourceId}" y ` +
+        `operation="${operation}". Cero peticiones emitidas.`
     );
     this.zoneId = zoneId;
     this.sourceId = sourceId;
+    this.operation = operation;
   }
 }
 
@@ -40,18 +43,29 @@ export class JobAlreadyClaimedError extends Error {
 const RECLAIMABLE_STATUSES = ['pending', 'done', 'failed'] as const;
 
 export interface CoverageStore {
-  claimJob(zoneId: string, sourceId: string, fingerprint: string): Promise<ClaimedJob>;
+  claimJob(zoneId: string, sourceId: string, operation: JobOperation, fingerprint: string): Promise<ClaimedJob>;
   finishJob(jobId: string, outcome: JobOutcome): Promise<void>;
 }
 
 export function createCoverageStore(db: Database): CoverageStore {
   const fingerprintByJobId = new Map<string, string>();
 
-  async function claimJob(zoneId: string, sourceId: string, fingerprint: string): Promise<ClaimedJob> {
+  async function claimJob(
+    zoneId: string,
+    sourceId: string,
+    operation: JobOperation,
+    fingerprint: string
+  ): Promise<ClaimedJob> {
     const [existing] = await db
       .select({ id: coverageJobs.id, status: coverageJobs.status, cursor: coverageJobs.cursor })
       .from(coverageJobs)
-      .where(and(eq(coverageJobs.zoneId, zoneId), eq(coverageJobs.sourceId, sourceId)));
+      .where(
+        and(
+          eq(coverageJobs.zoneId, zoneId),
+          eq(coverageJobs.sourceId, sourceId),
+          eq(coverageJobs.operation, operation)
+        )
+      );
 
     let claimedId: string;
     let storedCursor: string | null;
@@ -66,7 +80,15 @@ export function createCoverageStore(db: Database): CoverageStore {
       // abierta.
       const [inserted] = await db
         .insert(coverageJobs)
-        .values({ zoneId, sourceId, status: 'running', attempts: 1, startedAt: claimedAt, cycleStartedAt: claimedAt })
+        .values({
+          zoneId,
+          sourceId,
+          operation,
+          status: 'running',
+          attempts: 1,
+          startedAt: claimedAt,
+          cycleStartedAt: claimedAt,
+        })
         .returning({ id: coverageJobs.id, cursor: coverageJobs.cursor });
       if (!inserted) {
         throw new Error('No se pudo crear la fila de coverage_jobs.');
@@ -74,7 +96,7 @@ export function createCoverageStore(db: Database): CoverageStore {
       claimedId = inserted.id;
       storedCursor = inserted.cursor;
     } else if (existing.status === 'running') {
-      throw new JobAlreadyClaimedError(zoneId, sourceId);
+      throw new JobAlreadyClaimedError(zoneId, sourceId, operation);
     } else {
       // CAS real: la condición WHERE repite el estado ya leído, así que una
       // carrera perdida entre el SELECT y este UPDATE devuelve cero filas
@@ -94,7 +116,7 @@ export function createCoverageStore(db: Database): CoverageStore {
         .where(and(eq(coverageJobs.id, existing.id), inArray(coverageJobs.status, RECLAIMABLE_STATUSES)))
         .returning({ id: coverageJobs.id, cursor: coverageJobs.cursor });
       if (!updated) {
-        throw new JobAlreadyClaimedError(zoneId, sourceId);
+        throw new JobAlreadyClaimedError(zoneId, sourceId, operation);
       }
       claimedId = updated.id;
       storedCursor = updated.cursor;
@@ -118,7 +140,19 @@ export function createCoverageStore(db: Database): CoverageStore {
           // al estado "a demanda" (`refresh_requested_at` NULL) hasta el
           // próximo refresco. Los demás desenlaces lo conservan: un trabajo
           // reanudado o reintentado sigue en el carril de refresco.
-          .set({ status: 'done', cursor: null, finishedAt: new Date(), refreshRequestedAt: null })
+          //
+          // ROADMAP 3.3 (decisión 250): `last_completed_at` es la cobertura de
+          // (zona, operación) y SOLO se fija aquí; ningún otro desenlace, ni un
+          // refresco posterior, lo limpia. El trabajo parcial de un presweep
+          // (`presweep_requested_at`) termina con el ciclo completado.
+          .set({
+            status: 'done',
+            cursor: null,
+            finishedAt: new Date(),
+            refreshRequestedAt: null,
+            lastCompletedAt: new Date(),
+            presweepRequestedAt: null,
+          })
           .where(eq(coverageJobs.id, jobId))
           .returning({ zoneId: coverageJobs.zoneId });
         // Bookkeeping de zones honestamente acotado al círculo barrido

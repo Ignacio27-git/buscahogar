@@ -22,14 +22,12 @@ function uuidList(ids: readonly string[]): SQL {
 
 export interface MarkAbsenceRequest {
   readonly jobId: string;
-  // Operación del worker: solo se nominan anuncios cuya versión vigente tiene
-  // esa operación (un worker de `sale` no juzga anuncios de `rent`).
-  readonly operation: 'sale' | 'rent';
 }
 
 // Llamar SOLO tras `finishJob(completed)`: un ciclo incompleto (tope de páginas,
 // presupuesto o error) no es evidencia de ausencia. Nomina cada anuncio ACTIVO de
-// la fuente del job, de la operación del worker, dentro del círculo de la zona
+// la fuente del job, de la operación del JOB (decisión 250: un job de `sale` no
+// juzga anuncios de `rent`), dentro del círculo de la zona
 // (`locations.centroid` + `sweep_radius_m`, el mismo de barrido y búsqueda) y con
 // `last_seen_at < cycle_started_at`. Un job sin `cycle_started_at` (previo a
 // 0015) no nomina a nadie. `ON CONFLICT DO NOTHING`: no duplica ni reinicia los
@@ -48,7 +46,7 @@ export async function markAbsenceCandidates(db: Database, request: MarkAbsenceRe
        and loc.centroid is not null
        and loc.sweep_radius_m is not null
        and l.status = 'active'
-       and lv.operation = ${request.operation}
+       and lv.operation = j.operation
        and l.last_seen_at < j.cycle_started_at
        and l.location_geography is not null
        and ST_DWithin(l.location_geography, loc.centroid, loc.sweep_radius_m)
@@ -59,7 +57,6 @@ export async function markAbsenceCandidates(db: Database, request: MarkAbsenceRe
 
 export interface DuePresenceQuery {
   readonly sourceId: string;
-  readonly operation: 'sale' | 'rent';
   // Tope de filas leídas: la verificación de un tick nunca es ilimitada.
   readonly limit: number;
   // Un intento ambiguo no se repite antes de este número de días.
@@ -90,8 +87,9 @@ interface DuePresenceRow extends Record<string, unknown> {
 }
 
 // Candidatos vencidos: nunca comprobados, o con el último intento hace al menos
-// `retryBackoffDays`. Solo anuncios aún activos de la fuente y la operación
-// dadas, con zona georreferenciada. Orden por zona y antigüedad de la sospecha:
+// `retryBackoffDays`. Solo anuncios aún activos de la fuente dada (de las dos
+// operaciones: el worker único las verifica, decisión 250), con zona
+// georreferenciada. Orden por zona y antigüedad de la sospecha:
 // un lote tiende a agrupar anuncios de la misma zona.
 export async function listDuePresenceCandidates(
   db: Database,
@@ -113,7 +111,6 @@ export async function listDuePresenceCandidates(
       join listing_versions lv on lv.listing_id = l.id and lv.is_current
      where l.source_id = ${query.sourceId}::uuid
        and l.status = 'active'
-       and lv.operation = ${query.operation}
        and loc.centroid is not null
        and loc.sweep_radius_m is not null
        and (c.last_checked_at is null

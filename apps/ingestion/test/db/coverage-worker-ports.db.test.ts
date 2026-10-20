@@ -120,7 +120,7 @@ describe('createRealCoverageWorkerPorts — CR-2: reutiliza runSweep/composeStor
     const sourceId = await insertSource(db);
     const [jobRow] = await db
       .insert(coverageJobs)
-      .values({ zoneId, sourceId, status: 'pending' })
+      .values({ zoneId, sourceId, operation: 'sale', status: 'pending' })
       .returning({ id: coverageJobs.id });
     if (!jobRow) throw new Error('fixture no insertado');
 
@@ -138,7 +138,6 @@ describe('createRealCoverageWorkerPorts — CR-2: reutiliza runSweep/composeStor
       io: { log: (line) => logged.push(line) },
     });
     const options: CoverageWorkerOptions = {
-      operation: 'sale',
       pollIntervalMs: 1,
       maxSearchRequestsPerSweep: 10,
       dailySearchCap: 500,
@@ -166,11 +165,57 @@ describe('createRealCoverageWorkerPorts — CR-2: reutiliza runSweep/composeStor
     expect(logged.some((line) => line.includes('"requestsSpent"'))).toBe(true);
   });
 
+  // ROADMAP 3.3 (decisión 252; S12.1) — de extremo a extremo con los puertos REALES: un
+  // único worker, sin operación por proceso, barre el job de sale y el de rent de la
+  // misma zona; cada barrido usa la operación de SU job y deja SU cobertura.
+  it('S12.1: un único worker barre el job de sale y el de rent de la misma zona, cada uno con su operación y su cobertura', async () => {
+    const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
+    const sourceId = await insertSource(db);
+    await db.insert(coverageJobs).values([
+      // Fechas recientes: el mantenimiento del tick purgaría una zona sin demanda desde hace >= 180 días.
+      { zoneId, sourceId, operation: 'sale', status: 'pending', requestedAt: new Date(Date.now() - 2_000) },
+      { zoneId, sourceId, operation: 'rent', status: 'pending', requestedAt: new Date(Date.now() - 1_000) },
+    ]);
+    const searchPort = createExhaustingSearchPort();
+    const logged: string[] = [];
+    const ports = createRealCoverageWorkerPorts({
+      db,
+      sourceUuid: sourceId,
+      searchPort,
+      tokenPort: createFakeTokenPort(),
+      maxSearchRequestsPerSweep: 10,
+      maxAttempts: 3,
+      dailySearchCap: 500,
+      blockingThresholds: BLOCKING_THRESHOLDS,
+      io: { log: (line) => logged.push(line) },
+    });
+
+    await runCoverageWorker(ports, {
+      pollIntervalMs: 1,
+      maxSearchRequestsPerSweep: 10,
+      dailySearchCap: 500,
+      maxAttempts: 3,
+      maxTicks: 2,
+    });
+
+    // Dos barridos completos de 5 peticiones cada uno.
+    expect(searchPort.calls).toBe(10);
+    const areas = logged.filter((line) => line.startsWith('coverage-worker: área a barrer'));
+    expect(areas).toHaveLength(2);
+    expect(areas[0]).toContain('"operation":"sale"');
+    expect(areas[1]).toContain('"operation":"rent"');
+    const jobs = await db.select().from(coverageJobs).where(eq(coverageJobs.zoneId, zoneId));
+    expect(jobs.map((job) => [job.operation, job.status, job.lastCompletedAt instanceof Date]).sort()).toEqual([
+      ['rent', 'done', true],
+      ['sale', 'done', true],
+    ]);
+  });
+
   it('A-8.1: un trabajo ya reclamado por otro proceso lanza JobAlreadyClaimedError REAL (coverage-store.ts CAS)', async () => {
     const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
     const sourceId = await insertSource(db);
     // Simula un proceso concurrente que ya tiene este trabajo.
-    await db.insert(coverageJobs).values({ zoneId, sourceId, status: 'running' });
+    await db.insert(coverageJobs).values({ zoneId, sourceId, operation: 'sale', status: 'running' });
 
     const ports = createRealCoverageWorkerPorts({
       db,
@@ -185,7 +230,7 @@ describe('createRealCoverageWorkerPorts — CR-2: reutiliza runSweep/composeStor
     });
 
     const area: AreaQuery = { center: GRANADA, radiusMeters: 4500, operation: 'sale' };
-    await expect(ports.claimAndSweep({ jobId: 'ignored', zoneId, sourceId }, area, 'fp-1')).rejects.toThrow(
+    await expect(ports.claimAndSweep({ jobId: 'ignored', zoneId, sourceId, operation: 'sale' }, area, 'fp-1')).rejects.toThrow(
       JobAlreadyClaimedError
     );
   });
@@ -272,7 +317,6 @@ function createNeverExhaustingSearchPort(): IdealistaSearchPort & { readonly cal
 
 function refreshOptions(overrides: Partial<CoverageWorkerOptions> = {}): CoverageWorkerOptions {
   return {
-    operation: 'sale',
     pollIntervalMs: 1,
     maxSearchRequestsPerSweep: 10,
     dailySearchCap: 500,
@@ -333,7 +377,14 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
       .where(eq(zones.id, zoneId));
     const [job] = await db
       .insert(coverageJobs)
-      .values({ zoneId, sourceId, status: 'done' })
+      .values({
+        zoneId,
+        sourceId,
+        operation: 'sale',
+        status: 'done',
+        // Cobertura de (zona, operación) desde decisión 250: el último barrido es el del job.
+        lastCompletedAt: sql`now() - (${sweptDaysAgo}::integer * interval '1 day')`,
+      })
       .returning({ id: coverageJobs.id });
     if (!job) throw new Error('fixture no insertado');
     await db.execute(sql`insert into zone_query_signals (zone_id) values (${zoneId})`);
@@ -363,7 +414,7 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
   it('S-ZRS-12: con 95 de 100 gastados a demanda y fracción 0.2, un job de refresco pendiente NO se barre (cero peticiones) y sigue pendiente', async () => {
     const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
     const sourceId = await insertSource(db);
-    await db.insert(coverageJobs).values({ zoneId, sourceId, status: 'pending', refreshRequestedAt: new Date() });
+    await db.insert(coverageJobs).values({ zoneId, sourceId, operation: 'sale', status: 'pending', refreshRequestedAt: new Date() });
     await reserveDailyBudget(db, sourceId, { searchReserved: 95, tokenReserved: 0 }, 100);
     const searchPort = createExhaustingSearchPort();
     const ports = buildPorts(sourceId, { searchPort, dailySearchCap: 100, refreshBudgetFraction: 0.2 });
@@ -379,7 +430,7 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
   it('S-ZRS-13: un job de refresco con una fuente que NUNCA se agota se corta en el tope por barrido — el ciclo queda incompleto y en el carril de refresco', async () => {
     const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
     const sourceId = await insertSource(db);
-    await db.insert(coverageJobs).values({ zoneId, sourceId, status: 'pending', refreshRequestedAt: new Date() });
+    await db.insert(coverageJobs).values({ zoneId, sourceId, operation: 'sale', status: 'pending', refreshRequestedAt: new Date() });
     const searchPort = createNeverExhaustingSearchPort();
     const ports = buildPorts(sourceId, { searchPort, maxSearchRequestsPerSweep: 3, refreshBudgetFraction: 1 });
 
@@ -462,8 +513,8 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
     await db.update(zones).set({ state: 'covered', lastSweptAt: sql`now() - interval '300 days'` }).where(eq(zones.id, zoneId));
     const jobId = await pool
       .query<{ id: string }>(
-        `insert into coverage_jobs (zone_id, source_id, status, requested_at)
-         values ($1, $2, 'done', now() - interval '200 days') returning id`,
+        `insert into coverage_jobs (zone_id, source_id, operation, status, requested_at)
+         values ($1, $2, 'sale', 'done', now() - interval '200 days') returning id`,
         [zoneId, sourceId]
       )
       .then((result) => result.rows[0]?.id);

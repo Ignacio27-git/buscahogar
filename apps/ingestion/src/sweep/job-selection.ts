@@ -15,6 +15,8 @@ import { coverageJobs } from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
 import { and, asc, eq, isNotNull, lt, or, sql } from 'drizzle-orm';
 
+import type { JobOperation } from './store.js';
+
 // ROADMAP 2.5 (refresh-retention-policy, S1; decisión 104) — carril del job:
 // 'on-demand' lo creó una búsqueda de usuario; 'refresh' lo re-encoló el
 // planificador de refresco (`coverage_jobs.refresh_requested_at` no nulo).
@@ -25,10 +27,22 @@ export interface PollJob {
   readonly jobId: string;
   readonly zoneId: string;
   readonly sourceId: string;
+  // ROADMAP 3.3 (decisión 252): operación del job. El worker único la usa para
+  // construir el área y reclamar el job; ya no existe una operación por proceso.
+  readonly operation: JobOperation;
   // Opcional en el tipo: ausente equivale a 'on-demand' (los dobles de test
   // anteriores a 2.5 no lo declaran). `selectNextClaimableJob` lo rellena
   // siempre.
   readonly lane?: JobLane;
+}
+
+// `coverage_jobs.operation` es `text` con CHECK en ('sale', 'rent'): se estrecha
+// sin aserciones de tipo. Un valor distinto es una violación del esquema.
+function parseOperation(value: string): JobOperation {
+  if (value === 'sale' || value === 'rent') {
+    return value;
+  }
+  throw new Error(`coverage_jobs.operation inesperada: "${value}" (el CHECK solo admite sale o rent).`);
 }
 
 // DD-18 paso 1: 'pending', o 'failed' con reintentos restantes. Orden
@@ -43,6 +57,7 @@ export async function selectNextClaimableJob(db: Database, maxAttempts: number):
       id: coverageJobs.id,
       zoneId: coverageJobs.zoneId,
       sourceId: coverageJobs.sourceId,
+      operation: coverageJobs.operation,
       isRefresh: isNotNull(coverageJobs.refreshRequestedAt),
     })
     .from(coverageJobs)
@@ -60,6 +75,7 @@ export async function selectNextClaimableJob(db: Database, maxAttempts: number):
         jobId: row.id,
         zoneId: row.zoneId,
         sourceId: row.sourceId,
+        operation: parseOperation(row.operation),
         lane: row.isRefresh ? 'refresh' : 'on-demand',
       }
     : null;

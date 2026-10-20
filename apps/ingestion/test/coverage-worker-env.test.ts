@@ -14,7 +14,6 @@ const BASE_ENV: Record<string, string> = {
   IDEALISTA_API_KEY: 'k',
   IDEALISTA_API_SECRET: 's',
   DATABASE_URL: 'postgresql://owner@localhost:5432/buscahogar',
-  OPERATION: 'sale',
   DAILY_SEARCH_CAP: '100',
   BLOCKING_RADIUS_METERS: '300',
   BLOCKING_PRICE_BAND_CENTS: '2500000',
@@ -106,5 +105,24 @@ describe('readEnv — tope de reintentos compartido (D.13b)', () => {
   it.each([['9'], ['1'], ['abc'], ['']])('MAX_ATTEMPTS="%s" se ignora por completo', (raw) => {
     const env = readEnv({ ...BASE_ENV, MAX_ATTEMPTS: raw });
     expect(env.options.maxAttempts).toBe(COVERAGE_JOB_MAX_ATTEMPTS);
+  });
+});
+
+// ROADMAP 3.3 (prescan-top-cities, PR2; decisión 252) — un único worker sirve las dos
+// operaciones: cada job lleva la suya. `OPERATION` se RECHAZA al arrancar (un valor
+// heredado de un `.env` antiguo no se ignora en silencio: ocultaría un gasto de
+// `sale` que el operador cree estar acotando por proceso).
+describe('readEnv — OPERATION retirada (decisión 252)', () => {
+  it.each([['sale'], ['rent'], ['']])('OPERATION="%s" se rechaza con un error que nombra la variable', (raw) => {
+    expect(() => readEnv({ ...BASE_ENV, OPERATION: raw })).toThrow(WorkerEnvError);
+    expect(() => readEnv({ ...BASE_ENV, OPERATION: raw })).toThrow(/OPERATION/);
+    expect(() => readEnv({ ...BASE_ENV, OPERATION: raw })).toThrow(/retirada|cada job/);
+  });
+
+  it('sin OPERATION el entorno es válido y las opciones del worker no llevan ninguna operación fija', () => {
+    const env = readEnv(BASE_ENV);
+
+    expect(env.options.dailySearchCap).toBe(100);
+    expect(Object.keys(env.options)).not.toContain('operation');
   });
 });

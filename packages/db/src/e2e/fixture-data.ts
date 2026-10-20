@@ -536,6 +536,7 @@ export function buildE2eFixture(seedNow: Date = SEEN_AT): E2eFixture {
           id: zone.jobId,
           zoneId: zone.zoneId,
           sourceId: E2E_SOURCE_IDS.idealista,
+          operation: 'rent',
           status: seed.job.status,
           cursor: null,
           attempts: seed.job.attempts,

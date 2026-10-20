@@ -50,7 +50,7 @@ async function seedCoverageJob(db: Database): Promise<{ readonly jobId: string }
   }
   const [job] = await db
     .insert(coverageJobs)
-    .values({ zoneId: zone.id, sourceId: source.id, status: 'pending', cursor: null })
+    .values({ zoneId: zone.id, sourceId: source.id, operation: 'rent', status: 'pending', cursor: null })
     .returning({ id: coverageJobs.id });
   if (!job) {
     throw new Error('No se pudo sembrar coverage_jobs de prueba');
@@ -126,11 +126,10 @@ describeWithReadonlyDb(
       // cualquier restricción de clave foránea o índice único, así que no
       // hace falta (ni conviene) que las filas referenciadas existan.
       await expect(
-        readonlyPool.query('insert into coverage_jobs (zone_id, source_id, status, cursor) values ($1, $2, $3, null)', [
-          randomUUID(),
-          randomUUID(),
-          'pending',
-        ])
+        readonlyPool.query(
+          'insert into coverage_jobs (zone_id, source_id, operation, status, cursor) values ($1, $2, $3, $4, null)',
+          [randomUUID(), randomUUID(), 'rent', 'pending']
+        )
       ).rejects.toMatchObject({ code: '42501' });
     });
 

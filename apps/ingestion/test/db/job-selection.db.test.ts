@@ -37,12 +37,34 @@ describe('job-selection — DD-18 paso 1 (selectNextClaimableJob) y paso 3 (mark
   it('un trabajo pending es seleccionable', async () => {
     const { zoneId } = await insertLocationWithZone(db);
     const sourceId = await insertSource(db);
-    const [row] = await db.insert(coverageJobs).values({ zoneId, sourceId, status: 'pending' }).returning({ id: coverageJobs.id });
+    const [row] = await db.insert(coverageJobs).values({ zoneId, sourceId, operation: 'rent', status: 'pending' }).returning({ id: coverageJobs.id });
 
     const job = await selectNextClaimableJob(db, 3);
     // ROADMAP 2.5 (S1): el job lleva ahora su carril; sin `refresh_requested_at`
     // es a demanda.
-    expect(job).toEqual({ jobId: row?.id, zoneId, sourceId, lane: 'on-demand' });
+    expect(job).toEqual({ jobId: row?.id, zoneId, sourceId, operation: 'rent', lane: 'on-demand' });
+  });
+
+  // ROADMAP 3.3 (decisión 252; S12.1): el job seleccionado lleva SU operación, la que
+  // usará el worker único para la búsqueda y el área.
+  it('el job seleccionado lleva la operación de su fila (sale o rent), y los dos de una zona son candidatos independientes', async () => {
+    const { zoneId } = await insertLocationWithZone(db);
+    const sourceId = await insertSource(db);
+    const [sale] = await db
+      .insert(coverageJobs)
+      .values({ zoneId, sourceId, operation: 'sale', status: 'pending', requestedAt: new Date('2026-01-01T00:00:00Z') })
+      .returning({ id: coverageJobs.id });
+    await db
+      .insert(coverageJobs)
+      .values({ zoneId, sourceId, operation: 'rent', status: 'pending', requestedAt: new Date('2026-02-01T00:00:00Z') });
+
+    const first = await selectNextClaimableJob(db, 3);
+    expect(first).toMatchObject({ jobId: sale?.id, operation: 'sale' });
+
+    await db.update(coverageJobs).set({ status: 'running' }).where(eq(coverageJobs.id, sale?.id ?? ''));
+    const second = await selectNextClaimableJob(db, 3);
+    expect(second).toMatchObject({ operation: 'rent' });
+    expect(second?.jobId).not.toBe(sale?.id);
   });
 
   it('un trabajo failed con reintentos restantes (attempts < maxAttempts) es seleccionable', async () => {
@@ -50,7 +72,7 @@ describe('job-selection — DD-18 paso 1 (selectNextClaimableJob) y paso 3 (mark
     const sourceId = await insertSource(db);
     const [row] = await db
       .insert(coverageJobs)
-      .values({ zoneId, sourceId, status: 'failed', attempts: 1 })
+      .values({ zoneId, sourceId, operation: 'rent', status: 'failed', attempts: 1 })
       .returning({ id: coverageJobs.id });
 
     const job = await selectNextClaimableJob(db, 3);
@@ -60,7 +82,7 @@ describe('job-selection — DD-18 paso 1 (selectNextClaimableJob) y paso 3 (mark
   it('un trabajo failed SIN reintentos restantes (attempts >= maxAttempts) NUNCA se selecciona', async () => {
     const { zoneId } = await insertLocationWithZone(db);
     const sourceId = await insertSource(db);
-    await db.insert(coverageJobs).values({ zoneId, sourceId, status: 'failed', attempts: 3 });
+    await db.insert(coverageJobs).values({ zoneId, sourceId, operation: 'rent', status: 'failed', attempts: 3 });
 
     const job = await selectNextClaimableJob(db, 3);
     expect(job).toBeNull();
@@ -69,7 +91,7 @@ describe('job-selection — DD-18 paso 1 (selectNextClaimableJob) y paso 3 (mark
   it('un trabajo running NUNCA se selecciona', async () => {
     const { zoneId } = await insertLocationWithZone(db);
     const sourceId = await insertSource(db);
-    await db.insert(coverageJobs).values({ zoneId, sourceId, status: 'running' });
+    await db.insert(coverageJobs).values({ zoneId, sourceId, operation: 'rent', status: 'running' });
 
     const job = await selectNextClaimableJob(db, 3);
     expect(job).toBeNull();
@@ -78,7 +100,7 @@ describe('job-selection — DD-18 paso 1 (selectNextClaimableJob) y paso 3 (mark
   it('un trabajo done NUNCA se selecciona', async () => {
     const { zoneId } = await insertLocationWithZone(db);
     const sourceId = await insertSource(db);
-    await db.insert(coverageJobs).values({ zoneId, sourceId, status: 'done' });
+    await db.insert(coverageJobs).values({ zoneId, sourceId, operation: 'rent', status: 'done' });
 
     const job = await selectNextClaimableJob(db, 3);
     expect(job).toBeNull();
@@ -91,11 +113,11 @@ describe('job-selection — DD-18 paso 1 (selectNextClaimableJob) y paso 3 (mark
 
     const [older] = await db
       .insert(coverageJobs)
-      .values({ zoneId: zoneIdA, sourceId, status: 'pending', requestedAt: new Date('2026-01-01T00:00:00Z') })
+      .values({ zoneId: zoneIdA, sourceId, operation: 'rent', status: 'pending', requestedAt: new Date('2026-01-01T00:00:00Z') })
       .returning({ id: coverageJobs.id });
     await db
       .insert(coverageJobs)
-      .values({ zoneId: zoneIdB, sourceId, status: 'pending', requestedAt: new Date('2026-06-01T00:00:00Z') });
+      .values({ zoneId: zoneIdB, sourceId, operation: 'rent', status: 'pending', requestedAt: new Date('2026-06-01T00:00:00Z') });
 
     const job = await selectNextClaimableJob(db, 3);
     expect(job?.jobId).toBe(older?.id);
@@ -111,13 +133,14 @@ describe('job-selection — DD-18 paso 1 (selectNextClaimableJob) y paso 3 (mark
     await db.insert(coverageJobs).values({
       zoneId: refreshZone,
       sourceId,
+      operation: 'rent',
       status: 'pending',
       requestedAt: new Date('2026-01-01T00:00:00Z'),
       refreshRequestedAt: new Date('2026-09-01T00:00:00Z'),
     });
     const [demand] = await db
       .insert(coverageJobs)
-      .values({ zoneId: demandZone, sourceId, status: 'pending', requestedAt: new Date('2026-06-01T00:00:00Z') })
+      .values({ zoneId: demandZone, sourceId, operation: 'rent', status: 'pending', requestedAt: new Date('2026-06-01T00:00:00Z') })
       .returning({ id: coverageJobs.id });
 
     const job = await selectNextClaimableJob(db, 3);
@@ -131,12 +154,12 @@ describe('job-selection — DD-18 paso 1 (selectNextClaimableJob) y paso 3 (mark
     const sourceId = await insertSource(db);
     const [refresh] = await db
       .insert(coverageJobs)
-      .values({ zoneId, sourceId, status: 'pending', refreshRequestedAt: new Date('2026-09-01T00:00:00Z') })
+      .values({ zoneId, sourceId, operation: 'rent', status: 'pending', refreshRequestedAt: new Date('2026-09-01T00:00:00Z') })
       .returning({ id: coverageJobs.id });
 
     const job = await selectNextClaimableJob(db, 3);
 
-    expect(job).toEqual({ jobId: refresh?.id, zoneId, sourceId, lane: 'refresh' });
+    expect(job).toEqual({ jobId: refresh?.id, zoneId, sourceId, operation: 'rent', lane: 'refresh' });
   });
 
   it('entre dos jobs de refresco, el orden sigue siendo por requested_at (el más antiguo primero)', async () => {
@@ -146,6 +169,7 @@ describe('job-selection — DD-18 paso 1 (selectNextClaimableJob) y paso 3 (mark
     await db.insert(coverageJobs).values({
       zoneId: zoneB,
       sourceId,
+      operation: 'rent',
       status: 'pending',
       requestedAt: new Date('2026-06-01T00:00:00Z'),
       refreshRequestedAt: new Date('2026-09-01T00:00:00Z'),
@@ -155,6 +179,7 @@ describe('job-selection — DD-18 paso 1 (selectNextClaimableJob) y paso 3 (mark
       .values({
         zoneId: zoneA,
         sourceId,
+        operation: 'rent',
         status: 'pending',
         requestedAt: new Date('2026-01-01T00:00:00Z'),
         refreshRequestedAt: new Date('2026-09-02T00:00:00Z'),
@@ -169,7 +194,7 @@ describe('job-selection — DD-18 paso 1 (selectNextClaimableJob) y paso 3 (mark
   it('markJobFailedWithoutClaim marca failed con el motivo nombrado, sin tocar attempts', async () => {
     const { zoneId } = await insertLocationWithZone(db);
     const sourceId = await insertSource(db);
-    const [row] = await db.insert(coverageJobs).values({ zoneId, sourceId, status: 'pending' }).returning({ id: coverageJobs.id });
+    const [row] = await db.insert(coverageJobs).values({ zoneId, sourceId, operation: 'rent', status: 'pending' }).returning({ id: coverageJobs.id });
     if (!row) throw new Error('fixture no insertado');
 
     await markJobFailedWithoutClaim(db, row.id, 'zona sin centroide (DD-5)');

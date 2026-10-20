@@ -8,15 +8,29 @@ import type { Database } from './db.js';
 import { coverageJobs, sources } from './tables.js';
 import { utcDayStart } from './time.js';
 
+// ROADMAP 3.3 (decisión 250): el job es POR OPERACIÓN; venta y alquiler de una
+// zona son jobs independientes y la clave única incluye la operación en los dos
+// índices (total y parcial pending/running).
+export type CoverageOperation = 'sale' | 'rent';
+
 // DD-16 (arbitraje CR-3): `ON CONFLICT DO NOTHING` SIN `target` — cualquier
 // conflicto de unicidad (el índice parcial pending/running heredado del
-// paso 1.7, o el nuevo índice único TOTAL de DD-16) se trata como éxito.
+// paso 1.7, o el índice único TOTAL de DD-16, ambos con la operación) se trata
+// como éxito.
 // `status`/`cursor` van explícitos aunque coincidan con el default de la
 // columna (coverage-jobs.ts:21,24): documenta la garantía de la spec
 // («status='pending', cursor=NULL») en el propio call site, no solo en el
 // esquema.
-export async function registerCoverageJob(db: Database, zoneId: string, sourceId: string): Promise<void> {
-  await db.insert(coverageJobs).values({ zoneId, sourceId, status: 'pending', cursor: null }).onConflictDoNothing();
+export async function registerCoverageJob(
+  db: Database,
+  zoneId: string,
+  sourceId: string,
+  operation: CoverageOperation
+): Promise<void> {
+  await db
+    .insert(coverageJobs)
+    .values({ zoneId, sourceId, operation, status: 'pending', cursor: null })
+    .onConflictDoNothing();
 }
 
 // DD-14 — el contador de "zonas nuevas hoy" deriva de
@@ -43,7 +57,8 @@ export interface CoverageJobState {
 export async function getCoverageJobState(
   db: Database,
   zoneId: string,
-  sourceId: string
+  sourceId: string,
+  operation: CoverageOperation
 ): Promise<CoverageJobState | null> {
   const [row] = await db
     .select({
@@ -54,7 +69,13 @@ export async function getCoverageJobState(
       error: coverageJobs.error,
     })
     .from(coverageJobs)
-    .where(and(eq(coverageJobs.zoneId, zoneId), eq(coverageJobs.sourceId, sourceId)));
+    .where(
+      and(
+        eq(coverageJobs.zoneId, zoneId),
+        eq(coverageJobs.sourceId, sourceId),
+        eq(coverageJobs.operation, operation)
+      )
+    );
   return row ?? null;
 }
 

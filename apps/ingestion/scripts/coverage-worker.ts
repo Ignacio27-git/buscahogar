@@ -32,19 +32,16 @@ import { createHttpSearchPort, createHttpTokenPort } from '../src/sources/ideali
 export class WorkerEnvError extends Error {}
 
 // Ampliación deliberada y documentada de las variables de sweep-zone.ts
-// (IDEALISTA_API_KEY/SECRET, DATABASE_URL, reutilizadas sin cambio):
-// OPERATION y los tres umbrales de bloqueo son genuinamente nuevos porque
-// ningún artefacto (spec/diseño/tasks) fija de dónde sale ninguno de los
-// dos para un trabajo encolado — ver el comentario de
-// CoverageWorkerOptions.operation en src/sweep/coverage-worker.ts.
-// DAILY_SEARCH_CAP nunca lleva un valor por defecto (decisión 066: la
+// (IDEALISTA_API_KEY/SECRET, DATABASE_URL, reutilizadas sin cambio): los tres
+// umbrales de bloqueo son genuinamente nuevos. La operación (sale/rent) ya NO
+// es una variable: cada job lleva la suya (decisión 252, `readEnv` rechaza
+// `OPERATION`). DAILY_SEARCH_CAP nunca lleva un valor por defecto (decisión 066: la
 // cuota mensual real de Idealista no está confirmada por ninguna fuente
 // oficial, así que este número es SIEMPRE responsabilidad del operador).
 const EnvSchema = z.object({
   IDEALISTA_API_KEY: z.string().min(1),
   IDEALISTA_API_SECRET: z.string().min(1),
   DATABASE_URL: z.string().min(1),
-  OPERATION: z.enum(['sale', 'rent']),
   DAILY_SEARCH_CAP: z.string().min(1),
   BLOCKING_RADIUS_METERS: z.string().min(1),
   BLOCKING_PRICE_BAND_CENTS: z.string().min(1),
@@ -138,10 +135,20 @@ function parsePositiveInteger(name: string, value: string): number {
 // testear sin tocar el proceso real. `main()` es el único llamador con
 // `process.env` de verdad.
 export function readEnv(env: Readonly<Record<string, string | undefined>>): WorkerEnv {
+  // Decisión 252: un único worker sirve las dos operaciones. Un `OPERATION`
+  // heredado de un `.env` antiguo se RECHAZA (no se ignora en silencio): el
+  // operador creería acotar el gasto por proceso y el worker barrería `sale`
+  // sin que lo supiera.
+  if (env.OPERATION !== undefined) {
+    throw new WorkerEnvError(
+      'OPERATION fue retirada: un único worker sirve venta y alquiler y cada job lleva su operación. ' +
+        'Elimina OPERATION del entorno (.env) y vuelve a arrancar.'
+    );
+  }
   const parsed = EnvSchema.safeParse(env);
   if (!parsed.success) {
     throw new WorkerEnvError(
-      'Faltan variables de entorno: IDEALISTA_API_KEY, IDEALISTA_API_SECRET, DATABASE_URL, OPERATION, ' +
+      'Faltan variables de entorno: IDEALISTA_API_KEY, IDEALISTA_API_SECRET, DATABASE_URL, ' +
         'DAILY_SEARCH_CAP, BLOCKING_RADIUS_METERS, BLOCKING_PRICE_BAND_CENTS y BLOCKING_SURFACE_TOLERANCE_M2 ' +
         'deben estar definidas y no vacías.'
     );
@@ -166,7 +173,6 @@ export function readEnv(env: Readonly<Record<string, string | undefined>>): Work
     databaseUrl: raw.DATABASE_URL,
     blockingThresholds: blockingThresholds.data,
     options: {
-      operation: raw.OPERATION,
       pollIntervalMs:
         raw.POLL_INTERVAL_MS !== undefined
           ? parsePositiveInteger('POLL_INTERVAL_MS', raw.POLL_INTERVAL_MS)
@@ -235,7 +241,7 @@ export async function main(): Promise<void> {
       maxAttempts: env.options.maxAttempts,
       dailySearchCap: env.options.dailySearchCap,
       refreshBudgetFraction: env.options.refreshBudgetFraction,
-      presenceVerification: { operation: env.options.operation, radiusMarginM: env.verificationRadiusMarginM },
+      presenceVerification: { radiusMarginM: env.verificationRadiusMarginM },
       blockingThresholds: env.blockingThresholds,
       io: {
         log: (line: string): void => {

@@ -127,6 +127,13 @@
       "when": 1792518636271,
       "tag": "0017_locations_population",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792519476898,
+      "tag": "0018_coverage_jobs_operation",
+      "breakpoints": true
     }
   ]
 }

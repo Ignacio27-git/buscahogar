@@ -35,6 +35,10 @@ export interface PersistPageOutcome {
   readonly unchanged: number;
 }
 
+// Operación de un job de cobertura (decisión 250): venta y alquiler de una zona
+// son jobs independientes, cada uno con su cursor.
+export type JobOperation = 'sale' | 'rent';
+
 // Trabajo ya reclamado (CAS) por coverage-store.claimJob, ANTES de invocar
 // el driver del barrido (ver sweep-runner.ts). `cursor` ya viene decodificado
 // del envelope versionado y con la huella de área verificada (job-cursor.ts)
@@ -65,6 +69,6 @@ export interface SweepStore {
   // este método — lo hace el compositor (scripts/sweep-zone.ts, fase 4)
   // antes de invocar el driver, precisamente para que un reclamo fallido no
   // llegue nunca a `source.fetchArea` (COVERAGE-3a).
-  claimJob(zoneId: string, sourceId: string, fingerprint: string): Promise<ClaimedJob>;
+  claimJob(zoneId: string, sourceId: string, operation: JobOperation, fingerprint: string): Promise<ClaimedJob>;
   finishJob(jobId: string, outcome: JobOutcome): Promise<void>;
 }

@@ -148,9 +148,9 @@ describeWithDb('migración 0013 — backfill de señales desde coverage_jobs (QS
     // Dos requested_at con fecha UTC distinta; el primero cerca de medianoche
     // UTC para comprobar que el día NO depende de la zona horaria de sesión.
     await pool.query(
-      `insert into coverage_jobs (zone_id, source_id, status, requested_at) values
-         ($1, $3, 'done', '2026-03-10 23:30:00+00'),
-         ($2, $3, 'done', '2026-05-01 00:15:00+00')`,
+      `insert into coverage_jobs (zone_id, source_id, operation, status, requested_at) values
+         ($1, $3, 'rent', 'done', '2026-03-10 23:30:00+00'),
+         ($2, $3, 'rent', 'done', '2026-05-01 00:15:00+00')`,
       [zoneA, zoneB, sourceId]
     );
 
@@ -164,7 +164,7 @@ describeWithDb('migración 0013 — backfill de señales desde coverage_jobs (QS
     const sourceId = await insertSource(db);
     const zoneId = await insertZone(db);
     await pool.query(
-      `insert into coverage_jobs (zone_id, source_id, requested_at) values ($1, $2, '2026-04-04 12:00:00+00')`,
+      `insert into coverage_jobs (zone_id, source_id, operation, requested_at) values ($1, $2, 'rent', '2026-04-04 12:00:00+00')`,
       [zoneId, sourceId]
     );
 

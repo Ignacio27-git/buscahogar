@@ -23,6 +23,7 @@ import type {
   PartitionedPresence,
   PresenceBatch,
   PresenceVerdict,
+  RefreshTarget,
   ZoneLifecycleSnapshot,
 } from '@buscahogar/core';
 import type { BudgetReservation, BudgetSnapshotLike, LedgerState, ZoneGeometry } from '@buscahogar/db';
@@ -61,8 +62,9 @@ export interface ZoneMaintenancePorts {
   // borra job y señales y las devuelve a `uncovered`. Sin llamadas a la fuente
   // ni gasto de cuota. Devuelve cuántas zonas se reiniciaron.
   purgeZones(zoneIds: readonly string[]): Promise<number>;
-  // Re-encola los jobs de las zonas dadas en el carril de refresco (ZRS-8).
-  scheduleRefresh(zoneIds: readonly string[]): Promise<number>;
+  // Re-encola los jobs de las (zona, operación) dadas en el carril de refresco
+  // (ZRS-8): cada operación vence según su propio último barrido (decisión 250).
+  scheduleRefresh(targets: readonly RefreshTarget[]): Promise<number>;
   // ROADMAP 2.5 (S4; decisión 107) — redacta los anuncios inactivos desde hace
   // ≥ 180 días (lote acotado). Devuelve cuántos: si es > 0 el tick queda sucio
   // y el reproceso de dedup reconstruye las cachés de las viviendas (RP-9).
@@ -134,16 +136,10 @@ export interface CoverageWorkerPorts {
   log(line: string): void;
 }
 
+// ROADMAP 3.3 (decisión 252) — el worker es ÚNICO y sirve las dos operaciones: la
+// operación de cada barrido es la de su job (`PollJob.operation`). Ya no hay una
+// operación fija por proceso (la antigua variable `OPERATION`, retirada).
 export interface CoverageWorkerOptions {
-  // Desviación deliberada y documentada sobre el listado literal del diseño
-  // (§5 interfaces): ni `coverage_jobs` ni ningún puerto llevan
-  // 'sale'/'rent' — buildArea/AreaQuery lo EXIGEN (area-query.schema.ts) y
-  // ningún artefacto (spec, diseño, tasks) dice de dónde sale para un
-  // trabajo encolado. Un proceso worker cubre UNA operación fija, igual que
-  // `sweep-zone.ts --operation` la exige por invocación — sin este campo el
-  // tick no podría construir ningún AreaQuery. Documentado como hallazgo,
-  // no como invención silenciosa.
-  readonly operation: 'sale' | 'rent';
   readonly pollIntervalMs: number;
   readonly maxSearchRequestsPerSweep: number;
   readonly dailySearchCap: number;
@@ -238,8 +234,8 @@ async function runMaintenance(
   // techo nulo nunca dejaría gastar solo dejaría jobs esperando sin fin.
   const refreshEnabled = (options.refreshBudgetFraction ?? 0) > 0;
   if (planned.ok && refreshEnabled && planned.value.refresh.length > 0) {
-    const zoneIds = planned.value.refresh;
-    await runIsolatedStep(ports, 're-encolado-de-refresco', () => maintenance.scheduleRefresh(zoneIds));
+    const targets = planned.value.refresh;
+    await runIsolatedStep(ports, 're-encolado-de-refresco', () => maintenance.scheduleRefresh(targets));
   }
 
   const tombstone = await runIsolatedStep(ports, 'tombstone-de-anuncios', () =>
@@ -322,7 +318,7 @@ async function runSweepStep(ports: CoverageWorkerPorts, options: CoverageWorkerO
     zone: geometry.ineCode,
     center: geometry.centroid,
     radiusMeters: geometry.sweepRadiusM,
-    operation: options.operation,
+    operation: job.operation,
     maxSearchRequestsPerSweep: options.maxSearchRequestsPerSweep,
   };
   const area = buildArea(areaOptions);

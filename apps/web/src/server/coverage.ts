@@ -73,6 +73,14 @@ export interface ClientLimit {
 // provisionar) — resolverla ANTES de saber si hace falta escribir de
 // verdad rompería toda petición que solo consulta el estado de un job que
 // YA existe (rama de abajo), que nunca necesita el handle de escritura.
+// ROADMAP 3.3, PR2 (decisión 250) — PROVISIONAL. `coverage_jobs` es ya por
+// operación y `registerCoverageJob`/`getCoverageJobState` exigen una; hasta que
+// PR3 (PD9) haga la cobertura consciente de la operación, la web sigue haciendo
+// lo que hacía hasta 3.2: un único job por zona, de `rent` (la única operación
+// que se barrió). Cambio mínimo para conservar la compilación, sin cambio de
+// comportamiento.
+const PROVISIONAL_JOB_OPERATION = 'rent';
+
 export async function resolveCoverageForZone(
   readDb: Database,
   getWriteDb: () => Database,
@@ -102,7 +110,7 @@ export async function resolveCoverageForZone(
   // de un intento previo fallido — DD-16) nunca se bloquea por el tope al
   // re-visitarla: el tope solo protege registros NUEVOS, nunca la consulta
   // de estado de uno que ya existe.
-  const existingJob = await getCoverageJobState(readDb, zoneGeometry.zoneId, sourceId);
+  const existingJob = await getCoverageJobState(readDb, zoneGeometry.zoneId, sourceId, PROVISIONAL_JOB_OPERATION);
   if (existingJob !== null) {
     return { kind: 'registered', job: existingJob };
   }
@@ -127,7 +135,7 @@ export async function resolveCoverageForZone(
     }
   }
 
-  await registerCoverageJob(getWriteDb(), zoneGeometry.zoneId, sourceId);
-  const job = await getCoverageJobState(readDb, zoneGeometry.zoneId, sourceId);
+  await registerCoverageJob(getWriteDb(), zoneGeometry.zoneId, sourceId, PROVISIONAL_JOB_OPERATION);
+  const job = await getCoverageJobState(readDb, zoneGeometry.zoneId, sourceId, PROVISIONAL_JOB_OPERATION);
   return { kind: 'registered', job };
 }

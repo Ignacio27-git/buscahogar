@@ -82,11 +82,12 @@ describeWithDb('utcDayStart — bajo reloj inyectado, dos escrituras cercanas al
     await db.insert(coverageJobs).values({
       zoneId: zone.id,
       sourceId: sourceOld.id,
+      operation: 'rent',
       requestedAt: new Date('2020-01-01T00:00:00.000Z'),
     });
     // Reloj real: `requestedAt` cae por defecto en `now()`, dentro del día
     // de hoy por construcción.
-    await db.insert(coverageJobs).values({ zoneId: zone.id, sourceId: sourceNew.id });
+    await db.insert(coverageJobs).values({ zoneId: zone.id, sourceId: sourceNew.id, operation: 'rent' });
 
     const rows = await db
       .select({ id: coverageJobs.id })
