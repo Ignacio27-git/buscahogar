@@ -74,6 +74,19 @@ Alternativa quirúrgica, con el contenedor ya parado:
 docker volume rm buscahogar_postgres_data
 ```
 
+## Pruebas con base de datos
+
+Las suites que usan PostgreSQL (`packages/db`, `apps/web`, `apps/ingestion`) **nunca tocan la base de
+desarrollo**. Derivan del nombre de `DATABASE_URL` una base propia por paquete (`<dev>_db_test`,
+`<dev>_web_test`, `<dev>_ingestion_test`), la crean y migran solas la primera vez y rechazan vaciar cualquier
+base cuyo nombre no termine en `_test` (decisión 245). No hay variable `TEST_DATABASE_URL`: basta con
+`docker compose up -d db` y `DATABASE_URL` en el `.env`.
+
+- Las pruebas de `apps/web` y `apps/ingestion` por separado necesitan los paquetes compilados:
+  `pnpm --filter "./packages/*" build` (los scripts raíz `test`, `typecheck` y `lint` ya lo hacen).
+- `BENCH_DATABASE_URL` (banco de búsqueda, `search-bench.db.test.ts`) debe apuntar a una base propia y
+  vacía, p. ej. `buscahogar_test_bench`, no a `buscahogar_bench` con los datos del banco.
+
 ## Pruebas e2e visuales y de accesibilidad
 
 Capturas con Playwright (3 anchos x tema claro/oscuro) y comprobación de accesibilidad con axe. **Solo

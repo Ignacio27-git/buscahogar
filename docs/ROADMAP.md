@@ -2009,6 +2009,66 @@ quedan: `ho-10`, `dev-15` («entre 2 y 3 habitaciones», fijado como no reconoci
 
 ---
 
+## [x] 3.2 · Corrección: búsqueda vacía en una zona cubierta y suites que vaciaban la base de desarrollo
+
+Paso no previsto en la hoja de ruta, nacido de un fallo reportado por el responsable
+(`/?operation=rent&propertyType=flat&maxPrice=600&minRooms=3&zone=18009` devolvía una lista vacía). Ciclo SDD
+`fix-search-empty-results`, tres commits en `feature-fase3`.
+
+**Notas:**
+
+**Estado: hecho (2026-10-20).** Decisiones 245 y 246. Sin migración.
+
+**Causa.** El código de búsqueda era correcto. Las suites con base de datos vaciaban la base de desarrollo
+(decisión 046) y la única ubicación que quedaba era una fila de prueba `18009 Granada`
+(`apps/web/test/db/coverage-registration.test.ts`; el código INE real de Granada es 18087), sin anuncios.
+
+| Commit | Contenido | Hash |
+|---|---|---|
+| 1 | bases `_test` derivadas, `globalSetup`, guardián de `truncateAll`, `GRANT` agnóstico a la base (decisión 245) | `cdd4de0` |
+| 2 | aviso de zona cubierta sin resultados, 6 capturas nuevas, caso e2e y axe (decisión 246) | `fdd1d71` |
+| 3 | documentación | este commit |
+
+**Datos reales (operativa, 2026-10-20).** Se purgaron los residuos (fila de `coverage_client_quota`, zona y
+ubicación 18009; con guarda de `listings`/`properties` vacías), `pnpm db:migrate` y `pnpm db:seed` (8132
+ubicaciones; 18087 presente, 18009 ausente). Barrido `--zone 18087 --operation rent --max-requests 2`:
+2 peticiones, 100 anuncios creados, `resumeCursor homes:3`, aviso «studio» sin mapeo. Reprocesado con los
+umbrales de la suite (`--radius 300 --price-band 2500000 --surface-tolerance 10`, elegidos por el responsable
+porque `BLOCKING_*` solo vive en `.env`): 39 pares candidatos (2 aceptados, 5 indecisos, 32 rechazados), 98
+viviendas, 2 grupos multi-miembro; 100 filas de `property_listings`, todas con desglose. Granada, alquiler:
+98 visibles, 83 pisos, 3 pisos ≤600 €, 51 con ≥3 habitaciones, **0 con ambos**: los filtros exactos del
+responsable son legítimamente vacíos (el más barato cuesta 450 €). La zona 18087 sigue `uncovered` (barrido
+parcial por CLI).
+
+**Pendiente del responsable (los agentes no pueden tocar `.env`).**
+
+- `BENCH_DATABASE_URL` del `.env` apunta a `buscahogar_bench`, pero la suite espera la base vacía
+  `buscahogar_test_bench` (existe): `test:db` falla en `search-bench` hasta que se repunte.
+- OPS-0 (que el worker use `OPERATION=rent`) no se pudo comprobar: no hay acceso a `.env`.
+
+**Riesgos abiertos.** El mapeo de `studio` en el normalizador de Idealista sigue sin existir (los estudios
+no entran en el corpus).
+
+---
+
+## [ ] 3.3 · Datos reales más allá de Granada: pre-barrido de las ciudades más pobladas
+
+Decisión de producto del responsable (2026-10-20): los datos reales deben cubrir más que Granada.
+
+```text
+Pre-barre las ciudades más pobladas (venta y alquiler) con un tope explícito de peticiones fijado por el
+responsable a partir de la cuota mensual restante, y deja reserva para la cobertura bajo demanda de los
+municipios pequeños (coverage_jobs con prioridad de zone_query_signals).
+```
+
+**Notas:**
+
+**Estado: pendiente.** Sin ejecutar. Antes de empezar: el responsable fija el tope de peticiones y la
+reserva. Todo barrido pagina con corte explícito (regla de `CLAUDE.md`). El adaptador de Kyero existe pero
+no tiene feed real (decisión 071), así que no es alternativa hoy.
+
+---
+
 # Registro de desviaciones
 
 Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
@@ -2089,3 +2149,9 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-01 | 3.1 | El volumen superó el presupuesto de sesión (~3160 líneas autoradas frente a las 2400-3200 previstas, con U2 y U3 por encima de su tramo) y se aceptó `size:exception`; se partió en un commit por unidad (U1-U5) más una unidad extra de corrección, U2b | La previsión de `sdd-tasks` ya advertía de que el volumen era alto. U2b no estaba planificada: surgió al medir el corpus de desarrollo (decisión 124) y se hizo en un commit propio para mantener cada unidad con una finalidad. Precedente: pasos 2.2 y 2.3. |
 | 2026-10-01 | 3.1 | Las URL existentes con `minPrice`/`maxPrice` pasan a interpretarse en euros; antes el valor se pasaba sin convertir y se trataba como céntimos | Error latente: el formulario y las frases de lenguaje natural hablan euros, y dejar céntimos en la URL daba dos significados al mismo parámetro. Corregido dentro del 3.1 (U1, decisión 121). |
 | 2026-10-01 | 3.1 | La tarea 4.2 `buildInterpretHref` no se construyó | Ningún consumidor: la elección del lugar es un grupo de radios dentro del panel, así que no hace falta un enlace de vuelta a una interpretación. |
+| 2026-10-20 | 3.2 | Paso no previsto en la hoja de ruta, abierto por un fallo reportado (búsqueda vacía en una zona «cubierta») | La causa no estaba en la búsqueda sino en las suites que vaciaban la base de desarrollo (decisión 046, ahora cerrada por la 245). |
+| 2026-10-20 | 3.2 | El diseño descartó `initdb.d` y el script `\gexec` de Compose en favor de un `globalSetup` que crea y migra la base `_test`; la spec se enmendó (revisión 2) | `initdb.d` solo corre sobre un volumen vacío y obligaría a recrearlo; el `globalSetup` funciona sobre cualquier volumen y falla alto si Docker está parado. |
+| 2026-10-20 | 3.2 | `search-bench.db.test.ts` se modificó, fuera del alcance previsto | El nuevo guardián destapó que su `afterAll` con `truncateAll` habría vaciado `buscahogar_bench` (1M de filas); ahora usa `truncateBenchTables` local, condicionado a que el test haya generado los datos. |
+| 2026-10-20 | 3.2 | El texto del aviso difiere del diseño: añade el nexo causal y quita la repetición de «Los filtros aplicados» | Resultado de `impeccable clarify`; decisión 246. |
+| 2026-10-20 | 3.2 | `.env.example` no se actualizó; el nombre de las bases `_test` se documenta solo en el README | Ningún agente puede leer ni escribir ese fichero (permisos). Como no hay variable de test nueva, no hay nada que añadir salvo la nota sobre `BENCH_DATABASE_URL`, pendiente del responsable. |
+| 2026-10-20 | 3.2 | Los datos reales de Granada (alquiler) se cargaron en operativa, tras el commit 1, con un barrido de 2 peticiones y umbrales de reprocesado elegidos por el responsable | La base de desarrollo estaba vacía de anuncios; los umbrales `BLOCKING_*` solo viven en `.env`. Nuevo paso 3.3 para ampliar la cobertura real. |

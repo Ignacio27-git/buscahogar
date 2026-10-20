@@ -1256,7 +1256,7 @@ relativo es el parámetro a revisar entonces.
 
 ## 046 — La suite de tests de `packages/db` trunca la base de datos del propio desarrollador; sin base de datos de test separada
 
-**Estado:** pendiente — problema registrado, sin solución aplicada en este cambio
+**Estado:** resuelta por la decisión 245 (paso 3.2); el texto siguiente es el registro original.
 
 **Decisión.** Se deja constancia del problema y se pospone su solución a un paso posterior.
 `packages/db/test/helpers/db-client.ts` (`truncateAll`) ejecuta
@@ -6288,6 +6288,50 @@ los aceptó todos (P1-P8); la segunda (dos revisores) encontró una regresión m
 
 ---
 
+## 245 — Bases de datos de test derivadas y aprovisionadas solas; cierra la 046 y enmienda la 069
+
+**Estado:** aceptada (paso 3.2); cierra la 046 y enmienda la 069.
+
+**Decisión.** Las suites con base de datos (`packages/db`, `apps/web`, `apps/ingestion`) nunca usan la base de desarrollo. A partir de
+`DATABASE_URL` derivan `<dev>_db_test`, `<dev>_web_test` y `<dev>_ingestion_test` (`packages/db/src/test-database.ts`). Un `globalSetup` por
+paquete crea la base si no existe (un `42P04` cuenta como éxito), la migra una vez y, en `apps/web`, aplica los `GRANT` de los roles
+`web_readonly` y `web_coverage`. `setup-env` redirige `DATABASE_URL`, `WEB_DATABASE_URL` y `WEB_COVERAGE_DATABASE_URL` a la base derivada, y
+los tres `truncateAll` llaman antes a `assertConnectedToTestDatabase`, que rechaza vaciar cualquier base cuyo nombre no termine en `_test`.
+`TEST_DATABASE_URL` desaparece. La 069 se enmienda: `bootstrap-roles-grants.sql` pasa a usar `DO` con `format('%I', current_database())`, de
+modo que sirve para cualquier base y el comando `psql` de desarrollo sigue igual. La fila de la 046 en «Pendientes de decidir» queda cerrada.
+
+**Alternativas descartadas.** (1) Script `initdb.d` y `\gexec` de Compose para crear las bases: solo se ejecuta sobre un volumen vacío (el mismo
+límite que ya documenta el README para PostGIS) y obliga a recrear el volumen. (2) Una `TEST_DATABASE_URL` por entorno: otra variable que
+configurar a mano y que puede apuntar mal; la derivación y el guardián de nombre hacen el error imposible. (3) Solo el guardián, sin bases
+separadas: evita la pérdida pero deja las suites sin poder correr contra una base con datos.
+
+**Motivo.** Un `pnpm test` vació la base de desarrollo y dejó como única ubicación una fila de prueba (`18009 Granada`), de modo que una búsqueda
+válida salía vacía (3.2). Un fallo de configuración debe ser ruidoso y ningún test debe poder tocar datos reales.
+
+**Consecuencias.** `search-bench.db.test.ts` (que consume `BENCH_DATABASE_URL`) vaciaba en su `afterAll` la base de banco con 1M de filas;
+ahora usa un `truncateBenchTables` local, condicionado a que el propio test haya generado los datos. Las pruebas de `apps/web` y
+`apps/ingestion` por separado necesitan `pnpm --filter "./packages/*" build` antes, porque `./test-database` se resuelve contra `dist`.
+
+---
+
+## 246 — Aviso de zona cubierta sin resultados (enmienda la 225)
+
+**Estado:** aceptada (paso 3.2); enmienda la 225.
+
+**Decisión.** Si hay filtros, la zona está `covered` y es localizable (centroide y radio), el vacío de la lista añade bajo el estado:
+«Los anuncios de {municipio} están al día, así que son los filtros los que dejan la lista vacía. Están arriba; pulsa uno para quitarlo.»
+Sustituye a la frase de la 225 solo en ese caso; sin zona cubierta se conserva «Los filtros aplicados están arriba; pulsa uno para quitarlo.».
+`EmptyResults` recibe `coveredZone?: string | null` y `page.tsx` lo rellena únicamente en la rama localizable. Sigue siendo un `<p>` sin
+`role` ni `aria-live`, con una sola acción y sin repetir los chips; el texto del mapa no cambia.
+
+**Alternativas descartadas.** La frase del diseño («… están al día. Los filtros aplicados están arriba…»): no enlazaba la causa con la
+consecuencia y repetía «filtros aplicados». Un `role="status"`: el vacío ya se anuncia en el panel. Mostrarlo también en zonas sin cobertura
+al día: sería falso, el aviso de cobertura ya explica ahí por qué puede faltar oferta.
+
+**Motivo.** Con la zona al día, el usuario que ve la lista vacía debe saber que la causa son sus filtros y no una falta de datos.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
@@ -6299,12 +6343,8 @@ los aceptó todos (P1-P8); la segunda (dos revisores) encontró una regresión m
   etiquetado.
 - **Segunda zona del corpus:** una de costa con mucha agencia local, a decidir cuando se
   conozca el coste en cuota de la primera.
-- **Base de datos de test separada para `packages/db`** (decisión 046): la suite trunca hoy
-  la base de datos apuntada por `DATABASE_URL`, que en desarrollo es la misma que contiene
-  datos reales ingeridos. Requiere una segunda `DATABASE_URL` de test o un guardián que
-  rechace truncar una base de datos que no sea la designada.
-  El paso 2.4 volvió a toparse con ello (ver `docs/AI-NOTES.md`); su banco ya usa bases
-  separadas con el guardián de nombre `_bench`, que podría reutilizarse aquí.
+- ~~**Base de datos de test separada para `packages/db`** (decisión 046)~~: resuelto en el paso
+  3.2, decisión 245 (bases `_test` derivadas, aprovisionadas por `globalSetup` y con guardián de nombre).
 - **Estimación de cardinalidad geográfica** (decisión 101): el planificador estima 100 filas
   dentro de un radio de 25 km donde caen ~600.000. Revisar las estadísticas de
   `location_geography` antes de confiar en otras decisiones del planificador sobre filtros

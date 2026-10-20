@@ -4057,3 +4057,26 @@ observación de progreso se actualiza con `find`/`replace` o se anexa, no se sob
 
 **Observación:** «verificado en código» sin una prueba ejecutada no es evidencia. Un test de geometría debe comparar el valor que importa (la
 separación) y no un proxy (el ancho), y una regla nueva hay que compararla en especificidad con las existentes sobre el mismo elemento.
+
+### 2026-10-20 — Fallos intermedios en la exploración, la propuesta y el diseño de 3.2
+
+**Contexto:** búsqueda vacía en una zona cubierta y aislamiento de las bases de test (`fix-search-empty-results`).
+
+**Categoría:** afirmación sin verificar / contradicción entre artefactos.
+
+**Qué se generó mal:**
+
+1. La exploración dio `18009` por «provincia INE 18 + municipio 009» sin comprobarlo. Era una fila de prueba de
+   `apps/web/test/db/coverage-registration.test.ts`; el código INE real de Granada es 18087. De ahí salió la hipótesis equivocada de un
+   problema de datos reales.
+2. La propuesta afirmaba que la decisión 046 había «destruido datos reales tres veces», sin evidencia: solo hay una pérdida documentada.
+3. La spec (revisión 1) y el diseño se contradijeron en el aprovisionamiento de las bases de test: la spec exigía `initdb.d` de Compose y el
+   diseño lo descartó por un `globalSetup`. Se enmendó la spec (revisión 2).
+4. El guardián nuevo destapó un fallo que nadie había previsto: el `afterAll` de `search-bench.db.test.ts` habría vaciado `buscahogar_bench`
+   (1M de filas).
+
+**Cómo se detectó:** 1 al buscar el código en el repositorio y en la base; 2 al contrastar la propuesta con la decisión 046 y el ROADMAP;
+3 al leer ambos artefactos antes de las tareas; 4 al ejecutar la suite con el guardián activo.
+
+**Observación:** un identificador con aspecto de código oficial hay que cotejarlo con el catálogo y con las fixtures antes de darlo por real, y
+un recuento de incidentes se cita con su fuente o no se cita.

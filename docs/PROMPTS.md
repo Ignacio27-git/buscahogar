@@ -2137,3 +2137,21 @@ intentos sí necesitó un reinicio autorizado por contar de más el snapshot gen
 migración); PR2 (~1137-1148 líneas) y PR3 (~1047, casi todo documentación obligatoria) se aceptaron con
 `size:exception` explícito. Detalle completo,
 con las cifras exactas por PR, en `docs/ROADMAP.md`, paso 1.15.
+
+---
+
+### 2026-10-20 — Búsqueda vacía en una zona cubierta y suites que vacían la base de desarrollo (3.2)
+
+**Tipo de tarea:** corrección de un fallo (búsqueda vacía) + aislamiento de las bases de datos de test + aviso de interfaz
+**Forma de especificación:** ciclo SDD completo (`fix-search-empty-results`) — explore → research → propose → spec y diseño → tasks → apply en
+tres commits, con operativa de datos hecha por el orquestador
+**Resultado:** utilizable con retoques — el texto del aviso se refinó en `impeccable clarify` (nexo causal, sin repetir «Los filtros aplicados»)
+y el aprovisionamiento de las bases de test se rediseñó (de `initdb.d` y `\gexec` a un `globalSetup` autoaprovisionado; spec revisión 2).
+
+**Prompt:** la búsqueda `?operation=rent&propertyType=flat&maxPrice=600&minRooms=3&zone=18009` devuelve una lista vacía; el mensaje original
+del responsable pedía averiguar por qué y arreglarlo.
+
+**Observación.** El código de búsqueda era correcto. La zona 18009 solo existía como fila de prueba de
+`apps/web/test/db/coverage-registration.test.ts` porque las suites habían vaciado la base de desarrollo (decisión 046). Se cerró la causa
+(decisión 245), se añadió el aviso de zona cubierta (decisión 246) y se recargaron datos reales de Granada. Los filtros exactos del
+responsable siguen vacíos con datos reales (0 pisos ≤600 € con ≥3 habitaciones). Detalle en `docs/ROADMAP.md`, paso 3.2.
