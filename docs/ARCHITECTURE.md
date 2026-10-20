@@ -129,6 +129,16 @@ operación de cada barrido es la de su job (`PollJob.operation`), con ella se co
 reclama el job. La variable `OPERATION` se retiró y `readEnv` la rechaza al arrancar. La
 verificación de presencia no filtra por operación y nomina según la operación del job.
 
+**Cobertura en la búsqueda (decisión 251).** `apps/web` decide la cobertura por operación con `coverage_jobs.last_completed_at`,
+no con `zones.state`. Con filtro de operación se exige esa operación; sin filtro, venta y alquiler. Se registra un job por
+cada operación que falta y aún no tiene fila (el par sale+rent convive y no se duplica), y el aviso enseña el estado del job
+más vivo. El tope global de zonas nuevas cuenta zonas distintas (una zona con dos jobs ocupa una plaza) y la cuota por cliente
+se consume una vez por zona. La web sigue solo con `INSERT` sobre `coverage_jobs`: sin `GRANT` nuevo.
+
+**Prioridad del worker (decisión 251).** El carril a demanda se ordena por días con señal de la zona en los últimos 30 días UTC
+(más primero), después `requested_at` y `id`; el carril de refresco conserva `requested_at`. Las señales de demanda las
+escribe `apps/web` y las lee el worker (`zone_query_signals`).
+
 **Cuota.** Presupuesto diario de peticiones y tope de zonas nuevas por día y por sesión.
 Degradación explícita al alcanzarlo.
 

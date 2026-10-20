@@ -206,3 +206,153 @@ describe('job-selection — DD-18 paso 1 (selectNextClaimableJob) y paso 3 (mark
     expect(after?.finishedAt).not.toBeNull();
   });
 });
+
+// ROADMAP 3.3 (decisión 251; R13, S13.1-S13.5) — prioridad por demanda SOLO en el carril a demanda:
+// días con señal en la ventana de 30 días UTC [hoy-29, hoy] DESC, después `requested_at` y `id`. Las
+// señales se siembran con edades en días respecto al día UTC de Postgres (el mismo reloj que usa la consulta).
+describe('job-selection — prioridad por días con señal (decisión 251, R13)', () => {
+  let db: Database;
+  let pool: Pool;
+
+  beforeAll(() => {
+    ({ db, pool } = connectTestDb());
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  beforeEach(async () => {
+    await truncateAll(pool);
+  });
+
+  async function seedSignals(zoneId: string, agesInDays: readonly number[]): Promise<void> {
+    await pool.query(
+      "insert into zone_query_signals (zone_id, day) select $1, (now() at time zone 'utc')::date - age from unnest($2::int[]) as age",
+      [zoneId, [...agesInDays]]
+    );
+  }
+
+  async function pendingJob(
+    zoneId: string,
+    sourceId: string,
+    requestedAt: string,
+    extra: { readonly refresh?: boolean; readonly operation?: 'sale' | 'rent' } = {}
+  ): Promise<string> {
+    const [row] = await db
+      .insert(coverageJobs)
+      .values({
+        zoneId,
+        sourceId,
+        operation: extra.operation ?? 'rent',
+        status: 'pending',
+        requestedAt: new Date(requestedAt),
+        ...(extra.refresh === true ? { refreshRequestedAt: new Date('2026-09-01T00:00:00Z') } : {}),
+      })
+      .returning({ id: coverageJobs.id });
+    if (!row) throw new Error('fixture no insertado');
+    return row.id;
+  }
+
+  it('S13.1: entre dos jobs a demanda gana el de más días con señal, aunque sea el más reciente', async () => {
+    const { zoneId: zoneA } = await insertLocationWithZone(db, { ineCode: '11001' });
+    const { zoneId: zoneB } = await insertLocationWithZone(db, { ineCode: '11002' });
+    const sourceId = await insertSource(db);
+    await pendingJob(zoneA, sourceId, '2026-01-01T00:00:00Z');
+    const busier = await pendingJob(zoneB, sourceId, '2026-06-01T00:00:00Z');
+    await seedSignals(zoneA, [0, 1, 2]);
+    await seedSignals(zoneB, [0, 1, 2, 3, 4, 5, 6, 7, 8]);
+
+    const job = await selectNextClaimableJob(db, 3);
+
+    expect(job?.jobId).toBe(busier);
+    expect(job?.lane).toBe('on-demand');
+  });
+
+  it('S13.2: con los mismos días con señal gana el requested_at más antiguo', async () => {
+    const { zoneId: zoneA } = await insertLocationWithZone(db, { ineCode: '11011' });
+    const { zoneId: zoneB } = await insertLocationWithZone(db, { ineCode: '11012' });
+    const sourceId = await insertSource(db);
+    await pendingJob(zoneB, sourceId, '2026-06-01T00:00:00Z');
+    const older = await pendingJob(zoneA, sourceId, '2026-01-01T00:00:00Z');
+    await seedSignals(zoneA, [0, 1]);
+    await seedSignals(zoneB, [2, 3]);
+
+    expect((await selectNextClaimableJob(db, 3))?.jobId).toBe(older);
+  });
+
+  it('con requested_at igual y los mismos días con señal, el desempate es el id (determinista)', async () => {
+    const { zoneId: zoneA } = await insertLocationWithZone(db, { ineCode: '11021' });
+    const { zoneId: zoneB } = await insertLocationWithZone(db, { ineCode: '11022' });
+    const sourceId = await insertSource(db);
+    const idA = await pendingJob(zoneA, sourceId, '2026-03-01T00:00:00Z');
+    const idB = await pendingJob(zoneB, sourceId, '2026-03-01T00:00:00Z');
+
+    const expected = [idA, idB].sort()[0];
+    expect((await selectNextClaimableJob(db, 3))?.jobId).toBe(expected);
+  });
+
+  it('S13.3: las señales fuera de la ventana no cuentan; el día 30 de la ventana (hoy-29) sí y el 31 (hoy-30) no', async () => {
+    const { zoneId: inside } = await insertLocationWithZone(db, { ineCode: '11031' });
+    const { zoneId: outside } = await insertLocationWithZone(db, { ineCode: '11032' });
+    const sourceId = await insertSource(db);
+    // `outside` es más antiguo y tiene MUCHAS señales, pero todas fuera de la ventana: cuenta 0.
+    await pendingJob(outside, sourceId, '2026-01-01T00:00:00Z');
+    const withBoundary = await pendingJob(inside, sourceId, '2026-06-01T00:00:00Z');
+    await seedSignals(outside, [30, 31, 40, 90, 120]);
+    await seedSignals(inside, [29]);
+
+    expect((await selectNextClaimableJob(db, 3))?.jobId).toBe(withBoundary);
+  });
+
+  it('S13.3: sin ninguna señal dentro de la ventana el orden vuelve a ser requested_at', async () => {
+    const { zoneId: zoneA } = await insertLocationWithZone(db, { ineCode: '11041' });
+    const { zoneId: zoneB } = await insertLocationWithZone(db, { ineCode: '11042' });
+    const sourceId = await insertSource(db);
+    const older = await pendingJob(zoneA, sourceId, '2026-01-01T00:00:00Z');
+    await pendingJob(zoneB, sourceId, '2026-06-01T00:00:00Z');
+    await seedSignals(zoneB, [30, 45]);
+
+    expect((await selectNextClaimableJob(db, 3))?.jobId).toBe(older);
+  });
+
+  it('S13.4: un job a demanda sin señales va antes que un job de refresco con muchas señales', async () => {
+    const { zoneId: refreshZone } = await insertLocationWithZone(db, { ineCode: '11051' });
+    const { zoneId: demandZone } = await insertLocationWithZone(db, { ineCode: '11052' });
+    const sourceId = await insertSource(db);
+    await pendingJob(refreshZone, sourceId, '2026-01-01T00:00:00Z', { refresh: true });
+    const demand = await pendingJob(demandZone, sourceId, '2026-06-01T00:00:00Z');
+    await seedSignals(refreshZone, Array.from({ length: 20 }, (_, age) => age));
+
+    const job = await selectNextClaimableJob(db, 3);
+
+    expect(job?.jobId).toBe(demand);
+    expect(job?.lane).toBe('on-demand');
+  });
+
+  it('S13.5: entre jobs de refresco manda requested_at, no las señales', async () => {
+    const { zoneId: zoneX } = await insertLocationWithZone(db, { ineCode: '11061' });
+    const { zoneId: zoneY } = await insertLocationWithZone(db, { ineCode: '11062' });
+    const sourceId = await insertSource(db);
+    const older = await pendingJob(zoneX, sourceId, '2026-01-01T00:00:00Z', { refresh: true });
+    await pendingJob(zoneY, sourceId, '2026-06-01T00:00:00Z', { refresh: true });
+    await seedSignals(zoneY, Array.from({ length: 20 }, (_, age) => age));
+
+    const job = await selectNextClaimableJob(db, 3);
+
+    expect(job?.jobId).toBe(older);
+    expect(job?.lane).toBe('refresh');
+  });
+
+  it('las señales son de la ZONA: los jobs de venta y alquiler de una zona con demanda superan a los de una zona sin ella', async () => {
+    const { zoneId: busy } = await insertLocationWithZone(db, { ineCode: '11071' });
+    const { zoneId: quiet } = await insertLocationWithZone(db, { ineCode: '11072' });
+    const sourceId = await insertSource(db);
+    await pendingJob(quiet, sourceId, '2026-01-01T00:00:00Z');
+    const busySale = await pendingJob(busy, sourceId, '2026-06-01T00:00:00Z', { operation: 'sale' });
+    await seedSignals(busy, [0, 1]);
+
+    const first = await selectNextClaimableJob(db, 3);
+    expect(first).toMatchObject({ jobId: busySale, operation: 'sale' });
+  });
+});

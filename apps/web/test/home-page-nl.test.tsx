@@ -365,6 +365,8 @@ describe('filtros aplicados y recuento en la home (D.6a)', () => {
       centroid: { latitude: 40.3, longitude: -3.7 },
       sweepRadiusM: 4000,
     });
+    // Decisión 251: la cobertura se resuelve siempre (por operación); aquí la zona está cubierta.
+    resolveCoverageForZoneMock.mockResolvedValue({ kind: 'covered' });
     const html = await render({ zone: '28065' });
     expect(html).toContain('Zona: Getafe');
     expect(html).not.toContain('A 4 km de un punto');
@@ -586,6 +588,7 @@ describe('caja de texto plegable (D.18, decisión 228)', () => {
       centroid: { latitude: 40.33, longitude: -3.76 },
       sweepRadiusM: 4500,
     });
+    resolveCoverageForZoneMock.mockResolvedValue({ kind: 'covered' });
     const html = await render({ zone: '28074' });
     expect(html).toContain(CLOSED);
   });

@@ -755,6 +755,30 @@ describe('avisos de cobertura de la página (D.13)', () => {
     return render({ zone: ZONE, ...extra });
   }
 
+  // ROADMAP 3.3 (decisión 251, PD9): la cobertura es por operación. La página pasa el filtro de operación a
+  // `resolveCoverageForZone` (undefined sin filtro) y decide con su resultado, no con `zones.state`.
+  it('S15.1: pasa a la cobertura la operación del filtro', async () => {
+    await renderZone(job('pending'), { operation: 'sale' });
+    expect(resolveCoverageForZoneMock).toHaveBeenCalledTimes(1);
+    expect(resolveCoverageForZoneMock.mock.calls[0]?.[5]).toBe('sale');
+  });
+
+  it('S15.2: sin filtro de operación la cobertura recibe undefined (las dos operaciones)', async () => {
+    await renderZone(job('pending'));
+    expect(resolveCoverageForZoneMock).toHaveBeenCalledTimes(1);
+    expect(resolveCoverageForZoneMock.mock.calls[0]?.[5]).toBeUndefined();
+  });
+
+  it('una zona con zones.state=covered pero una operación sin cubrir enseña el aviso del job pendiente', async () => {
+    resolveZoneGeometryMock.mockResolvedValue({ ...geometry, state: 'covered' });
+    resolveNewZonesDailyCapMock.mockReturnValue(10);
+    resolveCoverageClientLimitMock.mockResolvedValue(null);
+    resolveCoverageForZoneMock.mockResolvedValue(job('pending'));
+    const html = await render({ zone: ZONE, operation: 'sale' });
+    expect(resolveCoverageForZoneMock).toHaveBeenCalledTimes(1);
+    expect(html).toContain('La actualización de Leganés está en cola.');
+  });
+
   it('registrada sin job (V4): título de solicitud registrada y enlace de recarga plano', async () => {
     const html = await renderZone({ kind: 'registered', job: null });
     expect(html).toContain('Tu solicitud de actualización de Leganés está registrada.');
@@ -903,6 +927,26 @@ describe('estado vacío filtrado con una sola acción (D.18)', () => {
     expect(listSection(html)).toContain('Están arriba; pulsa uno para quitarlo');
     expect(listSection(html)).not.toMatch(/role="|aria-live/);
     expect(count(listSection(html), '>Quitar')).toBe(0);
+  });
+
+  // Decisión 251 (PD9): «al día» sale del resultado de la cobertura por operación, no de `zones.state`.
+  it('el municipio «al día» sale de la cobertura de la operación aunque zones.state no sea covered', async () => {
+    resolveZoneGeometryMock.mockResolvedValue({ ...geometry, state: 'uncovered' });
+    resolveCoverageForZoneMock.mockResolvedValue({ kind: 'covered' });
+    resolveNewZonesDailyCapMock.mockReturnValue(10);
+    resolveCoverageClientLimitMock.mockResolvedValue(null);
+    const html = await render({ zone: '28074', operation: 'sale' });
+    expect(listSection(html)).toContain('Los anuncios de Leganés están al día');
+  });
+
+  it('una zona con zones.state=covered cuya operación aún no está cubierta no dice «al día»', async () => {
+    resolveZoneGeometryMock.mockResolvedValue({ ...geometry, state: 'covered' });
+    resolveCoverageForZoneMock.mockResolvedValue({ kind: 'registered', job: null });
+    resolveNewZonesDailyCapMock.mockReturnValue(10);
+    resolveCoverageClientLimitMock.mockResolvedValue(null);
+    const html = await render({ zone: '28074', operation: 'sale' });
+    expect(listSection(html)).toContain('Ninguna vivienda coincide con tu búsqueda.');
+    expect(listSection(html)).not.toContain('al día');
   });
 
   it('zona cubierta pero sin centroide (inlocalizable): lista vacía sin el aviso de zona cubierta', async () => {

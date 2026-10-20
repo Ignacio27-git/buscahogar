@@ -38,9 +38,13 @@ export async function registerCoverageJob(
 // importación masiva de Unit A es uniforme para ~8.100 filas). Cero
 // columnas nuevas, cero privilegio nuevo: el rol de solo lectura ya puede
 // leer `coverage_jobs` en su totalidad.
+//
+// ROADMAP 3.3 (decisión 251, PD9): una búsqueda sin operación registra DOS jobs
+// (venta y alquiler) para la misma zona; el tope cuenta ZONAS, así que se cuentan
+// `zone_id` distintos y no filas.
 export async function countZonesOpenedToday(db: Database): Promise<number> {
   const [row] = await db
-    .select({ count: sql<number>`count(*)`.mapWith(Number) })
+    .select({ count: sql<number>`count(distinct ${coverageJobs.zoneId})`.mapWith(Number) })
     .from(coverageJobs)
     .where(gte(coverageJobs.requestedAt, utcDayStart()));
   return row?.count ?? 0;
@@ -77,6 +81,47 @@ export async function getCoverageJobState(
       )
     );
   return row ?? null;
+}
+
+// ROADMAP 3.3 (decisión 251, PD9): estado de TODAS las operaciones de una zona en
+// una sola consulta. `lastCompletedAt` no nulo es la cobertura de esa operación
+// (decisión 250); su ausencia (o la ausencia de la fila) la deja sin cubrir.
+export interface CoverageOperationState extends CoverageJobState {
+  readonly operation: CoverageOperation;
+  readonly lastCompletedAt: Date | null;
+  // `requested_at` cae en el día UTC de hoy (reloj de Postgres): esa fila ya cuenta en
+  // `countZonesOpenedToday`, así que su zona no abre una plaza nueva del tope.
+  readonly requestedToday: boolean;
+}
+
+// `coverage_jobs.operation` es `text` con CHECK en ('sale', 'rent'): se estrecha
+// sin aserciones de tipo; otro valor sería una violación del esquema.
+function narrowOperation(value: string): CoverageOperation {
+  if (value === 'sale' || value === 'rent') {
+    return value;
+  }
+  throw new Error(`coverage_jobs.operation inesperada: "${value}" (el CHECK solo admite sale o rent).`);
+}
+
+export async function listCoverageJobStates(
+  db: Database,
+  zoneId: string,
+  sourceId: string
+): Promise<readonly CoverageOperationState[]> {
+  const rows = await db
+    .select({
+      operation: coverageJobs.operation,
+      status: coverageJobs.status,
+      attempts: coverageJobs.attempts,
+      requestedAt: coverageJobs.requestedAt,
+      startedAt: coverageJobs.startedAt,
+      error: coverageJobs.error,
+      lastCompletedAt: coverageJobs.lastCompletedAt,
+      requestedToday: sql<boolean>`${coverageJobs.requestedAt} >= ${utcDayStart()}`,
+    })
+    .from(coverageJobs)
+    .where(and(eq(coverageJobs.zoneId, zoneId), eq(coverageJobs.sourceId, sourceId)));
+  return rows.map((row) => ({ ...row, operation: narrowOperation(row.operation) }));
 }
 
 // Adición señalada, ausente del listado literal de interfaces del diseño

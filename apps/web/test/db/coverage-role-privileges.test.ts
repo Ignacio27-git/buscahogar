@@ -102,6 +102,26 @@ describeWithCoverageDb('rol INSERT-only de coverage_jobs — rechazo negativo re
     ).resolves.toBeDefined();
   });
 
+  // ROADMAP 3.3 (decisión 251, PD9; NF2): registrar el job de la otra operación necesita solo el INSERT
+  // de siempre (el GRANT es a nivel de tabla y cubre las columnas nuevas): ningún GRANT nuevo.
+  it('PD9: con un job rent pendiente, el rol INSERT-only registra el de sale con ON CONFLICT DO NOTHING (sin GRANT nuevo)', async () => {
+    const { zoneId, sourceId } = await seedZoneAndSource(ownerDb);
+
+    await expect(
+      coveragePool.query(
+        `insert into coverage_jobs (zone_id, source_id, operation, status, cursor) values ($1, $2, 'sale', 'pending', null)
+         on conflict do nothing`,
+        [zoneId, sourceId]
+      )
+    ).resolves.toBeDefined();
+
+    const { rows } = await ownerPool.query<{ operation: string }>(
+      'select operation from coverage_jobs where zone_id = $1 order by operation',
+      [zoneId]
+    );
+    expect(rows).toEqual([{ operation: 'rent' }, { operation: 'sale' }]);
+  });
+
   it('UPDATE en coverage_jobs está RECHAZADO', async () => {
     const { jobId } = await seedZoneAndSource(ownerDb);
 

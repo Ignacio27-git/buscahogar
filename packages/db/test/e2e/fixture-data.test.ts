@@ -46,7 +46,7 @@ describe('buildE2eFixture — determinismo (R3)', () => {
       ...fixture.propertyListings.map((row) => row.id),
       ...fixture.coverageJobs.map((row) => row.id),
     ];
-    expect(ids).toHaveLength(2 + 7 + 7 + 7 + 11 + 14 + 11 + 4);
+    expect(ids).toHaveLength(2 + 7 + 7 + 7 + 11 + 14 + 11 + 10);
     expect(new Set(ids).size).toBe(ids.length);
     for (const id of ids) {
       expect(id).toMatch(UUID_V4);
@@ -314,12 +314,29 @@ describe('buildE2eFixture — zonas de los avisos de cobertura (D.13)', () => {
   });
 
   it('cada estado de job tiene su zona: pending, running, done y failed, todos de Idealista', () => {
-    expect(fixture.coverageJobs).toHaveLength(4);
+    // Decisión 251: dos jobs por zona de aviso (alquiler y su gemelo de venta) más los dos de Getafe cubierta.
+    expect(fixture.coverageJobs).toHaveLength(10);
     for (const key of ['pending', 'running', 'done', 'failed'] as const) {
       const job = jobOf(E2E_COVERAGE_ZONES[key].zoneId);
       expect(job?.status).toBe(key);
+      expect(job?.operation).toBe('rent');
       expect(job?.id).toBe(E2E_COVERAGE_ZONES[key].jobId);
       expect(job?.sourceId).toBe(E2E_SOURCE_IDS.idealista);
+      const twin = fixture.coverageJobs.find(
+        (row) => row.zoneId === E2E_COVERAGE_ZONES[key].zoneId && row.operation === 'sale'
+      );
+      expect(twin?.status).toBe(key);
+      expect(twin?.id).toBe(E2E_COVERAGE_ZONES[key].saleJobId);
+      expect(twin?.lastCompletedAt ?? null).toBeNull();
+    }
+  });
+
+  it('Getafe está cubierta por operación: venta y alquiler completados (decisión 251)', () => {
+    const getafe = fixture.coverageJobs.filter((row) => row.zoneId === E2E_GETAFE.zoneId);
+    expect(getafe.map((row) => row.operation).sort()).toEqual(['rent', 'sale']);
+    for (const job of getafe) {
+      expect(job.status).toBe('done');
+      expect(job.lastCompletedAt).toBeInstanceOf(Date);
     }
   });
 
@@ -380,11 +397,13 @@ describe('buildE2eFixture — fecha de siembra inyectada (D.13)', () => {
 
     const normalised = (data: Built): string => {
       const copy = structuredClone(data);
-      const job = pendingJob(copy);
-      if (job === undefined) {
-        throw new Error('falta el job pendiente');
+      const jobs = copy.coverageJobs.filter((row) => row.zoneId === E2E_COVERAGE_ZONES.pending.zoneId);
+      if (jobs.length !== 2) {
+        throw new Error('faltan los jobs pendientes (venta y alquiler)');
       }
-      job.requestedAt = new Date(0);
+      for (const job of jobs) {
+        job.requestedAt = new Date(0);
+      }
       return JSON.stringify(copy);
     };
     expect(normalised(today)).toBe(normalised(tomorrow));
@@ -396,7 +415,8 @@ describe('buildE2eFixture — fecha de siembra inyectada (D.13)', () => {
     const others = data.coverageJobs.filter(
       (row) => row.zoneId !== E2E_COVERAGE_ZONES.pending.zoneId
     );
-    expect(others).toHaveLength(3);
+    // Tres zonas de aviso con dos jobs cada una más los dos de Getafe.
+    expect(others).toHaveLength(8);
     for (const job of others) {
       expect(job.requestedAt?.getTime()).toBeLessThan(dayStart);
     }

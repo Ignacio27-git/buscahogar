@@ -6452,6 +6452,55 @@ de `sale` que se creen a partir de 3.3 solo existen si alguien los pidió (web, 
 
 ---
 
+## 251 — La web registra cobertura por operación (PD9) y el worker prioriza el carril a demanda por días con señal
+
+**Estado:** aceptada (paso 3.3, PR3). Decisión de producto PD9 del propietario.
+
+**Contexto.** Desde la 250 un job es por (zona, fuente, operación) y la cobertura es `last_completed_at` de esa operación. `apps/web`
+seguía tratando la zona como un único job de `rent` (cambio provisional de PR2) y el worker atendía el carril a demanda por antigüedad.
+
+**Decisión.**
+
+1. **Cobertura por operación en la web.** `resolveCoverageForZone` recibe la operación del filtro de la búsqueda. Con filtro, la zona está
+   cubierta si esa operación tiene `last_completed_at`; **sin filtro, solo si venta Y alquiler lo tienen**. Por cada operación que falta y
+   no tiene fila se registra un job (`registerCoverageJob` con `ON CONFLICT DO NOTHING` sin objetivo, sin cambios); un par sale+rent
+   pendiente de la misma zona convive (índices de la 250) y una operación que ya tiene job no se duplica. `zones.state` es un agregado y la
+   web ya no lo consulta para decidir: `page.tsx` resuelve siempre la cobertura y «Los anuncios de X están al día» sale del resultado
+   `covered` de la operación pedida. El aviso nunca da por cubierta una operación sin cubrir.
+2. **El tope global cuenta zonas, no filas.** `countZonesOpenedToday` pasa a `count(distinct zone_id)`: una búsqueda sin filtro registra dos
+   jobs de una misma zona y ocupa **una** plaza. Una zona que ya tiene un job pedido hoy ya ocupa su plaza, así que añadirle la operación
+   que le falta no se bloquea aunque el tope esté lleno (sin esta excepción una zona se bloquearía a sí misma al llenar ella sola el tope).
+3. **La cuota por cliente se consume una vez por zona**, justo antes de registrar, aunque se registren dos jobs; si no hay ningún job
+   nuevo que registrar (ya existen) no se consume. Se mantiene el orden de la 079: tope global (lectura) antes que cuota (escritura).
+4. **Estado que se enseña.** Con dos jobs, el aviso muestra el más vivo de las operaciones que faltan: en curso > en cola > fallido >
+   terminado (`pickDisplayJob`).
+5. **Prioridad del carril a demanda en el worker (R13).** `selectNextClaimableJob` ordena: carril a demanda antes que refresco; dentro del
+   carril a demanda, **días con señal de la zona en la ventana de 30 días UTC DESC**, después `requested_at` ASC y por último `id`. Sin
+   señales cuenta 0. La ventana son los 30 días naturales UTC incluido hoy, `day > hoy - 30` (`[hoy-29, hoy]`); una señal de hace 30 días ya
+   no cuenta. La constante `PRIORITY_SIGNAL_WINDOW_DAYS = 30` vive en `packages/core`. El **carril de refresco no usa señales** y conserva el
+   orden por `requested_at` (S13.5): el `CASE` del `ORDER BY` las anula para esos jobs. Las señales son de la zona, así que los jobs de
+   venta y alquiler de una zona con demanda suben juntos.
+6. **Privilegios.** Sin `GRANT` nuevo: `web_coverage` sigue con `INSERT` en `coverage_jobs` (a nivel de tabla, cubre las columnas nuevas) y
+   `web_readonly` lee la tabla entera para `listCoverageJobStates`. Lo comprueba un test con el rol real.
+
+**Alternativas descartadas.** (1) Dejar `zones.state='covered'` como atajo: una zona cubierta solo de alquiler se daría por cubierta para
+venta, lo que PD9 prohíbe. (2) Contar filas en el tope global: una búsqueda sin filtro gastaría dos plazas. (3) Priorizar por señales
+también el refresco: R13 lo limita al carril a demanda, y un refresco no es demanda nueva. (4) Ordenar por señales en Node: hay que
+elegir con `LIMIT 1` en SQL. (5) `day >= hoy - 30` (31 días): contradice «últimos 30 días» y la tarea 3.5, que fija `[hoy-29, hoy]`.
+
+**Consecuencias.** Cada petición de una zona localizable lee `sources` y `coverage_jobs` aunque la zona esté cubierta (antes se
+cortocircuitaba con `zones.state`), y ya no se puede renderizar una zona cubierta sin `NEW_ZONES_DAILY_CAP` definido (se resuelve siempre
+antes de llamar a la cobertura). Una zona con `zones.state='covered'` pero sin `last_completed_at` por operación (fixtures antiguos) se
+trata como no cubierta; la migración 0018 ya rellenó `last_completed_at` de las zonas reales cubiertas. Sin cambio de esquema: no hay SQL
+inverso; revertir es volver al commit anterior. Un job `failed` agotado de una operación que falta sigue mostrándose (terminal) cuando es el
+único que queda por cubrir.
+El dataset e2e (`packages/db/src/e2e`) se adapta: Getafe lleva un job completado por operación y cada zona de aviso lleva un gemelo de venta
+en el mismo estado que su job de alquiler (sin `last_completed_at`), para que visitarlas sin filtro no registre jobs nuevos ni cambie el aviso.
+El estado `done` sin `last_completed_at` solo existe ya en datos antiguos o fixtures: el worker fija ambos a la vez, así que en producción un
+job terminado deja la operación cubierta y desaparece el aviso.
+
+---
+
 ## 252 — Un único worker de cobertura para venta y alquiler; `OPERATION` se rechaza al arrancar
 
 **Estado:** aceptada (paso 3.3, PR2).
@@ -6479,7 +6528,7 @@ tendría un único punto de gasto. (3) Que la zona se purgue por operación: la 
 dejaría anuncios huérfanos de una operación cubiertos por el círculo de la otra.
 
 **Consecuencias.** Hay que quitar `OPERATION` del `.env` antes de arrancar el worker (paso manual del propietario). Las dos operaciones
-comparten `DAILY_SEARCH_CAP` y el carril de refresco. `countZonesOpenedToday` y el tope global siguen contando filas hasta PR3.
+comparten `DAILY_SEARCH_CAP` y el carril de refresco. `countZonesOpenedToday` y el tope global contaban filas hasta PR3; la 251 los pasa a zonas distintas.
 
 ---
 

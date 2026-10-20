@@ -307,6 +307,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
   let zoneUnlocatable = false;
   let zoneUnknown = false;
   // Paso 3.2 (decisión 246): municipio de una zona cubierta Y localizable; el vacío filtrado lo nombra.
+  // Paso 3.3 (decisión 251): «cubierta» es la de la operación del filtro (o las dos, sin filtro).
   let coveredZoneName: string | null = null;
 
   if (criteria.zone !== undefined) {
@@ -319,19 +320,28 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
       zoneUnknown = true;
     } else {
       await recordDemandSignal(zoneGeometry);
-      if (!(zoneGeometry.state === 'covered' && zoneGeometry.centroid !== null)) {
-        const newZonesDailyCap = resolveNewZonesDailyCap();
-        // ROADMAP 1.15 (security-hardening, diseño decisión 079): resuelto
-        // ANTES de resolveCoverageForZone — cuando el limitador por cliente
-        // está deshabilitado (D1a), devuelve `null` sin llamar a
-        // `next/headers` en absoluto (validador notes obs #263).
-        const clientLimit = await resolveCoverageClientLimit();
-        const outcome = await resolveCoverageForZone(db, getCoverageDb, zoneGeometry, newZonesDailyCap, clientLimit);
-        // spec #261 (D6): el tope por cliente es un resultado DISTINTO del global;
-        // `noticeForOutcome` los mantiene separados.
-        coverageVariant = noticeForOutcome(outcome, zoneGeometry.municipality, now);
-        coverageJob = outcome.kind === 'registered' ? outcome.job : null;
-      }
+      // ROADMAP 3.3 (decisión 251, PD9): la cobertura es POR OPERACIÓN y la decide
+      // `resolveCoverageForZone` con el filtro de la búsqueda (sin filtro, las dos). `zones.state` es un
+      // agregado y ya no basta para dar la zona por cubierta, así que se resuelve siempre.
+      const newZonesDailyCap = resolveNewZonesDailyCap();
+      // ROADMAP 1.15 (security-hardening, diseño decisión 079): resuelto
+      // ANTES de resolveCoverageForZone — cuando el limitador por cliente
+      // está deshabilitado (D1a), devuelve `null` sin llamar a
+      // `next/headers` en absoluto (validador notes obs #263).
+      const clientLimit = await resolveCoverageClientLimit();
+      const outcome = await resolveCoverageForZone(
+        db,
+        getCoverageDb,
+        zoneGeometry,
+        newZonesDailyCap,
+        clientLimit,
+        criteria.operation
+      );
+      // spec #261 (D6): el tope por cliente es un resultado DISTINTO del global;
+      // `noticeForOutcome` los mantiene separados.
+      coverageVariant = noticeForOutcome(outcome, zoneGeometry.municipality, now);
+      coverageJob = outcome.kind === 'registered' ? outcome.job : null;
+      const coveredByOutcome = outcome.kind === 'covered';
       if (zoneGeometry.centroid !== null && zoneGeometry.sweepRadiusM !== null) {
         effectiveCriteria = {
           ...criteria,
@@ -341,7 +351,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
             radiusMeters: zoneGeometry.sweepRadiusM,
           },
         };
-        coveredZoneName = zoneGeometry.state === 'covered' ? zoneGeometry.municipality : null;
+        coveredZoneName = coveredByOutcome ? zoneGeometry.municipality : null;
       } else {
         zoneUnlocatable = true;
       }

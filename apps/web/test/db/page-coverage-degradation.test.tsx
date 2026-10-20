@@ -11,7 +11,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vite
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import type { Database } from '@buscahogar/db';
-import { consumeClientQuota, geographyPointWkt, locations, properties, sources, zones } from '@buscahogar/db';
+import { consumeClientQuota, coverageJobs, geographyPointWkt, locations, properties, sources, zones } from '@buscahogar/db';
 import { registerCoverageJob } from '@buscahogar/db';
 
 import { connectTestDb, truncateAll } from '../helpers/db-client.js';
@@ -83,6 +83,23 @@ async function insertMunicipality(
     .returning({ id: zones.id });
   if (!zone) {
     throw new Error('No se pudo insertar la zona de prueba');
+  }
+  // Decisión 251 (PD9): una zona «cubierta» lo es porque sus operaciones tienen `last_completed_at`;
+  // `zones.state` por sí solo ya no la da por cubierta. Se siembran venta y alquiler completados.
+  if (overrides.state === 'covered') {
+    const [source] = await db.select({ id: sources.id }).from(sources);
+    if (!source) {
+      throw new Error('Sin fuente de prueba');
+    }
+    await db.insert(coverageJobs).values(
+      (['sale', 'rent'] as const).map((operation) => ({
+        zoneId: zone.id,
+        sourceId: source.id,
+        operation,
+        status: 'done' as const,
+        lastCompletedAt: new Date(),
+      }))
+    );
   }
   return { locationId: location.id, zoneId: zone.id };
 }

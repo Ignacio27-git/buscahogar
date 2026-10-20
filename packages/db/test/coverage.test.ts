@@ -18,6 +18,7 @@ import type { Database } from '../src/db.js';
 import {
   countZonesOpenedToday,
   getCoverageJobState,
+  listCoverageJobStates,
   registerCoverageJob,
   resolveSourceUuidByKey,
 } from '../src/coverage.js';
@@ -178,6 +179,86 @@ describeWithDb('countZonesOpenedToday (DD-14) — deriva de coverage_jobs.reques
     await registerCoverageJob(db, zoneB, sourceId, 'rent');
 
     expect(await countZonesOpenedToday(db)).toBe(2);
+  });
+
+  // ROADMAP 3.3 (decisión 251, PD9): una búsqueda sin operación registra un job
+  // por operación faltante; el tope global cuenta ZONAS, no filas.
+  it('los jobs de sale y rent de una misma zona cuentan como UNA zona; otra zona distinta suma una más', async () => {
+    const sourceId = await insertSourceWithKey(db, 'idealista');
+    const zoneA = await insertZone(db);
+    const zoneB = await insertZone(db);
+
+    await registerCoverageJob(db, zoneA, sourceId, 'sale');
+    await registerCoverageJob(db, zoneA, sourceId, 'rent');
+    expect(await countZonesOpenedToday(db)).toBe(1);
+
+    await registerCoverageJob(db, zoneB, sourceId, 'rent');
+    expect(await countZonesOpenedToday(db)).toBe(2);
+  });
+});
+
+describeWithDb('listCoverageJobStates (decisión 251) — estado por operación de una zona', () => {
+  let db: Database;
+  let pool: Pool;
+
+  beforeAll(() => {
+    ({ db, pool } = connectTestDb());
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  beforeEach(async () => {
+    await truncateAll(pool);
+  });
+
+  it('devuelve un elemento por operación con su estado y su last_completed_at, y nada de otras zonas', async () => {
+    const sourceId = await insertSourceWithKey(db, 'idealista');
+    const zoneId = await insertZone(db);
+    const otherZone = await insertZone(db);
+    await registerCoverageJob(db, zoneId, sourceId, 'sale');
+    await registerCoverageJob(db, zoneId, sourceId, 'rent');
+    await registerCoverageJob(db, otherZone, sourceId, 'rent');
+    await pool.query(
+      "update coverage_jobs set status = 'done', last_completed_at = now() where zone_id = $1 and operation = 'rent'",
+      [zoneId]
+    );
+
+    const states = await listCoverageJobStates(db, zoneId, sourceId);
+
+    expect(states.map((state) => state.operation).sort()).toEqual(['rent', 'sale']);
+    const rent = states.find((state) => state.operation === 'rent');
+    const sale = states.find((state) => state.operation === 'sale');
+    expect(rent?.status).toBe('done');
+    expect(rent?.lastCompletedAt).toBeInstanceOf(Date);
+    expect(sale?.status).toBe('pending');
+    expect(sale?.lastCompletedAt).toBeNull();
+    expect(sale?.requestedAt).toBeInstanceOf(Date);
+  });
+
+  it('marca requestedToday con el día UTC de Postgres: un job de ayer no cuenta como abierto hoy', async () => {
+    const sourceId = await insertSourceWithKey(db, 'idealista');
+    const zoneId = await insertZone(db);
+    await registerCoverageJob(db, zoneId, sourceId, 'sale');
+    await registerCoverageJob(db, zoneId, sourceId, 'rent');
+    await pool.query(
+      "update coverage_jobs set requested_at = now() - interval '2 days' where zone_id = $1 and operation = 'rent'",
+      [zoneId]
+    );
+
+    const states = await listCoverageJobStates(db, zoneId, sourceId);
+
+    expect(states.find((state) => state.operation === 'sale')?.requestedToday).toBe(true);
+    expect(states.find((state) => state.operation === 'rent')?.requestedToday).toBe(false);
+  });
+
+  it('una zona sin jobs devuelve una lista vacía (no hay cobertura de ninguna operación)', async () => {
+    const sourceId = await insertSourceWithKey(db, 'idealista');
+    const zoneId = await insertZone(db);
+    await registerCoverageJob(db, await insertZone(db), sourceId, 'sale');
+
+    expect(await listCoverageJobStates(db, zoneId, sourceId)).toEqual([]);
   });
 });
 

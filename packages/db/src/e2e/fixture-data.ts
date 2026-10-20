@@ -526,30 +526,52 @@ export function buildE2eFixture(seedNow: Date = SEEN_AT): E2eFixture {
         updatedAt: SEEN_AT,
       })),
     ],
-    coverageJobs: COVERAGE_SEEDS.flatMap((seed): (typeof coverageJobs.$inferInsert)[] => {
-      const zone = E2E_COVERAGE_ZONES[seed.key];
-      if (seed.job === undefined || !('jobId' in zone)) {
-        return [];
-      }
-      return [
-        {
-          id: zone.jobId,
-          zoneId: zone.zoneId,
-          sourceId: E2E_SOURCE_IDS.idealista,
-          operation: 'rent',
-          status: seed.job.status,
-          cursor: null,
-          attempts: seed.job.attempts,
-          error: seed.job.error,
-          requestedAt:
-            seed.job.status === 'pending' ? utcDayStartOf(seedNow) : COVERAGE_JOB_REQUESTED_AT,
-          startedAt: seed.job.startedAt,
-          finishedAt: seed.job.finishedAt,
-          refreshRequestedAt: null,
-          cycleStartedAt: null,
-        },
-      ];
-    }),
+    coverageJobs: [
+      // Decisión 251 (PD9): la cobertura es por operación. Getafe está cubierta de verdad (venta y alquiler
+      // completados) para que la web no registre nada al visitarla.
+      ...(['sale', 'rent'] as const).map((operation): typeof coverageJobs.$inferInsert => ({
+        id: operation === 'sale' ? E2E_GETAFE.saleJobId : E2E_GETAFE.rentJobId,
+        zoneId: E2E_GETAFE.zoneId,
+        sourceId: E2E_SOURCE_IDS.idealista,
+        operation,
+        status: 'done',
+        cursor: null,
+        attempts: 1,
+        error: null,
+        requestedAt: COVERAGE_JOB_REQUESTED_AT,
+        startedAt: COVERAGE_JOB_REQUESTED_AT,
+        finishedAt: SEEN_AT,
+        lastCompletedAt: SEEN_AT,
+        refreshRequestedAt: null,
+        cycleStartedAt: null,
+      })),
+      // Las zonas de aviso tienen un job por operación en el MISMO estado (sin `last_completed_at`: siguen sin
+      // cubrir), así que una visita sin filtro no registra ninguno nuevo y el aviso no cambia.
+      ...COVERAGE_SEEDS.flatMap((seed): (typeof coverageJobs.$inferInsert)[] => {
+        const zone = E2E_COVERAGE_ZONES[seed.key];
+        if (seed.job === undefined || !('jobId' in zone)) {
+          return [];
+        }
+        return (['rent', 'sale'] as const).map(
+          (operation): typeof coverageJobs.$inferInsert => ({
+            id: operation === 'rent' ? zone.jobId : zone.saleJobId,
+            zoneId: zone.zoneId,
+            sourceId: E2E_SOURCE_IDS.idealista,
+            operation,
+            status: seed.job?.status ?? 'pending',
+            cursor: null,
+            attempts: seed.job?.attempts ?? 0,
+            error: seed.job?.error ?? null,
+            requestedAt:
+              seed.job?.status === 'pending' ? utcDayStartOf(seedNow) : COVERAGE_JOB_REQUESTED_AT,
+            startedAt: seed.job?.startedAt ?? null,
+            finishedAt: seed.job?.finishedAt ?? null,
+            refreshRequestedAt: null,
+            cycleStartedAt: null,
+          })
+        );
+      }),
+    ],
     ...fixture,
   };
 }

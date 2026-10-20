@@ -14,11 +14,11 @@ import 'server-only';
 import {
   consumeClientQuota,
   countZonesOpenedToday,
-  getCoverageJobState,
+  listCoverageJobStates,
   registerCoverageJob,
   resolveSourceUuidByKey,
 } from '@buscahogar/db';
-import type { CoverageJobState, Database, ZoneGeometry } from '@buscahogar/db';
+import type { CoverageJobState, CoverageOperation, CoverageOperationState, Database, ZoneGeometry } from '@buscahogar/db';
 
 // Mismo literal hardcoded que `apps/ingestion` ya repite tres veces
 // (seed.ts:62, sweep-zone.ts:85, coverage-worker.ts:155) — ningún artefacto
@@ -67,31 +67,52 @@ export interface ClientLimit {
   readonly dailyCap: number;
 }
 
+// ROADMAP 3.3 (decisión 251, PD9) — la cobertura es POR OPERACIÓN. Sin filtro de operación una búsqueda
+// necesita las dos; con filtro, solo esa.
+const ALL_OPERATIONS: readonly CoverageOperation[] = ['sale', 'rent'];
+
+// Con dos jobs por zona hay que enseñar UN estado en el aviso. Gana el más "vivo": en curso, en cola,
+// fallido y, por último, terminado (sin cobertura todavía). A igualdad conserva el primero.
+const DISPLAY_PRIORITY: Readonly<Record<CoverageJobState['status'], number>> = {
+  running: 0,
+  pending: 1,
+  failed: 2,
+  done: 3,
+};
+
+export function pickDisplayJob(jobs: readonly CoverageJobState[]): CoverageJobState | null {
+  let best: CoverageJobState | null = null;
+  for (const job of jobs) {
+    if (best === null || DISPLAY_PRIORITY[job.status] < DISPLAY_PRIORITY[best.status]) {
+      best = job;
+    }
+  }
+  return best;
+}
+
+function isCovered(states: readonly CoverageOperationState[], operation: CoverageOperation): boolean {
+  return states.some((state) => state.operation === operation && state.lastCompletedAt !== null);
+}
+
 // `getWriteDb` es una fábrica PEREZOSA, nunca un `Database` ya resuelto:
 // `getCoverageDb()` (DD-15) falla alto en la PRIMERA llamada si
 // `WEB_COVERAGE_DATABASE_URL` no está definida (R3, todavía sin
 // provisionar) — resolverla ANTES de saber si hace falta escribir de
 // verdad rompería toda petición que solo consulta el estado de un job que
 // YA existe (rama de abajo), que nunca necesita el handle de escritura.
-// ROADMAP 3.3, PR2 (decisión 250) — PROVISIONAL. `coverage_jobs` es ya por
-// operación y `registerCoverageJob`/`getCoverageJobState` exigen una; hasta que
-// PR3 (PD9) haga la cobertura consciente de la operación, la web sigue haciendo
-// lo que hacía hasta 3.2: un único job por zona, de `rent` (la única operación
-// que se barrió). Cambio mínimo para conservar la compilación, sin cambio de
-// comportamiento.
-const PROVISIONAL_JOB_OPERATION = 'rent';
-
+//
+// ROADMAP 3.3 (decisión 251, PD9): cubierta = `coverage_jobs.last_completed_at` de la operación pedida
+// (o de las dos, sin filtro); `zones.state` es un agregado y ya no decide. Se registra un job por cada
+// operación que falta y aún no tiene fila. El tope global cuenta ZONAS distintas y la cuota del cliente se
+// consume UNA vez por zona, no por job.
 export async function resolveCoverageForZone(
   readDb: Database,
   getWriteDb: () => Database,
   zoneGeometry: ZoneGeometry,
   newZonesDailyCap: number,
-  clientLimit?: ClientLimit | null
+  clientLimit?: ClientLimit | null,
+  operation?: CoverageOperation
 ): Promise<CoverageOutcome> {
-  if (zoneGeometry.state === 'covered') {
-    return { kind: 'covered' };
-  }
-
   if (zoneGeometry.centroid === null) {
     return { kind: 'not-sweepable' };
   }
@@ -106,13 +127,21 @@ export async function resolveCoverageForZone(
     );
   }
 
-  // Una zona que YA tiene un job (de un registro anterior el mismo día, o
-  // de un intento previo fallido — DD-16) nunca se bloquea por el tope al
-  // re-visitarla: el tope solo protege registros NUEVOS, nunca la consulta
-  // de estado de uno que ya existe.
-  const existingJob = await getCoverageJobState(readDb, zoneGeometry.zoneId, sourceId, PROVISIONAL_JOB_OPERATION);
-  if (existingJob !== null) {
-    return { kind: 'registered', job: existingJob };
+  const wanted = operation === undefined ? ALL_OPERATIONS : [operation];
+  const states = await listCoverageJobStates(readDb, zoneGeometry.zoneId, sourceId);
+  const uncovered = wanted.filter((wantedOperation) => !isCovered(states, wantedOperation));
+  if (uncovered.length === 0) {
+    return { kind: 'covered' };
+  }
+
+  // Las operaciones que faltan pero YA tienen job (de un registro anterior, o de un intento previo
+  // fallido — DD-16) nunca se bloquean por el tope al re-visitarlas: el tope solo protege registros
+  // NUEVOS, nunca la consulta de estado de uno que ya existe.
+  const missing = uncovered.filter((wantedOperation) => !states.some((state) => state.operation === wantedOperation));
+  const jobsOfUncovered = (current: readonly CoverageOperationState[]): readonly CoverageOperationState[] =>
+    current.filter((state) => uncovered.includes(state.operation));
+  if (missing.length === 0) {
+    return { kind: 'registered', job: pickDisplayJob(jobsOfUncovered(states)) };
   }
 
   // ROADMAP 1.15 (spec #261 "Three Checks, In Order — Global Cap
@@ -121,13 +150,20 @@ export async function resolveCoverageForZone(
   // PRIMERO, de solo lectura: así ningún registro que vaya a ser rechazado
   // por el tope global consume nunca la cuota de un cliente concreto, y el
   // handle de escritura perezoso sigue sin abrirse en esta rama.
-  const openedToday = await countZonesOpenedToday(readDb);
-  if (openedToday >= newZonesDailyCap) {
-    return { kind: 'cap-exhausted' };
+  //
+  // Una zona que ya tiene un job pedido hoy ya ocupa su plaza del tope (se cuenta por zona, decisión
+  // 251): añadirle la otra operación no abre una zona nueva, así que no se la bloquea.
+  const zoneAlreadyCounted = states.some((state) => state.requestedToday);
+  if (!zoneAlreadyCounted) {
+    const openedToday = await countZonesOpenedToday(readDb);
+    if (openedToday >= newZonesDailyCap) {
+      return { kind: 'cap-exhausted' };
+    }
   }
 
   // Solo se alcanza con hueco en el tope global — el tope por cliente es la
-  // SEGUNDA comprobación, y la única que ESCRIBE (decisión 076/077).
+  // SEGUNDA comprobación, y la única que ESCRIBE (decisión 076/077). Una sola vez por zona, aunque se
+  // registren dos jobs.
   if (clientLimit) {
     const allowed = await consumeClientQuota(getWriteDb(), clientLimit.keyHash, clientLimit.dailyCap);
     if (!allowed) {
@@ -135,7 +171,9 @@ export async function resolveCoverageForZone(
     }
   }
 
-  await registerCoverageJob(getWriteDb(), zoneGeometry.zoneId, sourceId, PROVISIONAL_JOB_OPERATION);
-  const job = await getCoverageJobState(readDb, zoneGeometry.zoneId, sourceId, PROVISIONAL_JOB_OPERATION);
-  return { kind: 'registered', job };
+  for (const missingOperation of missing) {
+    await registerCoverageJob(getWriteDb(), zoneGeometry.zoneId, sourceId, missingOperation);
+  }
+  const registered = await listCoverageJobStates(readDb, zoneGeometry.zoneId, sourceId);
+  return { kind: 'registered', job: pickDisplayJob(jobsOfUncovered(registered)) };
 }
