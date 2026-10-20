@@ -2060,7 +2060,13 @@ parcial por CLI).
   INSERT (~99 880 parámetros, por encima del tope de 65 535 del protocolo: error 08P01). La transacción se
   revirtió sin dejar nada a medias. Corregido en `936ad7b` (decisión 247): inserciones e `inArray` del corpus
   por lotes de como mucho 30 000 parámetros, en la misma transacción. Tests nuevos con 12 720 pares y con
-  70 000 ids. Pendiente del responsable: relanzar el reprocesado sobre la base de desarrollo.
+  70 000 ids. Reprocesado relanzado sobre la base de desarrollo (300 / 2500000 / 10, sin cuota): 1751 anuncios,
+  12 485 pares (90 aceptados, 1101 indecisos, 11 294 rechazados), 1697 viviendas y 1751 filas de
+  `property_listings`, todas con desglose. Granada en alquiler: 1697 visibles, 939 pisos, 19 pisos de 600 € o
+  menos, 670 con 3 o más habitaciones y 0 con ambas cosas. La búsqueda original, con `zone=18087`, ya muestra el
+  aviso de la decisión 246 con datos reales.
+- `DAILY_SEARCH_CAP` del `.env` vale 1000, muy por encima de la cuota mensual estimada (unas 100 peticiones,
+  cifra no oficial de la decisión 033). Recomendación al responsable: bajarlo antes del 3.3.
 
 **Riesgos abiertos.** El mapeo de `studio` en el normalizador de Idealista sigue sin existir (los estudios
 no entran en el corpus).
