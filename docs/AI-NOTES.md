@@ -4026,3 +4026,34 @@ antes de archivar.
 
 **Observación:** una restricción numérica («la fila no crece») hay que cuantificarla en el diseño y fijarla con una prueba antes de tocar CSS. Una
 observación de progreso se actualiza con `find`/`replace` o se anexa, no se sobrescribe con un resumen.
+
+### 2026-10-20 — Fallos intermedios en el diseño y la aplicación de D.21
+
+**Contexto:** movimiento sutil y cierre de la fase (`design-motion-d21`).
+
+**Categoría:** afirmación sin verificar / contradicción con el spec / efecto lateral de CSS / test que no cubría lo que decía / herramienta.
+
+**Qué se generó mal:**
+
+1. El diseño afirmaba «verificado en código» que `router.push` del dibujo de polígono remonta el subárbol de la página y por tanto repite el
+   fundido de los avisos. Una lectura e2e lo refutó: no remonta. La decisión 242 y los escenarios se corrigieron.
+2. El primer borrador de la barrera de movimiento permitía las transiciones de color en cualquier selector, y el diseño cambiaba también la
+   banda del tema oscuro sin que se hubiera pedido. El validador en contexto limpio lo paró; el responsable acotó la barrera a una lista de
+   selectores y fijó la banda en ambos temas. En la segunda validación, el borde del enlace de ordenación al pasar el puntero (`--rule`)
+   contradecía el spec; pasó a `--rule-control`.
+3. La corrección P8 (mover los avisos a la rejilla de resultados) dejó los chips pegados al panel de vacío (0px) a 768 y 1280. Dos revisores
+   lo vieron en la segunda pasada; no lo detectó ningún test. Antes, en el mismo cambio, un margen en el envoltorio dejó el mapa 16px por encima
+   del aviso y una rejilla sin filas explícitas estiró el aviso a un hueco de 260px (visto en captura).
+4. El test de F2 solo comprobaba el ancho de las columnas de los pares de rango y dejó pasar que el par de habitaciones y baños tuviera un
+   hueco de 12px frente a 8px: `.criteria-group fieldset` (0,1,1) ganaba por especificidad a `.criteria-range` (0,1,0).
+5. Fallos de herramienta: la expresión `<line` coincidía con `<linearGradient` en el test del motivo; un `\d` dentro de una plantilla de texto
+   pasaba a `d` en `new RegExp`; los ayudantes de selectores del test de CSS partían por comas dentro de `:has()` y `:is()` y trataban las
+   reglas de `@container` como incondicionales; los heredocs de Bash con muchas comillas y un `sed` con escapes corrompieron `globals.css`
+   (reparado antes de confirmar) y se pasó a escribir scripts con la herramienta de ficheros; y `mem_save` con un `topic_key` existente
+   sobrescribe la observación.
+
+**Cómo se detectó:** 1 por la lectura e2e; 2 por el validador del diseño; 3 en la revisión visual; 4 por los revisores de la segunda pasada;
+5 al ejecutar los tests (rojo inesperado) y al revisar el diff.
+
+**Observación:** «verificado en código» sin una prueba ejecutada no es evidencia. Un test de geometría debe comparar el valor que importa (la
+separación) y no un proxy (el ancho), y una regla nueva hay que compararla en especificidad con las existentes sobre el mismo elemento.

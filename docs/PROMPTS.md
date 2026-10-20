@@ -30,6 +30,30 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-20 — Movimiento sutil y cierre de la fase (paso D.21, decisiones 240-244)
+
+**Tipo de tarea:** interfaz (transiciones de color, realce de fila, aparición de avisos, pulido transversal de la fase), barrera de tokens de
+movimiento, regeneración de 86 capturas y documentación del sistema de diseño (`DESIGN.md` y `design.json`)
+**Forma de especificación:** SDD completo sin fase de investigación, en modo automático y con Engram (`sdd/design-motion-d21/*`); invocado
+con `/gentle-sdd-new` y retomado con `/gentle-sdd-continue design-motion-d21` tras agotar la cuota de uso. Revisión visual de las 120 capturas
+con seis revisores aislados, una segunda pasada con dos y una comprobación dirigida de 32 PNG. Un solo PR con `size:exception`
+**Resultado:** utilizable con retoques. El diseño falló dos veces la validación en contexto limpio (la barrera dejaba transiciones de color en
+cualquier selector y afectaba al tema oscuro con la banda; luego el borde de ordenación contradecía el spec) y el flujo automático se detuvo una
+vez, como exige. Una afirmación «verificada en código» del diseño (que `router.push` remonta la página) resultó falsa. La revisión visual dio
+ocho correcciones menores aceptadas por el responsable (P1-P8) y, en la segunda pasada, una regresión mayor introducida por P8 (chips pegados al
+panel de vacío) y tres menores (F1-F4).
+
+**Prompt:** el del paso D.21 de `docs/DESIGN-ROADMAP.md`, literal: «Paso D.21 de docs/DESIGN-ROADMAP.md. Usa `impeccable animate`, `impeccable
+polish` e `impeccable document`. Micro-interacciones sutiles: hover de filas e imágenes, transición de color en controles y enlaces, aparición
+suave de los avisos y del panel de cobertura. Todo pasa por los tokens de movimiento y queda a cero con `prefers-reduced-motion` (decisión 207).
+Enmienda la regla «sin movimiento decorativo» y la decisión 208 en lo que toque. Un solo lote de pulido de toda la fase a los tres anchos y en
+ambos temas. DESIGN.md y `.impeccable/design.json` derivados del código entregado. Regenera en Docker las capturas de referencia y revisa su
+diferencia una a una; axe a cero.»
+
+**Observación:** limitar las transiciones de color a una lista cerrada de selectores, comprobada en el test de tokens, hizo que el movimiento se
+pudiera auditar en el CSS entregado en lugar de revisarse a ojo. Las regresiones del pulido (P8) solo aparecieron mirando capturas, y un test que
+solo comprobaba anchos (F2) dejó pasar una separación distinta entre pares.
+
 ### 2026-10-19 — Componentes con la dirección cálida (paso D.20, decisiones 235-239)
 
 **Tipo de tarea:** interfaz (motivo SVG, fila de resultado, superficies, icono), cobertura e2e con alturas fijadas, regeneración de 102 capturas

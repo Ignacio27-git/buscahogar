@@ -6170,6 +6170,124 @@ positivos en el resto de la suite.
 
 ---
 
+## 240 — Tokens de movimiento, transiciones de color y nuevos estados de puntero (enmienda la 207 y la 208)
+
+**Estado:** aceptada (D.21); amplía el sistema de movimiento de D.16 sin tocar su interruptor.
+
+**Decisión.** Dos duraciones nuevas en `@theme static`: `--duration-hover` (150ms) y `--duration-appear` (200ms). El bloque de
+`prefers-reduced-motion: reduce` pasa a poner a `0s` exactamente las cinco duraciones y la 207 sigue siendo el único interruptor. Las
+transiciones de color van por longhands, con `--ease-enter` y listas de duración emparejadas, y solo en una lista cerrada de selectores
+(`COLOUR_TRANSITION_SELECTORS` en `design-tokens.test.ts`): botones (salvo los del selector de tema), `.filter-tray > summary`,
+`.applied-filters__chip`, `.nl-disclosure > summary`, enlaces (`a:not(.skip-link)`), `.sort-presets__link` y `.result-row__link`. Los
+controles de formulario, el selector de tema y `:focus-visible` quedan instantáneos. El responsable aceptó tres estados de puntero que
+no existían: el enlace pasa a `color-mix(in oklab, var(--accent), var(--ink) 12%)` (la receta del botón primario), el enlace de ordenación
+no activo marca su filete con `--rule-control` y la paginación reutiliza el hover del enlace. La regla «sin movimiento decorativo» se
+reescribe: el movimiento solo responde a una acción o anuncia un estado, sin bucles, paralaje ni movimiento ligado al desplazamiento, y con
+movimiento reducido todo es instantáneo.
+
+**Alternativas descartadas.** (1) `transition: all` o el atajo `transition`: arrastra propiedades de layout y permite el borde por accidente.
+(2) Permitir las propiedades de color en cualquier selector (primer borrador del diseño): la barrera no distinguía el movimiento de un
+control del de un adorno, y el enlace de salto habría animado. (3) Un segundo interruptor de movimiento reducido: dos fuentes de verdad.
+(4) Pasar el enlace de `accent` a `ink` al pasar el puntero: pierde la señal de que sigue siendo un enlace. (5) Un borde de ordenación con
+`--rule` (primer borrador): contradecía el spec, que pedía un cambio visible; queda en `--rule-control`.
+
+**Motivo.** Calidez por respuesta, no por adorno, con una barrera que puede comprobarse en el CSS entregado.
+
+---
+
+## 241 — Realce de la fila de resultado y puerta de movimiento reducido
+
+**Estado:** aceptada (D.21); amplía la 207.
+
+**Decisión.** Al pasar el puntero (`hover: hover` y `pointer: fine`) la fila de resultado cambia su fondo a `--surface-sunken` con la
+transición de color de la 240; la imagen se amplía a `scale(1.03)` solo si además se cumple `prefers-reduced-motion: no-preference`. La
+miniatura conserva `overflow: hidden`, de modo que la caja no cambia de tamaño y la altura de fila queda fijada por los tests de D.20.
+Con movimiento reducido el tinte se mantiene (instantáneo) y la imagen no se mueve. El factor de escala se limita a (1, 1.03] en el test de
+tokens y su puerta de medios debe contener los tres requisitos.
+
+**Alternativas descartadas.** (1) Tinte con `--surface-raised`: apenas visible en claro. (2) Escala con duración `0s` bajo movimiento reducido:
+la imagen saltaría de tamaño; la puerta de medios hace que el movimiento no exista. (3) Elevar la fila con sombra o desplazarla: cambia
+la caja y arriesga las alturas fijadas.
+
+**Motivo.** Una señal de «esto se abre» sin mover la fila ni añadir un segundo interruptor.
+
+---
+
+## 242 — Aparición de los avisos y alertas instantáneas (enmienda la 205 y la barrera de D.16)
+
+**Estado:** aceptada (D.21); enmienda la 205 y la prohibición de `@keyframes` de D.16.
+
+**Decisión.** Un único `@keyframes notice-appear { from { opacity: 0 } }` (sin `to`) y una única regla que lo aplica con
+`animation-name`, `-duration` (`--duration-appear`), `-timing-function` (`--ease-enter`) y `-fill-mode: none` a: el panel de cobertura sin
+alerta, el aviso de cobertura que no es alerta, la revisión de lenguaje natural, la lista de fuentes con aviso y el estado vacío. Las
+alertas (`role="alert"`) quedan instantáneas. La barrera de `design-tokens.test.ts` exige exactamente ese `@keyframes` y esa regla, y sigue
+prohibiendo `@starting-style`, `@view-transition`, el atajo `animation`, el retardo, las repeticiones y todo movimiento en
+`search-map-canvas.css`. Repetición: la aparición se reproduce en cada carga completa de página (los enlaces y formularios son `<a>`/GET sin
+`next/link`); `router.refresh()` del estado de cobertura no la repite y `router.push` del dibujo de polígono **no** remonta el subárbol, así
+que tampoco la repite. El diseño afirmaba lo contrario («verificado en código»); una lectura e2e lo refutó y el test se ajustó
+(`docs/AI-NOTES.md`).
+
+**Alternativas descartadas.** (1) `@starting-style`: solo anima el primer renderizado y su único efecto en la bandeja ya se descartó en D.16.
+(2) Una isla de cliente que marque «aparecido»: añade JavaScript a avisos que son HTML de servidor. (3) Desplazamiento al aparecer:
+movimiento de layout. (4) `fill-mode: forwards/both`: retendría la opacidad y un aviso podría quedar invisible. (5) Animar el panel y el
+aviso interior: los fundidos se multiplican. (6) Animar las alertas: retrasa un mensaje que debe anunciarse ya.
+
+**Motivo.** Anunciar un estado sin retener nunca el contenido ni animar lo urgente.
+
+---
+
+## 243 — Pulido de la fase: motivo, banda de la ficha y marca de estado
+
+**Estado:** aceptada (D.21); cierra los seguimientos de D.20.
+
+**Decisión.** (1) Motivo: el componente `contour-motif` pasa a un `<svg>` exterior sin `viewBox` (unidades = píxeles de la caja) con una
+máscara de alfa en el espacio de la caja que desvanece los bordes visibles a cualquier ancho; el `<svg>` interior (`viewBox="-40 -7 330 66"`,
+`xMidYMid slice`) contiene los cinco anillos con margen. (2) Banda de precio de la ficha (desde 64rem, en **ambos** temas): el desajuste con
+la lista de fuentes era la extensión del filete (1rem de sangría a cada lado), no su grosor, que ya era de 1px `--rule` en los dos. El filete
+pasa a un `::after` con `inset-inline: 1rem`; la banda conserva relleno, sangría y altura. (3) Marca de estado de cobertura: cuadrado con
+`currentColor` delante del texto del estado, como señal de forma; la etiqueta de operación no cambia.
+
+**Alternativas descartadas.** (1) Máscara en unidades del `viewBox` interior: `slice` recorta el desvanecido a 320. (2) `mask-image` en CSS o
+un SVG servido: abre `url(` en la hoja de estilos (decisión 235). (3) Ocultar el motivo a 320: pierde el único momento decorativo en móvil.
+(4) Quitar la sangría de la banda, engrosar el filete o limitarlo al tema claro: tocan lo que no estaba mal. (5) Etiqueta de operación en
+versalitas o rellena, o punto redondo: se parte a 320, choca con el tinte de fila o contradice la 232.
+
+**Motivo.** Cerrar los seguimientos de D.20 sin cambiar densidad ni alturas de fila.
+
+---
+
+## 244 — Correcciones de pulido tras la revisión visual (P1-P8 y F1-F4)
+
+**Estado:** aceptada (D.21); decisiones 14 y 15 del responsable.
+
+**Decisión.** La primera revisión (seis revisores sobre 120 capturas, sin bloqueantes ni mayores) dio ocho hallazgos menores y el responsable
+los aceptó todos (P1-P8); la segunda (dos revisores) encontró una regresión mayor introducida por P8 y tres menores, también aceptados
+(F1-F4). Elecciones con motivo:
+
+- **P1 motivo:** máscara radial en lugar de lineal y anillos 4-5 ocultos bajo 25rem. **F3:** bajo 25rem el trazo grueso pasa al anillo 2, para
+  que la curva maestra no sea la que se desvanece por los lados.
+- **P2 etiqueta de estado:** 14px (`--text-dense`), no los 12-13px pedidos, porque no existe un token de 13px y no se crean tokens por un píxel.
+  La marca pasa a 0,5rem.
+- **P3 y F4 gráfica de precios:** cinco composiciones fijas (288x160, 416x176, 544x192, 704x200, 768x208) elegidas con consultas de contenedor
+  a 26/34/44/48rem, en lugar de un `viewBox` estirado: el texto se pinta 1:1 (12px ±1 a 320, 768 y 1280) y la escala nunca pasa de 1,4.
+- **P4 y F2 formulario NL:** pares de rango (`criteria-range`) con etiquetas cortas «Mínimo»/«Máximo» (prefijo y unidad solo para lectores, de
+  modo que el nombre accesible no cambia; la unidad pasa a la leyenda), grupo propio «¿Cuántas habitaciones y baños?» y la misma separación de
+  0,5rem en los tres pares (`.criteria-group fieldset` ganaba por especificidad a la regla del par).
+- **P5 chips:** envoltorio de 48rem como máximo; «Quitar todos» sigue siendo hermano de la lista, limitado a esa columna.
+- **P6 historial:** `table-layout: fixed` con columnas 30/24/20/26 %; la nota de hechos pasa a «—: no consolidado; consulta los anuncios de origen».
+- **P7 fecha:** `<time>` sin salto de línea; las dos etiquetas del aviso con borde `--rule-control` y peso 400; solo la activa lleva verde.
+- **P8 y F1 avisos:** los avisos y el conmutador de vista pasan de la cabecera a `.search-results__notices`, primer hijo de la rejilla de
+  resultados (el orden de la 229 se conserva); desde 64rem el aviso ocupa la columna 1 y el mapa la 2; el conmutador se oculta en lista
+  vacía; el panel de vacío sin aviso previo lleva `margin-block-start: 1rem` para no tocar los chips.
+
+**Alternativas descartadas.** Un `viewBox` único y responsivo para la gráfica (texto a ~16px a 768); mover «Quitar todos» dentro de la lista
+(rompe la semántica de la lista); un token de 13px; una máscara elíptica para F3 (más compleja que cambiar el anillo grueso); dejar el hueco de
+260px bajo el aviso (la rejilla usa `auto 1fr`).
+
+**Motivo.** Cada corrección responde a un hallazgo medido o visto en captura; ninguna cambia las alturas de fila.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

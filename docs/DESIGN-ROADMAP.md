@@ -1750,7 +1750,7 @@ Aplica la dirección de D.19 a los componentes sin cambiar comportamiento ni tex
 
 ---
 
-## [ ] D.21 · Movimiento sutil y cierre de la fase
+## [x] D.21 · Movimiento sutil y cierre de la fase
 
 ```text
 Paso D.21 de docs/DESIGN-ROADMAP.md. Usa `impeccable animate`, `impeccable polish` e
@@ -1779,7 +1779,37 @@ Paso D.21 de docs/DESIGN-ROADMAP.md. Usa `impeccable animate`, `impeccable polis
 - **Ficheros:** `apps/web/src/app/globals.css`, `apps/web/e2e/motion.spec.ts`, `DESIGN.md`, `.impeccable/design.json`, capturas de
   `apps/web/e2e/`.
 - **Riesgos:** efectos sueltos sin un momento claro; animaciones que se repiten en cada visita y cansan en una herramienta de uso diario.
-- **Tamaño:** S-M.
+- **Estado (2026-10-20): D.21 hecho, y con él el bloque 7 (D.19-D.21).** Aplicada con SDD completo sin fase de investigación, en modo
+  automático (Engram `sdd/design-motion-d21/*`), en un único PR con `size:exception` aceptado por el responsable el 2026-10-19 antes de
+  aplicar. Doce commits en `feature-fase3` (`61ddbfc..2e879ac`): `6bf17eb` (tokens y barrera), `44adbba` (transiciones de color y hovers
+  nuevos), `8e0ea8a` (realce de la fila), `0f22c9c` (aparición de los avisos), `05fcda2` (pulido: motivo, filete de la banda y marca de
+  estado), `ba53f44` (`DESIGN.md` y `design.json`), `5a78f6d`, `9cef92c` y `1a028b8` (correcciones P1-P8), `fff2084` (correcciones F1-F4) y
+  `2e879ac` (líneas base), más el de documentación. Decisiones 240-244. La sesión se interrumpió por la cuota de uso del responsable a mitad
+  de la aplicación y se retomó al día siguiente desde el estado de Engram sin perder trabajo (se repitió la ejecución e2e interrumpida).
+- **Entregado:** duraciones `--duration-hover` (150ms) y `--duration-appear` (200ms) con el bloque de movimiento reducido a `0s` en las cinco;
+  transiciones de color en una lista cerrada de selectores (botones, bandeja, chips, enlaces, ordenación, fila); hover de enlace, de
+  ordenación y de paginación (nuevos); realce de la fila con ampliación de la imagen solo sin movimiento reducido; fundido de los avisos y
+  del panel de cobertura (alertas instantáneas); motivo con desvanecido de máscara, filete de la banda con la extensión de la lista de fuentes
+  en ambos temas, marca cuadrada de estado de cobertura; correcciones P1-P8 y F1-F4 (gráfica en cinco composiciones, formulario NL, chips,
+  historial, avisos dentro de la rejilla de resultados); `DESIGN.md` y `.impeccable/design.json` derivados del código; la regla «sin
+  movimiento decorativo» reescrita en ambos.
+- **Revisión visual:** primera pasada con seis revisores aislados sobre las 120 capturas (sin bloqueantes ni mayores; hallazgos menores
+  agrupados en P1-P8, aceptados todos por el responsable). Segunda pasada con dos revisores: una regresión mayor introducida por P8 (los chips
+  tocaban el panel de vacío a 768 y 1280) y tres menores, aceptados como F1-F4. Comprobación dirigida de las 32 capturas cambiadas: limpia.
+  86 de las 120 capturas cambiaron respecto a D.20.
+- **Tests:** web 96 ficheros / 1.590 tests en verde (94 / 1.445 al cerrar D.20); typecheck y eslint limpios. `pnpm e2e` en Docker: 995
+  pasadas, 889 omitidas, 0 fallos; axe a cero en ambos temas.
+- **Decisiones:** 240 (tokens, transiciones de color, hovers nuevos y regla reescrita; enmienda la 207 y la 208), 241 (realce de la fila y
+  puerta de movimiento reducido), 242 (aparición de los avisos; enmienda la 205 y la barrera de D.16), 243 (pulido: motivo, banda, marca de
+  estado) y 244 (correcciones P1-P8 y F1-F4).
+- **Tamaño real:** 25 ficheros, +3.004/−246 líneas en código, tests y e2e (sin PNG ni documentación); con `DESIGN.md` y el sidecar, 27
+  ficheros y +3.098/−279. Previsión de las tareas: ~1.000-1.150; presupuesto: 800. El ledger bloqueó dos veces solo por el presupuesto de
+  líneas y se reinició bajo la autorización permanente del responsable.
+- **Proceso:** el diseño falló dos veces la validación en contexto limpio (primero: barrera sin restringir por selector y cambio de banda que
+  afectaba al tema oscuro; después: el borde de ordenación contradecía el spec); el responsable resolvió con las decisiones 11-13 y el flujo
+  automático se detuvo una vez, como exige. Una afirmación del diseño («`router.push` remonta la página») resultó falsa (`docs/AI-NOTES.md`).
+- **Seguimientos:** ninguno abierto. La fase de calidez queda cerrada.
+- **Tamaño:** S-M previsto; real XL por el pulido (ver la tabla de desviaciones).
 
 ---
 
@@ -2009,3 +2039,12 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-19 | D.20 | El subrayado al pasar el puntero no alcanza la etiqueta de operación (es `inline-block`). | Efecto del modelo de caja; la fila entera sigue siendo un enlace y el texto accesible no cambia (decisión 236). |
 | 2026-10-19 | D.20 | Las 102 líneas base se regeneraron borrando y reescribiendo, no con `--update-snapshots=changed`. | `changed` no ve los cambios bajo el umbral (pie y motivo); se excluyeron `global-error`, `rate-limit` y `draw-frame` (decisión 239). |
 | 2026-10-19 | D.20 | Tres correcciones tras la revisión visual de las 102 capturas (motivo redibujado y equilibrado entre temas, etiqueta en peso 400, banda de la ficha con sangría) y un test e2e de geometría de la banda, no previstos en el diseño. | El motivo de líneas paralelas se leía como un matasellos; la etiqueta pesaba más que el precio; el texto de la banda no alineaba con la rejilla (decisiones 235-237). |
+| 2026-10-19 | D.21 | Se añaden tres estados de puntero que el paso no pedía: color del enlace, filete del enlace de ordenación no activo (`--rule-control`) y la paginación con el hover del enlace. | Los enlaces no tenían hover y el paso pedía «transición de color en enlaces»; sin estado nuevo no habría nada que animar. Decisión del responsable (decisión 240). |
+| 2026-10-19 | D.21 | La banda de precio de la ficha se corrige en ambos temas y el cambio es de extensión del filete, no de grosor. | Ambos filetes ya eran de 1px `--rule`; el desajuste era la sangría de 1rem por lado. Decisión del responsable (decisión 243). |
+| 2026-10-19 | D.21 | El lote de pulido pasa de los seguimientos de D.20 a P1-P8 y F1-F4, y alcanza la gráfica de precios, el formulario NL, los chips y la maqueta de cobertura sin resultados. | Las dos pasadas de revisión visual encontraron hallazgos que el responsable decidió corregir todos, incluida una regresión de P8 (decisión 244). |
+| 2026-10-19 | D.21 | La etiqueta de estado de cobertura usa 14px y no 12-13px. | No existe un token de 13px y no se crean tokens por un píxel (decisión 244). |
+| 2026-10-19 | D.21 | La gráfica de precios tiene cinco composiciones fijas por consulta de contenedor y no un único `viewBox` responsivo. | Un `viewBox` estirado pintaba el texto a ~16px a 768; así se ve 1:1 en los tres anchos (decisión 244). |
+| 2026-10-19 | D.21 | `router.push` del dibujo de polígono no repite el fundido: la aparición solo se reproduce en cargas completas. | El diseño afirmaba lo contrario; una lectura e2e lo refutó (decisión 242; `docs/AI-NOTES.md`). |
+| 2026-10-19 | D.21 | `size:exception` aceptado antes de aplicar: 25 ficheros y +3.004/−246 líneas en código, tests y e2e (27 ficheros y +3.098/−279 con `DESIGN.md` y el sidecar; sin PNG ni documentación) frente a una previsión de ~1.000-1.150 y un presupuesto de 800. | El pulido y sus tests superaron la previsión (el test de CSS del pulido, 325 líneas, y los e2e de geometría); el ledger se reinició dos veces. No se recortó ningún test. |
+| 2026-10-19 | D.21 | El diseño falló dos veces la validación en contexto limpio y el flujo automático se detuvo una vez. | Barrera sin restringir por selector, cambio de banda que afectaba al tema oscuro y borde de ordenación contradictorio con el spec; el responsable resolvió con las decisiones 11-13. |
+| 2026-10-20 | D.21 | 86 de las 120 líneas base cambiaron y se regeneraron borrando y reescribiendo (decisión 239). | Los cambios de pulido caen por debajo del umbral de `changed`; las 34 restantes (páginas de error, 404 y 429 y poco más) no cambiaron. |
