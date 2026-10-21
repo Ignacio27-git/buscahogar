@@ -2137,10 +2137,15 @@ ciudad son dos unidades (venta y alquiler), y el tope de la ejecución las cuent
   la cuota completa**: por la decisión 248 se heredaría 62/31.
 - Hecho el 2026-10-20: simulación `presweep --top 3 --max-requests 31 --max-requests-per-sweep 31 --dry-run`, con
   6 unidades (Madrid, Barcelona y Valencia, en venta y alquiler) y 0 peticiones gastadas.
-- Pendiente: el barrido real que eligió el responsable, Madrid en venta y alquiler,
-  `pnpm --filter @buscahogar/ingestion presweep --top 1 --max-requests 31 --max-requests-per-sweep 15`. Gasta cuota
-  real y deja ambas operaciones parciales y reanudables. Después, reprocesar la deduplicación para que Madrid
-  aparezca en la búsqueda.
+- Hecho el 2026-10-21: barrido real de Madrid (28079) en venta y alquiler con
+  `presweep --top 1 --max-requests 31 --max-requests-per-sweep 15`. Consumió 30 búsquedas (15 por operación, motivo
+  `per-sweep-cap`) y creó 750 + 750 anuncios, 0 rechazados. Las dos operaciones quedan pendientes, marcadas como
+  pre-barrido y reanudables en `homes:16`. El registro mensual cuadra: 30 en el carril del lote y 2 de token, así
+  que queda 1 búsqueda para el lote y la reserva de 31 intacta para la cobertura bajo demanda.
+- Hecho el 2026-10-21: reprocesado de la deduplicación con los umbrales de Granada
+  (`reprocess --radius 300 --price-band 2500000 --surface-tolerance 10`). Quedan 3 251 anuncios en 3 180 viviendas
+  (2 437 de alquiler y 743 de venta), con 53 grupos de varios miembros y el desglose por señal en todas las filas de
+  `property_listings`. Ninguna vivienda mezcla anuncios de venta y alquiler.
 - Pendiente: bajar `DAILY_SEARCH_CAP` (hoy 1000) antes de arrancar el worker.
 - Pendiente: confirmar que la cuota de Idealista se reinicia por mes natural UTC, que es lo que asume el registro.
 

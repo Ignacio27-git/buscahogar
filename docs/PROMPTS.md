@@ -2222,3 +2222,18 @@ responsable por cuestionario
 **Observación.** El responsable pidió fijar la cuota «según la documentación de Idealista menos lo gastado», pero ninguno de los dos PDF de
 `docs/api_idealista` documenta una cuota mensual. Se registró 62/31 (100 no oficiales − 38 gastadas, reserva del 50 %) y se simuló el plan
 sin gastar. El barrido real queda preparado y sin lanzar, por decisión del responsable.
+
+---
+
+### 2026-10-21 — Pre-barrido real de Madrid y reprocesado (3.3, operación)
+
+**Tipo de tarea:** operación sobre la base de desarrollo (barrido real con cuota facturable y reprocesado de la deduplicación)
+**Forma de especificación:** instrucción directa, sin SDD («continúa por donde ibas»), con los topes que el responsable eligió la sesión
+anterior
+**Resultado:** utilizable sin cambios
+
+**Prompt:** «continúa por donde ibas».
+
+**Observación.** El barrido de Madrid gastó exactamente 30 búsquedas, 15 por operación, frente al techo de 31, y el registro mensual lo
+contabilizó bien. La CLI de reproceso exige los tres umbrales sin valor por defecto; se reutilizaron los que eligió el responsable para
+Granada. No se agrupó ningún anuncio de venta con uno de alquiler.
