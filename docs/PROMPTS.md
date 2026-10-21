@@ -2237,3 +2237,17 @@ anterior
 **Observación.** El barrido de Madrid gastó exactamente 30 búsquedas, 15 por operación, frente al techo de 31, y el registro mensual lo
 contabilizó bien. La CLI de reproceso exige los tres umbrales sin valor por defecto; se reutilizaron los que eligió el responsable para
 Granada. No se agrupó ningún anuncio de venta con uno de alquiler.
+
+---
+
+### 2026-10-21 — Cierre de los pendientes del responsable (3.3)
+
+**Tipo de tarea:** registro documental
+**Forma de especificación:** instrucción directa («te confirmo todo lo que me has dejado pendiente, ya está hecho o te lo confirmo»)
+**Resultado:** utilizable sin cambios
+
+**Prompt:** «te confirmo todo lo que me has dejado pendiente, ya está hecho o te lo confirmo».
+
+**Observación.** Los dos pendientes que tocan `.env*` (`DAILY_SEARCH_CAP` y `OPERATION` en `.env.example`) se registran como confirmación
+del responsable, no como verificación, porque los permisos de la herramienta impiden leer esos ficheros. La confirmación de que la cuota se
+reinicia por mes natural UTC valida la suposición de la decisión 248.

@@ -2124,8 +2124,8 @@ ciudad son dos unidades (venta y alquiler), y el tope de la ejecución las cuent
 
 **Pendiente del responsable.**
 
-- Hecho el 2026-10-20: el responsable quitó `OPERATION` de `.env`. Queda comprobar `.env.example`, cuya edición
-  bloquearon los permisos de la herramienta.
+- Hecho el 2026-10-20: el responsable quitó `OPERATION` de `.env`; `.env.example` se confirmó el 2026-10-21 (ver
+  abajo).
 - Hecho el 2026-10-20: migraciones 0017-0019 aplicadas en la base de desarrollo (20/20) y `pnpm db:seed`, con
   población en los 8 132 municipios. El job de Granada quedó como `rent`, `done`, con `last_completed_at`; ni
   `web_readonly` ni `web_coverage` tienen privilegios sobre `monthly_request_budget`. El bootstrap de roles no hace
@@ -2146,8 +2146,14 @@ ciudad son dos unidades (venta y alquiler), y el tope de la ejecución las cuent
   (`reprocess --radius 300 --price-band 2500000 --surface-tolerance 10`). Quedan 3 251 anuncios en 3 180 viviendas
   (2 437 de alquiler y 743 de venta), con 53 grupos de varios miembros y el desglose por señal en todas las filas de
   `property_listings`. Ninguna vivienda mezcla anuncios de venta y alquiler.
-- Pendiente: bajar `DAILY_SEARCH_CAP` (hoy 1000) antes de arrancar el worker.
-- Pendiente: confirmar que la cuota de Idealista se reinicia por mes natural UTC, que es lo que asume el registro.
+- Hecho el 2026-10-21, confirmado por el responsable y sin verificar desde la herramienta, que no puede leer
+  `.env*`: `DAILY_SEARCH_CAP` bajado en `.env` y `OPERATION` ausente también de `.env.example`.
+- Confirmado por el responsable el 2026-10-21: la cuota de Idealista se reinicia por mes natural UTC, así que la
+  suposición del registro mensual (decisión 248) queda validada. El responsable fijará de nuevo la cuota completa
+  en noviembre.
+
+**Estado del paso: cerrado.** No queda nada pendiente del responsable. Madrid queda a medias en venta y alquiler y se
+reanuda desde su cursor cuando haya cuota.
 
 **Riesgos abiertos.** Las ciudades grandes superan el radio máximo de búsqueda de 15 km, así que un único barrido
 por ciudad puede no cubrir todo el término municipal. El mapeo de `studio` sigue sin existir (paso 3.2).
