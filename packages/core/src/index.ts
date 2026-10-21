@@ -202,11 +202,12 @@ export { IMAGE_HAMMING_THRESHOLD } from './strategies/image/parameters.js';
 // PR2) y por la resolución de identidad de cliente del registro de
 // cobertura (PR2). Cero DB, cero red — mismo criterio de "solo lo que
 // cruza la frontera" que el resto de este barril.
-export { evaluateFixedWindow } from './rate-limit/fixed-window.js';
+export { evaluateFixedWindow, fixedWindowVerdict } from './rate-limit/fixed-window.js';
 export type {
   FixedWindowParams,
   FixedWindowResult,
   FixedWindowState,
+  FixedWindowVerdict,
 } from './rate-limit/fixed-window.js';
 export { parseTrustedClientIp, UNKNOWN_CLIENT_IDENTITY } from './rate-limit/client-ip.js';
 

@@ -30,6 +30,7 @@ export * from './time.js';
 export * from './budget-ledger.js';
 export * from './presweep.js';
 export * from './client-quota.js';
+export * from './proxy-rate-limit.js';
 export * from './query-signals.js';
 export * from './zone-lifecycle.js';
 export * from './zone-purge.js';
@@ -38,6 +39,6 @@ export * from './visibility.js';
 export * from './presence-checks.js';
 export * from './coverage.js';
 export * from './bind-parameters.js';
-export { createDb, type Database } from './db.js';
+export { createDb, type Database, type DbPoolOptions } from './db.js';
 
 export const DB_VERSION = '0.0.1';

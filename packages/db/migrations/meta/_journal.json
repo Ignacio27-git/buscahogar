@@ -141,6 +141,13 @@
       "when": 1792522706397,
       "tag": "0019_monthly_request_budget",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792576249649,
+      "tag": "0020_proxy_rate_limit",
+      "breakpoints": true
     }
   ]
 }

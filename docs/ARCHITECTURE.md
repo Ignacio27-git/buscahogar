@@ -282,10 +282,23 @@ Fuera del alcance: colas externas, Redis, caché distribuida, autenticación.
 - Consultas parametrizadas vía ORM.
 - Rate limiting en endpoints públicos: cuota diaria por cliente en PostgreSQL para el registro de
   cobertura bajo demanda (clave HMAC-SHA256, nunca la IP cruda) más un limitador de ventana fija
-  en memoria en `apps/web/src/proxy.ts` para el resto de peticiones — **deshabilitado por
-  defecto**, activo solo cuando `CLIENT_IP_HEADER` está configurado detrás de un proxy inverso de
-  confianza que sobrescriba ese header. Presupuesto de cuota frente a fuentes externas sin
-  cambios (`apps/ingestion`).
+  **compartido en PostgreSQL** (tabla `proxy_rate_limit`, decisión 255, que enmienda la 074) en
+  `apps/web/src/proxy.ts` para el resto de peticiones — **deshabilitado por defecto**, activo solo
+  cuando `CLIENT_IP_HEADER` está configurado detrás de un proxy inverso de confianza que sobrescriba
+  ese header (en Vercel, `x-forwarded-for`, que lleva una sola IP; una lista con comas cae en el
+  cubo `unknown`). Todas las instancias cuentan sobre las mismas filas: una sola sentencia atómica
+  (purga acotada de ventanas vencidas + upsert) y la decisión la toma `fixedWindowVerdict` de
+  `packages/core`, la misma lógica de ventana fija de siempre. **Falla abierto**: si la base de
+  datos no responde, tarda más de 200 ms en total o no se puede ni abrir el pool, la petición se
+  permite y se emite una línea JSON de error (como mucho una cada 10 s por instancia, sin clave ni
+  IP). El proxy se excluye en `/api/health`. Presupuesto de cuota frente a fuentes externas y cuota
+  por cliente de cobertura sin cambios, siguen cerrando en fallo (`apps/ingestion`, decisión 077).
+- Conexiones de `apps/web` (decisión 256): en producción las dos credenciales web usan la URL del
+  **pooler** de conexiones (Neon `-pooler`), con pools pequeños (lectura 5, registro de cobertura 2,
+  limitador del proxy 4 con plazos de 150 ms) fijados por `createDb(url, poolOptions)`; `apps/web`
+  no usa sentencias preparadas con nombre, `SET` de sesión, `LISTEN`, bloqueos consultivos ni
+  tablas temporales (lo comprueba una prueba estática). `apps/ingestion`, las migraciones y el
+  aprovisionamiento usan la URL **directa**.
 - Cabeceras de seguridad y política de contenido: CSP estática sin nonces + conjunto OWASP
   (HSTS, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors 'none'`/
   `X-Frame-Options: DENY`, COOP, CORP, sin COEP) vía `headers()` en `next.config.ts`; sin

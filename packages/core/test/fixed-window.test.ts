@@ -7,7 +7,7 @@
 // testeable sin mocks.
 import { describe, expect, it } from 'vitest';
 
-import { evaluateFixedWindow } from '../src/rate-limit/fixed-window.js';
+import { evaluateFixedWindow, fixedWindowVerdict } from '../src/rate-limit/fixed-window.js';
 import type { FixedWindowState } from '../src/rate-limit/fixed-window.js';
 
 const PARAMS = { max: 3, windowMs: 60_000 };
@@ -96,5 +96,40 @@ describe('evaluateFixedWindow — rollover de ventana', () => {
 
     expect(muchLater.allowed).toBe(true);
     expect(muchLater.state).toEqual({ count: 1, windowStart: 500_000 });
+  });
+});
+
+// ROADMAP 3.4 (decisión 255, D3) — el veredicto se extrae para que el limitador compartido en
+// PostgreSQL (que calcula el estado en SQL) y el de memoria usen LA MISMA decisión.
+describe('fixedWindowVerdict — paridad con evaluateFixedWindow', () => {
+  it('permitida: count <= max reporta allowed y retryAfterSeconds 0', () => {
+    const verdict = fixedWindowVerdict({ count: 3, windowStart: 1_000 }, 5_000, PARAMS);
+
+    expect(verdict).toEqual({ allowed: true, retryAfterSeconds: 0 });
+  });
+
+  it('rechazada: count > max reporta los segundos que faltan hasta cerrar la ventana (redondeo hacia arriba)', () => {
+    const verdict = fixedWindowVerdict({ count: 4, windowStart: 0 }, 55_500, PARAMS);
+
+    expect(verdict).toEqual({ allowed: false, retryAfterSeconds: 5 });
+  });
+
+  it('rechazada con la ventana ya cerrada nunca devuelve un Retry-After negativo', () => {
+    const verdict = fixedWindowVerdict({ count: 4, windowStart: 0 }, 90_000, PARAMS);
+
+    expect(verdict).toEqual({ allowed: false, retryAfterSeconds: 0 });
+  });
+
+  it('evaluateFixedWindow devuelve exactamente el veredicto de su propio estado, en una secuencia completa con rollover', () => {
+    let state: FixedWindowState | undefined;
+    for (const nowMs of [0, 1_000, 2_000, 3_000, 4_000, 59_999, 60_000, 60_001]) {
+      const result = evaluateFixedWindow(state, nowMs, PARAMS);
+      expect({ allowed: result.allowed, retryAfterSeconds: result.retryAfterSeconds }).toEqual(
+        fixedWindowVerdict(result.state, nowMs, PARAMS)
+      );
+      state = result.state;
+    }
+    // Control de que la secuencia cubrió rechazos Y el rollover (no es un bucle trivial).
+    expect(state).toEqual({ count: 2, windowStart: 60_000 });
   });
 });

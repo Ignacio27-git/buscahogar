@@ -2429,7 +2429,7 @@ defecto — requeriría una revisión de este mapa si se observa en un feed real
 
 ## 074 — Rate limiting mixto: cuota por cliente en PostgreSQL para registros de cobertura, ventana fija en memoria para el resto
 
-**Estado:** aceptada
+**Estado:** aceptada. La parte «en memoria» la enmienda la decisión 255 (paso 3.4): el limitador del proxy cuenta ahora en PostgreSQL, compartido por todas las instancias.
 
 **Decisión.** El paso 1.15 (seguridad) aplica dos mecanismos distintos según la superficie:
 cuota diaria por cliente persistida en PostgreSQL (`coverage_client_quota`) para el registro de
@@ -6658,6 +6658,93 @@ vayan cubriendo.
 tarea). Un job parcial de presweep cuya zona no recibe nunca demanda permanece pendiente hasta que se relance el presweep. Sin migración
 propia: la columna `presweep_requested_at` llegó con la 0018 (decisión 250). Reversión: no hay SQL (solo código); para olvidar la marca
 `UPDATE coverage_jobs SET presweep_requested_at = NULL`.
+
+---
+
+## 255 — Limitador de peticiones compartido en PostgreSQL, con fallo abierto y plazo de 200 ms (enmienda la 074)
+
+**Estado:** aceptada (paso 3.4, S1). Decisiones de producto PD8 y PD9 del propietario. La 254 queda reservada para la decisión de
+arquitectura general del paso 3.4, que se redacta al cerrarlo.
+
+**Contexto.** La 074 dejó el limitador de `apps/web/src/proxy.ts` en un `Map` por proceso y documentó que se rompe con más de una instancia.
+El despliegue previsto (Vercel) ejecuta varias instancias a la vez y las recicla constantemente: cada una contaría por su cuenta y el límite
+real sería «máximo × número de instancias vivas». En Next.js 16 el proxy corre en Node.js (el ajuste `runtime` lanza), así que `pg` es viable
+dentro del proxy.
+
+**Decisión.**
+
+1. **Tabla `proxy_rate_limit`** (migración 0020): `key_hash text` (PK, HMAC-SHA256 de la identidad, decisión 076, nunca la IP), `window_start_ms
+   bigint`, `hits integer CHECK (hits >= 1)` e índice sobre `window_start_ms`. Migración aditiva.
+2. **Una sentencia atómica** (`createPgProxyRateLimitStore`, `packages/db/src/proxy-rate-limit.ts`): un CTE que purga como mucho 100 filas
+   vencidas (`FOR UPDATE SKIP LOCKED`, la clave propia excluida, recorriendo el índice por las más antiguas) y un `INSERT ... ON CONFLICT DO
+   UPDATE ... RETURNING` que abre la ventana, suma o la reinicia. `hits` se acota a `max + 1`. Sin planificador: la purga es perezosa y acotada
+   por petición.
+3. **El llamador aporta `nowMs`**, no el reloj de Postgres (a diferencia de la cuota diaria): así la lógica es exactamente la de la ventana
+   fija del núcleo y se comprueba contra ella con instantes inyectados. La decisión (permitida y `Retry-After`) la toma `fixedWindowVerdict`,
+   extraída de `evaluateFixedWindow` (que ahora delega en ella); el SQL solo calcula el estado.
+4. **Fallo abierto con plazo total de 200 ms** (PD9). Si el almacén rechaza, tarda más de 200 ms (obtener conexión + consulta) o no se puede ni
+   crear el pool, la petición se permite, nunca hay 5xx, y se emite UNA línea JSON `{ts, level:"error", component:"proxy-limiter",
+   msg:"store-unavailable", reason:"timeout"|"error"}`, sin clave, IP, URL ni mensaje del error, como mucho una cada 10 s por instancia. El pool
+   fija `connectionTimeoutMillis: 150` y `query_timeout: 150` (del lado del cliente: tras un pooler no se puede asumir un `statement_timeout`
+   en el servidor) y un `Promise.race` de 200 ms es la red de seguridad. Una consulta abandonada puede acabar ejecutándose: el sobreconteo es
+   inocuo. La cuota mensual de Idealista (248) y la cuota diaria por cliente de cobertura (077) conservan su cierre en fallo.
+5. **Pool propio del proxy** (`apps/web/src/server/proxy-limiter-db.ts`): la credencial `web_coverage`, máximo 4 conexiones, clave global
+   `buscahogarProxyLimiterDb`, **sin `server-only`** (decisión 081: el runtime del proxy no lo admite).
+6. **Privilegios (PD8, enmienda el CLAUDE.md).** `web_coverage` recibe exactamente `SELECT`/`INSERT`/`UPDATE`/`DELETE` sobre `proxy_rate_limit`
+   (el `SELECT` lo exigen la subconsulta de la purga y el `RETURNING`); es el único `GRANT` nuevo de todo el paso 3.4 y la regla de credenciales
+   de CLAUDE.md se actualiza para listarlo. `web_readonly` no debe tener ninguno, pero los privilegios por defecto del bootstrap le concederían
+   `SELECT` sobre cualquier tabla nueva: la migración 0020 revoca (solo si el rol existe) y el bloque final de
+   `bootstrap-roles-grants.sql` repite el `REVOKE` solo a `web_readonly`, después de `GRANT SELECT ON ALL TABLES` y de
+   `ALTER DEFAULT PRIVILEGES` (mismo patrón que la 248). Probado con el catálogo, con conexiones reales de ambos roles y con una recreación de
+   la tabla dentro de una transacción.
+7. **IP del cliente.** En Vercel `CLIENT_IP_HEADER=x-forwarded-for`, que la plataforma reescribe con una sola IP. No cambia
+   `parseTrustedClientIp`: una lista con comas, vacía o no-IP cae en el cubo compartido `unknown` (075); no se elige ninguna entrada de una
+   lista, porque el cliente puede falsear el primer elemento. `/api/health` queda fuera del `matcher` (`api/health$`): ni se limita ni escribe
+   en la tabla.
+8. **El `Map` en memoria desaparece**: `createProxyRateLimiter` ya no mantiene contadores, solo el veredicto, el plazo y el estrangulado del log.
+
+**Alternativas descartadas.** (1) Redis o un servicio de límites externo: más infraestructura y credenciales para un contador que cabe en la
+base de datos que ya existe. (2) Mantener el `Map` por proceso: con N instancias el límite efectivo se multiplica y se reinicia en cada
+reciclaje. (3) Cerrar en fallo (rechazar si la base de datos no responde): un parpadeo de la base de datos sería una caída total del sitio,
+peor que el abuso que se quiere frenar. (4) Una conexión de 2 s para el limitador (v1 del diseño): demasiado para una ruta caliente. (5) Reloj
+de Postgres en la sentencia: no se puede probar contra la lógica pura con instantes inyectados. (6) Reutilizar `coverage-db.ts`: importa
+`server-only`, que el proxy no admite. (7) Confiar solo en el orden del bootstrap para que `web_readonly` no lea la tabla: los privilegios por
+defecto la volverían a exponer al recrearla.
+
+**Consecuencias.** Cada petición limitada cuesta una ida y vuelta a la base de datos (dentro del plazo de 200 ms); con tráfico normal la
+purga mantiene la tabla pequeña, y sin tráfico no hay nada que purgar. El límite es aproximado cuando el almacén está caído (se permite todo
+mientras dure). La región del proxy frente a la de la base de datos condiciona la latencia (a medir en el paso 3.5). IPv6: la clave es la
+dirección completa, no el /64. Reversión: volver al código anterior no pierde datos; `DROP TABLE proxy_rate_limit` y el `GRANT` huérfano
+desaparece con ella.
+
+---
+
+## 256 — Conexión de `apps/web` detrás de un pooler: URL del pooler, pools acotados y sin estado de sesión
+
+**Estado:** aceptada (paso 3.4, S1).
+
+**Contexto.** En Vercel cada instancia serverless abre sus propios pools; con una URL directa a PostgreSQL, unas pocas instancias agotan las
+conexiones del servidor. Neon ofrece una URL de pooler (`-pooler`, PgBouncer en modo transacción) para esto.
+
+**Decisión.**
+
+1. **`apps/web` usa la URL del pooler** para sus dos credenciales (`DATABASE_URL` y `WEB_COVERAGE_DATABASE_URL`) en producción.
+   `apps/ingestion`, las migraciones, el aprovisionamiento de roles y las copias de seguridad usan la URL **directa** (variable distinta,
+   `sslmode=verify-full`): el DDL y la sesión estable no funcionan por un pooler. Los nombres de las variables directas y su validación llegan
+   con el despliegue (S4).
+2. **Pools acotados por llamador**: `createDb(url, poolOptions?)` acepta `max`, `connectionTimeoutMillis` y `query_timeout` (el paquete sigue sin
+   leer `process.env`, decisión 024). Lectura `max: 5`, registro de cobertura `max: 2`, limitador `max: 4` con plazos de 150 ms (255). Sin
+   opciones, el comportamiento es el de antes.
+3. **Sin estado de sesión en `apps/web`**: nada de sentencias preparadas con nombre, `SET`/`SET LOCAL`/`set_config`, `LISTEN`/`NOTIFY`,
+   bloqueos consultivos ni tablas temporales, ni en `apps/web/src` ni en las consultas de `packages/db` que ejecuta. Una prueba estática lo
+   comprueba (excluye las herramientas del propietario: semilla, bases de prueba y e2e). El `jit = off` de `web_readonly` es un ajuste de rol
+   y de base de datos, no de sesión, y se trata aparte (decisión 264).
+
+**Alternativas descartadas.** (1) `attachDatabasePool` de Vercel: se evalúa en el paso 3.5 con medidas reales. (2) URL directa desde Vercel:
+agota conexiones. (3) Un pool por defecto de 10: con el pooler delante no aporta y multiplica las conexiones por instancia.
+
+**Consecuencias.** Si una consulta futura de `apps/web` necesitara estado de sesión, la prueba estática falla y obliga a reabrir esta decisión.
+La aceptación real de las URL del pooler y los tamaños de pool se verifican al aprovisionar (paso 3.5).
 
 ---
 

@@ -16,6 +16,7 @@ export { listingVersions } from './schema/listing-versions.js';
 export { listings } from './schema/listings.js';
 export { locations } from './schema/locations.js';
 export { monthlyRequestBudget } from './schema/monthly-request-budget.js';
+export { proxyRateLimit } from './schema/proxy-rate-limit.js';
 export { properties } from './schema/properties.js';
 export { propertyListings } from './schema/property-listings.js';
 export { sources } from './schema/sources.js';

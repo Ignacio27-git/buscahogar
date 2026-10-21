@@ -22,6 +22,26 @@ export interface FixedWindowResult {
   readonly retryAfterSeconds: number;
 }
 
+export interface FixedWindowVerdict {
+  readonly allowed: boolean;
+  readonly retryAfterSeconds: number;
+}
+
+// ROADMAP 3.4 (decisión 255, D3) — veredicto puro sobre el estado YA actualizado de la ventana
+// (la petición evaluada incluida en `count`). Lo comparten el limitador en memoria
+// (`evaluateFixedWindow`) y el limitador compartido en PostgreSQL, que calcula el estado en SQL y
+// reutiliza esta función para decidir: así la decisión (límite, Retry-After) no se duplica.
+export function fixedWindowVerdict(
+  state: FixedWindowState,
+  nowMs: number,
+  params: FixedWindowParams
+): FixedWindowVerdict {
+  const allowed = state.count <= params.max;
+  const windowEnd = state.windowStart + params.windowMs;
+  const retryAfterSeconds = allowed ? 0 : Math.max(0, Math.ceil((windowEnd - nowMs) / 1000));
+  return { allowed, retryAfterSeconds };
+}
+
 export function evaluateFixedWindow(
   prev: FixedWindowState | undefined,
   nowMs: number,
@@ -34,12 +54,9 @@ export function evaluateFixedWindow(
   const windowStart = withinPreviousWindow ? prev.windowStart : nowMs;
   const count = withinPreviousWindow ? prev.count + 1 : 1;
 
-  const allowed = count <= params.max;
   // El contador SIEMPRE se actualiza, incluso en la petición rechazada — el
   // estado devuelto refleja la petición evaluada de verdad, nunca un
   // cortocircuito que descarta la petición sin contarla.
-  const windowEnd = windowStart + params.windowMs;
-  const retryAfterSeconds = allowed ? 0 : Math.max(0, Math.ceil((windowEnd - nowMs) / 1000));
-
-  return { allowed, state: { count, windowStart }, retryAfterSeconds };
+  const state: FixedWindowState = { count, windowStart };
+  return { ...fixedWindowVerdict(state, nowMs, params), state };
 }

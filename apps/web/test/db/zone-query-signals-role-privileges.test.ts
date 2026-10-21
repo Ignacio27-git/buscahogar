@@ -109,7 +109,7 @@ describeWithCoverageDb('web_coverage sobre zone_query_signals — solo INSERT (S
   });
 });
 
-describeWithCoverageDb('web_coverage — conjunto EXACTO de GRANT sobre tablas (S-QSR-5, decisiones 064/076/102)', () => {
+describeWithCoverageDb('web_coverage — conjunto EXACTO de GRANT sobre tablas (S-QSR-5, decisiones 064/076/102/255)', () => {
   let ownerPool: Pool;
   let coveragePool: Pool;
 
@@ -137,6 +137,11 @@ describeWithCoverageDb('web_coverage — conjunto EXACTO de GRANT sobre tablas (
       'coverage_client_quota:SELECT',
       'coverage_client_quota:UPDATE',
       'coverage_jobs:INSERT',
+      // ROADMAP 3.4 (decisión 255, PD8): único GRANT nuevo del paso, el limitador de peticiones compartido.
+      'proxy_rate_limit:DELETE',
+      'proxy_rate_limit:INSERT',
+      'proxy_rate_limit:SELECT',
+      'proxy_rate_limit:UPDATE',
       'zone_query_signals:INSERT',
     ]);
   });

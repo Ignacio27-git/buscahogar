@@ -48,6 +48,8 @@ const TABLES_IN_FK_ORDER = [
   // ROADMAP 3.3: registro mensual de cuota; referencia `sources` (va antes).
   'monthly_request_budget',
   'coverage_client_quota',
+  // ROADMAP 3.4: contadores del limitador compartido; sin claves foráneas.
+  'proxy_rate_limit',
   // ROADMAP 2.5 (S1): referencia `zones` (ON DELETE CASCADE) — va antes.
   'zone_query_signals',
   'zones',

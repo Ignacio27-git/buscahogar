@@ -33,6 +33,8 @@ export function connectTestDb(): TestDbHandle {
 const TABLES_IN_FK_ORDER = [
   'coverage_jobs',
   'coverage_client_quota',
+  // ROADMAP 3.4: contadores del limitador compartido; sin claves foráneas.
+  'proxy_rate_limit',
   'zone_query_signals',
   'zones',
   'sources',
