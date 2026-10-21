@@ -2160,6 +2160,27 @@ por ciudad puede no cubrir todo el término municipal. El mapeo de `studio` sigu
 
 ---
 
+## [ ] 3.4 · Puesta en producción
+
+Decisión de producto del responsable (2026-10-21): Buscahogar es un TFM y también una web real que se desplegará y
+usarán personas reales, así que tiene que funcionar a nivel profesional. La cuota de Idealista se puede ampliar
+según la demanda.
+
+```text
+Deja la aplicación desplegable y operable en producción: imágenes de web y del worker de cobertura (siempre activo,
+con reinicio automático), destino de despliegue con HTTPS y dominio, secretos fuera del repositorio, migraciones y
+bootstrap de roles como parte del despliegue, avisos ante caída del worker, trabajos fallidos o cuota agotada,
+copias de seguridad de PostgreSQL y gestión de la cuota de cada mes sin intervención manual.
+```
+
+**Notas:**
+
+**Estado: pendiente.** Origen: una búsqueda en un municipio pequeño solo se cubre si el worker está siempre en
+marcha, y hoy no hay ningún despliegue. Ni `apps/web/Dockerfile` ni `apps/ingestion/Dockerfile` existen, aunque
+`docker-compose.yml` los cita. El destino de despliegue lo elige el responsable.
+
+---
+
 # Registro de desviaciones
 
 Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
