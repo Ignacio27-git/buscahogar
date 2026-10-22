@@ -148,6 +148,13 @@
       "when": 1792576249649,
       "tag": "0020_proxy_rate_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792689410057,
+      "tag": "0021_coverage_jobs_lease",
+      "breakpoints": true
     }
   ]
 }

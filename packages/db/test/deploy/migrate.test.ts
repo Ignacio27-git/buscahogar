@@ -62,19 +62,21 @@ describeWithTestDb('runMigrations — base vacía y segunda ejecución (decisió
     const { db, pool } = createDb(partial.url);
     try {
       await runMigrations(db);
-      // Simula una base migrada hasta la penúltima: el registro pierde su última fila.
+      // Simula una base migrada hasta la penúltima: el registro pierde su última fila y se deshace su efecto
+      // (la última migración es la 0021, `coverage_jobs.lease_renewed_at`; al añadir otra, actualizar esta pareja).
       await pool.query(
         'delete from drizzle.__drizzle_migrations where id = (select max(id) from drizzle.__drizzle_migrations)'
       );
-      await pool.query('drop table proxy_rate_limit');
+      await pool.query('alter table coverage_jobs drop column lease_renewed_at');
 
       const resumed = await runMigrations(db);
 
       expect(resumed).toEqual({ applied: 1 });
       const { rows } = await pool.query<{ name: string | null }>(
-        `select to_regclass('public.proxy_rate_limit')::text as name`
+        `select column_name as name from information_schema.columns
+         where table_name = 'coverage_jobs' and column_name = 'lease_renewed_at'`
       );
-      expect(rows[0]?.name).toBe('proxy_rate_limit');
+      expect(rows[0]?.name).toBe('lease_renewed_at');
     } finally {
       await pool.end();
       await partial.drop();

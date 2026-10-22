@@ -37,6 +37,10 @@ import { createRealCoverageWorkerPorts } from '../src/sweep/coverage-worker-port
 import { runCoverageWorker } from '../src/sweep/coverage-worker.js';
 import type { CoverageWorkerOptions } from '../src/sweep/coverage-worker.js';
 import { resolveSourceUuid } from '../src/sweep/reference-store.js';
+import {
+  DEFAULT_STALE_RUNNING_JOB_AFTER_MS,
+  MIN_STALE_RUNNING_JOB_AFTER_MS,
+} from '../src/sweep/stale-job-reclaim.js';
 import { createHttpSearchPort, createHttpTokenPort } from '../src/sources/idealista/index.js';
 
 export class WorkerEnvError extends Error {}
@@ -75,6 +79,9 @@ const EnvSchema = z.object({
   HEARTBEAT_URL: z.string().optional(),
   HEARTBEAT_MIN_INTERVAL_MS: z.string().optional(),
   MAX_OUTBOUND_CALLS_PER_TICK: z.string().optional(),
+  // ROADMAP 3.4 (decisión 258, parte 2; D14b): antigüedad del arrendamiento a partir de la cual un job `running`
+  // se da por abandonado. Validada más abajo (mínimo 120000).
+  STALE_RUNNING_JOB_AFTER_MS: z.string().optional(),
 });
 
 // ROADMAP 2.5 (refresh-retention-policy, S1; decisión 104, S-ZRS-18) —
@@ -146,6 +153,21 @@ function parseHeartbeatUrl(value: string | undefined): string | undefined {
   return value.trim();
 }
 
+// D14b: el mínimo debe exceder con holgura lo que tarda una página; por debajo, un worker vivo vería su job
+// reclamado.
+function parseStaleRunningJobAfterMs(value: string | undefined): number {
+  if (value === undefined) {
+    return DEFAULT_STALE_RUNNING_JOB_AFTER_MS;
+  }
+  const parsed = Number(value.trim() === '' ? Number.NaN : value);
+  if (!Number.isInteger(parsed) || parsed < MIN_STALE_RUNNING_JOB_AFTER_MS) {
+    throw new WorkerEnvError(
+      `STALE_RUNNING_JOB_AFTER_MS inválido "${value}": se espera un entero de milisegundos no menor que ${String(MIN_STALE_RUNNING_JOB_AFTER_MS)}.`
+    );
+  }
+  return parsed;
+}
+
 const DEFAULT_POLL_INTERVAL_MS = 15_000;
 const DEFAULT_MAX_SEARCH_REQUESTS_PER_SWEEP = 10;
 
@@ -158,6 +180,8 @@ export interface WorkerEnv {
   readonly verificationRadiusMarginM: number;
   // Modo producción (decisión 258): plazo de parada ordenada y latido.
   readonly stopGraceMs: number;
+  // Modo producción (decisión 258, parte 2): antigüedad del arrendamiento que da un job `running` por abandonado.
+  readonly staleRunningJobAfterMs: number;
   readonly heartbeat: { readonly url: string | undefined; readonly minIntervalMs: number };
   readonly blockingThresholds: ReturnType<typeof blockingThresholdsSchema.parse>;
 }
@@ -242,6 +266,7 @@ export function readEnv(env: Readonly<Record<string, string | undefined>>): Work
       raw.VERIFICATION_RADIUS_MARGIN_M !== undefined
         ? parseNonNegativeInteger('VERIFICATION_RADIUS_MARGIN_M', raw.VERIFICATION_RADIUS_MARGIN_M)
         : DEFAULT_VERIFICATION_RADIUS_MARGIN_M,
+    staleRunningJobAfterMs: parseStaleRunningJobAfterMs(raw.STALE_RUNNING_JOB_AFTER_MS),
     stopGraceMs:
       raw.WORKER_STOP_GRACE_MS !== undefined
         ? parsePositiveInteger('WORKER_STOP_GRACE_MS', raw.WORKER_STOP_GRACE_MS)
@@ -335,6 +360,7 @@ export async function main(env: Readonly<Record<string, string | undefined>> = p
             presenceVerification: { radiusMarginM: config.verificationRadiusMarginM },
             blockingThresholds: config.blockingThresholds,
             shouldStop: () => shutdown.requested(),
+            staleRunningJobAfterMs: config.staleRunningJobAfterMs,
             io: {
               log: (line: string): void => {
                 log.line(line);

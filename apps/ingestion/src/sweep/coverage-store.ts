@@ -100,6 +100,8 @@ export function createCoverageStore(db: Database): CoverageStore {
           attempts: 1,
           startedAt: claimedAt,
           cycleStartedAt: claimedAt,
+          // ROADMAP 3.4 (decisión 258, parte 2; D14b): arrendamiento con el reloj de la BASE DE DATOS.
+          leaseRenewedAt: sql`now()`,
           ...(presweepMark !== undefined ? { presweepRequestedAt: presweepMark } : {}),
         })
         .returning({ id: coverageJobs.id, cursor: coverageJobs.cursor });
@@ -120,6 +122,8 @@ export function createCoverageStore(db: Database): CoverageStore {
           status: 'running',
           startedAt: claimedAt,
           attempts: sql`${coverageJobs.attempts} + 1`,
+          // Reclamar un job existente también abre un arrendamiento nuevo (ver el INSERT de arriba).
+          leaseRenewedAt: sql`now()`,
           // Ciclo nuevo SOLO con cursor NULL (arranque limpio: job `done` o
           // refresco re-encolado); una reanudación (presupuesto agotado o
           // reintento con cursor) conserva el inicio del primer tick. En un

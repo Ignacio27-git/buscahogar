@@ -316,8 +316,25 @@ Dentro del proceso (`src/ops/`, orquestado por `worker-process.ts`; `scripts/cov
 - **Latido**: `HEARTBEAT_URL` opcional; GET tras un tick correcto como mucho cada `HEARTBEAT_MIN_INTERVAL_MS` (60 000), con tiempo límite de
   5 s, contado en el presupuesto de salidas del tick (`MAX_OUTBOUND_CALLS_PER_TICK`, 4); un fallo se registra y no es fatal.
 
-Salidas del worker: 0 parada limpia · 1 diez caídas seguidas o salida forzada · 2 configuración · 3 base inaccesible. Pendiente (S5b):
-recuperar los trabajos `running` que deja un `SIGKILL`.
+Salidas del worker: 0 parada limpia · 1 diez caídas seguidas o salida forzada · 2 configuración · 3 base inaccesible.
+
+#### Arrendamiento del job y recuperación de `running` abandonados (paso 3.4, S5b, decisión 258 parte 2)
+
+Un `SIGKILL`, un fallo del host o un OOM matan al worker sin parada ordenada y dejan su job en `running`, que ni la selección ni el reclamo
+tocan (protegen al worker vivo). La migración `0021` añade `coverage_jobs.lease_renewed_at` (nullable): `claimJob` lo fija con el reloj
+de la base de datos y cada avance de cursor de `persistPage` lo renueva en la misma transacción. En cada tick, antes de elegir trabajo (el
+primero es el arranque), `reclaimStaleRunningJobs` pasa a `failed` (`error = 'stale-running-reclaimed'`) los jobs `running` cuyo
+`coalesce(lease_renewed_at, started_at, requested_at)` supera `STALE_RUNNING_JOB_AFTER_MS` (900000 por defecto, mínimo 120000), como
+mucho 50 por pasada. Se conservan el cursor y `cycle_started_at` (se retoma donde quedó) y `attempts` ya incluye el intento del worker muerto,
+de modo que `COVERAGE_JOB_MAX_ATTEMPTS` (3) acota a un job que mata al worker. Cada pasada con resultados registra
+`stale-running-reclaimed count=N job_ids=… alert_key=stale-reclaim:<día UTC>` y llama al gancho de alerta (la alerta se envía en S6).
+
+- **Libro de cuota:** la recuperación no lo toca. La reserva del tick abortado queda sin conciliar: sobre-conteo, la dirección segura (decisión
+  248), acotado por `MAX_SEARCH_REQUESTS_PER_SWEEP` + `TOKEN_RESERVE` por incidente.
+- **Un solo worker (decisión 252):** con varios, un dueño lento podría terminar un job ya reclamado (benigno: `finishJob` fija el estado final).
+- **Privilegios:** sin cambios (`web_coverage` solo `INSERT` en `coverage_jobs`, a nivel de tabla; `web_readonly` solo `SELECT`).
+- **Respaldo manual:** el procedimiento de reclamación manual con SQL se documenta en el runbook, `docs/DEPLOYMENT.md`, apartado «Jobs
+  `running` atascados».
 
 Fuera del alcance: colas externas, Redis, caché distribuida, autenticación.
 

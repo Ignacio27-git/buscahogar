@@ -6814,8 +6814,8 @@ explícito en las URL directas.
 
 ## 258 — Worker en modo producción: JavaScript compilado, imagen propia, supervisión en proceso, parada ordenada y latido (parte 1; paso 3.4, S5a)
 
-**Estado:** aceptada (paso 3.4, S5a). La parte 2 (concesión de trabajo con `lease_renewed_at` y recuperación de trabajos `running` huérfanos)
-llega con S5b y se añade a esta misma decisión.
+**Estado:** aceptada (paso 3.4, S5a). La parte 2 (arrendamiento con `lease_renewed_at` y recuperación de trabajos `running` huérfanos)
+se añadió con S5b, al final de esta misma decisión.
 
 **Contexto.** El worker solo se ejecutaba con `tsx` y un `.env` local: sin imagen, sin código de salida con significado, sin registro
 estructurado, y una señal de parada que dejaba terminar el tick entero (un barrido puede encadenar muchas páginas facturables). Un host
@@ -6874,8 +6874,57 @@ llamadas por minuto contra el monitor sin necesidad. (f) `pino`: una dependencia
 
 **Consecuencias.** El worker puede ejecutarse en cualquier host con la imagen y una política de reinicio; el cierre cuesta como mucho una
 página ya pagada (no se repite: el cursor está confirmado) más el plazo configurado. La imagen no se prueba arrancando el worker con
-credenciales reales (cuota): la prueba de proceso usa un entorno vacío (configuración inválida, sin red ni base). Pendiente: S5b (recuperación
-de `running` tras un SIGKILL).
+credenciales reales (cuota): la prueba de proceso usa un entorno vacío (configuración inválida, sin red ni base). La recuperación de
+`running` tras un SIGKILL es la parte 2 (abajo).
+
+### Parte 2 — Arrendamiento del job y recuperación de `running` abandonados (S5b)
+
+**Estado:** aceptada (paso 3.4, S5b). Completa la parte 1: un `SIGKILL`, un fallo del host o un OOM matan al worker sin cierre ordenado y
+dejan su job en `running`; como `running` no es reclamable (`RECLAIMABLE_STATUSES`, protege al worker vivo), ese job quedaría
+inalcanzable para siempre.
+
+**Decisión.**
+
+1. **Arrendamiento.** Migración `0021`: `coverage_jobs.lease_renewed_at timestamptz`, NULLABLE. Lo fija el reloj de la BASE DE DATOS
+   (`now()`) en `claimJob` (inserción y reclamo de una fila existente) y se renueva en el `UPDATE` del cursor de `persistPage`, dentro de
+   la MISMA transacción que las filas de la página: si la página se revierte, el arrendamiento tampoco avanza. La última página (sin cursor
+   siguiente) no lo toca: la cierra `finishJob`. Relleno de las filas existentes en la propia migración: un job `running` recibe `now()`
+   (puede estar en manos de un worker vivo con el código anterior, que no renueva: así cuenta con el margen completo) y el resto, su última
+   actividad conocida (`finished_at`, o `started_at`); un job que nunca se intentó queda en NULL. La columna no cambia ningún privilegio:
+   `web_coverage` conserva `INSERT` a nivel de tabla en `coverage_jobs` y `web_readonly` solo `SELECT`; la matriz del `deploy` sigue
+   siendo la misma.
+2. **Recuperación.** `reclaimStaleRunningJobs(db, staleAfterMs, limit = 50)` (`apps/ingestion/src/sweep/stale-job-reclaim.ts`): una sola
+   sentencia que pasa a `failed` (`error = 'stale-running-reclaimed'`, `finished_at = now()`) los jobs `running` cuyo
+   `coalesce(lease_renewed_at, started_at, requested_at)` es más antiguo que `staleAfterMs` (reloj de Postgres), con corte explícito
+   (`LIMIT`, `FOR UPDATE SKIP LOCKED`, los más antiguos primero) y devolviendo los ids. El último recurso `requested_at` evita que una fila
+   `running` sin `started_at` (insertada a mano) sea inalcanzable.
+3. **A `failed`, no a `pending`.** Se conservan el cursor y `cycle_started_at`, así que la reselección retoma donde quedó sin repetir
+   páginas ya pagadas. `attempts` ya se incrementó al reclamar, de modo que `COVERAGE_JOB_MAX_ATTEMPTS` (3) acota a un job que mata al worker
+   una y otra vez: tras el tercer intento deja de ser seleccionable (`failed` con `attempts` al tope) y la web lo muestra como fallido sin
+   reintentos. Con `pending` no habría tope y la caída se repetiría sin fin (el mismo motivo por el que `budget-exhausted`, que no es un
+   fallo, no incrementa `attempts`).
+4. **Cuándo corre.** Puerto opcional `reclaimStaleJobs` del driver, invocado con `runIsolatedStep` al principio de CADA tick, tras la purga
+   de cuotas de cliente y antes de elegir trabajo; el primer tick es el arranque del worker. Aislado: una avería se registra y el tick sigue.
+5. **Evento y gancho de alerta.** Si se reclamó algún job, una línea de registro
+   `coverage-worker: stale-running-reclaimed count=N job_ids=a,b alert_key=stale-reclaim:<día UTC>` (solo ids, sin secretos) y el gancho
+   opcional `onStaleJobsReclaimed({ jobIds, alertKey })`, también aislado. `staleReclaimAlertKey(now)` fija la clave de deduplicación de la
+   alerta del día (decisión 259, D17); S6 implementa el envío y cablea el gancho. Sin gancho, solo se registra.
+6. **Libro de cuota.** La reclamación NO toca el registro de cuota (decisión 248): la reserva del tick abortado nunca se concilia, de modo que
+   el contador queda sobre-contado, en la dirección segura y acotado por `MAX_SEARCH_REQUESTS_PER_SWEEP` + `TOKEN_RESERVE` por incidente.
+   Reconciliar sería adivinar lo gastado; el exceso se corrige solo al cambiar el día/mes del registro.
+7. **Un solo worker (decisión 252).** La recuperación asume un único worker. Con varios, un dueño lento pero vivo podría ver su job
+   reclamado y terminarlo después; es benigno (`finishJob` fija el estado final) pero deja de ser un caso previsto.
+8. **Variable nueva** (worker, opcional, Zod en `readEnv`): `STALE_RUNNING_JOB_AFTER_MS`, 900000 por defecto y mínimo 120000: debe exceder
+   con holgura lo que tarda una página, o un worker vivo vería su job reclamado.
+
+**Alternativas descartadas.** (a) Devolverlo a `pending`: sin tope de intentos, un job que mata al worker lo mataría en bucle. (b) Una tabla
+de latidos por job: una tabla más para lo que ya cubre una columna actualizada en la transacción que hace el trabajo. (c) Dejarlo al
+operador con SQL manual: un SIGKILL en producción dejaría la cobertura de esa zona parada hasta que alguien lo viera (el SQL manual existe
+como respaldo en el runbook). (d) Conciliar la reserva del tick muerto: es adivinar lo gastado; se prefiere sobre-contar. (e) Reloj del
+proceso para el arrendamiento: el que reclama y el que renueva podrían tener relojes distintos; el de Postgres es el único común.
+
+**Consecuencias.** Un worker matado deja de ser un incidente manual: en 15 minutos (por defecto) su job vuelve a ser candidato con su
+cursor, como mucho 3 veces. La alerta del día y el runbook (SQL manual de reclamación) se completan en S6 y S8.
 
 ---
 

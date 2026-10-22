@@ -111,7 +111,25 @@ export interface PresenceVerificationPorts {
   applyPresence(result: PartitionedPresence): Promise<void>;
 }
 
+// ROADMAP 3.4 (decisión 258, parte 2; D14b) — evento de una pasada de recuperación que reclamó jobs `running`
+// abandonados. `alertKey` es la clave de deduplicación de la alerta del día (`stale-reclaim:<día UTC>`, D17).
+export interface StaleReclaimEvent {
+  readonly jobIds: readonly string[];
+  readonly alertKey: string;
+}
+
+export function staleReclaimAlertKey(now: Date): string {
+  return `stale-reclaim:${now.toISOString().slice(0, 10)}`;
+}
+
 export interface CoverageWorkerPorts {
+  // ROADMAP 3.4 (decisión 258, parte 2; D14b) — OPCIONAL: pasa a `failed` los jobs `running` cuyo arrendamiento
+  // caducó (worker matado sin cierre ordenado) y devuelve sus ids. Se invoca al arrancar y en cada tick, ANTES de
+  // elegir trabajo, aislada (`runIsolatedStep`). Ausente = sin recuperación (composiciones anteriores).
+  reclaimStaleJobs?(): Promise<readonly string[]>;
+  // Gancho OPCIONAL para la alerta del día (S6): se invoca solo si se reclamó algún job. Aislado: si lanza, se
+  // registra y el tick sigue.
+  onStaleJobsReclaimed?(event: StaleReclaimEvent): Promise<void>;
   selectNextJob(): Promise<PollJob | null>;
   resolveZoneGeometry(zoneId: string): Promise<ZoneGeometry>;
   failJob(jobId: string, reason: string): Promise<void>;
@@ -186,6 +204,9 @@ export interface CoverageWorkerOptions {
   // verificar presencia) y pasada al barrido para cerrarlo en el límite de página. Distinta de `shouldContinue`,
   // que solo se mira entre ticks. Ausente = nunca.
   readonly shouldStop?: () => boolean;
+  // ROADMAP 3.4 (decisión 258, parte 2): reloj para la clave de alerta de la recuperación (el driver no lee el
+  // reloj por su cuenta). Ausente = el reloj del proceso.
+  readonly now?: () => Date;
 }
 
 const DEFAULT_MAINTENANCE_EVERY_TICKS = 1;
@@ -260,6 +281,30 @@ async function runMaintenance(
   return { tombstoned: tombstone.ok ? tombstone.value : 0 };
 }
 
+// Recuperación de jobs abandonados (D14b): aislada. El evento va al registro como UNA línea con `clave=valor`
+// (greppable, sin secretos: solo ids de job) y, si la composición lo pide, al gancho de la alerta del día (S6).
+async function runStaleReclaim(ports: CoverageWorkerPorts, options: CoverageWorkerOptions): Promise<void> {
+  const reclaim = ports.reclaimStaleJobs?.bind(ports);
+  if (!reclaim) {
+    return;
+  }
+  const reclaimed = await runIsolatedStep(ports, 'recuperacion-de-jobs-atascados', reclaim);
+  if (!reclaimed.ok || reclaimed.value.length === 0) {
+    return;
+  }
+  const event: StaleReclaimEvent = {
+    jobIds: reclaimed.value,
+    alertKey: staleReclaimAlertKey(options.now?.() ?? new Date()),
+  };
+  ports.log(
+    `coverage-worker: stale-running-reclaimed count=${String(event.jobIds.length)} job_ids=${event.jobIds.join(',')} alert_key=${event.alertKey}`
+  );
+  const hook = ports.onStaleJobsReclaimed?.bind(ports);
+  if (hook) {
+    await runIsolatedStep(ports, 'alerta-de-jobs-atascados', () => hook(event));
+  }
+}
+
 interface SweepStepResult {
   readonly dirty: boolean;
   // Se seleccionó un job A DEMANDA en este tick (haya salido bien o no): la
@@ -279,6 +324,11 @@ async function runTick(
   // garantiza exactamente una vez por tick sin duplicar la comprobación en
   // cada punto de retorno.
   await ports.purgeClientQuota();
+
+  // ROADMAP 3.4 (decisión 258, parte 2; D14b): recuperar los jobs `running` abandonados ANTES de elegir trabajo,
+  // para que un job de un worker matado vuelva a ser candidato (con su cursor) en este mismo tick. El primer
+  // tick es el arranque del worker. No toca la cuota ni la fuente.
+  await runStaleReclaim(ports, options);
 
   // ROADMAP 2.5: mantenimiento en el primer tick y luego cada N ticks, ANTES
   // de elegir trabajo — así un refresco re-encolado ya es candidato en este

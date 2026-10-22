@@ -72,6 +72,7 @@ import type {
 import { markJobFailedWithoutClaim, selectNextClaimableJob } from './job-selection.js';
 import type { JobLane, PollJob } from './job-selection.js';
 import { buildReport } from './report.js';
+import { DEFAULT_STALE_RUNNING_JOB_AFTER_MS, reclaimStaleRunningJobs } from './stale-job-reclaim.js';
 import { runSweep } from './sweep-runner.js';
 
 export interface CoverageWorkerRealDeps {
@@ -100,6 +101,9 @@ export interface CoverageWorkerRealDeps {
   // ROADMAP 3.4 (decisión 258, D14): parada pedida (SIGTERM/SIGINT). Se pasa a `runSweep`, que cierra el barrido
   // en el límite de página con el desenlace `budget-exhausted`. Ausente = nunca.
   readonly shouldStop?: () => boolean;
+  // ROADMAP 3.4 (decisión 258, parte 2; D14b): antigüedad del arrendamiento que da un job `running` por
+  // abandonado. Ausente = 900000 ms.
+  readonly staleRunningJobAfterMs?: number;
   readonly io: ReprocessIo;
 }
 
@@ -226,6 +230,11 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
   return {
     maintenance,
     ...(verification ? { verification } : {}),
+    // ROADMAP 3.4 (decisión 258, parte 2; D14b): jobs `running` con el arrendamiento caducado -> `failed` (cursor
+    // y ciclo conservados; `maxAttempts` acota los reinicios). Corre al arrancar y en cada tick, antes de elegir.
+    reclaimStaleJobs(): Promise<readonly string[]> {
+      return reclaimStaleRunningJobs(deps.db, deps.staleRunningJobAfterMs ?? DEFAULT_STALE_RUNNING_JOB_AFTER_MS);
+    },
     selectNextJob(): Promise<PollJob | null> {
       return selectNextClaimableJob(deps.db, deps.maxAttempts);
     },

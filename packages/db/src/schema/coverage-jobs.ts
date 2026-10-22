@@ -59,6 +59,13 @@ export const coverageJobs = pgTable(
     // fija el reclamo del carril por lotes y la limpia el ciclo completado. Una
     // zona con demanda reciente promueve estos jobs al carril a demanda (PR4b).
     presweepRequestedAt: timestamp('presweep_requested_at', { withTimezone: true }),
+    // ROADMAP 3.4 (decisión 258, parte 2; D14b) — arrendamiento del job `running`: el reloj de la base de datos
+    // (`now()`) en el instante en que `claimJob` lo reclama y en cada avance de cursor de `persistPage` (misma
+    // transacción). Un worker matado sin cierre ordenado deja el job `running` para siempre; si el
+    // arrendamiento (o, sin él, `started_at`) supera `STALE_RUNNING_JOB_AFTER_MS`, `reclaimStaleRunningJobs` lo
+    // pasa a `failed`. NULLABLE: las filas previas a 0021 se rellenan en la migración y las que nunca se
+    // reclamaron no tienen arrendamiento.
+    leaseRenewedAt: timestamp('lease_renewed_at', { withTimezone: true }),
   },
   (table) => [
     index('coverage_jobs_status_requested_at_idx').on(table.status, table.requestedAt),

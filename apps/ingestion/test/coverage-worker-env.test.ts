@@ -198,3 +198,22 @@ describe('readEnv — MAX_OUTBOUND_CALLS_PER_TICK (D16, D17)', () => {
     expect(() => readEnv({ ...BASE_ENV, MAX_OUTBOUND_CALLS_PER_TICK: raw })).toThrow(/MAX_OUTBOUND_CALLS_PER_TICK/);
   });
 });
+
+describe('readEnv — STALE_RUNNING_JOB_AFTER_MS (decisión 258, D14b)', () => {
+  it('ausente: 900000 ms (15 minutos) por defecto', () => {
+    expect(readEnv(BASE_ENV).staleRunningJobAfterMs).toBe(900_000);
+  });
+
+  it('acepta el mínimo (120000) y valores mayores', () => {
+    expect(readEnv({ ...BASE_ENV, STALE_RUNNING_JOB_AFTER_MS: '120000' }).staleRunningJobAfterMs).toBe(120_000);
+    expect(readEnv({ ...BASE_ENV, STALE_RUNNING_JOB_AFTER_MS: '3600000' }).staleRunningJobAfterMs).toBe(3_600_000);
+  });
+
+  it.each([['119999'], ['0'], ['-5'], ['abc'], ['1.5'], ['']])(
+    '"%s" se rechaza con un error que nombra la variable y el mínimo',
+    (raw) => {
+      expect(() => readEnv({ ...BASE_ENV, STALE_RUNNING_JOB_AFTER_MS: raw })).toThrow(WorkerEnvError);
+      expect(() => readEnv({ ...BASE_ENV, STALE_RUNNING_JOB_AFTER_MS: raw })).toThrow(/STALE_RUNNING_JOB_AFTER_MS.*120000/);
+    }
+  );
+});
