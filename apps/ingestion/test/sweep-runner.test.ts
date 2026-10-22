@@ -229,3 +229,112 @@ describe('runSweep — arranca desde job.cursor cuando el trabajo reclamado trae
     expect(receivedCursor).toBe('premises:3');
   });
 });
+
+// ROADMAP 3.4 (decisión 258, D14; R6.2) — parada ordenada: con una parada pedida el barrido termina en el
+// LÍMITE DE PÁGINA con el desenlace `budget-exhausted` que ya existe (el job vuelve a `pending` con el cursor
+// confirmado y el presupuesto se reconcilia con lo gastado). Nunca se interrumpe una página a medias.
+describe('runSweep — shouldStop (parada en el límite de página)', () => {
+  it('con la parada pedida tras la primera página persiste esa página, no pide más y termina budget-exhausted con el cursor siguiente', async () => {
+    const store = createFakeStore();
+    const source = createScriptedSource([
+      { items: [fakeRawElement(1)], nextCursor: 'homes:2' },
+      { items: [fakeRawElement(2)], nextCursor: 'homes:3' },
+      { items: [fakeRawElement(3)] },
+    ]);
+    let stop = false;
+    // La señal llega mientras se pide la primera página (a mitad del barrido).
+    const stopAfterFirstFetch = (): boolean => {
+      stop = source.calls() >= 1;
+      return stop;
+    };
+
+    const result = await runSweep({
+      source,
+      normalizer,
+      store,
+      area: AREA,
+      job: { id: 'job-1' },
+      sourceUuid: 'src',
+      fingerprint: 'fp',
+      shouldStop: stopAfterFirstFetch,
+    });
+
+    expect(stop).toBe(true);
+    expect(result.outcome).toBe('budget-exhausted');
+    expect(result.resumeCursor).toBe('homes:2');
+    expect(source.calls()).toBe(1);
+    expect(store.persistCalls).toHaveLength(1);
+    expect(store.persistCalls[0]?.nextCursor).toBe('homes:2');
+    expect(store.finishCalls).toEqual([['job-1', { kind: 'budget-exhausted', resumeCursor: 'homes:2' }]]);
+  });
+
+  it('la parada se comprueba DESPUÉS de persistir: una página nunca queda a medias', async () => {
+    const store = createFakeStore();
+    const order: string[] = [];
+    const source = createScriptedSource([{ items: [fakeRawElement(1)], nextCursor: 'homes:2' }]);
+    const persist = store.persistPage.bind(store);
+    store.persistPage = async (input: PersistPageInput): Promise<PersistPageOutcome> => {
+      order.push('persist');
+      return persist(input);
+    };
+
+    await runSweep({
+      source,
+      normalizer,
+      store,
+      area: AREA,
+      job: { id: 'job-1' },
+      sourceUuid: 'src',
+      fingerprint: 'fp',
+      shouldStop: () => {
+        order.push('check');
+        return true;
+      },
+    });
+
+    expect(order).toEqual(['persist', 'check']);
+  });
+
+  it('una parada pedida durante la ÚLTIMA página no la degrada: el barrido se completa', async () => {
+    const store = createFakeStore();
+    const source = createScriptedSource([{ items: [fakeRawElement(1)] }]);
+
+    const result = await runSweep({
+      source,
+      normalizer,
+      store,
+      area: AREA,
+      job: { id: 'job-1' },
+      sourceUuid: 'src',
+      fingerprint: 'fp',
+      shouldStop: () => true,
+    });
+
+    expect(result.outcome).toBe('completed');
+    expect(store.finishCalls).toEqual([['job-1', { kind: 'completed' }]]);
+  });
+
+  it('sin parada pedida se comporta exactamente como antes (3 páginas, completed)', async () => {
+    const store = createFakeStore();
+    const source = createScriptedSource([
+      { items: [fakeRawElement(1)], nextCursor: 'homes:2' },
+      { items: [fakeRawElement(2)], nextCursor: 'homes:3' },
+      { items: [fakeRawElement(3)] },
+    ]);
+
+    const result = await runSweep({
+      source,
+      normalizer,
+      store,
+      area: AREA,
+      job: { id: 'job-1' },
+      sourceUuid: 'src',
+      fingerprint: 'fp',
+      shouldStop: () => false,
+    });
+
+    expect(result.outcome).toBe('completed');
+    expect(source.calls()).toBe(3);
+    expect(store.persistCalls).toHaveLength(3);
+  });
+});

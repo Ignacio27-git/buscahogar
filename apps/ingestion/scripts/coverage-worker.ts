@@ -8,12 +8,11 @@
 // (CR-1/CR-2: ese es exactamente el defecto que `runSweepZone` tendría si
 // se reutilizara entero para esto).
 //
-// Sin test dedicado — mismo precedente que `scripts/sweep-zone.ts:9-15` y
-// `scripts/reprocess-dedup.ts`: es el shell de orquestación de módulos que
-// YA están testeados por separado (coverage-worker.ts contra fakes,
-// coverage-worker-ports.ts contra PostgreSQL real con Idealista falso).
-// Cubrir ESTE fichero exigiría o bien red real o bien duplicar exactamente
-// lo que esas dos suites ya demuestran.
+// Sin test de proceso dedicado — mismo precedente que `scripts/sweep-zone.ts:9-15`: es el shell de
+// orquestación de módulos que YA están testeados por separado (coverage-worker.ts contra fakes,
+// coverage-worker-ports.ts contra PostgreSQL real con Idealista falso). ROADMAP 3.4 (decisión 258): la lógica
+// de PROCESO (códigos de salida, backoff, supervisor, apagado) se extrajo a `src/ops/worker-process.ts` y se
+// prueba allí contra una sesión falsa; `readEnv` se prueba en test/coverage-worker-env.test.ts.
 //
 // CR-1 (arbitraje, vinculante): `src/index.ts` es el barril del paquete, no
 // este entrypoint — ver el comentario que reemplaza su `main()` placeholder.
@@ -23,6 +22,17 @@ import { COVERAGE_JOB_MAX_ATTEMPTS, blockingThresholdsSchema } from '@buscahogar
 import { createDb } from '@buscahogar/db';
 import { z } from 'zod';
 
+import { createAbortableSleep } from '../src/ops/abortable-sleep.js';
+import { classifyWorkerEnv } from '../src/ops/env-warnings.js';
+import {
+  createHeartbeat,
+  DEFAULT_HEARTBEAT_MIN_INTERVAL_MS,
+  HEARTBEAT_TIMEOUT_MS,
+} from '../src/ops/heartbeat.js';
+import { createJsonLogger, describeError } from '../src/ops/json-logger.js';
+import { DEFAULT_MAX_OUTBOUND_CALLS_PER_TICK } from '../src/ops/outbound-budget.js';
+import { createShutdown } from '../src/ops/shutdown.js';
+import { runWorkerProcess } from '../src/ops/worker-process.js';
 import { createRealCoverageWorkerPorts } from '../src/sweep/coverage-worker-ports.js';
 import { runCoverageWorker } from '../src/sweep/coverage-worker.js';
 import type { CoverageWorkerOptions } from '../src/sweep/coverage-worker.js';
@@ -58,6 +68,13 @@ const EnvSchema = z.object({
   // Validadas más abajo; una cadena vacía se rechaza, no se trata como ausente.
   MAX_VERIFICATION_REQUESTS_PER_TICK: z.string().optional(),
   VERIFICATION_RADIUS_MARGIN_M: z.string().optional(),
+  // ROADMAP 3.4 (decisión 258; D14, D16): modo producción. Validadas más abajo (mensaje que nombra la
+  // variable, sin repetir su valor); una cadena vacía llega al validador, salvo HEARTBEAT_URL (en blanco = no
+  // configurada).
+  WORKER_STOP_GRACE_MS: z.string().optional(),
+  HEARTBEAT_URL: z.string().optional(),
+  HEARTBEAT_MIN_INTERVAL_MS: z.string().optional(),
+  MAX_OUTBOUND_CALLS_PER_TICK: z.string().optional(),
 });
 
 // ROADMAP 2.5 (refresh-retention-policy, S1; decisión 104, S-ZRS-18) —
@@ -109,6 +126,26 @@ function parseRefreshBudgetFraction(value: string | undefined): number {
   return parsed.data;
 }
 
+// Plazo (ms) entre la primera señal de parada y la salida forzada con código 1 (decisión 258, D14). Por debajo
+// del tiempo típico que un proveedor da antes del SIGKILL.
+const DEFAULT_WORKER_STOP_GRACE_MS = 8000;
+// Plazo para obtener una conexión del pool (sin él, una base que no responde dejaría la sonda colgada).
+const WORKER_DB_CONNECT_TIMEOUT_MS = 10_000;
+
+// Latido (D16): URL https opcional; mínimo entre intentos. El valor de la URL es secreto: nunca va en un mensaje.
+function parseHeartbeatUrl(value: string | undefined): string | undefined {
+  if (value === undefined || value.trim() === '') {
+    return undefined;
+  }
+  const parsed = z.url({ protocol: /^https$/, hostname: z.regexes.hostname }).safeParse(value.trim());
+  if (!parsed.success) {
+    throw new WorkerEnvError(
+      'HEARTBEAT_URL inválida: se espera una URL absoluta con esquema https y host (o déjala sin definir).'
+    );
+  }
+  return value.trim();
+}
+
 const DEFAULT_POLL_INTERVAL_MS = 15_000;
 const DEFAULT_MAX_SEARCH_REQUESTS_PER_SWEEP = 10;
 
@@ -119,6 +156,9 @@ export interface WorkerEnv {
   readonly options: CoverageWorkerOptions;
   // Margen (m) que la verificación suma al radio de la zona (S3).
   readonly verificationRadiusMarginM: number;
+  // Modo producción (decisión 258): plazo de parada ordenada y latido.
+  readonly stopGraceMs: number;
+  readonly heartbeat: { readonly url: string | undefined; readonly minIntervalMs: number };
   readonly blockingThresholds: ReturnType<typeof blockingThresholdsSchema.parse>;
 }
 
@@ -193,71 +233,140 @@ export function readEnv(env: Readonly<Record<string, string | undefined>>): Work
         raw.MAX_VERIFICATION_REQUESTS_PER_TICK !== undefined
           ? parsePositiveInteger('MAX_VERIFICATION_REQUESTS_PER_TICK', raw.MAX_VERIFICATION_REQUESTS_PER_TICK)
           : DEFAULT_MAX_VERIFICATION_REQUESTS_PER_TICK,
+      maxOutboundCallsPerTick:
+        raw.MAX_OUTBOUND_CALLS_PER_TICK !== undefined
+          ? parseNonNegativeInteger('MAX_OUTBOUND_CALLS_PER_TICK', raw.MAX_OUTBOUND_CALLS_PER_TICK)
+          : DEFAULT_MAX_OUTBOUND_CALLS_PER_TICK,
     },
     verificationRadiusMarginM:
       raw.VERIFICATION_RADIUS_MARGIN_M !== undefined
         ? parseNonNegativeInteger('VERIFICATION_RADIUS_MARGIN_M', raw.VERIFICATION_RADIUS_MARGIN_M)
         : DEFAULT_VERIFICATION_RADIUS_MARGIN_M,
+    stopGraceMs:
+      raw.WORKER_STOP_GRACE_MS !== undefined
+        ? parsePositiveInteger('WORKER_STOP_GRACE_MS', raw.WORKER_STOP_GRACE_MS)
+        : DEFAULT_WORKER_STOP_GRACE_MS,
+    heartbeat: {
+      url: parseHeartbeatUrl(raw.HEARTBEAT_URL),
+      minIntervalMs:
+        raw.HEARTBEAT_MIN_INTERVAL_MS !== undefined
+          ? parseNonNegativeInteger('HEARTBEAT_MIN_INTERVAL_MS', raw.HEARTBEAT_MIN_INTERVAL_MS)
+          : DEFAULT_HEARTBEAT_MIN_INTERVAL_MS,
+    },
   };
 }
 
-export async function main(): Promise<void> {
-  let env: WorkerEnv;
-  try {
-    env = readEnv(process.env);
-  } catch (error) {
-    console.log(error instanceof Error ? error.message : 'Variables de entorno inválidas.');
-    process.exitCode = 2;
-    return;
-  }
-
-  const { db, pool } = createDb(env.databaseUrl);
-
-  // R11: apagado ordenado. `running` se comprueba SIEMPRE al principio de
-  // cada tick (coverage-worker.ts::runCoverageWorker), nunca en mitad de
-  // uno — SIGINT/SIGTERM deja terminar el tick en curso, cierra el pool
-  // después, y no arranca ningún tick nuevo.
-  let running = true;
-  const stop = (signal: string): void => {
-    console.log(`coverage-worker: señal ${signal} recibida — terminando el tick en curso, sin arrancar uno nuevo.`);
-    running = false;
-  };
+// Composition root del PROCESO (decisión 258, ROADMAP 3.4). La lógica de proceso (configuración inválida, conexión
+// inicial con backoff, supervisor, códigos de salida) vive en `src/ops/worker-process.ts` y se prueba con una
+// sesión falsa; aquí solo se cablea lo real: señales, pool, puertos de Idealista, latido y registro JSON.
+//
+// Registro: UNA línea JSON por evento en la salida estándar (un solo flujo conserva el orden); sin secretos
+// (`createJsonLogger` sustituye los valores de `secretsOf`).
+// Códigos de salida: 0 parada limpia · 1 10 caídas seguidas o salida forzada (plazo / segunda señal) ·
+// 2 configuración inválida (tras 30 s de espera) · 3 base inaccesible tras el backoff de arranque.
+//
+// Devuelve el código de salida; `main` no llama a `process.exit` salvo en la salida forzada del apagado.
+export async function main(env: Readonly<Record<string, string | undefined>> = process.env): Promise<number> {
+  const log = createJsonLogger({
+    component: 'coverage-worker',
+    write: (line) => {
+      process.stdout.write(`${line}
+`);
+    },
+  });
+  const shutdown = createShutdown({
+    graceMs: DEFAULT_WORKER_STOP_GRACE_MS,
+    log,
+    exit: (code) => {
+      process.exit(code);
+    },
+  });
   process.on('SIGINT', () => {
-    stop('SIGINT');
+    shutdown.request('SIGINT');
   });
   process.on('SIGTERM', () => {
-    stop('SIGTERM');
+    shutdown.request('SIGTERM');
   });
 
-  try {
-    const sourceUuid = await resolveSourceUuid(db, 'idealista');
+  const sleep = createAbortableSleep(shutdown.signal);
 
-    const ports = createRealCoverageWorkerPorts({
-      db,
-      sourceUuid,
-      searchPort: createHttpSearchPort(),
-      tokenPort: createHttpTokenPort({ apiKey: env.apiKey, apiSecret: env.apiSecret }),
-      maxSearchRequestsPerSweep: env.options.maxSearchRequestsPerSweep,
-      maxAttempts: env.options.maxAttempts,
-      dailySearchCap: env.options.dailySearchCap,
-      refreshBudgetFraction: env.options.refreshBudgetFraction,
-      presenceVerification: { radiusMarginM: env.verificationRadiusMarginM },
-      blockingThresholds: env.blockingThresholds,
-      io: {
-        log: (line: string): void => {
-          console.log(line);
+  return runWorkerProcess<WorkerEnv>({
+    log,
+    shutdown,
+    sleep,
+    now: () => Date.now(),
+    loadConfig: () => readEnv(env),
+    secretsOf: (config) =>
+      [config.apiKey, config.apiSecret, config.databaseUrl, config.heartbeat.url].filter(
+        (value): value is string => value !== undefined
+      ),
+    warnings: classifyWorkerEnv(env),
+    createSession: (config) => {
+      const { db, pool } = createDb(config.databaseUrl, { connectionTimeoutMillis: WORKER_DB_CONNECT_TIMEOUT_MS });
+      // Sin este manejador, un error de un cliente ocioso (p. ej. reinicio de la base) sería una excepción no
+      // capturada y mataría el proceso.
+      pool.on('error', (error) => {
+        log.error('pool-error', { reason: describeError(error) });
+      });
+      // UNA instancia por sesión: el intervalo mínimo del latido sobrevive a los reinicios del supervisor.
+      const heartbeat = createHeartbeat({
+        url: config.heartbeat.url,
+        minIntervalMs: config.heartbeat.minIntervalMs,
+        timeoutMs: HEARTBEAT_TIMEOUT_MS,
+        fetchFn: (url, init) => fetch(url, init),
+        now: () => Date.now(),
+        log,
+      });
+      return {
+        probe: async (): Promise<void> => {
+          await pool.query('select 1');
         },
-      },
-    });
+        run: async (): Promise<void> => {
+          const sourceUuid = await resolveSourceUuid(db, 'idealista');
+          const ports = createRealCoverageWorkerPorts({
+            db,
+            sourceUuid,
+            searchPort: createHttpSearchPort(),
+            tokenPort: createHttpTokenPort({ apiKey: config.apiKey, apiSecret: config.apiSecret }),
+            maxSearchRequestsPerSweep: config.options.maxSearchRequestsPerSweep,
+            maxAttempts: config.options.maxAttempts,
+            dailySearchCap: config.options.dailySearchCap,
+            refreshBudgetFraction: config.options.refreshBudgetFraction,
+            presenceVerification: { radiusMarginM: config.verificationRadiusMarginM },
+            blockingThresholds: config.blockingThresholds,
+            shouldStop: () => shutdown.requested(),
+            io: {
+              log: (line: string): void => {
+                log.line(line);
+              },
+            },
+          });
 
-    await runCoverageWorker(ports, { ...env.options, shouldContinue: () => running });
-  } finally {
-    await pool.end();
-  }
+          // R11/D14: `shouldContinue` se mira entre ticks; `shouldStop`, dentro del tick y en cada límite de
+          // página del barrido. La espera del sondeo se interrumpe con la señal de apagado.
+          await runCoverageWorker(
+            {
+              ...ports,
+              sleep,
+              onTickSuccess: (budget) => heartbeat.afterSuccessfulTick(budget),
+            },
+            {
+              ...config.options,
+              shouldContinue: () => !shutdown.requested(),
+              shouldStop: () => shutdown.requested(),
+            }
+          );
+        },
+        close: () => pool.end(),
+      };
+    },
+  });
 }
 
 // Se ejecuta solo como entrypoint, nunca al importarlo desde un test — mismo
 // patrón que scripts/sweep-zone.ts.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  void main();
+  void main().then((code) => {
+    process.exitCode = code;
+  });
 }

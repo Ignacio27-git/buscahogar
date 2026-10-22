@@ -291,6 +291,34 @@ Salidas: 0 hecho (incluida una ejecución sin cambios: `0 migrations, roles unch
 fallido (nombrado), 2 configuración, 3 base inaccesible, 4 comprobación fallida. Una línea JSON por evento, sin secretos. Cada paso se
 puede repetir. `WEB_READONLY_ROLE` y `WEB_COVERAGE_ROLE` permiten otros nombres de rol (dos entornos en un servidor; pruebas).
 
+### Worker en producción (paso 3.4, S5a, decisión 258)
+
+El worker se ejecuta como JavaScript compilado (`pnpm --filter @buscahogar/ingestion build:runtime` →
+`dist-runtime/scripts/coverage-worker.js`) dentro de la imagen `apps/ingestion/Dockerfile`, que también ejecuta el despliegue con otro
+comando. Construcción: `docker compose --profile app build ingestion` (contexto: la raíz del monorepo). Etapa `build` con
+`node:22.23.4-bookworm-slim` y `pnpm@11.25.0` (`pnpm install --frozen-lockfile --filter "@buscahogar/ingestion..."`, compilación de
+`core`/`db`/`ingestion` y `pnpm deploy --legacy --prod`: pnpm 11 exige `--legacy` salvo con `inject-workspace-packages=true`); etapa final
+sin pnpm, `tsx` ni fuentes, como usuario `node`, `WORKDIR /app/apps/ingestion`. Compose no fija **política de reinicio** (es del host,
+paso 3.5), sí `init: true` y `stop_grace_period: 20s`.
+
+Dentro del proceso (`src/ops/`, orquestado por `worker-process.ts`; `scripts/coverage-worker.ts` solo cablea lo real y es el único lector de
+`process.env`):
+
+- **Registro**: una línea JSON por evento (`ts`, `level`, `component`, `msg` + campos) sin secretos (redacción de los valores
+  configurados).
+- **Arranque**: configuración inválida → `fatal`, espera de 30 s interrumpible, salida 2; conexión inicial con backoff 1 → 60 s y 8 intentos,
+  salida 3 si sigue inaccesible; avisos de producción (`HEARTBEAT_URL` sin definir) una vez.
+- **Supervisor**: caída inesperada → espera `min(1 s · 2^n, 300 s)`, cuenta que se reinicia tras 600 s estables, salida 1 a la décima
+  caída seguida.
+- **Parada** (SIGTERM/SIGINT): se interrumpen las esperas, no se arrancan ticks ni trabajo nuevo, y el barrido en curso termina **en el
+  límite de página** con el desenlace `budget-exhausted` (job a `pending`, cursor confirmado, presupuesto reconciliado). Plazo
+  `WORKER_STOP_GRACE_MS` (8000); vencido, o con una segunda señal, salida 1.
+- **Latido**: `HEARTBEAT_URL` opcional; GET tras un tick correcto como mucho cada `HEARTBEAT_MIN_INTERVAL_MS` (60 000), con tiempo límite de
+  5 s, contado en el presupuesto de salidas del tick (`MAX_OUTBOUND_CALLS_PER_TICK`, 4); un fallo se registra y no es fatal.
+
+Salidas del worker: 0 parada limpia · 1 diez caídas seguidas o salida forzada · 2 configuración · 3 base inaccesible. Pendiente (S5b):
+recuperar los trabajos `running` que deja un `SIGKILL`.
+
 Fuera del alcance: colas externas, Redis, caché distribuida, autenticación.
 
 ## Rendimiento

@@ -28,6 +28,8 @@ import type {
 } from '@buscahogar/core';
 import type { BudgetReservation, BudgetSnapshotLike, LedgerState, ZoneGeometry } from '@buscahogar/db';
 
+import { createOutboundBudget, DEFAULT_MAX_OUTBOUND_CALLS_PER_TICK } from '../ops/outbound-budget.js';
+import type { OutboundBudget } from '../ops/outbound-budget.js';
 import { areaFingerprint, buildArea } from './area.js';
 import { JobAlreadyClaimedError } from './coverage-store.js';
 import type { JobLane, PollJob } from './job-selection.js';
@@ -135,6 +137,10 @@ export interface CoverageWorkerPorts {
   readonly maintenance?: ZoneMaintenancePorts;
   // Opcional (ver `PresenceVerificationPorts`): ausente = sin verificación.
   readonly verification?: PresenceVerificationPorts;
+  // ROADMAP 3.4 (decisión 258, D16) — gancho OPCIONAL tras un tick que ha terminado sin lanzar (latido). Recibe
+  // el presupuesto de llamadas salientes de ESE tick. Aislado: si lanza, se registra y el worker sigue. Un tick
+  // que lanza nunca llega aquí.
+  onTickSuccess?(budget: OutboundBudget): Promise<void>;
   sleep(ms: number): Promise<void>;
   log(line: string): void;
 }
@@ -173,6 +179,13 @@ export interface CoverageWorkerOptions {
   // verificación por tick (un lote = una petición facturable). Cada verificación
   // reserva en el carril de refresco, así que también la acota el techo diario.
   readonly maxVerificationRequestsPerTick?: number;
+  // ROADMAP 3.4 (decisión 258, D16): tope de llamadas salientes por tick que reciben los ganchos (latido). Por
+  // defecto 4 (`MAX_OUTBOUND_CALLS_PER_TICK`).
+  readonly maxOutboundCallsPerTick?: number;
+  // ROADMAP 3.4 (decisión 258, D14): parada pedida, consultada DENTRO del tick (antes de elegir trabajo y de
+  // verificar presencia) y pasada al barrido para cerrarlo en el límite de página. Distinta de `shouldContinue`,
+  // que solo se mira entre ticks. Ausente = nunca.
+  readonly shouldStop?: () => boolean;
 }
 
 const DEFAULT_MAINTENANCE_EVERY_TICKS = 1;
@@ -282,7 +295,7 @@ async function runTick(
   // barrido, solo si no hubo trabajo a demanda y hay techo de gasto de refresco
   // (fracción > 0). Aislada: una avería nunca aborta el tick.
   const verification = ports.verification;
-  if (verification && !sweep.onDemandSelected && (options.refreshBudgetFraction ?? 0) > 0) {
+  if (verification && !sweep.onDemandSelected && (options.refreshBudgetFraction ?? 0) > 0 && !stopRequested(options)) {
     await runIsolatedStep(ports, 'verificacion-de-presencia', () =>
       runPresenceVerification(ports, verification, options)
     );
@@ -295,7 +308,16 @@ async function runTick(
   return { dirty: sweep.dirty || tombstoned > 0 };
 }
 
+// ROADMAP 3.4 (decisión 258, D14): con una parada pedida no se arranca trabajo facturable nuevo en lo que
+// queda del tick (el barrido en curso se cierra en el límite de página, sweep-runner.ts).
+function stopRequested(options: CoverageWorkerOptions): boolean {
+  return options.shouldStop?.() === true;
+}
+
 async function runSweepStep(ports: CoverageWorkerPorts, options: CoverageWorkerOptions): Promise<SweepStepResult> {
+  if (stopRequested(options)) {
+    return { dirty: false, onDemandSelected: false, idle: false };
+  }
   const job = await ports.selectNextJob();
   if (!job) {
     return { dirty: false, onDemandSelected: false, idle: true };
@@ -440,6 +462,13 @@ export async function runCoverageWorker(ports: CoverageWorkerPorts, options: Cov
     // ticks, nunca dentro de la transacción del barrido.
     if (dirty) {
       await ports.runDedup();
+    }
+
+    // D16: el tick terminó sin lanzar. Un presupuesto de salida NUEVO por tick; aislado.
+    const onTickSuccess = ports.onTickSuccess?.bind(ports);
+    if (onTickSuccess) {
+      const budget = createOutboundBudget(options.maxOutboundCallsPerTick ?? DEFAULT_MAX_OUTBOUND_CALLS_PER_TICK);
+      await runIsolatedStep(ports, 'latido', () => onTickSuccess(budget));
     }
   }
 }

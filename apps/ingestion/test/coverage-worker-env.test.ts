@@ -126,3 +126,75 @@ describe('readEnv — OPERATION retirada (decisión 252)', () => {
     expect(Object.keys(env.options)).not.toContain('operation');
   });
 });
+
+// ROADMAP 3.4 (decisión 258, D14, D16; R6.2, R6.5) — variables del modo producción: plazo de parada, latido y
+// tope de llamadas salientes por tick. Todas opcionales y con valor por defecto documentado; un valor inválido
+// falla al arrancar nombrando la variable (NF3), nunca repitiendo su valor (la URL del latido es secreta).
+describe('readEnv — WORKER_STOP_GRACE_MS (D14)', () => {
+  it('ausente: 8000 ms por defecto', () => {
+    expect(readEnv(BASE_ENV).stopGraceMs).toBe(8000);
+  });
+
+  it.each([
+    ['1000', 1000],
+    ['25000', 25_000],
+  ])('"%s" es válida (%d ms)', (raw, expected) => {
+    expect(readEnv({ ...BASE_ENV, WORKER_STOP_GRACE_MS: raw }).stopGraceMs).toBe(expected);
+  });
+
+  it.each([['0'], ['-5'], ['abc'], ['1.5'], ['']])('"%s" se rechaza nombrando la variable', (raw) => {
+    expect(() => readEnv({ ...BASE_ENV, WORKER_STOP_GRACE_MS: raw })).toThrow(WorkerEnvError);
+    expect(() => readEnv({ ...BASE_ENV, WORKER_STOP_GRACE_MS: raw })).toThrow(/WORKER_STOP_GRACE_MS/);
+  });
+});
+
+describe('readEnv — HEARTBEAT_URL / HEARTBEAT_MIN_INTERVAL_MS (D16)', () => {
+  it('ausentes: sin latido y mínimo de 60 000 ms', () => {
+    const env = readEnv(BASE_ENV);
+
+    expect(env.heartbeat).toEqual({ url: undefined, minIntervalMs: 60_000 });
+  });
+
+  it('una URL https válida se conserva tal cual', () => {
+    const env = readEnv({ ...BASE_ENV, HEARTBEAT_URL: 'https://hc-ping.example/abc-123?x=1' });
+
+    expect(env.heartbeat.url).toBe('https://hc-ping.example/abc-123?x=1');
+  });
+
+  it('una URL en blanco equivale a no configurada', () => {
+    expect(readEnv({ ...BASE_ENV, HEARTBEAT_URL: '   ' }).heartbeat.url).toBeUndefined();
+  });
+
+  it.each([['http://hc-ping.example/abc'], ['hc-ping.example/abc'], ['ftp://x.example/'], ['https://']])(
+    '"%s" se rechaza nombrando la variable y sin repetir su valor',
+    (raw) => {
+      expect(() => readEnv({ ...BASE_ENV, HEARTBEAT_URL: raw })).toThrow(WorkerEnvError);
+      expect(() => readEnv({ ...BASE_ENV, HEARTBEAT_URL: raw })).toThrow(/HEARTBEAT_URL/);
+      expect(() => readEnv({ ...BASE_ENV, HEARTBEAT_URL: raw })).not.toThrow(new RegExp(raw.replace(/[.*+?^${}()|[\]\/]/g, '\$&')));
+    }
+  );
+
+  it('el intervalo mínimo acepta 0 (un latido por tick) y enteros positivos', () => {
+    expect(readEnv({ ...BASE_ENV, HEARTBEAT_MIN_INTERVAL_MS: '0' }).heartbeat.minIntervalMs).toBe(0);
+    expect(readEnv({ ...BASE_ENV, HEARTBEAT_MIN_INTERVAL_MS: '120000' }).heartbeat.minIntervalMs).toBe(120_000);
+  });
+
+  it.each([['-1'], ['x'], ['1.5'], ['']])('el intervalo "%s" se rechaza nombrando la variable', (raw) => {
+    expect(() => readEnv({ ...BASE_ENV, HEARTBEAT_MIN_INTERVAL_MS: raw })).toThrow(/HEARTBEAT_MIN_INTERVAL_MS/);
+  });
+});
+
+describe('readEnv — MAX_OUTBOUND_CALLS_PER_TICK (D16, D17)', () => {
+  it('ausente: 4 por defecto', () => {
+    expect(readEnv(BASE_ENV).options.maxOutboundCallsPerTick).toBe(4);
+  });
+
+  it('acepta 0 (sin llamadas salientes) y enteros positivos', () => {
+    expect(readEnv({ ...BASE_ENV, MAX_OUTBOUND_CALLS_PER_TICK: '0' }).options.maxOutboundCallsPerTick).toBe(0);
+    expect(readEnv({ ...BASE_ENV, MAX_OUTBOUND_CALLS_PER_TICK: '6' }).options.maxOutboundCallsPerTick).toBe(6);
+  });
+
+  it.each([['-1'], ['many'], ['2.5'], ['']])('"%s" se rechaza nombrando la variable', (raw) => {
+    expect(() => readEnv({ ...BASE_ENV, MAX_OUTBOUND_CALLS_PER_TICK: raw })).toThrow(/MAX_OUTBOUND_CALLS_PER_TICK/);
+  });
+});

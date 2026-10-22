@@ -5,6 +5,7 @@
 **/node_modules
 **/.next
 **/dist
+**/dist-runtime
 **/*.tsbuildinfo
 
 # Credenciales y entorno local: nunca entran en una imagen.

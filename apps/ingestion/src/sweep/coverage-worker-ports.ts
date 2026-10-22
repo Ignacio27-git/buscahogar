@@ -97,6 +97,9 @@ export interface CoverageWorkerRealDeps {
     readonly radiusMarginM: number;
   };
   readonly blockingThresholds: BlockingThresholds;
+  // ROADMAP 3.4 (decisión 258, D14): parada pedida (SIGTERM/SIGINT). Se pasa a `runSweep`, que cierra el barrido
+  // en el límite de página con el desenlace `budget-exhausted`. Ausente = nunca.
+  readonly shouldStop?: () => boolean;
   readonly io: ReprocessIo;
 }
 
@@ -314,6 +317,7 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
         job: claimed,
         sourceUuid: job.sourceId,
         fingerprint,
+        ...(deps.shouldStop ? { shouldStop: deps.shouldStop } : {}),
       });
 
       // Mismo formato que runSweepZone (R2): el informe es la evidencia de

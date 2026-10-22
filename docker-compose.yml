@@ -43,8 +43,8 @@ services:
   # docs/ARCHITECTURE.md, pero durante el desarrollo NO se levantan con Docker: se
   # ejecutan en local con `pnpm dev:web` y `pnpm dev:ingestion`, y solo la base de datos
   # corre en contenedor. Por eso quedan fuera del perfil por defecto: `docker compose
-  # up -d` levanta solo db. Todavía no existe ningún Dockerfile; se construirán con
-  # `docker compose --profile app up` cuando existan.
+  # up -d` levanta solo db. `ingestion` ya tiene Dockerfile (apps/ingestion/Dockerfile, paso 3.4 S5a);
+  # `web` se construirá con `docker compose --profile app up` cuando exista el suyo.
   web:
     profiles: ['app']
     build:
@@ -95,6 +95,14 @@ services:
     build:
       context: .
       dockerfile: apps/ingestion/Dockerfile
+    # Paso 3.4 (decisión 258) — worker en modo producción: JavaScript compilado, usuario no root. SIN política
+    # de reinicio a propósito: la política (y el cierre ordenado) pertenece al host y se fija en el paso 3.5; el
+    # worker ya se supervisa a sí mismo (backoff, salida 1 tras 10 caídas seguidas, 2 config, 3 base inaccesible).
+    # `init` recoge huérfanos y reenvía SIGTERM; `stop_grace_period` debe superar WORKER_STOP_GRACE_MS (8 s por
+    # defecto): primero el worker cierra el barrido en el límite de página (o sale 1 al vencer su plazo) y solo
+    # después Docker enviaría SIGKILL.
+    init: true
+    stop_grace_period: 20s
     # Las credenciales de escritura y las de las fuentes viven solo aquí.
     # `web` (arriba) recibe una `environment:` propia y acotada, nunca este
     # `env_file` completo (docs/DECISIONS.md, decisión 056).

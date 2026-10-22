@@ -6812,6 +6812,73 @@ explícito en las URL directas.
 
 ---
 
+## 258 — Worker en modo producción: JavaScript compilado, imagen propia, supervisión en proceso, parada ordenada y latido (parte 1; paso 3.4, S5a)
+
+**Estado:** aceptada (paso 3.4, S5a). La parte 2 (concesión de trabajo con `lease_renewed_at` y recuperación de trabajos `running` huérfanos)
+llega con S5b y se añade a esta misma decisión.
+
+**Contexto.** El worker solo se ejecutaba con `tsx` y un `.env` local: sin imagen, sin código de salida con significado, sin registro
+estructurado, y una señal de parada que dejaba terminar el tick entero (un barrido puede encadenar muchas páginas facturables). Un host
+gestionado da unos segundos entre SIGTERM y SIGKILL, y un `SIGKILL` deja el trabajo en `running` (S5b).
+
+**Decisión.**
+
+1. **JavaScript compilado.** `tsconfig.runtime.json` pasa a compilar también `scripts/coverage-worker.ts` →
+   `dist-runtime/scripts/coverage-worker.js`. La imagen no lleva `tsx` ni fuentes TypeScript.
+2. **Imagen `apps/ingestion/Dockerfile`** (contexto: la raíz del monorepo), multi-etapa y agnóstica del host. Etapa `build`: `node:22.23.4-bookworm-slim`
+   (etiqueta EXACTA, la misma en las dos etapas; satisface `engines`), `pnpm@11.25.0` (la de `packageManager`), `pnpm fetch` +
+   `pnpm install --frozen-lockfile --offline --filter "@buscahogar/ingestion..."` (no se instala `apps/web`), compilación de `core` y `db` y de
+   `build:runtime`, y `pnpm deploy --legacy --prod`. **`--legacy` es obligatorio**: pnpm 11 solo despliega sin él desde workspaces con
+   `inject-workspace-packages=true` (`ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE`, comprobado en la construcción real); activarlo cambiaría el
+   enlazado de todo el desarrollo y el lockfile. Etapa final: solo `package.json`, `node_modules` (producción, con `core` y `db` compilados y
+   las `migrations` y `sql` de `db`) y `dist-runtime`; usuario `node` (no root), `NODE_ENV=production`,
+   `WORKDIR /app/apps/ingestion`, `CMD ["node", "dist-runtime/scripts/coverage-worker.js"]`. El servicio `deploy` (decisión 257) usa la **misma
+   imagen** con otro comando. `.dockerignore` excluye `**/dist-runtime` del host. `docker-compose.yml`: `ingestion` se construye desde ese
+   Dockerfile, sigue en el perfil `app`, con `init: true` y `stop_grace_period: 20s`, y **sin política de reinicio**: la fija el host en el
+   paso 3.5 (con `restart: on-failure` o equivalente; la salida 2 espera 30 s antes de salir justamente para que ese reinicio no sea un bucle
+   caliente).
+3. **Registro JSON** (`createJsonLogger`, sin dependencias): una línea por evento `{ts, level, component, msg, ...}` en la salida estándar. Los
+   registros de prosa que ya emitían los módulos del worker pasan por `log.line` como eventos `info`. Los valores secretos de la configuración
+   (claves de Idealista, URL de la base, URL del latido) se sustituyen por `[redacted]` en cualquier mensaje, y `describeError` elimina
+   credenciales incrustadas en URL de conexión. Nunca se registran objetos de error ni configuración.
+4. **Supervisión en proceso** (`runSupervised`): una excepción inesperada de `runCoverageWorker` se registra (`fatal`/`error`), espera
+   `min(1 s · 2^n, 300 s)` (interrumpible) y reintenta; la cuenta de caídas seguidas se reinicia si la ejecución aguantó ≥ 600 s; a la décima
+   caída consecutiva el proceso sale con 1 (la política de reinicio del host es la segunda línea). La conexión inicial reintenta con backoff
+   1 → 60 s y 8 intentos y, si la base sigue inaccesible, sale con 3. Una configuración inválida registra un `fatal`, espera 30 s (interrumpible)
+   y sale con 2. **Códigos de salida del worker:** 0 parada limpia · 1 diez caídas seguidas o salida forzada (plazo vencido / segunda señal) ·
+   2 configuración inválida · 3 base inaccesible.
+5. **Parada ordenada.** La primera señal (SIGTERM/SIGINT) interrumpe las esperas (sondeo, backoff) y pide parar; el bucle no arranca ticks
+   nuevos, y dentro del tick no se elige trabajo nuevo ni se verifica presencia. El barrido en curso se cierra en el **límite de página**:
+   `runSweep` consulta `shouldStop` DESPUÉS de persistir cada página (cursor incluido, en su misma transacción) y, si el barrido no ha
+   terminado, usa el desenlace `budget-exhausted` que ya existía (job a `pending` con el cursor confirmado, `attempts` ya contado al reclamar,
+   presupuesto reconciliado con lo realmente gastado). Una parada pedida durante la última página no la degrada: el barrido se completa. El
+   plazo `WORKER_STOP_GRACE_MS` (8000 por defecto, por debajo de los pocos segundos que da un proveedor) arranca con la primera señal; si vence,
+   registro `fatal` y salida 1. La segunda señal sale con 1 al instante. El plazo se cancela en TODOS los caminos de salida limpia (un
+   `finally` único): la prueba con el proceso real encontró que, en la ruta de configuración inválida, el plazo seguía armado y convertía una
+   salida 2 en una salida 1 a los 8 s.
+6. **Latido** (dead-man's-switch). `HEARTBEAT_URL` (https, opcional; en blanco = no configurada): tras un tick que terminó sin lanzar y SOLO si han
+   pasado ≥ `HEARTBEAT_MIN_INTERVAL_MS` (60 000 por defecto; 0 = uno por tick) desde el último INTENTO (también el fallido), un GET con tiempo
+   límite de 5 s y sin seguir redirecciones. Cada ping toma una plaza del `OutboundBudget` del tick (`MAX_OUTBOUND_CALLS_PER_TICK`, 4 por
+   defecto; si no queda ninguna no llama y no gasta el intervalo). Un fallo (red, HTTP, tiempo) se registra como `warn` y nunca es fatal; la
+   URL no se registra jamás. Un tick que lanza no emite latido. El presupuesto de salida lo compartirá Telegram en S6.
+7. **Avisos de producción** (`classifyWorkerEnv`, solo nombres y motivos fijos): `HEARTBEAT_URL` sin definir se registra UNA vez al arrancar como
+   `warn`. S8 generaliza el clasificador (`env:check --target production`).
+8. **Variables nuevas del worker** (todas opcionales, validadas con Zod en `readEnv`): `WORKER_STOP_GRACE_MS`, `HEARTBEAT_URL`,
+   `HEARTBEAT_MIN_INTERVAL_MS`, `MAX_OUTBOUND_CALLS_PER_TICK`.
+
+**Alternativas descartadas.** (a) `tsx` en producción: arrastra el compilador y las fuentes a la imagen y arranca más lento. (b) Activar
+`inject-workspace-packages`: cambia todo el desarrollo para resolver un detalle de la imagen. (c) Solo política de reinicio del host: un
+fallo de configuración o de base sería un bucle caliente sin diagnóstico. (d) Dejar terminar el tick entero al recibir SIGTERM: puede
+superar con mucho el plazo del proveedor y acabar en SIGKILL con el trabajo en `running`. (e) Latido en cada tick sin intervalo mínimo: cuatro
+llamadas por minuto contra el monitor sin necesidad. (f) `pino`: una dependencia más para una línea JSON.
+
+**Consecuencias.** El worker puede ejecutarse en cualquier host con la imagen y una política de reinicio; el cierre cuesta como mucho una
+página ya pagada (no se repite: el cursor está confirmado) más el plazo configurado. La imagen no se prueba arrancando el worker con
+credenciales reales (cuota): la prueba de proceso usa un entorno vacío (configuración inválida, sin red ni base). Pendiente: S5b (recuperación
+de `running` tras un SIGKILL).
+
+---
+
 ## 261 — Teselas del mapa configurables: plantilla, host de la CSP y atribución desde una sola configuración (enmienda la 112)
 
 **Estado:** aceptada (paso 3.4, S2). Decisiones de producto PD6 y PD11 del propietario. Enmienda la 112 y la regla de `CLAUDE.md` sobre la

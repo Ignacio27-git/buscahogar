@@ -1,7 +1,7 @@
 {
   // Compilación para PRODUCCIÓN (ROADMAP 3.4, decisión 257, D13): JavaScript ejecutable con `node`, sin `tsx`
   // en la imagen. Parte de los puntos de entrada y sigue sus importaciones (`src/**` que usan), así que solo se
-  // emite lo alcanzable. El despliegue es el primero; el worker se añade en el paso S5a.
+  // emite lo alcanzable: el despliegue (S4, decisión 257) y el worker de cobertura (S5a, decisión 258).
   // Salida: dist-runtime/scripts/*.js y dist-runtime/src/**.
   "extends": "./tsconfig.json",
   "compilerOptions": {
@@ -11,6 +11,6 @@
     "declarationMap": false,
     "sourceMap": false
   },
-  "include": ["scripts/deploy.ts"],
+  "include": ["scripts/deploy.ts", "scripts/coverage-worker.ts"],
   "exclude": ["node_modules", "dist", "dist-runtime", "test"]
 }

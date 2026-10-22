@@ -583,3 +583,133 @@ describe('createRealCoverageWorkerPorts — carril de refresco (ROADMAP 2.5, S1)
     expect(zone?.state).toBe('uncovered');
   });
 });
+
+// ROADMAP 3.4 (decisión 258, D14; R6.2) — parada ordenada con los puertos REALES: con una parada pedida a mitad
+// del barrido, `runSweep` cierra en el LÍMITE DE PÁGINA con el desenlace `budget-exhausted` ya existente (job a
+// `pending` con el cursor confirmado, presupuesto reconciliado con lo gastado) y el siguiente arranque reanuda
+// desde ese cursor sin repetir la página ya pagada.
+describe('createRealCoverageWorkerPorts — parada ordenada en el límite de página (ROADMAP 3.4, decisión 258)', () => {
+  let db: Database;
+  let pool: Pool;
+
+  beforeAll(() => {
+    ({ db, pool } = connectTestDb());
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  beforeEach(async () => {
+    await truncateAll(pool);
+  });
+
+  function buildPorts(
+    sourceUuid: string,
+    searchPort: IdealistaSearchPort,
+    shouldStop?: () => boolean
+  ): ReturnType<typeof createRealCoverageWorkerPorts> {
+    return createRealCoverageWorkerPorts({
+      db,
+      sourceUuid,
+      searchPort,
+      tokenPort: createFakeTokenPort(),
+      maxSearchRequestsPerSweep: 4,
+      maxAttempts: 3,
+      dailySearchCap: 500,
+      blockingThresholds: BLOCKING_THRESHOLDS,
+      ...(shouldStop ? { shouldStop } : {}),
+      io: { log: (): void => undefined },
+    });
+  }
+
+  const OPTIONS: CoverageWorkerOptions = {
+    pollIntervalMs: 1,
+    maxSearchRequestsPerSweep: 4,
+    dailySearchCap: 500,
+    maxAttempts: 3,
+    maxTicks: 1,
+  };
+
+  async function dailySpent(): Promise<number> {
+    const { rows } = await db.execute<{ total: number }>(
+      sql`select coalesce(sum(search_requests), 0)::integer as total from daily_request_budget`
+    );
+    return rows[0]?.total ?? 0;
+  }
+
+  it('la parada pedida durante la primera página cierra el barrido tras ella: job pending con cursor, una sola petición reconciliada', async () => {
+    const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
+    const sourceId = await insertSourceWithQuota(db);
+    await db.insert(coverageJobs).values({ zoneId, sourceId, operation: 'sale', status: 'pending' });
+    const inner = createNeverExhaustingSearchPort();
+    let stop = false;
+    const searchPort: IdealistaSearchPort = {
+      search(...args): Promise<TransportOutcome> {
+        // La señal llega mientras se pide la primera página.
+        stop = true;
+        return inner.search(...args);
+      },
+    };
+
+    await runCoverageWorker(buildPorts(sourceId, searchPort, () => stop), {
+      ...OPTIONS,
+      shouldContinue: () => !stop,
+      shouldStop: () => stop,
+    });
+
+    expect(inner.calls).toBe(1);
+    const [job] = await db.select().from(coverageJobs).where(eq(coverageJobs.zoneId, zoneId));
+    expect(job?.status).toBe('pending');
+    expect(job?.cursor).not.toBeNull();
+    expect(job?.attempts).toBe(1);
+    expect(job?.finishedAt).toBeNull();
+    // La primera página quedó persistida (2 anuncios), con su cursor en la misma transacción.
+    expect(await db.select().from(listings)).toHaveLength(2);
+    // El presupuesto se reconcilió con lo gastado (1 petición), no con las 4 reservadas.
+    expect(await dailySpent()).toBe(1);
+  });
+
+  it('el siguiente arranque reanuda desde ese cursor: no repite la primera página y termina el barrido hasta su tope', async () => {
+    const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
+    const sourceId = await insertSourceWithQuota(db);
+    await db.insert(coverageJobs).values({ zoneId, sourceId, operation: 'sale', status: 'pending' });
+    let stop = false;
+    const first = createNeverExhaustingSearchPort();
+    await runCoverageWorker(
+      buildPorts(
+        sourceId,
+        {
+          search(...args): Promise<TransportOutcome> {
+            stop = true;
+            return first.search(...args);
+          },
+        },
+        () => stop
+      ),
+      { ...OPTIONS, shouldContinue: () => !stop, shouldStop: () => stop }
+    );
+    const [paused] = await db.select().from(coverageJobs).where(eq(coverageJobs.zoneId, zoneId));
+    const cursorBefore = paused?.cursor;
+
+    const second = createNeverExhaustingSearchPort();
+    await runCoverageWorker(buildPorts(sourceId, second), OPTIONS);
+
+    expect(cursorBefore).not.toBeNull();
+    expect(second.calls).toBe(4);
+    const [resumed] = await db.select().from(coverageJobs).where(eq(coverageJobs.zoneId, zoneId));
+    expect(resumed?.cursor).not.toBe(cursorBefore);
+    expect(resumed?.attempts).toBe(2);
+  });
+
+  it('sin parada pedida, el mismo barrido llega a su tope por barrido (control: shouldStop no altera el flujo normal)', async () => {
+    const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
+    const sourceId = await insertSourceWithQuota(db);
+    await db.insert(coverageJobs).values({ zoneId, sourceId, operation: 'sale', status: 'pending' });
+    const searchPort = createNeverExhaustingSearchPort();
+
+    await runCoverageWorker(buildPorts(sourceId, searchPort, () => false), { ...OPTIONS, shouldStop: () => false });
+
+    expect(searchPort.calls).toBe(4);
+  });
+});
