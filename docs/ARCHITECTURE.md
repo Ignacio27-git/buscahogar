@@ -239,7 +239,12 @@ días son una elección del proyecto y viven como constantes en `policy.ts`.
   vista (`view=map`), ROADMAP 2.6.
 - Vista de mapa (2.6): el servidor calcula los puntos (máximo 500) y el recuento; un único envoltorio
   de cliente carga Leaflet con `next/dynamic` y dibuja en el navegador (decisiones 113-119). Las
-  teselas de OpenStreetMap las descarga el navegador, no el servidor (decisión 112).
+  teselas las descarga el navegador, no el servidor (decisión 112). Desde el paso 3.4 la plantilla de
+  teselas, el host de la CSP y la atribución salen de `TILE_URL_TEMPLATE`/`TILE_ATTRIBUTION`
+  (`lib/tile-config.ts`, decisión 261): OpenStreetMap por defecto, o un proveedor propio https con un
+  único host y, si hace falta, una clave **publicable** restringida por dominio en la consulta (llega
+  a todos los navegadores; nunca un secreto). El servidor las pasa al mapa como props. La CSP se evalúa
+  al compilar: en Vercel un cambio exige redesplegar.
 - Búsqueda en lenguaje natural (3.1): `interpretSearchText` (`core`, función pura y determinista)
   convierte la frase en una `NlSearchInterpretation`, que se valida con el mismo `searchQuerySchema`
   que los filtros. La rama `?q=` de `page.tsx` solo interpreta y muestra el resultado en un formulario
@@ -302,7 +307,15 @@ Fuera del alcance: colas externas, Redis, caché distribuida, autenticación.
 - Cabeceras de seguridad y política de contenido: CSP estática sin nonces + conjunto OWASP
   (HSTS, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors 'none'`/
   `X-Frame-Options: DENY`, COOP, CORP, sin COEP) vía `headers()` en `next.config.ts`; sin
-  `X-Powered-By`. `img-src` admite el host de teselas de OpenStreetMap (decisión 112).
+  `X-Powered-By`. `img-src` admite UN solo host de teselas: el del proveedor configurado, OpenStreetMap
+  por defecto (decisiones 112 y 261).
+- Salud (paso 3.4, S2): `GET /api/health` hace `select 1` con la credencial de solo lectura y un plazo
+  de 1 s; responde `{"status":"ok"}` (200) o `{"status":"degraded"}` (503), sin ningún otro campo, sin
+  caché y sin llamadas externas. El proxy no la limita (decisión 255).
+- Indexación (decisión 262): `SITE_INDEXING` apagado por defecto. Apagado, `robots.txt` con
+  `Disallow: /`, `noindex, nofollow` en las páginas y `/sitemap.xml` con 404; encendido (con
+  `SITE_URL`), se permite el rastreo y el mapa del sitio expone la home y las páginas legales. Se
+  resuelve al compilar en Vercel.
 - Módulos de `apps/web/src/server` con handles de base de datos o secretos guardados con
   `import 'server-only'`, para que un import accidental desde código de cliente falle en build.
 - Secretos en variables de entorno, fuera del control de versiones.

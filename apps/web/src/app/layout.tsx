@@ -4,16 +4,24 @@ import type { ReactElement, ReactNode } from 'react';
 import { SHELL_CONTAINER } from '@/components/shell-container';
 import { SiteHeader } from '@/components/site-header';
 import { figtree } from '@/fonts/figtree';
+import { readSiteIndexing } from '@/server/env';
 import { THEME_INIT_SCRIPT } from '@/server/theme-preference';
 
 import './globals.css';
 
-export const metadata: Metadata = {
-  // D.5 (decisión 148): la home usa `default`; las páginas hijas rellenan `%s`.
-  title: { default: 'Buscahogar', template: '%s · Buscahogar' },
-  description:
-    'Busca vivienda en un solo sitio: reúne anuncios de varias fuentes, agrupa los que son la misma vivienda y muestra su precio más bajo.',
-};
+// ROADMAP 3.4 (decisión 262, PD7): `generateMetadata` en lugar de `metadata` estático porque `robots`
+// depende del interruptor `SITE_INDEXING`. Apagado (por defecto), todas las páginas llevan
+// `<meta name="robots" content="noindex, nofollow">`. Encendido no se declara nada. En Vercel se resuelve
+// al compilar.
+export function generateMetadata(): Metadata {
+  return {
+    // D.5 (decisión 148): la home usa `default`; las páginas hijas rellenan `%s`.
+    title: { default: 'Buscahogar', template: '%s · Buscahogar' },
+    description:
+      'Busca vivienda en un solo sitio: reúne anuncios de varias fuentes, agrupa los que son la misma vivienda y muestra su precio más bajo.',
+    ...(readSiteIndexing().enabled ? {} : { robots: { index: false, follow: false } }),
+  };
+}
 
 // ROADMAP 1.13 (diseño A-3, DD-24) — atribución CC-BY/IGN, obligación legal
 // bajo Orden FOM/2807/2015, no una cortesía. Vive en el footer de

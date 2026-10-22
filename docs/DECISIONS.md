@@ -3446,7 +3446,9 @@ con cambiar las constantes de `policy.ts`; las purgas reciben los números por p
 
 ## 112 — CSP: `img-src` admite el host de teselas de OpenStreetMap; atribución «© OpenStreetMap» enlazada
 
-**Estado:** aceptada. Enmienda la decisión 080 (`img-src`). La 179 mueve el literal del host a `lib/osm-tiles.ts`.
+**Estado:** aceptada. Enmienda la decisión 080 (`img-src`). La 179 mueve el literal del host a `lib/osm-tiles.ts`. **Enmendada por la 261**
+(paso 3.4): el host de teselas es el del proveedor configurado, OpenStreetMap por defecto; el literal del host por defecto vive ahora en
+`lib/tile-config.ts`.
 
 **Decisión.** `img-src` pasa a `'self' blob: data: https://tile.openstreetmap.org`; ninguna otra
 directiva cambia y no se añade `connect-src`. La plantilla de teselas es
@@ -6745,6 +6747,78 @@ agota conexiones. (3) Un pool por defecto de 10: con el pooler delante no aporta
 
 **Consecuencias.** Si una consulta futura de `apps/web` necesitara estado de sesión, la prueba estática falla y obliga a reabrir esta decisión.
 La aceptación real de las URL del pooler y los tamaños de pool se verifican al aprovisionar (paso 3.5).
+
+---
+
+## 261 — Teselas del mapa configurables: plantilla, host de la CSP y atribución desde una sola configuración (enmienda la 112)
+
+**Estado:** aceptada (paso 3.4, S2). Decisiones de producto PD6 y PD11 del propietario. Enmienda la 112 y la regla de `CLAUDE.md` sobre la
+única excepción del lado del navegador.
+
+**Contexto.** La 112 fijó el host de teselas de OpenStreetMap en `img-src`. Las teselas estándar de OSM no admiten uso intensivo ni comercial
+(política de uso de teselas); un sitio en producción necesitará un proveedor propio sin tocar código. El host debe poder cambiar sin que la CSP,
+la plantilla y la atribución se desincronicen.
+
+**Decisión.**
+
+1. **Una configuración, tres consumidores** (`apps/web/src/lib/tile-config.ts`, `parseTileConfig`): variables de servidor `TILE_URL_TEMPLATE` y
+   `TILE_ATTRIBUTION` (nunca `NEXT_PUBLIC_*`), validadas con Zod. Sin definir, las teselas estándar de OpenStreetMap con su atribución (ODbL),
+   exactamente como antes (NF5). La plantilla alimenta el lienzo del mapa y el mapa estático de la ficha; el origen alimenta `img-src`;
+   la atribución alimenta el control de Leaflet y el pie del servidor.
+2. **Validación de la plantilla.** Debe ser `https`, tener un único host (sin `{s}` ni comodines), sin credenciales (`usuario:clave@`) ni
+   fragmento, contener `{z}`, `{x}` e `{y}` y ningún otro marcador. **Puede llevar una cadena de consulta con parámetros literales**: una clave
+   **publicable y restringida por dominio** del proveedor (PD11). Esa clave llega a todos los navegadores, así que **nunca** puede ser un
+   secreto; está documentado y es responsabilidad del propietario configurarla restringida por dominio. La cadena de consulta no entra en la CSP.
+3. **Atribución.** Con proveedor propio `TILE_ATTRIBUTION` es obligatoria: texto plano, no vacío, sin marcado, hasta 200 caracteres. Se pinta
+   escapada (en servidor como nodo de texto; en Leaflet, escapada a HTML); el único enlace es el de OpenStreetMap, fijado en código. Definir
+   `TILE_ATTRIBUTION` con la plantilla por defecto se rechaza: la atribución de OSM (ODbL) no se sustituye mientras se usen sus teselas.
+4. **CSP.** `img-src 'self' blob: data: <origen configurado>`: el origen del parser, sin ruta ni consulta. Sigue habiendo UN solo host de teselas, sin
+   `connect-src` y sin comodines. Una variable inválida hace fallar `headers()`, así que el arranque o la compilación no continúan.
+5. **El navegador sigue pidiendo las teselas directamente** (la excepción de la 112 se conserva): el servidor de `apps/web` solo lee
+   configuración y construye URLs; no descarga ni proxea nada. La regla de `CLAUDE.md` se reescribe: el host de teselas es el del proveedor
+   configurado (OSM por defecto), sigue siendo solo del lado del navegador y sigue siendo el único host externo de `img-src`.
+6. **Cuándo se evalúa.** `headers()` (CSP) se evalúa al compilar. En Vercel las variables deben existir en el build y un cambio exige
+   **redesplegar**; las páginas que leen la configuración en el servidor también quedan fijadas por el despliegue.
+7. **Privacidad.** El proveedor de teselas recibe la IP de cada visitante; la página de privacidad (S3, decisión 263) lo declara.
+
+**Alternativas descartadas.** (1) `NEXT_PUBLIC_*` para la plantilla: mezcla configuración de servidor con la de cliente y expone el valor en el
+bundle por convención, no por necesidad. (2) Proxy de teselas del mismo origen: es una llamada externa desde `apps/web`, contra la regla de
+`CLAUDE.md` (ya descartado en la 112). (3) Atribución como HTML libre en la variable: una variable de entorno mal copiada se convertiría en
+inyección de marcado; el texto plano escapado cierra esa vía. (4) Permitir `http` o `{s}`: amplían la CSP a varios hosts o a tráfico sin
+cifrar. (5) Rechazar toda cadena de consulta: impediría los proveedores que autentican por clave publicable en la URL.
+
+**Consecuencias.** Un proveedor mal configurado no arranca en vez de romper el mapa en silencio. La clave publicable es visible en las
+peticiones de cada navegador (por diseño). El proveedor de teselas y sus condiciones de uso se confirman en el paso 3.5.
+
+---
+
+## 262 — Interruptor de indexación: apagado por defecto, `robots`, `noindex` y mapa del sitio con 404
+
+**Estado:** aceptada (paso 3.4, S2). Decisión de producto PD7 del propietario.
+
+**Contexto.** El sitio puede desplegarse en producción antes de que el propietario haya revisado las condiciones de las fuentes (Idealista,
+entre otras) para mostrar sus datos a buscadores. Indexar por accidente no se puede deshacer bien.
+
+**Decisión.**
+
+1. **`SITE_INDEXING`** (`true`/`false`, apagado si no se define o está vacía; otro valor es un error de arranque) y **`SITE_URL`** (solo un
+   origen `http(s)`, sin credenciales, ruta, consulta ni fragmento; obligatoria si `SITE_INDEXING=true`, porque el mapa del sitio lleva URLs
+   absolutas). Validadas con Zod en `lib/site-indexing.ts`.
+2. **Apagado:** `robots.txt` con `User-agent: *` / `Disallow: /`, `<meta name="robots" content="noindex, nofollow">` en todas las páginas (desde
+   `generateMetadata` del layout) y **`/sitemap.xml` responde 404**. No se usa `sitemap.ts` devolviendo una lista vacía, porque sería un 200 que
+   anuncia un sitio sin páginas; por eso el mapa del sitio es un manejador de ruta (`app/sitemap.xml/route.ts`).
+3. **Encendido:** `robots.txt` permite el rastreo salvo `/api/` y `/theme`, anuncia el mapa del sitio, y `/sitemap.xml` devuelve XML
+   (`buildSitemapXml`, función pura) con la home y las tres páginas legales (S3). El contenido fino (fichas, zonas) queda fuera de alcance.
+4. **Cuándo se evalúa.** `robots.ts`, el mapa del sitio y los metadatos se resuelven al compilar en Vercel: cambiar el interruptor exige
+   redesplegar.
+5. **Antes de encenderlo** (paso 3.5): confirmar las condiciones de las fuentes para mostrar y permitir indexar sus datos.
+
+**Alternativas descartadas.** (1) Solo `robots.txt`: no impide que una URL enlazada desde fuera se indexe sin contenido; `noindex` sí.
+(2) `sitemap.ts` con lista vacía: 200 engañoso. (3) `notFound()` dentro de una ruta de metadatos: no verificado en Next 16.3.4; el
+manejador de ruta devuelve el 404 explícitamente. (4) Encendido por defecto: el riesgo es asimétrico.
+
+**Consecuencias.** No se añade `X-Robots-Tag`: los recursos no HTML (imágenes de `/_next/image`) podrían indexarse si alguien los enlaza; es un
+riesgo menor y se revisa al encender el interruptor.
 
 ---
 

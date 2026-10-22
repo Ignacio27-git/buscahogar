@@ -39,6 +39,7 @@ export * from './visibility.js';
 export * from './presence-checks.js';
 export * from './coverage.js';
 export * from './bind-parameters.js';
+export * from './ping.js';
 export { createDb, type Database, type DbPoolOptions } from './db.js';
 
 export const DB_VERSION = '0.0.1';

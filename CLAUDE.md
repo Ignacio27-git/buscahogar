@@ -12,9 +12,10 @@ Consúltalos antes de proponer cambios estructurales.
 contra nuestra base de datos. Las fuentes se consultan solo desde `apps/ingestion`, de
 forma programada o mediante un `coverage_job`. Si una propuesta implica que el servidor de
 `apps/web` llame a una API o fuente de datos externa, es incorrecta. Única excepción del lado
-del navegador: las teselas del mapa, que el navegador pide directamente a OpenStreetMap (decisión
-112). No son una fuente de anuncios, no pasan por nuestro servidor y la CSP solo admite ese host en
-`img-src`.
+del navegador: las teselas del mapa, que el navegador pide directamente al proveedor configurado
+(OpenStreetMap por defecto; `TILE_URL_TEMPLATE`, decisiones 112 y 261). No son una fuente de
+anuncios, no pasan por nuestro servidor y la CSP solo admite ese host de teselas en `img-src` (además
+de `'self'`, `blob:` y `data:`).
 
 **La cuota de la API de Idealista es limitada y mensual.** Cualquier código que pagine
 debe tener corte explícito. Un bucle mal cerrado agota la cuota del mes. Nunca llamar a

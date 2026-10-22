@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import RootLayout, { metadata } from '../src/app/layout.js';
+import RootLayout, { generateMetadata } from '../src/app/layout.js';
 
 const SRC_DIR = fileURLToPath(new URL('../src', import.meta.url));
 const MARKER = 'MARCADOR-DE-HIJOS';
@@ -126,6 +126,9 @@ describe('Contenedor (R6)', () => {
 });
 
 describe('Metadatos raíz (page-metadata R1)', () => {
+  // ROADMAP 3.4 (decisión 262): los metadatos son función porque `robots` depende de `SITE_INDEXING`.
+  const metadata = generateMetadata();
+
   it('el título es exactamente default + plantilla', () => {
     expect(metadata.title).toEqual({ default: 'Buscahogar', template: '%s · Buscahogar' });
   });

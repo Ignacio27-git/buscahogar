@@ -26,6 +26,7 @@ import type { MapPointView } from '@/components/search-map-types';
 import { SearchTextForm } from '@/components/search-text-form';
 import { SortPresets } from '@/components/sort-presets';
 import { StepIndicator } from '@/components/step-indicator';
+import { TileAttribution } from '@/components/tile-attribution';
 import { scopeEmptyResultsFilters, selectEmptyResultsKind } from '@/lib/empty-results';
 import { formatPriceCents } from '@/lib/format-price';
 import { PLACE_SUGGESTION_LIMIT, classifyPlaceMatches } from '@/lib/place-match';
@@ -45,9 +46,11 @@ import {
   rejectedParamKeys,
 } from '@/lib/search-labels';
 import { pickSearchReturnParams } from '@/lib/search-return-params';
+import { toMapTiles } from '@/lib/tile-config';
 import { resolveCoverageClientLimit } from '@/server/coverage-client';
 import { getCoverageDb } from '@/server/coverage-db';
 import { getDb } from '@/server/db';
+import { readTileConfig } from '@/server/env';
 import { resolveCoverageForZone, resolveNewZonesDailyCap } from '@/server/coverage';
 import { recordZoneQuerySignalSafely } from '@/server/query-signal';
 
@@ -413,6 +416,10 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
   const toggleShown = view === 'map' || results.length > 0 || total > 0;
   const noticesShown = coverageSection !== null || polygonEmpty || toggleShown;
 
+  // ROADMAP 3.4 (decisión 261): plantilla de teselas y atribución, resueltas aquí (servidor) y entregadas al
+  // lienzo de cliente como props; el servidor solo lee configuración, nunca pide teselas (R8).
+  const tileConfig = readTileConfig();
+
   return (
     <>
       {/* D.13b: los grupos de la cabecera comparten un ritmo vertical (gap de 1rem).
@@ -504,6 +511,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
               polygon={criteria.polygon ?? null}
               baseParams={rawSearchParams}
               keyboardHelpId={MAP_KEYBOARD_HELP_ID}
+              tiles={toMapTiles(tileConfig)}
             />
             <noscript>
               <p>El mapa interactivo necesita JavaScript.</p>
@@ -529,7 +537,7 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
           </div>
           {/* SMV-9 (ODbL): atribución también en el HTML del servidor. */}
           <p>
-            © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>
+            <TileAttribution attribution={tileConfig.attribution} />
           </p>
         </section>
       </div>

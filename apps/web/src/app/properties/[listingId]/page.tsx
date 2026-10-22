@@ -30,6 +30,7 @@ import { countActiveSources } from '@/lib/count-active-sources';
 import type { RawSearchParams } from '@/lib/search-href';
 import { resolveSearchReturnLink } from '@/lib/search-return';
 import { getDb } from '@/server/db';
+import { readTileConfig } from '@/server/env';
 import { loadPropertyHeader } from '@/server/property-header';
 
 interface PropertyDetailPageProps {
@@ -121,7 +122,7 @@ export default async function PropertyDetailPage(props: PropertyDetailPageProps)
         <SourceList sources={sources} />
       </div>
       <PriceHistory observations={priceHistory} />
-      <PropertyLocation property={header} />
+      <PropertyLocation property={header} tiles={readTileConfig()} />
       <PropertyDescription description={header.description} />
     </div>
   );

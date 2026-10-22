@@ -2,17 +2,22 @@
 // `'use client'`, sin JavaScript, sin atributos `style` (la CSP no los admite) y sin
 // zoom ni arrastre. El servidor solo calcula URLs de teselas y un círculo (`planStaticMap`,
 // en `packages/core`): las teselas las pide el navegador (R8). Excepción acotada a R2: este
-// es el único fichero con la etiqueta nativa de imagen, y solo para teselas de OSM.
+// es el único fichero con la etiqueta nativa de imagen, y solo para teselas del proveedor
+// configurado (OpenStreetMap por defecto; decisión 261, `lib/tile-config.ts`).
 // Sin punto, cruz ni marca en el centro: el radio de 500 m es lo que dice la verdad.
 import type { ReactElement } from 'react';
 
 import { APPROXIMATE_LOCATION_RADIUS_M, planStaticMap } from '@buscahogar/core';
 import type { PropertyDetailHeader } from '@buscahogar/db';
 
+import { TileAttribution } from '@/components/tile-attribution';
 import { osmTileUrl } from '@/lib/osm-tiles';
+import type { TileConfig } from '@/lib/tile-config';
 
 export interface PropertyLocationProps {
   readonly property: Pick<PropertyDetailHeader, 'lat' | 'lon' | 'municipality'>;
+  // ROADMAP 3.4 (decisión 261): plantilla y atribución del proveedor de teselas, leídas en el servidor.
+  readonly tiles: TileConfig;
 }
 
 const ZOOM = 14;
@@ -25,7 +30,7 @@ function mapLabel(municipality: string | null): string {
   return `Mapa con el área aproximada de la vivienda: un círculo de unos ${String(APPROXIMATE_LOCATION_RADIUS_M)} m de radio${place}.`;
 }
 
-export function PropertyLocation({ property }: PropertyLocationProps): ReactElement | null {
+export function PropertyLocation({ property, tiles }: PropertyLocationProps): ReactElement | null {
   const { lat, lon, municipality } = property;
   const hasPoint = lat !== null && lon !== null;
   if (!hasPoint && municipality === null) {
@@ -52,10 +57,10 @@ export function PropertyLocation({ property }: PropertyLocationProps): ReactElem
             <div className="location-map__tiles">
               {plan.tiles.map((tile) => {
                 return (
-                  // eslint-disable-next-line @next/next/no-img-element -- decisión 179: teselas OSM pedidas por el navegador (R8)
+                  // eslint-disable-next-line @next/next/no-img-element -- decisiones 179 y 261: teselas pedidas por el navegador (R8)
                   <img
                     key={`${String(tile.x)}/${String(tile.y)}`}
-                    src={osmTileUrl(tile)}
+                    src={osmTileUrl(tile, tiles.urlTemplate)}
                     alt=""
                     width={256}
                     height={256}
@@ -93,7 +98,7 @@ export function PropertyLocation({ property }: PropertyLocationProps): ReactElem
             </svg>
             <span>Ubicación aproximada</span>
             <span>
-              © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>
+              <TileAttribution attribution={tiles.attribution} />
             </span>
           </figcaption>
         </figure>

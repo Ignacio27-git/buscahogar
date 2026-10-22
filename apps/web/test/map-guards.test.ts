@@ -10,15 +10,17 @@ import { describe, expect, it } from 'vitest';
 const SRC_DIR = fileURLToPath(new URL('../src/', import.meta.url));
 
 const TILE_HOST = 'tile.openstreetmap.org';
-const ATTRIBUTION_LITERAL = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 const COPYRIGHT_LINK = 'https://www.openstreetmap.org/copyright';
 
 // Rutas exactas relativas a `src/`.
 const CANVAS = 'components/search-map-canvas.tsx';
 const WRAPPER = 'components/search-map.tsx';
-// D.11 (decisión 179): el host de teselas vive en un único módulo que importan
-// el lienzo interactivo y el mapa estático de la ficha.
-const TILE_MODULE = 'lib/osm-tiles.ts';
+// D.11 (decisión 179) y ROADMAP 3.4 (decisión 261): el host de teselas por defecto y la atribución de
+// OpenStreetMap viven en un único módulo, `lib/tile-config.ts`; `lib/osm-tiles.ts` solo rellena la
+// plantilla que recibe. El lienzo interactivo y el mapa estático reciben la configuración como props.
+const TILE_MODULE = 'lib/tile-config.ts';
+const TILE_FILL_MODULE = 'lib/osm-tiles.ts';
+const TILE_ATTRIBUTION_COMPONENT = 'components/tile-attribution.tsx';
 // D.8a (decisión 165): hoja de reglas propia del mapa, sin literales de color.
 const MAP_STYLESHEET = 'components/search-map-canvas.css';
 const DRAW_STATE = 'components/draw-polygon-state.ts';
@@ -76,7 +78,7 @@ describe('ficheros del mapa — sin HTML de cadena y sin fetch (SMV-6, SMV-12)',
   });
 });
 
-describe('host de teselas — solo en lib/osm-tiles.ts (SMV-9, decisiones 112 y 179)', () => {
+describe('host de teselas — solo en lib/tile-config.ts (SMV-9, decisiones 112, 179 y 261)', () => {
   it('ningún otro fichero de src/ contiene el host de teselas', () => {
     const tileModuleAbsolute = `${SRC_DIR}${TILE_MODULE}`;
     for (const file of collectSourceFiles(SRC_DIR)) {
@@ -87,48 +89,53 @@ describe('host de teselas — solo en lib/osm-tiles.ts (SMV-9, decisiones 112 y 
     }
   });
 
-  it('el módulo de teselas SÍ contiene la plantilla https', () => {
+  it('el módulo de configuración SÍ contiene la plantilla https por defecto', () => {
     expect(read(TILE_MODULE)).toContain(`https://${TILE_HOST}/{z}/{x}/{y}.png`);
   });
 
-  it('el canvas importa la plantilla del módulo y la pasa a la <TileLayer>', () => {
+  it('el canvas recibe la plantilla y la atribución por props y las pasa a la <TileLayer>', () => {
     const source = read(CANVAS);
-    expect(source).toMatch(/import \{[^}]*\bOSM_TILE_URL_TEMPLATE\b[^}]*\} from '@\/lib\/osm-tiles'/);
-    expect(source).toContain('<TileLayer url={OSM_TILE_URL_TEMPLATE}');
+    expect(source).toContain('<TileLayer url={tiles.urlTemplate} attribution={tiles.attributionHtml}');
+    expect(source).not.toMatch(/from '@\/lib\/tile-config'|from '@\/lib\/osm-tiles'/);
   });
 
-  it('el mapa estático de la ficha importa osmTileUrl del módulo de teselas', () => {
-    expect(read(STATIC_MAP)).toMatch(/import \{[^}]*\bosmTileUrl\b[^}]*\} from '@\/lib\/osm-tiles'/);
-  });
-
-  it('el módulo de teselas no usa fetch ni HTML de cadena', () => {
-    const source = read(TILE_MODULE);
-    expect(source).not.toMatch(/\bfetch\s*\(/);
-    expect(source).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML/);
-  });
-});
-
-describe('atribución OSM — literal y enlace de copyright (SMV-9, decisión 112)', () => {
-  it('el canvas contiene el literal "© OpenStreetMap" enlazado a la página de copyright', () => {
-    const source = read(CANVAS);
-    expect(source).toContain(ATTRIBUTION_LITERAL);
-    expect(source).toContain(COPYRIGHT_LINK);
-  });
-
-  it('el marcado de servidor de la sección de mapa contiene el literal y el enlace', () => {
-    const source = read(SERVER_MARKUP);
-    expect(source).toContain('© ');
-    expect(source).toContain('OpenStreetMap');
-    expect(source).toContain(COPYRIGHT_LINK);
-  });
-});
-
-describe('atribución OSM del mapa estático de la ficha (D.11, decisión 179)', () => {
-  it('contiene el literal "© OpenStreetMap" y el enlace exacto de copyright', () => {
+  it('el mapa estático de la ficha importa osmTileUrl del módulo de relleno y recibe la configuración', () => {
     const source = read(STATIC_MAP);
-    expect(source).toContain('© ');
-    expect(source).toContain('OpenStreetMap');
-    expect(source).toContain(`href="${COPYRIGHT_LINK}"`);
+    expect(source).toMatch(/import \{[^}]*\bosmTileUrl\b[^}]*\} from '@\/lib\/osm-tiles'/);
+    expect(source).toContain('osmTileUrl(tile, tiles.urlTemplate)');
+  });
+
+  it('los módulos de teselas no usan fetch ni HTML de cadena', () => {
+    for (const relative of [TILE_MODULE, TILE_FILL_MODULE]) {
+      const source = read(relative);
+      expect(source, relative).not.toMatch(/\bfetch\s*\(/);
+      expect(source, relative).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML/);
+    }
+  });
+});
+
+describe('atribución OSM — literal y enlace de copyright (SMV-9, decisiones 112 y 261)', () => {
+  it('el módulo de configuración contiene el crédito de OpenStreetMap enlazado a la página de copyright', () => {
+    const source = read(TILE_MODULE);
+    expect(source).toContain("label: 'OpenStreetMap'");
+    expect(source).toContain(COPYRIGHT_LINK);
+  });
+
+  it('el marcado de servidor de la sección de mapa pinta la atribución de la configuración', () => {
+    const source = read(SERVER_MARKUP);
+    expect(source).toContain('<TileAttribution attribution={tileConfig.attribution} />');
+  });
+
+  it('el componente de atribución enlaza solo el href de la configuración', () => {
+    const source = read(TILE_ATTRIBUTION_COMPONENT);
+    expect(source).toContain('attribution.href');
+    expect(source).not.toMatch(/dangerouslySetInnerHTML/);
+  });
+});
+
+describe('atribución del mapa estático de la ficha (D.11, decisiones 179 y 261)', () => {
+  it('pinta la atribución con el componente compartido', () => {
+    expect(read(STATIC_MAP)).toContain('<TileAttribution attribution={tiles.attribution} />');
   });
 });
 

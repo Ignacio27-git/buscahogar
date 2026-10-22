@@ -11,6 +11,11 @@
 // ficheros originales, sin cambios).
 import { z } from 'zod';
 
+import { parseSiteIndexing } from '../lib/site-indexing';
+import type { SiteIndexing } from '../lib/site-indexing';
+import { parseTileConfig } from '../lib/tile-config';
+import type { TileConfig } from '../lib/tile-config';
+
 export class MissingDatabaseUrlError extends Error {}
 export class MissingCoverageDatabaseUrlError extends Error {}
 export class MissingNewZonesDailyCapError extends Error {}
@@ -122,4 +127,16 @@ export function readClientLimitConfig(): ClientLimitConfig | null {
     proxyMax: proxyMaxResult.data,
     proxyWindowSeconds: proxyWindowResult.data,
   };
+}
+
+// ROADMAP 3.4 (decisión 261, PD6/PD11): configuración de teselas validada con Zod en `lib/tile-config.ts`.
+// Se lee en el momento de la llamada, como el resto; inválida, lanza `InvalidTileConfigError` (500 en la
+// página, error de arranque en `next.config.ts`).
+export function readTileConfig(): TileConfig {
+  return parseTileConfig(process.env);
+}
+
+// ROADMAP 3.4 (decisión 262, PD7): interruptor de indexación (apagado por defecto).
+export function readSiteIndexing(): SiteIndexing {
+  return parseSiteIndexing(process.env);
 }

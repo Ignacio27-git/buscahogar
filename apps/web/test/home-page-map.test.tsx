@@ -5,7 +5,7 @@
 // cobertura y `<SearchMap/>` sustituidos por dobles: ninguna prueba toca una
 // base de datos, la red ni Leaflet.
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { formatPriceCents } from '../src/lib/format-price.js';
 
@@ -572,6 +572,49 @@ describe('vista de mapa — puntos, avisos y atribución (SMV-5..SMV-9)', () => 
       /<a [^>]*href="\/\?view=map&amp;operation=sale"[^>]*>[\s\S]*?Zona dibujada/
     );
     expect(html).not.toContain('Quitar zona dibujada');
+  });
+});
+
+// ROADMAP 3.4 (decisión 261, PD6/PD11): la plantilla de teselas y la atribución las decide el servidor a
+// partir de la configuración y llegan al lienzo de cliente como props serializables; el pie del mapa
+// renderizado en servidor lleva la misma atribución.
+describe('vista de mapa — configuración de teselas (decisión 261)', () => {
+  function tilesPropsOf(html: string): { tiles: { urlTemplate: string; attributionHtml: string } } {
+    const match = /data-props="([^"]*)"/.exec(html);
+    const raw = (match?.[1] ?? '')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&amp;', '&');
+    return JSON.parse(raw) as { tiles: { urlTemplate: string; attributionHtml: string } };
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('por defecto: SearchMap recibe la plantilla y la atribución de OpenStreetMap', async () => {
+    mapResult(3);
+    const html = await render({ view: 'map' });
+    const props = tilesPropsOf(html);
+    expect(props.tiles).toEqual({
+      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      attributionHtml: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    });
+  });
+
+  it('con proveedor propio: SearchMap recibe su plantilla y la atribución escapada, y el pie la repite', async () => {
+    vi.stubEnv('TILE_URL_TEMPLATE', 'https://tiles.example.com/{z}/{x}/{y}.png?key=PUBLISHABLE-123');
+    vi.stubEnv('TILE_ATTRIBUTION', '© Example Maps');
+    mapResult(3);
+    const html = await render({ view: 'map' });
+    const props = tilesPropsOf(html);
+    expect(props.tiles).toEqual({
+      urlTemplate: 'https://tiles.example.com/{z}/{x}/{y}.png?key=PUBLISHABLE-123',
+      attributionHtml: '© Example Maps',
+    });
+    expect(count(mapSection(html), '<p>© Example Maps</p>')).toBe(1);
+    expect(html).not.toContain('openstreetmap.org/copyright');
   });
 });
 

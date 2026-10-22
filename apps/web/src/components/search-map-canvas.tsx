@@ -1,7 +1,8 @@
 // ROADMAP 2.6 (decisiones 112-114) — lienzo del mapa. Sin `'use client'`: se
 // carga solo a través del wrapper `search-map.tsx` (dynamic, ssr:false), así
-// que es código de cliente por el grafo de imports. El host de teselas de
-// OpenStreetMap vive en `lib/osm-tiles.ts` (decisión 179): el navegador las
+// que es código de cliente por el grafo de imports. La plantilla de teselas y
+// la atribución llegan del servidor como props (decisión 261; el host por
+// defecto, el de OpenStreetMap, vive en `lib/tile-config.ts`): el navegador las
 // pide directamente (el servidor nunca las descarga ni las proxea, SMV-9).
 //
 // CSS de Leaflet: se importa aquí, junto al componente que lo necesita, y no
@@ -19,7 +20,6 @@ import type { ReactElement } from 'react';
 import { MapContainer, Polygon, TileLayer, ZoomControl, useMap } from 'react-leaflet';
 
 import { stripPrefixTitles } from '@/lib/map-attribution';
-import { OSM_TILE_URL_TEMPLATE } from '@/lib/osm-tiles';
 
 import { ZOOM_IN_MARKUP, ZOOM_OUT_MARKUP } from './icon';
 import { MapClusterLayer } from './map-cluster-layer';
@@ -27,9 +27,8 @@ import { MapDrawControl } from './map-draw-control';
 import { makeKeyboardInstant } from './map-instant-keyboard';
 import type { SearchMapProps } from './search-map-types';
 
-// Decisión 112 (enmendada por la 179): el host de teselas vive en `lib/osm-tiles.ts`.
-// SMV-9 (ODbL): literal exacto con enlace a la página de copyright.
-const ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+// Decisión 112 (enmendada por la 179 y la 261): el host de teselas y la atribución (SMV-9, ODbL) viven en
+// `lib/tile-config.ts` y llegan del servidor como props (`tiles`); este lienzo no conoce ningún host.
 
 // Márgenes y zoom máximo del encuadre, compartidos por el montaje y el reajuste.
 const FIT_OPTIONS = { padding: [24, 24] as [number, number], maxZoom: 16 };
@@ -127,6 +126,7 @@ function InstantKeyboard(): null {
 }
 
 export default function SearchMapCanvas(props: SearchMapProps): ReactElement {
+  const { tiles } = props;
   const bounds = initialBounds(props);
   const view =
     bounds !== null
@@ -153,7 +153,7 @@ export default function SearchMapCanvas(props: SearchMapProps): ReactElement {
       <AttributionLanguage />
       <ContainerSemantics keyboardHelpId={props.keyboardHelpId} />
       <InstantKeyboard />
-      <TileLayer url={OSM_TILE_URL_TEMPLATE} attribution={ATTRIBUTION} maxZoom={19} />
+      <TileLayer url={tiles.urlTemplate} attribution={tiles.attributionHtml} maxZoom={19} />
       {props.polygon !== null ? (
         <Polygon
           positions={props.polygon.map((vertex): LatLngTuple => [vertex.lat, vertex.lon])}

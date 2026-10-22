@@ -136,3 +136,39 @@ describe('Política de imágenes (spec #261 csp-image-policy, diseño decisión 
     }
   });
 });
+
+// ROADMAP 3.4 (decisión 261, enmienda la 112; R9.1, R9.2): el host de `img-src` sale de la misma
+// configuración que la plantilla de teselas. Un proveedor propio sustituye al de OpenStreetMap: sigue
+// habiendo UN solo host de teselas, la cadena de consulta (clave publicable) nunca llega a la CSP y
+// una plantilla inválida hace fallar `headers()` (arranque con error).
+describe('Política de imágenes con proveedor de teselas configurado (decisión 261)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('img-src lista únicamente el host configurado, sin la consulta y sin el host de OpenStreetMap', async () => {
+    vi.stubEnv('TILE_URL_TEMPLATE', 'https://tiles.example.com/v3/{z}/{x}/{y}.png?key=PUBLISHABLE-123');
+    vi.stubEnv('TILE_ATTRIBUTION', '© Example Maps');
+    const imgSrcDirective = (await readCsp()).find((part) => part.startsWith('img-src'));
+    expect(imgSrcDirective).toBe("img-src 'self' blob: data: https://tiles.example.com");
+  });
+
+  it('el resto de la CSP no cambia y no aparece ningún otro host (ni la clave)', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('TILE_URL_TEMPLATE', 'https://tiles.example.com:8443/{z}/{x}/{y}.png?key=PUBLISHABLE-123');
+    vi.stubEnv('TILE_ATTRIBUTION', '© Example Maps');
+    const csp = await readCsp();
+    const hosts = csp.join(' ').match(/https?:\/\/[^\s;]+/g) ?? [];
+    expect(hosts).toEqual(['https://tiles.example.com:8443']);
+    expect(csp.join(' ')).not.toContain('PUBLISHABLE');
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp.some((part) => part.startsWith('connect-src'))).toBe(false);
+  });
+
+  it('una plantilla inválida (http) hace fallar headers(): el arranque no continúa', async () => {
+    vi.stubEnv('TILE_URL_TEMPLATE', 'http://tiles.example.com/{z}/{x}/{y}.png');
+    vi.stubEnv('TILE_ATTRIBUTION', '© Example Maps');
+    await expect(readCsp()).rejects.toThrow(/TILE_URL_TEMPLATE/);
+  });
+});
