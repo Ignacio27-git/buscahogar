@@ -104,6 +104,33 @@ services:
       db:
         condition: service_healthy
 
+  # Paso 3.4 (decisión 257) — despliegue de UN SOLO USO: migraciones, roles, privilegios, semillas y
+  # comprobaciones contra la URL DIRECTA del propietario. Perfil propio (`docker compose --profile deploy
+  # run --rm deploy`), sin política de reinicio y esperando a que la base esté sana: no es un servicio que
+  # se quede levantado. Reutiliza la imagen de `ingestion` (el Dockerfile llega con el worker, S5a, y debe
+  # dejar el JS compilado en `dist-runtime/`). Nunca `env_file`: solo las variables del despliegue; sin `:?`
+  # por el mismo motivo que `web` (aborta la interpolación del fichero entero) — el fallo ruidoso vive en
+  # `apps/ingestion/src/deploy/deploy-env.ts` (exit 2). La URL apunta al host `db` de la red de Compose.
+  deploy:
+    profiles: ['deploy']
+    build:
+      context: .
+      dockerfile: apps/ingestion/Dockerfile
+    working_dir: /app/apps/ingestion
+    command: ['node', 'dist-runtime/scripts/deploy.js']
+    restart: 'no'
+    environment:
+      DIRECT_DATABASE_URL: '${DEPLOY_DIRECT_DATABASE_URL:-}'
+      WEB_READONLY_PASSWORD: '${WEB_READONLY_PASSWORD:-}'
+      WEB_COVERAGE_PASSWORD: '${WEB_COVERAGE_PASSWORD:-}'
+      WEB_READONLY_ROLE: '${WEB_READONLY_ROLE:-}'
+      WEB_COVERAGE_ROLE: '${WEB_COVERAGE_ROLE:-}'
+      SEED_MONTHLY_QUOTA_TOTAL: '${SEED_MONTHLY_QUOTA_TOTAL:-}'
+      SEED_MONTHLY_QUOTA_RESERVE: '${SEED_MONTHLY_QUOTA_RESERVE:-}'
+    depends_on:
+      db:
+        condition: service_healthy
+
   # Paso D.1a (decisión 136) — runner autoritativo del e2e visual y de
   # accesibilidad. Perfil propio: `docker compose up -d` sigue levantando solo
   # `db`. Se lanza con `pnpm e2e` / `pnpm e2e:update` (package.json raíz).

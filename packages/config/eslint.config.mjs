@@ -21,7 +21,7 @@
 import tseslint from 'typescript-eslint';
 
 /** Rutas que nunca se analizan, en cualquier workspace. */
-export const sharedIgnores = ['**/node_modules/', '**/dist/', '**/.next/', '**/coverage/'];
+export const sharedIgnores = ['**/node_modules/', '**/dist/', '**/dist-runtime/', '**/.next/', '**/coverage/'];
 
 /** Ficheros de configuración: se lintan, pero sin reglas que exijan tipos. */
 export const configFilePatterns = ['**/*.config.ts', '**/*.config.mjs', '**/*.config.js'];

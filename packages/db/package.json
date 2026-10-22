@@ -11,6 +11,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./deploy": {
+      "types": "./dist/deploy.d.ts",
+      "default": "./dist/deploy.js"
+    },
     "./e2e": {
       "types": "./dist/e2e/public.d.ts",
       "default": "./dist/e2e/public.js"

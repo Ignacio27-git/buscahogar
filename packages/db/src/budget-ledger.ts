@@ -419,3 +419,26 @@ export async function setMonthlyQuota(
   }
   return { month: row.month, totalCap: row.total_cap, reserve: row.reserve, searchRequests: row.search_requests };
 }
+
+// ROADMAP 3.4 (decisión 257, D12; R5.6) — siembra de la cuota mensual desde el despliegue. SOLO inserta si la
+// fuente no tiene NINGUNA fila en el registro (de ningún mes): lo que el responsable fijó con
+// `set-monthly-quota` (decisión 248) no se sobrescribe jamás, ni siquiera con otros valores. Es una única
+// sentencia atómica (`INSERT ... WHERE NOT EXISTS`); el mes es el UTC en curso con el reloj de Postgres. Los
+// CHECK de la tabla rechazan `reserva >= total` y el error se propaga sin dejar fila. Los valores los decide
+// el llamador (configuración del despliegue): este módulo no inventa ninguna cifra.
+export type MonthlyQuotaSeedResult = { readonly seeded: true; readonly month: string } | { readonly seeded: false };
+
+export async function seedMonthlyQuotaIfEmpty(
+  db: Pick<Database, 'execute'>,
+  sourceId: string,
+  setting: Pick<MonthlyQuotaSetting, 'totalCap' | 'reserve'>
+): Promise<MonthlyQuotaSeedResult> {
+  const { rows } = await db.execute<{ month: string }>(sql`
+    insert into monthly_request_budget (month, source_id, total_cap, reserve)
+    select ${CURRENT_MONTH_SQL}, ${sourceId}, ${setting.totalCap}::integer, ${setting.reserve}::integer
+    where not exists (select 1 from monthly_request_budget where source_id = ${sourceId})
+    returning month::text as month
+  `);
+  const [row] = rows;
+  return row ? { seeded: true, month: row.month } : { seeded: false };
+}

@@ -267,7 +267,29 @@ días son una elección del proyecto y viven como constantes en `policy.ts`.
 
 ## Infraestructura
 
-Docker Compose con tres servicios: PostgreSQL con PostGIS, `web`, `ingestion`.
+Docker Compose con tres servicios: PostgreSQL con PostGIS, `web`, `ingestion`, más el servicio de un solo uso `deploy` (perfil propio,
+sin reinicio).
+
+### Despliegue (paso 3.4, S4, decisiones 257 y 264)
+
+Un único punto de entrada, `apps/ingestion/scripts/deploy.ts` (compilado a `dist-runtime/scripts/deploy.js` con
+`pnpm --filter @buscahogar/ingestion build:runtime`), ejecuta los pasos de `@buscahogar/db/deploy` contra la **URL directa** del
+propietario (`DIRECT_DATABASE_URL`, obligatoria y sin respaldo en `DATABASE_URL`):
+
+1. **Conexión** (base inaccesible: salida 3).
+2. **Migraciones** con el migrador de `drizzle-orm` (mismo registro que `drizzle-kit`, que no viaja a producción).
+3. **Roles**: `web_readonly` y `web_coverage` se crean si faltan, con el verificador SCRAM-SHA-256 calculado en Node a partir de
+   `WEB_READONLY_PASSWORD` / `WEB_COVERAGE_PASSWORD`. Si el rol existe y entra con el secreto actual, no se toca; solo se rota ante un
+   28P01. Tras crear o rotar se vuelve a iniciar sesión; si falla, salida 4.
+4. **Privilegios**: `bootstrap-roles-grants.sql` (GRANT primero, REVOKE al final) con huella de ACL antes y después.
+5. **Catálogo municipal** (se omite si ya está completo) y **cuota mensual** (solo si la fuente no tiene ninguna fila y hay
+   `SEED_MONTHLY_QUOTA_TOTAL` y `SEED_MONTHLY_QUOTA_RESERVE`; sin ellas, aviso y el worker sigue cerrando en fallo).
+6. **Comprobaciones**: `SHOW jit` como `web_readonly` (si no es `off`, respaldo `ALTER DATABASE ... SET jit = off` y nueva comprobación)
+   y matriz de privilegios efectivos de los dos roles (las tablas solo del propietario, invisibles para ambos).
+
+Salidas: 0 hecho (incluida una ejecución sin cambios: `0 migrations, roles unchanged, privileges unchanged, seeds skipped`), 1 paso
+fallido (nombrado), 2 configuración, 3 base inaccesible, 4 comprobación fallida. Una línea JSON por evento, sin secretos. Cada paso se
+puede repetir. `WEB_READONLY_ROLE` y `WEB_COVERAGE_ROLE` permiten otros nombres de rol (dos entornos en un servidor; pruebas).
 
 Fuera del alcance: colas externas, Redis, caché distribuida, autenticación.
 

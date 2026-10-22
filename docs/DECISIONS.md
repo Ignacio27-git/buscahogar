@@ -1922,7 +1922,7 @@ escenario "Fresh session reproduces the search" del paso 1.11 (obs #174).
 
 ## 064 — Segundo rol de PostgreSQL, INSERT-only sobre `coverage_jobs`; enmienda a la decisión 056 igual que la 056 enmendó la 015
 
-**Estado:** aceptada
+**Estado:** aceptada. **Enmendada por la 257** (paso 3.4): el despliegue crea el rol `web_coverage` (y `web_readonly`) con un verificador SCRAM y comprueba su matriz de privilegios; la frontera sobre las credenciales no cambia.
 
 **Decisión.** `apps/web` gana un SEGUNDO cliente de base de datos, `getCoverageDb()`
 (`apps/web/src/server/coverage-db.ts`), hermano deliberado de `getDb()` (`apps/web/src/server/db.ts`,
@@ -2185,7 +2185,7 @@ optimización de rendimiento del worker.
 
 ## 069 — Los GRANT de `web_readonly`/`web_coverage` se versionan como un script de bootstrap committeado; el rol y la credencial siguen siendo tarea manual del responsable del proyecto
 
-**Estado:** aceptada
+**Estado:** aceptada. **Enmendada por la 257** (paso 3.4): «el rol y la credencial son tarea manual» pasa a «los crea el despliegue con secretos de entorno»; el fichero de bootstrap sigue sin crear roles.
 
 **Decisión.** Los `GRANT` que dan forma a los dos roles de superficie acotada de `apps/web`
 (decisiones 056 y 064) se versionan como un script SQL idempotente y committeado,
@@ -6732,8 +6732,8 @@ conexiones del servidor. Neon ofrece una URL de pooler (`-pooler`, PgBouncer en 
 
 1. **`apps/web` usa la URL del pooler** para sus dos credenciales (`DATABASE_URL` y `WEB_COVERAGE_DATABASE_URL`) en producción.
    `apps/ingestion`, las migraciones, el aprovisionamiento de roles y las copias de seguridad usan la URL **directa** (variable distinta,
-   `sslmode=verify-full`): el DDL y la sesión estable no funcionan por un pooler. Los nombres de las variables directas y su validación llegan
-   con el despliegue (S4).
+   `sslmode=verify-full`): el DDL y la sesión estable no funcionan por un pooler. La variable directa es `DIRECT_DATABASE_URL`, validada por el
+   despliegue (decisión 257).
 2. **Pools acotados por llamador**: `createDb(url, poolOptions?)` acepta `max`, `connectionTimeoutMillis` y `query_timeout` (el paquete sigue sin
    leer `process.env`, decisión 024). Lectura `max: 5`, registro de cobertura `max: 2`, limitador `max: 4` con plazos de 150 ms (255). Sin
    opciones, el comportamiento es el de antes.
@@ -6747,6 +6747,68 @@ agota conexiones. (3) Un pool por defecto de 10: con el pooler delante no aporta
 
 **Consecuencias.** Si una consulta futura de `apps/web` necesitara estado de sesión, la prueba estática falla y obliga a reabrir esta decisión.
 La aceptación real de las URL del pooler y los tamaños de pool se verifican al aprovisionar (paso 3.5).
+
+---
+
+## 257 — Despliegue con migraciones programáticas, roles aprovisionados por el propio despliegue y comprobaciones finales (enmienda la 064 y la 069)
+
+**Estado:** aceptada (paso 3.4, S4).
+
+**Contexto.** Hasta ahora el esquema se aplicaba con `drizzle-kit migrate` (dependencia de desarrollo) y los dos roles web los creaba a mano
+el responsable (decisión 069: «el rol y la credencial siguen siendo tarea manual»). Para desplegar en un entorno gestionado (Neon) y poder
+repetir el proceso sin pasos manuales ocultos hace falta un único punto de entrada, idempotente y que falle de forma ruidosa.
+
+**Decisión.**
+
+1. **Un solo punto de entrada `deploy`** (`apps/ingestion/scripts/deploy.ts`, compilado a `dist-runtime/scripts/deploy.js` con
+   `tsconfig.runtime.json`; los pasos viven en `packages/db`, exportados como `@buscahogar/db/deploy`, y solo el script lee `process.env`).
+   Usa la **URL directa** del propietario (`DIRECT_DATABASE_URL`, obligatoria y SIN respaldo: nunca cae a `DATABASE_URL` ni a la del
+   pooler, decisión 256). Orden: conexión → migraciones → roles → privilegios → catálogo → cuota → comprobaciones. La cuota se siembra
+   **después** del catálogo (la especificación la numeraba antes): necesita el id de la fuente `idealista`, que crea el catálogo.
+2. **Migraciones por programa** con el migrador de `drizzle-orm` (`runMigrations`), sobre el mismo registro `drizzle.__drizzle_migrations`
+   y los mismos ficheros que `drizzle-kit migrate`; `drizzle-kit` no viaja en producción. `packages/db` publica `migrations` y `sql` en
+   `files`.
+3. **Roles (enmienda la 069).** El despliegue crea `web_readonly` y `web_coverage` si faltan (`LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+   NOREPLICATION`) y fija su contraseña desde secretos de entorno (`WEB_READONLY_PASSWORD`, `WEB_COVERAGE_PASSWORD`). El fichero
+   `bootstrap-roles-grants.sql` **sigue sin crear roles ni contraseñas**: solo concede. La credencial nunca está en el repositorio.
+   - La contraseña se guarda como **verificador SCRAM-SHA-256 calculado en Node** (`node:crypto`, PBKDF2 4096): la contraseña en claro
+     no aparece en SQL, registros ni errores. Solo se aceptan contraseñas ASCII imprimibles (PostgreSQL aplica SASLprep al resto).
+   - **Idempotencia**: si el rol existe se prueba PRIMERO el inicio de sesión con el secreto actual; si entra, no se reescribe nada
+     (`unchanged`, el verificador almacenado no cambia entre ejecuciones). Solo ante `28P01` se rota (`rotated`).
+   - Tras crear o rotar se vuelve a iniciar sesión; si falla, el despliegue termina con el código 4 y un mensaje explícito («¿el servidor no
+     acepta el verificador SCRAM precalculado?»). **No hay respaldo automático con la contraseña en claro.**
+   - Los atributos del rol se exigen siempre; un rol existente con `CREATEDB`/superusuario se rechaza en lugar de degradarse en silencio.
+   - `WEB_READONLY_ROLE` / `WEB_COVERAGE_ROLE` (opcionales) permiten otros nombres: los roles son globales al servidor, y dos entornos en un
+     mismo servidor (o las pruebas, que no deben tocar los roles reales) no pueden compartirlos. El bootstrap se aplica con los nombres
+     sustituidos como palabra completa; con los nombres por defecto es el fichero tal cual.
+4. **Privilegios.** El bootstrap sigue siendo la única definición (GRANT primero, bloque REVOKE al final, decisiones 064, 248 y 255) y se
+   aplica como una sola consulta (transacción implícita). Una **huella** de las ACL de las tablas, los privilegios por defecto y los de la
+   base y el esquema, calculada antes y después, permite informar «privileges unchanged». Al final, `checkPrivilegeMatrix` compara los
+   privilegios **efectivos** (`has_table_privilege`, incluidos PUBLIC y la herencia) con la matriz documentada: `web_coverage` exactamente
+   `INSERT` en `coverage_jobs`, `S/I/U/D` en `coverage_client_quota`, `INSERT` en `zone_query_signals` y `S/I/U/D` en `proxy_rate_limit`;
+   `web_readonly` solo `SELECT` y nada sobre las tablas del propietario (`OWNER_ONLY_TABLES`: `monthly_request_budget`,
+   `proxy_rate_limit`; cada tabla nueva del propietario se añade ahí y su REVOKE al bloque final). `spatial_ref_sys` (PostGIS, legible por
+   PUBLIC) queda fuera de la comprobación. Un desajuste es el código 4.
+5. **Semillas.** La cuota mensual se siembra **solo si la fuente no tiene ninguna fila** (`seedMonthlyQuotaIfEmpty`, una sentencia
+   `INSERT ... WHERE NOT EXISTS`), con `SEED_MONTHLY_QUOTA_TOTAL` y `SEED_MONTHLY_QUOTA_RESERVE` (todo o nada, validadas con Zod). **Sin
+   valor por defecto**: sin configuración y con el registro vacío se emite un aviso ruidoso y el worker sigue cerrando en fallo (decisión
+   248); nunca se inventa una cifra (066). El catálogo usa `seedReferenceDataIfNeeded`, que no escribe nada si ya está completo.
+6. **Códigos de salida**: 0 hecho (también «sin cambios»), 1 paso fallido (se nombra), 2 configuración o secreto ausente (antes de cualquier
+   cambio), 3 base inaccesible, 4 comprobación posterior fallida (inicio de sesión, jit, privilegios). Salida: una línea JSON por evento,
+   sin secretos (los mensajes de error se redactan además contra las contraseñas y la URL del propietario). Una segunda ejecución sin cambios
+   informa `0 migrations, roles unchanged, privileges unchanged, seeds skipped`.
+7. **Servicio local** `deploy` en `docker-compose.yml`: perfil propio, `restart: 'no'`, espera a la base sana, sin `env_file`.
+
+**Alternativas descartadas.** (a) `drizzle-kit` en tiempo de ejecución: dependencia de desarrollo, sin garantías de salida estable. (b)
+Reescribir siempre el verificador: la segunda ejecución nunca sería «sin cambios» y cada despliegue invalidaría las sesiones nuevas durante
+la rotación. (c) `PASSWORD '<texto en claro>'` en SQL: queda en el registro del servidor. (d) Respaldo con la contraseña en claro si el
+servidor rechaza el verificador: oculta justo el fallo que hay que ver. (e) Respaldar la URL directa en `DATABASE_URL`: un pooler en modo
+transacción rompe el DDL sin avisar.
+
+**Consecuencias.** La frontera de la 069 pasa de «ningún agente crea roles» a «los crea el despliegue con secretos que solo conoce quien lo
+ejecuta»; las credenciales siguen fuera del repositorio. Pendiente del paso 3.5: comprobar que Neon acepta verificadores precalculados
+(si no, el código 4 lo dirá). `pg` trata `sslmode=prefer|require|verify-ca` como `verify-full` (con aviso): se usa `sslmode=verify-full`
+explícito en las URL directas.
 
 ---
 
@@ -6917,7 +6979,7 @@ paso 3.5. La comprobación real contra Neon es del paso 3.5.
 
 ## 265 — Credencial del limitador para el servidor e2e «limitado» (enmienda la 135 y la 255)
 
-**Estado:** aceptada (paso 3.4, corrección de la regresión de S1). Numeración: la 264 sigue reservada para S4.
+**Estado:** aceptada (paso 3.4, corrección de la regresión de S1).
 
 **Contexto.** Desde la decisión 255 el limitador del proxy cuenta en PostgreSQL con la credencial `web_coverage` y falla abierto si no
 puede conectar. El servidor e2e «limitado» (puerto 3101) tenía `WEB_COVERAGE_DATABASE_URL` vacía por la decisión 135 («el e2e solo lee»),
