@@ -4,7 +4,7 @@
 // `e2e` de Docker (imagen de Playwright fijada, Linux): los baselines de
 // capturas dependen del sistema operativo y de las fuentes.
 import { defineConfig } from '@playwright/test';
-import { assertE2eWebDatabaseUrl } from '@buscahogar/db/e2e';
+import { assertE2eWebDatabaseUrl, e2eLimiterDatabaseUrl } from '@buscahogar/db/e2e';
 
 // 127.0.0.1, no `localhost`: evita resoluciones IPv6 distintas entre host y
 // contenedor y fija un origen exacto para el guard de red (`network-policy.ts`).
@@ -29,6 +29,11 @@ if (process.env.E2E_DATABASE_URL !== undefined) {
 // Única URL de base de datos del servidor Next: rol de solo lectura sobre la base `_e2e`.
 const webDatabaseUrl = process.env.E2E_WEB_DATABASE_URL;
 assertE2eWebDatabaseUrl(webDatabaseUrl);
+
+// ROADMAP 3.4 (decisión 265, enmienda la 135): solo el servidor «limitado» recibe una segunda
+// credencial, la del rol e2e-only que el seed crea con S/I/U/D únicamente sobre `proxy_rate_limit`.
+// Se deriva de la URL de lectura (misma base `_e2e`); no es la credencial de producción ni de propietario.
+const limiterDatabaseUrl = e2eLimiterDatabaseUrl(webDatabaseUrl);
 
 const VIEWPORTS = {
   w320: { width: 320, height: 720 },
@@ -85,7 +90,8 @@ export default defineConfig({
       env: {
         DATABASE_URL: webDatabaseUrl,
         // Las credenciales de escritura acotadas se anulan aunque el entorno las
-        // heredase: el e2e solo lee (decisión 135), y la ruta `?q=` no escribe (decisión 122).
+        // heredase: este servidor solo lee (decisión 135), y la ruta `?q=` no escribe (decisión 122).
+        // La única escritura del e2e son los contadores del limitador, en el servidor de 3101 (decisión 265).
         WEB_DATABASE_URL: '',
         WEB_COVERAGE_DATABASE_URL: '',
         // D.13 (decisión 181): las rutas `?zone=` leen el tope diario de zonas nuevas, que la página
@@ -108,7 +114,8 @@ export default defineConfig({
       env: {
         DATABASE_URL: webDatabaseUrl,
         WEB_DATABASE_URL: '',
-        WEB_COVERAGE_DATABASE_URL: '',
+        // Limitador en PostgreSQL (decisión 255): sin esta credencial falla abierto y nunca emite 429.
+        WEB_COVERAGE_DATABASE_URL: limiterDatabaseUrl,
         NEW_ZONES_DAILY_CAP: '1',
         CLIENT_IP_HEADER: 'x-e2e-client-ip',
         CLIENT_IP_HMAC_KEY: 'e2e-only-hmac-key-not-a-secret-0123456789',

@@ -26,7 +26,13 @@ import {
 } from '../tables.js';
 import { buildE2eFixture } from './fixture-data.js';
 import type { E2eFixture } from './fixture-data.js';
-import { assertE2eOwnerDatabaseUrl, assertE2eWebDatabaseUrl, maintenanceUrl } from './guard.js';
+import {
+  E2E_LIMITER_PASSWORD,
+  E2E_LIMITER_ROLE,
+  assertE2eOwnerDatabaseUrl,
+  assertE2eWebDatabaseUrl,
+  maintenanceUrl,
+} from './guard.js';
 
 // Rol de solo lectura que ya existe en el servidor (decisión 056): el seed
 // NUNCA lo crea, solo le concede acceso a la base e2e (spec R2, S2.2).
@@ -101,6 +107,55 @@ async function grantReadOnlyAccess(pool: pg.Pool, databaseName: string): Promise
   }
 }
 
+// ROADMAP 3.4 (decisión 265, enmienda la 135): rol e2e-only del limitador del proxy. Los roles son del
+// servidor, no de la base, así que el seed lo crea si falta y SIEMPRE fija su contraseña de prueba
+// (idempotente entre ejecuciones). Privilegios exactos: CONNECT a la base e2e, USAGE del esquema y
+// SELECT/INSERT/UPDATE/DELETE sobre `proxy_rate_limit`, igual que `web_coverage` en producción sobre esa
+// tabla. Sin nada sobre ninguna otra tabla. La contraseña es una constante de prueba (ver guard.ts).
+async function grantLimiterAccess(pool: pg.Pool, databaseName: string): Promise<void> {
+  // CREATE/ALTER ROLE no admiten parámetros: ambos valores son constantes del módulo guard (sin comillas).
+  await pool.query(`DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${E2E_LIMITER_ROLE}') THEN
+    CREATE ROLE ${E2E_LIMITER_ROLE} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
+  END IF;
+END
+$$`);
+  await pool.query(
+    `ALTER ROLE ${E2E_LIMITER_ROLE} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '${E2E_LIMITER_PASSWORD}'`
+  );
+  await pool.query(`GRANT CONNECT ON DATABASE "${databaseName}" TO ${E2E_LIMITER_ROLE}`);
+  await pool.query(`GRANT USAGE ON SCHEMA public TO ${E2E_LIMITER_ROLE}`);
+  await pool.query(
+    `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE proxy_rate_limit TO ${E2E_LIMITER_ROLE}`
+  );
+  // Paridad con producción: la migración 0020 revoca a `web_readonly` todo sobre esta tabla, pero el
+  // `GRANT SELECT ON ALL TABLES` de arriba lo volvería a conceder.
+  await pool.query(`REVOKE ALL ON TABLE proxy_rate_limit FROM ${WEB_ROLE}`);
+  // Contadores desde cero en cada siembra (la base se recrea, pero se deja explícito y determinista).
+  await pool.query('TRUNCATE TABLE proxy_rate_limit');
+
+  const check = await pool.query<{ can_limit: boolean; can_other: boolean; web_select: boolean }>(
+    // `has_table_privilege` con una lista devuelve true si tiene ALGUNO: se comprueba cada uno.
+    `SELECT (has_table_privilege($1, 'proxy_rate_limit', 'SELECT')
+              AND has_table_privilege($1, 'proxy_rate_limit', 'INSERT')
+              AND has_table_privilege($1, 'proxy_rate_limit', 'UPDATE')
+              AND has_table_privilege($1, 'proxy_rate_limit', 'DELETE')) AS can_limit,
+            (has_table_privilege($1, 'listings', 'SELECT')
+              OR has_table_privilege($1, 'coverage_jobs', 'INSERT')
+              OR has_table_privilege($1, 'coverage_client_quota', 'SELECT')
+              OR has_table_privilege($1, 'zone_query_signals', 'INSERT')) AS can_other,
+            has_table_privilege($2, 'proxy_rate_limit', 'SELECT') AS web_select`,
+    [E2E_LIMITER_ROLE, WEB_ROLE]
+  );
+  const row = check.rows[0];
+  if (row?.can_limit !== true || row.can_other || row.web_select) {
+    throw new Error(
+      `Los privilegios de ${E2E_LIMITER_ROLE} no son los esperados (solo proxy_rate_limit, S/I/U/D).`
+    );
+  }
+}
+
 // Todo o nada: un fallo a mitad no deja un dataset parcial. Exportada (D.12) para que
 // el test de consistencia de la ficha inserte exactamente los mismos datos que el seed,
 // sin duplicar las siete inserciones; importar este módulo no ejecuta nada (el
@@ -129,6 +184,7 @@ export async function seedE2eDatabase(env: NodeJS.ProcessEnv = process.env): Pro
   try {
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
     await grantReadOnlyAccess(pool, target.databaseName);
+    await grantLimiterAccess(pool, target.databaseName);
     // D.13 (decisión 181, enmienda la 135): fecha de siembra real; solo el job pendiente depende de
     // ella (el tope global cuenta los jobs solicitados «hoy»).
     await insertE2eFixture(db, buildE2eFixture(new Date()));

@@ -4029,7 +4029,7 @@ lo que buscas»). Las etiquetas existen desde el paso 3.1 y solo las usa `criter
 
 ## 135 — Base de datos e2e `_e2e`, guard, siembra determinista y subpath puro `@buscahogar/db/e2e`
 
-**Estado:** aceptada
+**Estado:** aceptada. Enmendada por la decisión 265: el e2e escribe solo los contadores del limitador (`proxy_rate_limit`).
 
 **Decisión.** El paso D.1a (cambio `visual-a11y-verification`) añade una base de datos desechable,
 `buscahogar_e2e`, y la siembra en `packages/db/src/e2e/`:
@@ -6886,6 +6886,37 @@ nuevas entran en el conjunto de rutas del e2e visual y de accesibilidad.
 
 Se redacta en S8 (clasificador de entorno por aplicación, `env:check`, `check:public-env` y flujo de CI), junto con la tabla de variables de
 `docs/DEPLOYMENT.md`, que incluirá `LEGAL_OWNER_*`.
+
+## 265 — Credencial del limitador para el servidor e2e «limitado» (enmienda la 135 y la 255)
+
+**Estado:** aceptada (paso 3.4, corrección de la regresión de S1). Numeración: la 264 sigue reservada para S4.
+
+**Contexto.** Desde la decisión 255 el limitador del proxy cuenta en PostgreSQL con la credencial `web_coverage` y falla abierto si no
+puede conectar. El servidor e2e «limitado» (puerto 3101) tenía `WEB_COVERAGE_DATABASE_URL` vacía por la decisión 135 («el e2e solo lee»),
+así que nunca emitía el 429 y 7 pruebas e2e (`rate-limit.spec.ts` y la 429 de `standalone-visual.spec.ts` en 6 proyectos) recibían 404.
+
+**Decisión.** La 135 se enmienda de forma acotada: el e2e escribe SOLO contadores del limitador.
+
+1. El seed (`seed:e2e`) crea el rol `web_limiter_e2e` (`LOGIN`, sin superusuario, sin `CREATEDB`/`CREATEROLE`) con `CONNECT` a la base
+   `*_e2e`, `USAGE` del esquema y `SELECT/INSERT/UPDATE/DELETE` únicamente sobre `proxy_rate_limit`: los mismos privilegios que `web_coverage`
+   tiene sobre esa tabla en producción. Ninguno sobre `coverage_jobs`, `coverage_client_quota`, `zone_query_signals` ni `listings`. El seed
+   lo comprueba tras concederlo y falla si no coincide. También revoca a `web_readonly` todo sobre `proxy_rate_limit` (paridad con la
+   migración 0020, que el `GRANT SELECT ON ALL TABLES` del seed deshacía) y vacía la tabla.
+2. `playwright.config.ts` deriva la URL del rol de la de `web_readonly` (`e2eLimiterDatabaseUrl`, guard puro: misma base `_e2e`, host y
+   puerto; otro rol y otra contraseña) y la pasa SOLO como `WEB_COVERAGE_DATABASE_URL` del servidor de 3101. El de 3100 mantiene
+   `WEB_COVERAGE_DATABASE_URL` vacía, `CLIENT_IP_HEADER` vacío y sin limitador: se comporta como antes. No hay variable nueva en `.env`.
+3. La contraseña es una constante de prueba del repositorio (`E2E_LIMITER_PASSWORD`), no un secreto: el rol solo tiene privilegios dentro
+   de la base desechable `*_e2e`, no existe credencial de producción ni de propietario en el servidor Next, y nunca es `NEXT_PUBLIC_*`.
+4. Los contadores no se filtran entre ejecuciones: la base se destruye y se recrea en cada siembra (y la tabla se vacía de forma explícita).
+   Dentro de una ejecución, cada prueba usa su propio cubo (`x-e2e-client-ip` por proyecto; el cubo «unknown» solo lo usa `rate-limit.spec.ts`).
+
+**Alternativas descartadas.** (a) Reutilizar `web_coverage`: su contraseña es del `.env` del responsable, y el seed ni debe leerla ni
+cambiarla (afectaría a desarrollo); además tendría `INSERT` en `coverage_jobs` y demás tablas que el e2e no necesita. (b) Una variable nueva
+`E2E_WEB_COVERAGE_DATABASE_URL` en `.env`: obligaría al responsable a editarlo para una base desechable. (c) Volver a un limitador en
+memoria solo para e2e: probaría un código que producción ya no ejecuta.
+
+**Consecuencia.** Los roles son del servidor, no de la base: `web_limiter_e2e` persiste en el servidor PostgreSQL local tras el e2e, pero
+sin privilegios fuera de `buscahogar_e2e` (que se destruye en la siguiente siembra).
 
 ---
 

@@ -9,9 +9,12 @@ import { describe, expect, it } from 'vitest';
 
 import { e2eUuid } from '../../src/e2e/fixture-ids.js';
 import {
+  E2E_LIMITER_PASSWORD,
+  E2E_LIMITER_ROLE,
   E2eGuardError,
   assertE2eOwnerDatabaseUrl,
   assertE2eWebDatabaseUrl,
+  e2eLimiterDatabaseUrl,
   maintenanceUrl,
 } from '../../src/e2e/guard.js';
 import { resolveE2eSeedTarget } from '../../src/e2e/seed.js';
@@ -146,6 +149,41 @@ describe('assertE2eWebDatabaseUrl', () => {
     expect(() => {
       assertE2eWebDatabaseUrl(WEB_URL, WEB_URL);
     }).toThrow(E2eGuardError);
+  });
+});
+
+// ROADMAP 3.4 (decisión 265, enmienda la 135): credencial del limitador del servidor e2e «limitado».
+describe('e2eLimiterDatabaseUrl', () => {
+  it('conserva host, puerto y base de la URL web y cambia solo el rol y la contraseña', () => {
+    const parsed = new URL(e2eLimiterDatabaseUrl(WEB_URL));
+    expect(decodeURIComponent(parsed.username)).toBe(E2E_LIMITER_ROLE);
+    expect(decodeURIComponent(parsed.password)).toBe(E2E_LIMITER_PASSWORD);
+    expect(parsed.hostname).toBe('db');
+    expect(parsed.port).toBe('5432');
+    expect(parsed.pathname).toBe('/buscahogar_e2e');
+  });
+
+  it('no filtra la contraseña de la URL de lectura', () => {
+    expect(e2eLimiterDatabaseUrl(WEB_URL)).not.toContain('other');
+  });
+
+  it('el rol e2e-only no coincide con ningún rol de producción ni con el propietario', () => {
+    expect(['web_readonly', 'web_coverage', 'buscahogar']).not.toContain(E2E_LIMITER_ROLE);
+    expect(E2E_LIMITER_ROLE).toMatch(/e2e/);
+  });
+
+  it('pasa por el mismo guard de base: rechaza una base que no termina en _e2e', () => {
+    expect(() =>
+      e2eLimiterDatabaseUrl('postgresql://web_readonly:p@db:5432/buscahogar')
+    ).toThrow(E2eGuardError);
+  });
+
+  it('rechaza una URL web con otro rol que web_readonly', () => {
+    expect(() => e2eLimiterDatabaseUrl(OWNER_URL)).toThrow(E2eGuardError);
+  });
+
+  it('rechaza una URL ausente', () => {
+    expect(() => e2eLimiterDatabaseUrl(undefined)).toThrow(E2eGuardError);
   });
 });
 

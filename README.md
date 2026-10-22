@@ -108,7 +108,8 @@ pnpm e2e:update    # regenera capturas y la línea base axe (revisar el diff ant
 
 - Requieren `docker compose up -d` y, en el `.env` de la raíz, las variables `E2E_DATABASE_URL`
   (propietario de la base `buscahogar_e2e`, host `db`) y `E2E_WEB_DATABASE_URL` (rol `web_readonly` sobre
-  esa base). Ver `.env.example`; el servidor de la web solo recibe la segunda. La siembra recrea
+  esa base). Ver `.env.example`; el servidor de la web solo recibe la segunda (y el servidor «limitado» un rol e2e-only que el
+  propio seed crea, con acceso solo a `proxy_rate_limit`; decisión 265). La siembra recrea
   `buscahogar_e2e` en cada ejecución y rechaza cualquier base cuyo nombre no termine en `_e2e`; nunca toca
   la de desarrollo.
 - Una ejecución de `test:e2e` en el anfitrión (Windows) NO es autoritativa: fallará en las capturas por

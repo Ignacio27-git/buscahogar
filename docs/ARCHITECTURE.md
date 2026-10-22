@@ -254,6 +254,9 @@ días son una elección del proyecto y viven como constantes en `policy.ts`.
 - Ordenación (D.18, decisión 227): cinco presets como enlaces (`lib/sort-presets.ts`, `buildSortHref`), sin JavaScript. El parámetro `order`
   solo existe en el formulario de revisión de `?q=` y `canonicalizeFormSubmission` lo convierte en `sort`/`dir`. La caja de lenguaje natural es
   `<search><details>` (decisión 228). Con centroide y radio, la zona se aplica siempre (decisión 224).
+- El e2e lee con `web_readonly` y solo escribe contadores del limitador: el servidor «limitado» (puerto 3101) recibe un rol e2e-only creado
+  por el seed (`web_limiter_e2e`, S/I/U/D solo sobre `proxy_rate_limit`, misma base `_e2e`); el servidor de 3100 no tiene credencial de
+  escritura ni limitador (decisión 265, enmienda la 135).
 - La imagen Docker de e2e fija Liberation Sans con una regla de `fontconfig` verificada en la build (decisión 217); el peso 600 se pinta como Bold.
 - El sistema visual está documentado en `DESIGN.md` (raíz) y `.impeccable/design.json`, derivados de `globals.css`; `test/design-md.test.ts`
   comprueba que no se desvían (decisión 216).

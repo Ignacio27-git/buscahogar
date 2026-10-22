@@ -119,6 +119,28 @@ export function assertE2eWebDatabaseUrl(
   }
 }
 
+// ROADMAP 3.4 (decisión 265, enmienda la 135) — credencial del limitador del servidor e2e «limitado».
+//
+// Rol EXCLUSIVO del e2e que el seed crea (y vuelve a crear en cada ejecución) con exactamente
+// SELECT/INSERT/UPDATE/DELETE sobre `proxy_rate_limit`: los mismos privilegios que `web_coverage` tiene
+// sobre esa tabla en producción, pero ninguno sobre `coverage_jobs`, `coverage_client_quota` ni
+// `zone_query_signals`, que el e2e no necesita. No se reutiliza `web_coverage` porque su contraseña es
+// del propietario del `.env` y el seed no debe ni leerla ni cambiarla. La contraseña es una constante de
+// prueba, NO un secreto: el rol solo existe con privilegios en la base desechable `*_e2e`, no puede tocar
+// ninguna otra tabla ni base, y la URL se deriva aquí y nunca se lee de un `.env`.
+export const E2E_LIMITER_ROLE = 'web_limiter_e2e';
+export const E2E_LIMITER_PASSWORD = 'e2e-only-limiter-password-not-a-secret';
+
+// Deriva la URL del rol del limitador a partir de la de solo lectura ya validada: mismo host, puerto y
+// base `_e2e`, otro rol y otra contraseña. Nunca arrastra la contraseña de `web_readonly`.
+export function e2eLimiterDatabaseUrl(webUrl: string | undefined): string {
+  assertE2eWebDatabaseUrl(webUrl);
+  const parsed = new URL(webUrl);
+  parsed.username = E2E_LIMITER_ROLE;
+  parsed.password = E2E_LIMITER_PASSWORD;
+  return parsed.toString();
+}
+
 // URL de mantenimiento: la del propietario con la base `postgres`, para poder
 // borrar y crear la base e2e sin estar conectado a ella.
 export function maintenanceUrl(ownerUrl: string): string {
