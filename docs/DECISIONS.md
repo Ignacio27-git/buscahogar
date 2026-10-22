@@ -3188,7 +3188,7 @@ empiezan por las mismas columnas; se mantiene y queda como seguimiento. La 060 q
 
 ## 101 — JIT desactivado para el rol de la búsqueda
 
-**Estado:** aceptada
+**Estado:** aceptada. **Enmendada por la 264** (paso 3.4): el ajuste de rol es preferente; si el proveedor no lo permite, el despliegue aplica y verifica `jit = off` a nivel de base de datos.
 
 **Decisión.** `packages/db/sql/bootstrap-roles-grants.sql` añade
 `ALTER ROLE web_readonly IN DATABASE buscahogar SET jit = off`. Solo afecta a las sesiones de
@@ -6886,6 +6886,34 @@ nuevas entran en el conjunto de rutas del e2e visual y de accesibilidad.
 
 Se redacta en S8 (clasificador de entorno por aplicación, `env:check`, `check:public-env` y flujo de CI), junto con la tabla de variables de
 `docs/DEPLOYMENT.md`, que incluirá `LEGAL_OWNER_*`.
+
+## 264 — JIT apagado: ajuste de rol preferente y respaldo a nivel de base de datos verificado (enmienda la 101)
+
+**Estado:** aceptada (paso 3.4, S4).
+
+**Contexto.** La decisión 101 fija `jit = off` con `ALTER ROLE web_readonly IN DATABASE ... SET jit = off` en el bootstrap. Un proveedor
+gestionado (Neon) puede no dejar a quien ejecuta el bootstrap cambiar ajustes de un rol: el bloque fallaba con `insufficient_privilege` y
+abortaba todo el bootstrap.
+
+**Decisión.**
+
+1. El bloque de jit del bootstrap captura `insufficient_privilege` y emite un aviso (`RAISE NOTICE`) en lugar de abortar (S1).
+2. El despliegue **verifica** el resultado observable: inicia sesión como `web_readonly` y ejecuta `SHOW jit`. Si es `off`, registra la
+   estrategia (`role` si viene del ajuste del rol, `database` si del de la base, `server` si de la configuración del servidor).
+3. Si no es `off`, aplica `ALTER DATABASE <base> SET jit = off` (el nombre se cita en el servidor con `format('%I', ...)`), registra un
+   aviso («database-level fallback») y vuelve a comprobar. Si sigue encendido (por ejemplo, un ajuste de rol lo anula), el despliegue
+   termina con el **código 4** y el motivo. El respaldo afecta a **toda la base**, `apps/ingestion` incluida (la 101 la dejaba con jit).
+4. La segunda ejecución con el respaldo ya aplicado no vuelve a avisar.
+
+**Alternativas descartadas.** (a) `options=-c jit=off` en la URL: un pooler en modo transacción descarta las opciones de arranque
+(decisión 256). (b) `SET LOCAL jit = off` por búsqueda: estado de sesión en `apps/web`, prohibido por la 256 y por su prueba estática. (c)
+Tolerar el aviso sin comprobar: dejaría la búsqueda con 500 ms de compilación sin que nadie se enterase.
+
+**Consecuencias.** Con el respaldo, el jit de ingesta y deduplicación queda apagado: el coste es menor que el de un fallo silencioso de la
+búsqueda (consultas de ingesta largas y pocas). Si el proveedor tampoco permitiera `ALTER DATABASE`, el código 4 obliga a decidirlo en el
+paso 3.5. La comprobación real contra Neon es del paso 3.5.
+
+---
 
 ## 265 — Credencial del limitador para el servidor e2e «limitado» (enmienda la 135 y la 255)
 

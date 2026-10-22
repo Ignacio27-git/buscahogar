@@ -24,8 +24,10 @@ function collect(dir: string): string[] {
 }
 
 // Herramientas del propietario que `apps/web` nunca importa (siembra, bases de prueba, e2e): abren sus
-// propias conexiones directas y sí pueden usar estado de sesión.
-const OWNER_ONLY_TOOLING = /\/packages\/db\/src\/(e2e\/|seed\.ts$|test-database\.ts$)/;
+// propias conexiones directas y sí pueden usar estado de sesión. `deploy-verify.ts` (decisión 264) lleva el
+// `ALTER DATABASE ... SET jit = off` del despliegue; el resto del despliegue no contiene ninguna construcción
+// prohibida y sigue sometido a esta prueba.
+const OWNER_ONLY_TOOLING = /\/packages\/db\/src\/(e2e\/|seed\.ts$|test-database\.ts$|deploy-verify\.ts$)/;
 
 function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -54,6 +56,15 @@ describe('compatibilidad con el pooler de conexiones (decisión 256)', () => {
   it.each(FORBIDDEN)('ninguna consulta usa %s', (_label, pattern) => {
     const offenders = files.filter((file) => pattern.test(stripComments(readFileSync(file, 'utf8'))));
     expect(offenders).toEqual([]);
+  });
+
+  it('la exención del despliegue es real: ni el barril de packages/db ni apps/web alcanzan deploy-verify', () => {
+    const barrel = readFileSync(fileURLToPath(new URL('../../../packages/db/src/index.ts', import.meta.url)), 'utf8');
+    const webSources = files.filter((file) => file.includes('/apps/web/src/'));
+
+    expect(webSources.length).toBeGreaterThan(20);
+    expect(barrel).not.toMatch(/deploy/);
+    expect(webSources.filter((file) => /@buscahogar\/db\/deploy|deploy-verify/.test(readFileSync(file, 'utf8')))).toEqual([]);
   });
 
   it('el detector funciona: reconoce cada construcción prohibida en un ejemplo sintético', () => {

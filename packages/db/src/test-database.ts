@@ -10,12 +10,12 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import pg from 'pg';
 import type { Pool } from 'pg';
 
 import { createDb } from './db.js';
 import { maintenanceUrl } from './e2e/guard.js';
+import { runMigrations } from './migrate.js';
 
 export type TestDatabaseScope = 'db' | 'web' | 'ingestion';
 
@@ -26,7 +26,6 @@ export class TestDatabaseGuardError extends Error {}
 const SAFE_TEST_DATABASE_NAME = /^[a-z0-9_]+_test$/;
 
 // `src` y `dist` están a la misma profundidad, así que ambas rutas valen para los dos.
-const MIGRATIONS_FOLDER = fileURLToPath(new URL('../migrations', import.meta.url));
 const GRANTS_SQL_PATH = fileURLToPath(new URL('../sql/bootstrap-roles-grants.sql', import.meta.url));
 
 // SQLSTATE de «la base ya existe» (`CREATE DATABASE`) y de la carrera entre dos
@@ -141,7 +140,7 @@ export async function prepareTestDatabase(
 
   const { db, pool } = createDb(ownerTestUrl);
   try {
-    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+    await runMigrations(db);
     if (options.grantWebRoles) {
       // Misma definición única de privilegios que el bootstrap de desarrollo.
       await pool.query(readFileSync(GRANTS_SQL_PATH, 'utf8'));

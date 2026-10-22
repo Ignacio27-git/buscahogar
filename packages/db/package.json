@@ -21,7 +21,9 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "migrations",
+    "sql"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
