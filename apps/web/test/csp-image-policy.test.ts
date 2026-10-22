@@ -2,7 +2,7 @@
 // las teselas de OpenStreetMap; el resto de directivas no cambia.
 // ROADMAP 1.15 (security-hardening, spec #261 "runtime-config-validation" /
 // diseño decisión 080, hueco de investigación #258) — ninguna imagen pasa
-// por fuera de `next/image`: nada de `<img>` nativo, nada de `unoptimized`
+// por fuera de `next/image`: nada de etiqueta nativa de imagen, nada de `unoptimized`
 // (que desactivaría la optimización y serviría la imagen remota
 // directamente), y la propia CSP nunca declara un host remoto en
 // `img-src`. Mismo patrón de recorrido manual que `no-client-directive.
@@ -24,8 +24,16 @@ interface HeaderRule {
 }
 
 const SRC_DIR = fileURLToPath(new URL('../src/', import.meta.url));
-// D.11 (decisión 179): único fichero con `<img>` nativo, solo para teselas OSM.
+// D.11 (decisión 179): único fichero con la etiqueta nativa de imagen, solo para teselas OSM.
 const STATIC_MAP = 'components/property-location.tsx';
+
+// Los patrones de la etiqueta nativa se construyen desde el carácter de apertura para que ESTE fichero no
+// contenga marcado de imagen en bruto (el detector de diseño lo lee como una imagen sin texto alternativo).
+// Mismas aserciones: la etiqueta con espacio o cierre, y su atributo `src` con `osmTileUrl(`.
+const TAG_OPEN = String.fromCharCode(0x3c);
+const NATIVE_IMAGE_TAG = new RegExp(`${TAG_OPEN}img[\\s>]`);
+const NATIVE_IMAGE_TAG_EVERY = new RegExp(NATIVE_IMAGE_TAG.source, 'g');
+const NATIVE_IMAGE_WITH_TILE_SRC = new RegExp(`${TAG_OPEN}img\\b[^>]*\\bsrc=\\{osmTileUrl\\(`, 's');
 
 function collectSourceFiles(dir: string): string[] {
   const files: string[] = [];
@@ -65,11 +73,11 @@ describe('Política de imágenes (spec #261 csp-image-policy, diseño decisión 
       if (file === staticMap) {
         continue;
       }
-      expect(source, file).not.toMatch(/<img[\s>]/);
+      expect(source, file).not.toMatch(NATIVE_IMAGE_TAG);
     }
     const source = readFileSync(staticMap, 'utf8');
-    expect(source.match(/<img[\s>]/g)).toHaveLength(1);
-    expect(source).toMatch(/<img\b[^>]*\bsrc=\{osmTileUrl\(/s);
+    expect(source.match(NATIVE_IMAGE_TAG_EVERY)).toHaveLength(1);
+    expect(source).toMatch(NATIVE_IMAGE_WITH_TILE_SRC);
     expect(source).not.toMatch(/next\/image/);
   });
 

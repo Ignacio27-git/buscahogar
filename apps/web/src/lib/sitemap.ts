@@ -1,7 +1,7 @@
 // ROADMAP 3.4 (decisión 262, D20; R9.3) — mapa del sitio puro. El contenido fino (fichas, zonas) queda
 // fuera de alcance: solo las páginas públicas estáticas.
 
-// Las rutas legales las crea el paso S3 de este mismo cambio (decisión 263).
+// Las tres rutas legales son las páginas de `app/legal/*` (paso S3, decisión 263).
 export const PUBLIC_SITEMAP_PATHS: readonly string[] = ['/', '/legal/privacy', '/legal/cookies', '/legal/notice'];
 
 function escapeXml(text: string): string {

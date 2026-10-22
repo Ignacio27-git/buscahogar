@@ -316,6 +316,13 @@ Fuera del alcance: colas externas, Redis, caché distribuida, autenticación.
   `Disallow: /`, `noindex, nofollow` en las páginas y `/sitemap.xml` con 404; encendido (con
   `SITE_URL`), se permite el rastreo y el mapa del sitio expone la home y las páginas legales. Se
   resuelve al compilar en Vercel.
+- Páginas legales y pie (paso 3.4, S3, decisión 263): `/legal/privacy`, `/legal/cookies` y `/legal/notice`
+  son Server Components estáticos en español, sin scripts ni llamadas externas, enlazados desde el pie
+  de toda página (`components/site-footer.tsx`, único `contentinfo`, con la atribución CC-BY del IGN/CNIG).
+  Las cifras de conservación del texto son las del sistema (180 días de señales y de tombstone, importadas
+  de `packages/core`). La identidad del titular sale de `LEGAL_OWNER_NAME`, `LEGAL_OWNER_TAX_ID`,
+  `LEGAL_OWNER_ADDRESS` y `LEGAL_OWNER_EMAIL` (opcionales; sin definir se muestran marcadores visibles).
+  La única cookie es `theme`; `test/cookie-allowlist.test.ts` y el e2e lo vigilan.
 - Módulos de `apps/web/src/server` con handles de base de datos o secretos guardados con
   `import 'server-only'`, para que un import accidental desde código de cliente falle en build.
 - Secretos en variables de entorno, fuera del control de versiones.

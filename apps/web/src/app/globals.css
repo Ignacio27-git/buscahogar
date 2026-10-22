@@ -2339,4 +2339,80 @@
   :root:not(.light, .dark) .theme-selector [value='system'] .theme-selector__name::after {
     content: '' / ', activo';
   }
+
+  /* ROADMAP 3.4 (decisión 263) — páginas legales. Texto de lectura sobre el papel, con la medida de 65ch
+     de la descripción de la ficha. Más espacio sobre un título que bajo él; los hechos (titular, cookie) van
+     en filas separadas por filetes de 1px, sin tarjetas (DESIGN.md). Solo tokens: sin colores propios. */
+  .legal-page {
+    max-inline-size: 65ch;
+  }
+
+  .legal-page h1 {
+    margin: 0 0 0.75rem;
+  }
+
+  .legal-page__lead {
+    color: var(--ink-muted);
+  }
+
+  .legal-page h2 {
+    margin: 2rem 0 0.5rem;
+  }
+
+  .legal-page h3 {
+    margin: 1.25rem 0 0.25rem;
+  }
+
+  .legal-page p,
+  .legal-page ul,
+  .legal-facts {
+    margin: 0 0 0.75rem;
+  }
+
+  .legal-page ul {
+    padding-inline-start: 1.25rem;
+    list-style: disc;
+  }
+
+  .legal-page li + li {
+    margin-block-start: 0.375rem;
+  }
+
+  /* Una sola familia (DESIGN.md): el nombre de la cookie se distingue por el peso, no por una monoespaciada. */
+  .legal-page code {
+    font-family: inherit;
+    font-weight: 600;
+  }
+
+  .legal-facts {
+    border-block-end: 1px solid var(--rule);
+  }
+
+  .legal-facts__row {
+    padding-block: 0.5rem;
+    border-block-start: 1px solid var(--rule);
+  }
+
+  .legal-facts dt {
+    color: var(--ink-muted);
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  .legal-facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .legal-pending {
+    font-weight: 600;
+  }
+
+  @media (min-width: 40rem) {
+    .legal-facts__row {
+      display: grid;
+      grid-template-columns: 11rem 1fr;
+      column-gap: 1rem;
+    }
+  }
 }

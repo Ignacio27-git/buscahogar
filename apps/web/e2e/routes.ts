@@ -70,6 +70,10 @@ export const ROUTES: readonly E2eRoute[] = [
   // habitaciones, así que el filtro vacía la lista y el estado vacío nombra el municipio.
   { name: 'zone-covered-empty', path: `/?zone=${E2E_GETAFE.ineCode}&minRooms=50`, map: 'empty' },
   { name: 'not-found-route', path: '/no-existe', map: 'none' },
+  // Paso 3.4 (decisión 263): las tres páginas legales, enlazadas desde el pie de toda página.
+  { name: 'legal-privacy', path: '/legal/privacy', map: 'none' },
+  { name: 'legal-cookies', path: '/legal/cookies', map: 'none' },
+  { name: 'legal-notice', path: '/legal/notice', map: 'none' },
   { name: 'not-found-property', path: `/properties/${E2E_MISSING_LISTING_ID}`, map: 'none' },
 ];
 

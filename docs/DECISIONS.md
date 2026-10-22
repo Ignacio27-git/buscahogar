@@ -6822,6 +6822,73 @@ riesgo menor y se revisa al encender el interruptor.
 
 ---
 
+## 263 — Salud, páginas legales y pie del sitio; identidad del titular desde la configuración
+
+**Estado:** aceptada (paso 3.4, S2 y S3). Esta decisión tiene tres partes: la **A** (salud) y la **B** (páginas legales) están redactadas
+aquí; la **C** (variables de entorno, clasificador, `env:check` y CI) se completa en S8 al cerrar el paso.
+
+### A. Punto de salud (S2)
+
+`GET /api/health` hace `select 1` con la credencial de solo lectura y un plazo de 1 s. Responde 200 con el cuerpo exacto
+`{"status":"ok"}` o 503 con `{"status":"degraded"}`, sin ningún otro campo (ni errores, ni nombres de host, ni versiones), con
+`Cache-Control: no-store` y `force-dynamic`. El proxy no la limita (decisión 255) y no hace llamadas externas. Alternativa descartada:
+campos de detalle (`db`, mensaje de error), que filtrarían información de la infraestructura a quien consulte el punto.
+
+### B. Páginas legales y pie del sitio (S3)
+
+**Contexto.** Un sitio público que trata la huella de la IP de sus visitantes y fija una cookie necesita una política de privacidad, una
+política de cookies y un aviso legal (LSSI-CE), enlazados desde todas las páginas. El texto debe describir el tratamiento REAL, no uno
+genérico.
+
+**Decisión.**
+
+1. **Tres rutas estáticas en español**, `/legal/privacy`, `/legal/cookies` y `/legal/notice`, como Server Components sin JavaScript de cliente,
+   sin formularios, sin scripts ni recursos de terceros y sin llamadas externas. Los enlaces a otros sitios son solo de atribución o
+   reclamación (OpenStreetMap, AEPD, Idealista, IGN, Creative Commons, BOE). Entran en el mapa del sitio de S2 (decisión 262).
+2. **La retención del texto es la retención real**, verificada en el código y fijada por tests:
+   - Huella HMAC-SHA256 de la IP (decisión 076): `proxy_rate_limit` (ventana de limitación configurable; las filas vencidas se borran de forma
+     perezosa, hasta 100 por petición, decisión 255, de modo que con poco tráfico una fila vencida puede permanecer) y `coverage_client_quota`
+     (el día UTC en curso; las filas de días cerrados se purgan en el siguiente consumo y en cada ciclo del worker, decisión 082).
+   - `zone_query_signals` (decisión 102): una anotación por zona y día, **sin ningún identificador de la persona**, 180 días
+     (`SIGNAL_RETENTION_DAYS`, decisión 103). La cifra se importa de `@buscahogar/core`: el texto no puede divergir del código.
+   - Anuncios retirados (decisión 107): a los 180 días de inactividad se redactan descripción, `raw` y miniatura; precio y campos
+     estructurados se conservan (`LISTING_TOMBSTONE_AFTER_INACTIVE_DAYS`, importada también).
+   - Cookie `theme` (decisión 146): 1 año, `Path=/`, `SameSite=Lax`, `Secure` bajo HTTPS, sin `HttpOnly` porque la lee el script del `<head>`;
+     se crea solo al elegir Claro u Oscuro y «Sistema» la borra.
+   - Copias de seguridad (S7): 7 diarias, 4 semanales y 3 mensuales. **Si S7 cambia esas cifras, hay que actualizar la política.**
+3. **Teselas.** La política nombra al proveedor de teselas leyendo `readTileConfig()` (decisión 261): el host y la atribución configurados, no un
+   nombre fijo. Dice que el proveedor recibe la IP del navegador, porque las teselas no pasan por nuestro servidor (decisión 112).
+4. **Identidad del titular desde la configuración.** `LEGAL_OWNER_NAME`, `LEGAL_OWNER_TAX_ID`, `LEGAL_OWNER_ADDRESS` y `LEGAL_OWNER_EMAIL`
+   (variables de servidor, opcionales, validadas con Zod en `server/legal-identity.ts`: texto plano de una línea, hasta 300 caracteres, correo
+   con forma de correo). Un dato sin definir se muestra como `[Pendiente de configurar: …]`, en negrita y visible: **nunca se inventa una
+   identidad**. Un valor inválido es un error que nombra la variable sin su valor. En producción con la identidad incompleta debe haber un aviso de
+   arranque (no un fallo): `legalIdentityStartupWarning` ya lo calcula; **S8 lo conecta** a `instrumentation.ts` y a `env:check`.
+   Cambiar la identidad exige redesplegar (las páginas se generan al compilar).
+5. **Pie del sitio** (`components/site-footer.tsx`): sustituye al pie de atribución del layout y conserva su frase CC-BY del IGN/CNIG (orden
+   FOM/2807/2015) y el mismo `<footer>`. Añade una lista de tres enlaces (sin `<nav>`: la app no tiene landmark de navegación, decisión 223) con
+   objetivos de 40 px. La atribución de las teselas sigue junto a cada mapa (decisión 261).
+6. **Lista permitida de cookies.** `test/cookie-allowlist.test.ts` recorre `src/` y falla si algo escribe una cookie que no sea `theme` o con
+   un nombre no resoluble en estático (con autoprueba del escáner); `e2e/cookie-allowlist.spec.ts` comprueba las cookies reales del
+   navegador sobre inicio, mapa, búsqueda en lenguaje natural, ficha y páginas legales.
+7. **El texto no afirma cumplimiento normativo.** Describe el tratamiento y cita las bases habituales (interés legítimo), pero **lo debe
+   revisar el responsable** (y, si procede, un profesional) antes de publicar. Quedan por nombrar en el paso 3.5 los proveedores de alojamiento y
+   de base de datos como encargados del tratamiento.
+
+**Alternativas descartadas.** (1) Identidad escrita en el código: fabricaría o filtraría datos personales y obligaría a un commit para
+cambiarla. (2) Una sola página legal: la ley y los usuarios esperan documentos distintos y enlaces nombrados. (3) Cifras de retención escritas en el texto
+sin conexión con el código: divergirían en silencio. (4) `<nav>` en el pie: contradice la decisión 223. (5) Pie nuevo junto al de atribución:
+dos landmarks `contentinfo`.
+
+**Consecuencias.** Todas las líneas base visuales cambian por el pie (el e2e visual es el único juicio de apariencia) y las tres rutas
+nuevas entran en el conjunto de rutas del e2e visual y de accesibilidad.
+
+### C. Variables de entorno, clasificador y CI
+
+Se redacta en S8 (clasificador de entorno por aplicación, `env:check`, `check:public-env` y flujo de CI), junto con la tabla de variables de
+`docs/DEPLOYMENT.md`, que incluirá `LEGAL_OWNER_*`.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
