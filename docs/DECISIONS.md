@@ -6986,6 +6986,76 @@ detección de «el worker no arranca» (la cubre el latido externo, paso 3.5) y 
 
 ---
 
+## 260 — Copias de seguridad cifradas, retención 7/4/3 y simulacro de restauración (paso 3.4, S7)
+
+**Estado:** aceptada (paso 3.4, S7). La base de datos es el único estado duradero del proyecto: el histórico de precios que no se puede
+reconstruir (`listings` no se sobrescribe), la evidencia de deduplicación y lo que costó la cuota mensual de Idealista. Hasta ahora no había
+ninguna copia. La copia sale del host, así que debe salir cifrada; y una copia que nunca se ha restaurado es una esperanza, no una copia.
+
+**Decisión.**
+
+1. **Dónde.** `ops/backup/` (bash) y `ops/backup/Dockerfile` (imagen `postgres:17.11-bookworm` con `age` y `rclone` de Debian fijados por
+   versión exacta). Nada vive en `apps/web` (NF1). Dos destinos de imagen: `backup` (pg_dump + age + rclone) y `drill` (lo anterior más
+   `node` y el JavaScript compilado de `apps/ingestion`, para repetir el aprovisionamiento por la ruta del despliegue en el simulacro).
+   Los scripts se ejecutan con `set -euo pipefail`, sin `set -x` jamás y con los secretos solo por entorno.
+2. **Volcado cifrado en streaming.** `pg_dump -Fc --no-password | age -r "$AGE_RECIPIENT" > "$TMP.age"` contra la URL DIRECTA (decisión
+   256: un volcado exige una sesión estable y una instantánea coherente, que un pooler en modo transacción no garantiza). El texto plano
+   no toca el disco: pasa por la tubería. En disco solo hay texto cifrado, en un directorio 0700 que un `trap` borra en `EXIT`, `INT` y
+   `TERM`. La tubería corre como trabajo de fondo con su propio grupo de procesos (`set -m`) para que `wait` atienda las señales y la
+   limpieza pueda matar `pg_dump` y `age`; sin eso, un `SIGTERM` quedaría retenido hasta el final del volcado. Del host solo se necesita la
+   clave PÚBLICA (`AGE_RECIPIENT`); una clave privada (`AGE-SECRET-KEY-…`) en esa variable se rechaza sin repetirla. La URL de la base se
+   descompone en variables `PG*` (no viaja por argumentos) y rclone se configura por `RCLONE_CONFIG_BKP_*`.
+3. **Subida verificada y retención posterior.** El objeto se sube con el nombre provisional `<nombre>.uploading`, se compara su tamaño
+   remoto con el local (`rclone size --json`) y solo entonces se publica con `rclone moveto` como `<prefijo>-AAAAMMDDTHHMMSSZ.dump.age`
+   (UTC, ordenable). Una subida a medias no tiene el formato de copia, así que nunca se cuenta ni se poda; la retención limpia sus
+   restos. La poda corre SOLO tras la publicación verificada: un fallo de volcado, cifrado, subida, tamaño o publicación termina con
+   código 1, una línea JSON de nivel `error` y ningún borrado. Códigos: 0 hecho · 1 paso fallido · 2 configuración inválida (antes de usar
+   ninguna herramienta de red) · 3 base o almacenamiento inaccesibles · 4 comprobación del simulacro fallida.
+4. **Retención 7 diarias + 4 semanales + 3 mensuales.** Constantes en `retention.sh`, no configuración: la página de privacidad las
+   publica y una variable de entorno permitiría que el texto dejara de ser cierto (una prueba de `apps/web` exige que el texto de
+   `/legal/privacy` y las constantes coincidan). Selección pura sobre los nombres (`retention.sh select`): de cada día cuenta la copia más
+   reciente; `daily` = los 7 días más recientes con copia; `weekly` = los 4 domingos más recientes aún no conservados; `monthly` = los 3
+   días 01 más recientes aún no conservados. Los niveles son disjuntos (hasta 14 copias, sin que un solape recorte el total). La más
+   reciente nunca se borra, lo que no tiene el formato exacto no se toca y nunca se borra todo.
+5. **Simulacro de restauración** (`restore-drill.sh`). Descarga la copia más reciente, la descifra en streaming (la clave privada se
+   facilita solo en ese momento, `AGE_IDENTITY_FILE`) y la restaura con `pg_restore --no-owner --no-privileges --single-transaction`
+   en una base VACÍA: los roles son globales al servidor y el volcado no los lleva, y restaurar sus privilegios sería ocultar justo lo que
+   queremos comprobar. Después repite el aprovisionamiento por la ruta del despliegue (`deploy.js`: migraciones, roles, privilegios,
+   jit) y ejecuta `restore-verify`: extensión PostGIS, tablas núcleo, recuentos de filas (los esperados, si se facilitan), diario de
+   migraciones = ficheros de migración y la matriz de privilegios, que es la MISMA función del despliegue (`checkPrivilegeMatrix`):
+   `monthly_request_budget`, `proxy_rate_limit` y `alert_dispatch_log` invisibles para `web_readonly`; `web_coverage` exactamente sus
+   cuatro tablas. Cualquier desajuste sale con código 4 y nombra la comprobación (`failed checks: privilege-matrix`). Rechaza un destino
+   que no esté vacío y uno igual a `DIRECT_DATABASE_URL`: nunca restaura sobre la base de producción.
+6. **Pruebas sin servicios reales (R8.5).** `ops/backup/test/e2e.sh` levanta MinIO y dos PostGIS (origen y destino, otro servidor) en un
+   compose APARTE (`ops/backup/compose.yml`, proyecto propio, todo en `tmpfs`, sin `.env` ni volúmenes): `docker compose down -v` en el
+   `docker-compose.yml` principal borraría el volumen de desarrollo (`buscahogar_postgres_data`, de nombre fijo) desde cualquier proyecto.
+   La clave age se genera en cada ejecución dentro del contenedor y desaparece con él. MinIO ya no se publica como `minio/minio` en
+   Docker Hub (la descarga se deniega): imagen de Chainguard fijada por digest. La selección de retención tiene además su prueba pura sin
+   Docker (`retention.test.sh`, también desde vitest).
+7. **Variables de entorno (se documentan en S8):** `DIRECT_DATABASE_URL`, `AGE_RECIPIENT`, `BACKUP_S3_BUCKET`,
+   `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_REGION`, `BACKUP_S3_PREFIX`,
+   `BACKUP_NAME_PREFIX`, `BACKUP_TMPDIR`; simulacro: `DRILL_DATABASE_URL`, `AGE_IDENTITY_FILE`, `DRILL_EXPECTED_ROW_COUNTS`,
+   `DRILL_BACKUP_NAME`, `DRILL_INGESTION_DIR`. Ninguna es `NEXT_PUBLIC_*` y ninguna llega a `apps/web`.
+8. **Clave privada.** No está en el repositorio, ni en la imagen, ni en el host que hace la copia: el host solo conoce la pública. La
+   custodia (dónde se guarda, cómo se prueba la recuperación) se documenta en `ops/backup/README.md`. Perder la privada equivale a no
+   tener copias, y por eso el simulacro la usa de verdad.
+
+**Alternativas descartadas.** (a) Volcar a un fichero temporal y cifrarlo después: deja texto plano en disco hasta que termina el cifrado
+y, tras una caída del proceso, indefinidamente. (b) `gpg`: depende de un llavero y de un agente, es más difícil de usar sin estado y de
+probar; `age` cifra en streaming con una clave de una línea. (c) El CLI de AWS: pesado y atado a un proveedor; `rclone` habla con cualquier
+almacenamiento compatible con S3 y se configura solo por entorno. (d) Retención por reglas de ciclo de vida del bucket: dependen del
+proveedor y no se pueden probar en local; el script aplica la misma lógica en cualquiera (las reglas del bucket pueden añadirse después como
+defensa en profundidad). (e) Restaurar con privilegios y propietarios: el simulacro dependería de que los roles ya existan y no probaría el
+aprovisionamiento, que es justo lo que se necesita en una recuperación real. (f) Un único nivel de retención «últimos 14»: no cubre un daño
+que se detecta semanas después, que es para lo que sirven las semanales y mensuales.
+
+**Consecuencias.** Hay una copia cifrada y verificada por tamaño de la base, con retención acotada y una forma probada de restaurarla. Un
+dato borrado de la base puede seguir en las copias hasta que caduquen (lo dice la página de privacidad: 7 + 4 + 3). Quedan fuera, para el
+paso 3.5: la cuenta del almacenamiento, la programación diaria (cron o planificador del host), dónde se custodia la clave privada y la
+frecuencia del simulacro. La documentación de entorno y el procedimiento paso a paso van a `docs/DEPLOYMENT.md` (S8).
+
+---
+
 ## 261 — Teselas del mapa configurables: plantilla, host de la CSP y atribución desde una sola configuración (enmienda la 112)
 
 **Estado:** aceptada (paso 3.4, S2). Decisiones de producto PD6 y PD11 del propietario. Enmienda la 112 y la regla de `CLAUDE.md` sobre la

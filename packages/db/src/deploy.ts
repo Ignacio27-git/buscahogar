@@ -221,3 +221,6 @@ export async function runDeploy(config: DeployConfig, log: DeployLogger = silent
 export { DEFAULT_ROLE_NAMES } from './privilege-fingerprint.js';
 export type { RoleNames } from './privilege-fingerprint.js';
 export type { DeployLogEvent, DeployLogger } from './deploy-log.js';
+export { parseExpectedRowCounts, RESTORE_CHECKS, runRestoreChecks } from './restore-verify.js';
+export type { RestoreCheckName, RestoreCheckResult } from './restore-verify.js';
+export { DeployCheckError, OWNER_ONLY_TABLES } from './deploy-verify.js';

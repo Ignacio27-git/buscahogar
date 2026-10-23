@@ -11,6 +11,6 @@
     "declarationMap": false,
     "sourceMap": false
   },
-  "include": ["scripts/deploy.ts", "scripts/coverage-worker.ts"],
+  "include": ["scripts/deploy.ts", "scripts/coverage-worker.ts", "scripts/restore-verify.ts"],
   "exclude": ["node_modules", "dist", "dist-runtime", "test"]
 }

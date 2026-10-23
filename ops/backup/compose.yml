@@ -1,0 +1,82 @@
+# Prueba extremo a extremo de las copias de seguridad (ROADMAP 3.4, decisión 260, D18; R8.5). Lo levanta
+# `ops/backup/test/e2e.sh`; no es un servicio de desarrollo ni de producción.
+#
+# Fichero APARTE de docker-compose.yml, con proyecto y red propios, y SIN volúmenes (todo en tmpfs): así
+# nada de aquí puede tocar la base de desarrollo (`buscahogar_postgres_data`, un volumen con nombre fijo que
+# `docker compose down -v` borraría desde cualquier proyecto). No usa `.env` ni `env_file`: las credenciales de
+# abajo son valores de prueba, sin ningún valor real, para servicios que solo existen en esta red efímera.
+#
+#   minio      almacenamiento S3 local (nunca S3 real, R8.5).
+#   source-db  PostGIS de ORIGEN: se despliega con el script real y de él se hace la copia.
+#   drill-db   PostGIS de DESTINO, otro servidor: los roles son globales al servidor y el volcado no los lleva,
+#              así que restaurar aquí demuestra que el simulacro los vuelve a crear.
+#   tools      imagen `drill` (backup + node + ingestion compilado) en reposo; el e2e ejecuta los scripts dentro.
+name: buscahogar-backup-e2e
+
+services:
+  minio:
+    # MinIO ya no publica `minio/minio` en Docker Hub (la descarga se deniega): imagen de Chainguard fijada por
+    # DIGEST (RELEASE.2026-09-22T19-25-18Z). Cambiarla es un commit revisable.
+    image: cgr.dev/chainguard/minio@sha256:d88920d6a50bd0b088223b688be3b76c63e6205dbe494437f67ba1240ea12880
+    command: ['server', '/data', '--address', ':9000']
+    environment:
+      MINIO_ROOT_USER: e2e-minio-user
+      MINIO_ROOT_PASSWORD: e2e-minio-secret-0001
+    tmpfs:
+      - /data
+
+  source-db:
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: e2e-source-owner-pw
+      POSTGRES_DB: buscahogar
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d buscahogar']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  drill-db:
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: e2e-drill-owner-pw
+      POSTGRES_DB: postgres
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  tools:
+    build:
+      context: ../..
+      dockerfile: ops/backup/Dockerfile
+      target: drill
+      args:
+        INGESTION_IMAGE: '${BACKUP_E2E_INGESTION_IMAGE:-buscahogar-ingestion:backup-e2e}'
+    command: ['sleep', 'infinity']
+    init: true
+    environment:
+      DIRECT_DATABASE_URL: postgres://postgres:e2e-source-owner-pw@source-db:5432/buscahogar
+      BACKUP_S3_ENDPOINT: http://minio:9000
+      BACKUP_S3_BUCKET: buscahogar-backups-e2e
+      BACKUP_S3_ACCESS_KEY_ID: e2e-minio-user
+      BACKUP_S3_SECRET_ACCESS_KEY: e2e-minio-secret-0001
+      BACKUP_S3_REGION: us-east-1
+      BACKUP_TMPDIR: /tmp/backup-work
+    tmpfs:
+      # `exec`: las pruebas ejecutan sus sustitutos de herramientas desde /tmp (el tmpfs de Docker es noexec por defecto).
+      - /tmp:exec,mode=1777
+    depends_on:
+      minio:
+        condition: service_started
+      source-db:
+        condition: service_healthy
+      drill-db:
+        condition: service_healthy

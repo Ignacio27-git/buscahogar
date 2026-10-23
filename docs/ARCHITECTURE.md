@@ -359,6 +359,35 @@ hace ninguna llamada externa) y la lógica es pura en `packages/core/src/alerts/
 
 Fuera del alcance: colas externas, Redis, caché distribuida, autenticación.
 
+### Copias de seguridad (paso 3.4, S7, decisión 260)
+
+La base de datos se copia a un almacenamiento compatible con S3, cifrada antes de salir del host, con retención acotada y un simulacro de
+restauración que prueba que la copia sirve. Todo vive en `ops/backup/` (bash); `apps/web` no interviene (NF1).
+
+```
+pg_dump -Fc (URL directa) ─► age -r $AGE_RECIPIENT ─► $TMP.age (0700, trap) ─► rclone copyto <n>.uploading
+        ─► rclone size (= tamaño local) ─► rclone moveto <prefijo>-AAAAMMDDTHHMMSSZ.dump.age ─► retention.sh prune
+```
+
+- **Sin texto plano en disco.** El volcado pasa por una tubería directa a `age`; en disco solo hay texto cifrado, en un directorio temporal
+  0700 que se borra en cualquier salida (éxito, error, `SIGINT`, `SIGTERM`). La tubería corre en su propio grupo de procesos para poder
+  pararla a mitad. Del host solo se conoce la clave **pública** (`AGE_RECIPIENT`); la privada nunca está en el repositorio, la imagen ni el
+  host de la copia (`ops/backup/README.md`).
+- **Una subida a medias no es una copia.** Se sube como `<nombre>.uploading`, se verifica el tamaño y solo entonces se publica. La poda
+  corre únicamente tras una publicación verificada; un fallo de cualquier paso sale con código 1 y no borra nada.
+- **Retención 7 diarias + 4 semanales + 3 mensuales** (constantes de `retention.sh`, iguales a las que publica la página de privacidad):
+  `daily` = los 7 días más recientes con copia, `weekly` = los 4 domingos más recientes no conservados, `monthly` = los 3 días 01 más
+  recientes no conservados. La más reciente nunca se borra.
+- **Códigos de salida:** 0 hecho · 1 un paso falló (volcado, cifrado, subida, retención) · 2 configuración inválida, antes de usar la red ·
+  3 base o almacenamiento inaccesibles · 4 comprobación del simulacro fallida. Cada fallo escribe una línea JSON de nivel `error`.
+- **Imagen** (`ops/backup/Dockerfile`): `backup` (pg_dump 17 + age + rclone) y `drill` (más `node` y `apps/ingestion/dist-runtime`).
+- **Simulacro** (`restore-drill.sh`): descarga la última copia → descifra en streaming → `pg_restore --no-owner --no-privileges
+  --single-transaction` en una base vacía → `deploy.js` (migraciones, roles, privilegios, jit) → `restore-verify.js`: extensión PostGIS,
+  tablas núcleo, recuentos de filas, diario de migraciones = ficheros y la matriz de privilegios del despliegue (`checkPrivilegeMatrix`).
+  Un desajuste sale con código 4 y nombra la comprobación. Rechaza un destino no vacío o igual al origen.
+- **Pruebas:** `ops/backup/test/e2e.sh` (MinIO + dos PostGIS en `ops/backup/compose.yml`, aparte y sin volúmenes; claves age generadas en
+  cada ejecución) y `retention.test.sh` (selección pura, sin Docker, también desde vitest).
+
 ## Rendimiento
 
 - Índices para los filtros frecuentes.
