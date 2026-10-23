@@ -16,6 +16,8 @@
     "test": "pnpm --filter \"./packages/*\" build && pnpm -r test",
     "e2e": "docker compose --profile e2e run --rm --build e2e",
     "e2e:update": "docker compose --profile e2e run --rm --build e2e update",
+    "env:check": "pnpm --filter @buscahogar/web --filter @buscahogar/ingestion run env:check",
+    "check:public-env": "pnpm --filter @buscahogar/web run check:public-env",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "pnpm --filter @buscahogar/db run generate",

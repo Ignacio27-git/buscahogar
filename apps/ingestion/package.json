@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:db": "vitest run -c vitest.db.config.ts",
     "typecheck": "tsc --noEmit",
+    "env:check": "node --import tsx scripts/env-check.ts",
     "probe": "node --env-file=../../.env --import tsx scripts/probe-idealista.ts",
     "probe:homes": "node --env-file=../../.env --import tsx scripts/probe-idealista.ts --profile homes",
     "probe:premises": "node --env-file=../../.env --import tsx scripts/probe-idealista.ts --profile premises",

@@ -27,6 +27,10 @@ export class MissingNewZonesDailyCapError extends Error {}
 // decisión de operación.
 export class MissingClientLimitConfigError extends Error {}
 
+// Entorno que leen los lectores de este módulo. Por defecto `process.env`; el clasificador de entorno
+// (`env-classifier.ts`, decisión 263) pasa el suyo para validar con EXACTAMENTE las mismas reglas.
+export type EnvSource = Readonly<Record<string, string | undefined>>;
+
 const nonEmptyStringSchema = z.string().min(1);
 const positiveIntegerStringSchema = z
   .string()
@@ -43,8 +47,8 @@ const httpTokenSchema = z
   .transform((value) => value.toLowerCase());
 const hmacKeySchema = z.string().min(32);
 
-export function readDatabaseUrl(): string {
-  const result = nonEmptyStringSchema.safeParse(process.env.DATABASE_URL);
+export function readDatabaseUrl(env: EnvSource = process.env): string {
+  const result = nonEmptyStringSchema.safeParse(env.DATABASE_URL);
   if (!result.success) {
     throw new MissingDatabaseUrlError(
       'DATABASE_URL no está definida: apps/web necesita su propio rol de solo lectura ' +
@@ -54,8 +58,8 @@ export function readDatabaseUrl(): string {
   return result.data;
 }
 
-export function readCoverageDatabaseUrl(): string {
-  const result = nonEmptyStringSchema.safeParse(process.env.WEB_COVERAGE_DATABASE_URL);
+export function readCoverageDatabaseUrl(env: EnvSource = process.env): string {
+  const result = nonEmptyStringSchema.safeParse(env.WEB_COVERAGE_DATABASE_URL);
   if (!result.success) {
     throw new MissingCoverageDatabaseUrlError(
       'WEB_COVERAGE_DATABASE_URL no está definida: el registro de barridos bajo demanda ' +
@@ -66,8 +70,8 @@ export function readCoverageDatabaseUrl(): string {
   return result.data;
 }
 
-export function readNewZonesDailyCap(): number {
-  const result = positiveIntegerStringSchema.safeParse(process.env.NEW_ZONES_DAILY_CAP);
+export function readNewZonesDailyCap(env: EnvSource = process.env): number {
+  const result = positiveIntegerStringSchema.safeParse(env.NEW_ZONES_DAILY_CAP);
   if (!result.success) {
     throw new MissingNewZonesDailyCapError(
       'NEW_ZONES_DAILY_CAP no está definida o no es un entero positivo: el tope de zonas ' +
@@ -93,17 +97,52 @@ export interface ClientLimitConfig {
 // inválidas. Definida (no vacía), las cuatro restantes pasan a ser
 // obligatorias: un fallo de arranque nombrado, nunca un valor sustituido en
 // silencio.
-export function readClientLimitConfig(): ClientLimitConfig | null {
-  const rawHeader = process.env.CLIENT_IP_HEADER;
+type ParseResult<T> = ReturnType<z.ZodType<T>['safeParse']>;
+
+interface ClientLimitResults {
+  readonly headerResult: ParseResult<string>;
+  readonly hmacResult: ParseResult<string>;
+  readonly dailyCapResult: ParseResult<number>;
+  readonly proxyMaxResult: ParseResult<number>;
+  readonly proxyWindowResult: ParseResult<number>;
+}
+
+function evaluateClientLimitVariables(env: EnvSource, rawHeader: string): ClientLimitResults {
+  return {
+    headerResult: httpTokenSchema.safeParse(rawHeader),
+    hmacResult: hmacKeySchema.safeParse(env.CLIENT_IP_HMAC_KEY),
+    dailyCapResult: positiveIntegerStringSchema.safeParse(env.COVERAGE_PER_CLIENT_DAILY_CAP),
+    proxyMaxResult: positiveIntegerStringSchema.safeParse(env.PROXY_RATE_LIMIT_MAX),
+    proxyWindowResult: positiveIntegerStringSchema.safeParse(env.PROXY_RATE_LIMIT_WINDOW_SECONDS),
+  };
+}
+
+// Nombres (nunca valores) de las variables del limitador que `readClientLimitConfig` rechazaría. Vacío cuando
+// `CLIENT_IP_HEADER` no está definida (limitadores desactivados) o cuando las cinco son válidas.
+export function invalidClientLimitVariables(env: EnvSource = process.env): readonly string[] {
+  const rawHeader = env.CLIENT_IP_HEADER;
+  if (rawHeader === undefined || rawHeader === '') {
+    return [];
+  }
+  const results = evaluateClientLimitVariables(env, rawHeader);
+  const checks: ReadonlyArray<readonly [string, { readonly success: boolean }]> = [
+    ['CLIENT_IP_HEADER', results.headerResult],
+    ['CLIENT_IP_HMAC_KEY', results.hmacResult],
+    ['COVERAGE_PER_CLIENT_DAILY_CAP', results.dailyCapResult],
+    ['PROXY_RATE_LIMIT_MAX', results.proxyMaxResult],
+    ['PROXY_RATE_LIMIT_WINDOW_SECONDS', results.proxyWindowResult],
+  ];
+  return checks.filter(([, result]) => !result.success).map(([name]) => name);
+}
+
+export function readClientLimitConfig(env: EnvSource = process.env): ClientLimitConfig | null {
+  const rawHeader = env.CLIENT_IP_HEADER;
   if (rawHeader === undefined || rawHeader === '') {
     return null;
   }
 
-  const headerResult = httpTokenSchema.safeParse(rawHeader);
-  const hmacResult = hmacKeySchema.safeParse(process.env.CLIENT_IP_HMAC_KEY);
-  const dailyCapResult = positiveIntegerStringSchema.safeParse(process.env.COVERAGE_PER_CLIENT_DAILY_CAP);
-  const proxyMaxResult = positiveIntegerStringSchema.safeParse(process.env.PROXY_RATE_LIMIT_MAX);
-  const proxyWindowResult = positiveIntegerStringSchema.safeParse(process.env.PROXY_RATE_LIMIT_WINDOW_SECONDS);
+  const { headerResult, hmacResult, dailyCapResult, proxyMaxResult, proxyWindowResult } =
+    evaluateClientLimitVariables(env, rawHeader);
 
   if (
     !headerResult.success ||
@@ -132,11 +171,11 @@ export function readClientLimitConfig(): ClientLimitConfig | null {
 // ROADMAP 3.4 (decisión 261, PD6/PD11): configuración de teselas validada con Zod en `lib/tile-config.ts`.
 // Se lee en el momento de la llamada, como el resto; inválida, lanza `InvalidTileConfigError` (500 en la
 // página, error de arranque en `next.config.ts`).
-export function readTileConfig(): TileConfig {
-  return parseTileConfig(process.env);
+export function readTileConfig(env: EnvSource = process.env): TileConfig {
+  return parseTileConfig(env);
 }
 
 // ROADMAP 3.4 (decisión 262, PD7): interruptor de indexación (apagado por defecto).
-export function readSiteIndexing(): SiteIndexing {
-  return parseSiteIndexing(process.env);
+export function readSiteIndexing(env: EnvSource = process.env): SiteIndexing {
+  return parseSiteIndexing(env);
 }

@@ -12,7 +12,9 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:update": "playwright test --update-snapshots=changed",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "env:check": "node --import tsx scripts/env-check.ts",
+    "check:public-env": "node --import tsx scripts/check-public-env.ts"
   },
   "dependencies": {
     "@buscahogar/core": "workspace:*",
@@ -42,6 +44,7 @@
     "eslint-plugin-jsx-a11y": "6.10.2",
     "prettier": "3.9.6",
     "tailwindcss": "4.3.3",
+    "tsx": "4.23.13",
     "typescript": "6.0.3",
     "typescript-eslint": "8.69.0",
     "vitest": "5.0.0"
