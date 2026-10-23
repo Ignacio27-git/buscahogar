@@ -10,6 +10,10 @@ packages/
   core/           modelo común, contratos, estrategias de deduplicación
   db/             esquema y cliente de base de datos
   config/         configuración compartida de TypeScript y linting
+ops/
+  backup/         copias cifradas, retención y simulacro de restauración (bash + Docker)
+.github/
+  workflows/      CI (solo comprueba; no despliega)
 ```
 
 `web` e `ingestion` dependen de `core` y `db`. No se conocen entre sí; su única vía de
@@ -267,8 +271,15 @@ días son una elección del proyecto y viven como constantes en `policy.ts`.
 
 ## Infraestructura
 
-Docker Compose con tres servicios: PostgreSQL con PostGIS, `web`, `ingestion`, más el servicio de un solo uso `deploy` (perfil propio,
-sin reinicio).
+**Producción (decisión 254, a desplegar en el paso 3.5).** `apps/web` en Vercel, PostgreSQL 17 con PostGIS en Neon y `apps/ingestion` como
+worker siempre encendido en un host aparte (imagen `apps/ingestion/Dockerfile`). La web usa la URL del **pooler** con sus dos roles; el
+worker, el despliegue y las copias usan la URL **directa**. Los avisos, el latido y las copias salen solo de `apps/ingestion` y `ops/`: la web
+no llama a nada externo. El paso 3.4 deja todo esto como código y configuración comprobados en local; crear las cuentas y desplegar es el 3.5
+(`docs/DEPLOYMENT.md`, «Paso 3.5: lista de traspaso»).
+
+**Desarrollo y pila local tipo producción.** Docker Compose con PostgreSQL con PostGIS (único servicio del perfil por defecto), `web` e
+`ingestion` (perfil `app`; en desarrollo se ejecutan en local), el servicio de un solo uso `deploy` (perfil propio, sin reinicio) y `e2e`.
+Las copias de seguridad tienen su propio `ops/backup/compose.yml`, aparte y sin volúmenes. El procedimiento está en `docs/DEPLOYMENT.md`.
 
 ### Despliegue (paso 3.4, S4, decisiones 257 y 264)
 
@@ -334,7 +345,7 @@ de modo que `COVERAGE_JOB_MAX_ATTEMPTS` (3) acota a un job que mata al worker. C
 - **Un solo worker (decisión 252):** con varios, un dueño lento podría terminar un job ya reclamado (benigno: `finishJob` fija el estado final).
 - **Privilegios:** sin cambios (`web_coverage` solo `INSERT` en `coverage_jobs`, a nivel de tabla; `web_readonly` solo `SELECT`).
 - **Respaldo manual:** el procedimiento de reclamación manual con SQL se documenta en el runbook, `docs/DEPLOYMENT.md`, apartado «Jobs
-  `running` atascados».
+  running atascados».
 
 #### Avisos operativos por Telegram (paso 3.4, S6, decisión 259)
 
@@ -387,6 +398,24 @@ pg_dump -Fc (URL directa) ─► age -r $AGE_RECIPIENT ─► $TMP.age (0700, tr
   Un desajuste sale con código 4 y nombra la comprobación. Rechaza un destino no vacío o igual al origen.
 - **Pruebas:** `ops/backup/test/e2e.sh` (MinIO + dos PostGIS en `ops/backup/compose.yml`, aparte y sin volúmenes; claves age generadas en
   cada ejecución) y `retention.test.sh` (selección pura, sin Docker, también desde vitest).
+
+### Entorno, comprobaciones y CI (paso 3.4, S8, decisión 263 parte C)
+
+- **Un clasificador por aplicación** (`apps/web/src/server/env-classifier.ts`, `apps/ingestion/src/ops/env-classifier.ts`): una lista de
+  `{name, severity, reason}` con `error` y `production-warning`. Los errores salen de los **mismos lectores Zod que el runtime**, que reciben
+  el entorno como parámetro; los avisos de producción son `LEGAL_OWNER_*` y las teselas de OpenStreetMap por defecto (web), y Telegram y
+  `HEARTBEAT_URL` sin configurar (worker). Solo nombres y motivos fijos, nunca valores.
+- **Arranque**: el worker registra sus avisos una vez como JSON `warn`; la web lo hace desde `src/instrumentation.ts` (`register()` de Next 16,
+  solo runtime de Node y `NODE_ENV=production`). Un aviso o un error de configuración no impide arrancar la web (su fallo sigue siendo perezoso
+  y nombrado en el punto de uso).
+- **`pnpm env:check [--target local|production]`** (web y worker; `--service worker|deploy` en `apps/ingestion`) inspecciona el entorno del
+  proceso, sin leer ni escribir ningún `.env*`. `production` falla con errores y con avisos; `local`, solo con errores.
+  **`pnpm check:public-env`** impide cualquier `NEXT_PUBLIC_*` con nombre de credencial, en el entorno y en `git ls-files`.
+- **Inventario y documentación**: cada app tiene un `env-manifest.ts`, de donde salen las tablas de `docs/DEPLOYMENT.md`; los tests de deriva
+  fallan si divergen o si el código declara una variable que el inventario no conoce.
+- **CI** (`.github/workflows/ci.yml`): `checks` (instalación con lockfile congelado, lint, typecheck, test, build, `check:public-env`), `db`
+  (PostGIS 17-3.5, despliegue dos veces y suites con base de datos de los tres paquetes) y `backup` (e2e con MinIO). Node 22.23.4, pnpm
+  11.25.0, caché del almacén de pnpm ligada al lockfile, acciones fijadas por SHA, sin despliegue ni credenciales.
 
 ## Rendimiento
 
@@ -442,7 +471,10 @@ pg_dump -Fc (URL directa) ─► age -r $AGE_RECIPIENT ─► $TMP.age (0700, tr
   Las cifras de conservación del texto son las del sistema (180 días de señales y de tombstone, importadas
   de `packages/core`). La identidad del titular sale de `LEGAL_OWNER_NAME`, `LEGAL_OWNER_TAX_ID`,
   `LEGAL_OWNER_ADDRESS` y `LEGAL_OWNER_EMAIL` (opcionales; sin definir se muestran marcadores visibles).
-  La única cookie es `theme`; `test/cookie-allowlist.test.ts` y el e2e lo vigilan.
+  La única cookie es `theme`; `test/cookie-allowlist.test.ts` y el e2e lo vigilan. Si falta algún `LEGAL_OWNER_*` en producción, el arranque
+  de la web lo registra como aviso (`instrumentation.ts`, decisión 263 parte C), sin impedir arrancar.
+- Ninguna credencial como variable `NEXT_PUBLIC_*` (Next la incrustaría en el JavaScript de cada navegador): `pnpm check:public-env` revisa
+  los nombres del entorno y el contenido de los ficheros versionados, sin abrir ningún `.env*`, y falla la CI.
 - Módulos de `apps/web/src/server` con handles de base de datos o secretos guardados con
   `import 'server-only'`, para que un import accidental desde código de cliente falle en build.
 - Secretos en variables de entorno, fuera del control de versiones.

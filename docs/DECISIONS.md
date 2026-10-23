@@ -6663,10 +6663,61 @@ propia: la columna `presweep_requested_at` llegó con la 0018 (decisión 250). R
 
 ---
 
+## 254 — Paso 3.4: arquitectura de producción y alcance «código listo para desplegar»; el despliegue real pasa al paso 3.5
+
+**Estado:** aceptada (paso 3.4, cierre). Decisiones de producto PD1 (arquitectura), PD8–PD11 y el aplazamiento del despliegue, todas del
+propietario. Reservada desde la 255 y redactada al cerrar el paso.
+
+**Contexto.** Buscahogar es un TFM y también una web real que usarán personas reales (ROADMAP 3.4). Hasta ahora solo corría en la máquina del
+desarrollador: ni imágenes de `web` e `ingestion`, ni despliegue, ni copias de seguridad, ni avisos, ni páginas legales, y el limitador de
+peticiones era un `Map` por proceso (decisión 074) que se rompe con más de una instancia. La investigación (Vercel, Neon, hosts de worker,
+teselas; instantánea del 2026-10-21, que habrá que repetir con los precios vigentes) fijó dos hechos: una función de Vercel es de
+petición, con un máximo de 300 s en Hobby y 800 s en Pro, **sin proceso siempre encendido**, así que el worker de cobertura no puede vivir
+allí; y la web, en Vercel, ejecuta varias instancias efímeras a la vez.
+
+**Decisión.**
+
+1. **Arquitectura A (PD1).** `apps/web` en Vercel (plan Pro), PostgreSQL 17 con PostGIS en Neon (región de Frankfurt) y `apps/ingestion` como
+   worker siempre encendido en un host aparte (imagen `apps/ingestion/Dockerfile`, decisión 258). La web usa la URL del **pooler** con sus dos
+   roles; el worker, el despliegue y las copias usan la URL **directa** (decisión 256). Ningún servicio nuevo en `apps/web` hace llamadas
+   externas (NF1): los avisos, el latido y las copias viven solo en `apps/ingestion` y `ops/`.
+2. **El paso 3.4 entrega código listo para desplegar, no un despliegue.** Todo lo que pide cuentas, dinero o una decisión del propietario pasa al
+   nuevo **paso 3.5** (aprovisionamiento y puesta en marcha), que empieza **tras la aprobación del TFM** (PD, 2026-10-21): crear las cuentas,
+   dominio y DNS, secretos en los gestores del proveedor, primer despliegue, latido externo, condiciones del proveedor de teselas y de Idealista
+   antes de indexar, y las comprobaciones que solo se pueden hacer contra Neon (verificador SCRAM, `jit` por rol, `attachDatabasePool`, latencia
+   del proxy, agregación de IPv6 por `/64`). La lista de traspaso está en `docs/ROADMAP.md` (paso 3.5) y en `docs/DEPLOYMENT.md`.
+3. **Criterio de «listo».** Lo verificable en local con Docker, MinIO y dobles, sin red real: la CI en verde, un despliegue idempotente (dos
+   ejecuciones, la segunda sin cambios), el worker en su imagen con parada ordenada y recuperación de jobs atascados, avisos con deduplicación
+   duradera, copia cifrada → MinIO → restauración en una base vacía con la matriz de privilegios comprobada, y el entorno documentado y
+   vigilado por tests.
+4. **Reparto en decisiones.** 255 limitador compartido en PostgreSQL (enmienda la 074); 256 conexión detrás de un pooler; 257 despliegue
+   (enmienda la 064 y la 069); 258 worker en producción (parte 1: imagen, supervisión, parada, latido; parte 2: arrendamiento y recuperación de
+   `running`); 259 avisos por Telegram; 260 copias de seguridad y simulacro; 261 teselas configurables (enmienda la 112); 262 interruptor de
+   indexación; 263 salud, páginas legales, y entorno y CI; 264 jit (enmienda la 101); 265 credencial del limitador en el e2e (enmienda la 135 y
+   la 255).
+5. **Reglas que se mantienen.** Las fuentes se consultan solo desde `apps/ingestion` (nunca en tiempo de búsqueda); la cuota de Idealista sigue
+   siendo mensual y limitada, con corte explícito en todo lo que pagina; las credenciales de las fuentes no llegan a `apps/web`; ninguna
+   credencial es `NEXT_PUBLIC_*`. Cambia una: `web_coverage` gana `SELECT/INSERT/UPDATE/DELETE` sobre `proxy_rate_limit` (PD8, decisión 255), y la
+   regla de credenciales de `CLAUDE.md` ya la recoge.
+
+**Alternativas descartadas.** (a) Un único VPS con Docker Compose y Caddy (la primera recomendación de la exploración, ~10-20 EUR al mes): más
+barato, pero deja al propietario operando el sistema operativo, los certificados y la base de datos; para una web real se prefirió el
+servicio gestionado, con su coste. (b) El worker en Vercel (cron o funciones): una función es de petición y de duración acotada; el barrido
+reanudable por cursor no cabe. (c) Redis o la WAF de Vercel para el limitador: fuera del alcance de `ARCHITECTURE.md` y sin verificar
+(decisión 255). (d) Hacer el despliegue real dentro del 3.4: gastaría dinero y expondría datos y condiciones de terceros (Idealista, teselas)
+antes de que el TFM esté aprobado y de que el propietario haya revisado los textos legales.
+
+**Consecuencias.** El paso 3.4 se cierra con unas 21 000 líneas autoradas repartidas en doce commits de trabajo y una sola PR con `size:exception`
+(la previsión era de ~5 600; el grueso son tests, como en los pasos 1.6, 1.7 y 3.3). El responsable hereda una lista de comprobaciones concretas
+para el 3.5 y un conjunto de tests que vigilan que el entorno documentado, el flujo de CI y los umbrales no divergen del código. Lo que no se
+puede saber hasta el 3.5 (Neon, Vercel, los precios) falla de forma ruidosa o está en la lista, no oculto.
+
+---
+
 ## 255 — Limitador de peticiones compartido en PostgreSQL, con fallo abierto y plazo de 200 ms (enmienda la 074)
 
-**Estado:** aceptada (paso 3.4, S1). Decisiones de producto PD8 y PD9 del propietario. La 254 queda reservada para la decisión de
-arquitectura general del paso 3.4, que se redacta al cerrarlo.
+**Estado:** aceptada (paso 3.4, S1). Decisiones de producto PD8 y PD9 del propietario. La 254 es la decisión de
+arquitectura general del paso 3.4 (redactada al cerrarlo).
 
 **Contexto.** La 074 dejó el limitador de `apps/web/src/proxy.ts` en un `Map` por proceso y documentó que se rompe con más de una instancia.
 El despliegue previsto (Vercel) ejecuta varias instancias a la vez y las recicla constantemente: cada una contaría por su cuenta y el límite
@@ -7131,7 +7182,7 @@ riesgo menor y se revisa al encender el interruptor.
 ## 263 — Salud, páginas legales y pie del sitio; identidad del titular desde la configuración
 
 **Estado:** aceptada (paso 3.4, S2 y S3). Esta decisión tiene tres partes: la **A** (salud) y la **B** (páginas legales) están redactadas
-aquí; la **C** (variables de entorno, clasificador, `env:check` y CI) se completa en S8 al cerrar el paso.
+aquí; la **C** (variables de entorno, clasificador, `env:check` y CI) se redactó en S8 al cerrar el paso.
 
 ### A. Punto de salud (S2)
 
@@ -7168,7 +7219,7 @@ genérico.
    (variables de servidor, opcionales, validadas con Zod en `server/legal-identity.ts`: texto plano de una línea, hasta 300 caracteres, correo
    con forma de correo). Un dato sin definir se muestra como `[Pendiente de configurar: …]`, en negrita y visible: **nunca se inventa una
    identidad**. Un valor inválido es un error que nombra la variable sin su valor. En producción con la identidad incompleta debe haber un aviso de
-   arranque (no un fallo): `legalIdentityStartupWarning` ya lo calcula; **S8 lo conecta** a `instrumentation.ts` y a `env:check`.
+   arranque (no un fallo): `legalIdentityStartupWarning` ya lo calcula; **S8 lo conectó** a `instrumentation.ts` y a `env:check` (parte C).
    Cambiar la identidad exige redesplegar (las páginas se generan al compilar).
 5. **Pie del sitio** (`components/site-footer.tsx`): sustituye al pie de atribución del layout y conserva su frase CC-BY del IGN/CNIG (orden
    FOM/2807/2015) y el mismo `<footer>`. Añade una lista de tres enlaces (sin `<nav>`: la app no tiene landmark de navegación, decisión 223) con
@@ -7188,10 +7239,67 @@ dos landmarks `contentinfo`.
 **Consecuencias.** Todas las líneas base visuales cambian por el pie (el e2e visual es el único juicio de apariencia) y las tres rutas
 nuevas entran en el conjunto de rutas del e2e visual y de accesibilidad.
 
-### C. Variables de entorno, clasificador y CI
+### C. Variables de entorno, clasificador, `env:check` y CI (S8)
 
-Se redacta en S8 (clasificador de entorno por aplicación, `env:check`, `check:public-env` y flujo de CI), junto con la tabla de variables de
-`docs/DEPLOYMENT.md`, que incluirá `LEGAL_OWNER_*`.
+**Contexto.** Al terminar el 3.4 hay cuatro servicios con variables de entorno (web, worker, despliegue y copias/simulacro), la mayoría
+nuevas, y nada que impida que la documentación, el arranque y una comprobación previa al despliegue digan cosas distintas. Un error de
+configuración que un servicio acepta y otro rechaza, o un secreto impreso en un informe, son justo los fallos que una puesta en
+producción no puede permitirse.
+
+**Decisión.**
+
+1. **Un clasificador por aplicación, con una sola lista.** `classifyEnv(env, destino)` (`apps/web/src/server/env-classifier.ts`,
+   `apps/ingestion/src/ops/env-classifier.ts`) devuelve `{name, severity, reason}[]` con dos severidades: `error` (el servicio no puede
+   funcionar con esto) y `production-warning` (funciona, pero en producción conviene configurarlo). **Los errores usan los mismos
+   lectores Zod que el runtime** (`server/env.ts`, `parseTileConfig`, `parseSiteIndexing`, `parseLegalIdentity`, `readEnv`,
+   `readDeployConfig`), que ahora reciben el entorno como parámetro: el clasificador no puede aceptar lo que el runtime rechaza. En el worker
+   los lectores se inyectan (`EnvReaders`) porque `readEnv` vive en `scripts/`.
+2. **Solo nombres y motivos fijos.** Un problema es el nombre de la variable y un motivo de una lista cerrada («falta o está en blanco»,
+   «valor inválido (el valor no se muestra)»); nunca un valor ni el mensaje de un error de Zod, que podría citar una URL, una clave o un token.
+   Los tests recorren el informe buscando valores de prueba.
+3. **Avisos de producción.** Web: `LEGAL_OWNER_*` sin definir (una entrada por variable, con la frase de `legalIdentityStartupWarning` de la parte
+   B) y teselas de OpenStreetMap por defecto (`TILE_URL_TEMPLATE`, decisión 261). Worker: Telegram sin configurar (`TELEGRAM_BOT_TOKEN`,
+   decisión 259) y `HEARTBEAT_URL` sin definir (decisión 258). Solo se calculan con destino `production`.
+4. **El arranque avisa y la comprobación previa falla, con la misma lista.** El worker registra sus avisos una vez al arrancar como líneas
+   JSON `warn` (`classifyWorkerEnv`, la misma función que `env:check`; un test compara ambas listas). La web lo hace desde
+   `src/instrumentation.ts` (`register()` de Next 16, que se llama una vez por instancia antes de atender peticiones, solo en el runtime de
+   Node y solo con `NODE_ENV=production`), también como JSON. **Un aviso nunca impide arrancar**; tampoco un error en la web, que registra
+   una línea `error` y mantiene su fallo perezoso y nombrado en el punto de uso (decisiones 066 y 078): `env:check` es la puerta previa.
+5. **`env:check [--target local|production]` por aplicación** (`apps/web/scripts/env-check.ts`, `apps/ingestion/scripts/env-check.ts` con
+   `--service worker|deploy`; `pnpm env:check` en la raíz ejecuta web y worker). Inspecciona el entorno **del proceso**: no lee ni escribe
+   ningún `.env*` (para comprobar un fichero se carga con `node --env-file`, que lo lee Node). `local` sale 1 solo con errores;
+   `production` sale 1 con errores **y** con avisos; 2 si los argumentos son incorrectos. Sin `DIRECT_DATABASE_URL`, el despliegue falla y la
+   nombra (R2.3, R12.2). Las copias de seguridad y el simulacro (shell) validan su propio entorno.
+6. **Ninguna credencial como `NEXT_PUBLIC_*`.** `src/lib/public-env.ts` prohíbe `NEXT_PUBLIC_` seguido de un nombre que contenga `SECRET`,
+   `TOKEN`, `PASSWORD`, `PASS`, `KEY`, `PRIVATE`, `CREDENTIAL`, `AUTH`, `DATABASE` o `DB_URL`. `pnpm check:public-env` aplica la regla a los
+   nombres del entorno y al contenido de `git ls-files`, **excluyendo todo `.env*` sin abrirlo**; el clasificador la aplica al entorno. Falla la
+   CI.
+7. **Documentación vigilada.** Cada app tiene un inventario (`env-manifest.ts`: nombre, obligatoriedad, valor por defecto, ejemplo, tipo
+   de URL, descripción) del que salen las tablas por servicio de `docs/DEPLOYMENT.md`. Los tests de deriva (`deployment-docs.test.ts` en `web`
+   e `ingestion`) fallan si una tabla y su inventario divergen, y también si el código declara una variable que el inventario no conoce (esquema
+   de `readEnv`, del despliegue, y las que exige `backup.sh`). `.env.example` queda fuera del alcance (ninguna herramienta lo puede leer ni
+   editar): la lista de variables a añadir es la de `docs/DEPLOYMENT.md`.
+8. **CI** (`.github/workflows/ci.yml`, solo comprueba). `checks`: `pnpm install --frozen-lockfile`, lint, typecheck, test, build y
+   `check:public-env`. `db`: PostGIS `17-3.5` como servicio, JavaScript de producción del despliegue, **despliegue dos veces** (la segunda debe
+   informar `0 migrations, roles unchanged, privileges unchanged, seeds skipped`) y las suites con base de datos de `db`, `ingestion` y `web`
+   con los roles recién aprovisionados. `backup`: el e2e de copias contra MinIO local. Node `22.23.4` y pnpm `11.25.0` (los de la imagen del
+   worker y de `packageManager`), caché del almacén de pnpm ligada a `pnpm-lock.yaml`, acciones oficiales fijadas por SHA completo, permisos
+   `contents: read`, sin `continue-on-error`, **sin despliegue, publicación ni credenciales de nube, de las fuentes o de Telegram**. Un test
+   estático (`ci-workflow.test.ts`) vigila la forma del flujo.
+
+**Alternativas descartadas.** (a) Dos listas, una para el arranque y otra para `env:check`: divergirían (el motivo de existir de esta parte).
+(b) Reglas de validación copiadas en el clasificador: aceptarían algo que el runtime rechaza o al revés; se reutilizan los lectores. (c) Que
+`env:check` lea un fichero `.env`: contradice la regla de no abrir `.env*` y obligaría a decidir cuál. (d) Fallar el arranque de la web ante un
+error de configuración: rompería los servidores e2e que dejan variables vacías a propósito (decisiones 135 y 265) y cambiaría el modelo de
+fallo perezoso y nombrado que ya tienen los lectores. (e) `pnpm/action-setup` y `actions/cache`: una acción de terceros más sin necesidad;
+`npm install --global pnpm@<versión>` es lo que ya usa `Dockerfile.e2e`, y `actions/setup-node` con `cache: pnpm` liga la caché al lockfile.
+(f) Ejecutar el e2e visual de Playwright en la CI: una imagen de varios GB por cada ejecución; se mantiene como paso manual antes de fusionar
+cambios de interfaz.
+
+**Consecuencias.** Entre el arranque, `env:check`, la documentación y la CI hay una sola definición de lo que es un error y de lo que es un
+aviso, y un test que falla cuando divergen. La CI no se ha podido ejecutar en GitHub desde el entorno de desarrollo: cada job se reprodujo en
+local y la primera ejecución real ocurre al subir la rama (los comandos y el resultado están en las notas del paso). Cambiar la versión de Node o
+de pnpm exige tocar el `Dockerfile` o `packageManager` **y** `ci.yml`; el test avisa si solo se toca uno.
 
 ## 264 — JIT apagado: ajuste de rol preferente y respaldo a nivel de base de datos verificado (enmienda la 101)
 

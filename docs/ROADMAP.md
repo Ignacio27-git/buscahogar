@@ -2160,7 +2160,7 @@ por ciudad puede no cubrir todo el término municipal. El mapeo de `studio` sigu
 
 ---
 
-## [ ] 3.4 · Puesta en producción
+## [x] 3.4 · Puesta en producción
 
 Decisión de producto del responsable (2026-10-21): Buscahogar es un TFM y también una web real que se desplegará y
 usarán personas reales, así que tiene que funcionar a nivel profesional. La cuota de Idealista se puede ampliar
@@ -2175,9 +2175,92 @@ copias de seguridad de PostgreSQL y gestión de la cuota de cada mes sin interve
 
 **Notas:**
 
-**Estado: pendiente.** Origen: una búsqueda en un municipio pequeño solo se cubre si el worker está siempre en
-marcha, y hoy no hay ningún despliegue. Ni `apps/web/Dockerfile` ni `apps/ingestion/Dockerfile` existen, aunque
-`docker-compose.yml` los cita. El destino de despliegue lo elige el responsable.
+**Estado: hecho en código (2026-10-23); el despliegue real queda en el paso 3.5, tras la aprobación del TFM.** Ciclo SDD
+`production-deployment` (ritmo automático, almacén Engram, Strict TDD), 12 commits de trabajo en `feature-fase3`,
+entregados como una sola PR con `size:exception` (~21 000 líneas autoradas frente a las ~5 600 previstas). Migraciones 0020-0022.
+Decisiones 254-265. Decisión del responsable (2026-10-21): el despliegue real no ocurre hasta que el TFM esté aprobado, así que este paso
+entrega **código listo para desplegar y comprobado en local** (Docker, MinIO y dobles; ninguna cuenta, ningún gasto). Arquitectura A (decisión
+254): `apps/web` en Vercel (Pro), PostgreSQL 17 con PostGIS en Neon (Frankfurt) y el worker en un host aparte.
+
+| Lote | Contenido | Decisión | Commit |
+|---|---|---|---|
+| S1 | limitador de peticiones compartido en PostgreSQL (fallo abierto, 200 ms), pools acotados para el pooler, migración 0020 y `REVOKE` a `web_readonly` | 255, 256 | `35a8b57` |
+| S2 | `GET /api/health`, teselas configurables (plantilla, host de la CSP, atribución), interruptor de indexación | 261, 262, 263 A | `e34a8aa` |
+| S3 | páginas legales (privacidad, cookies, aviso legal), pie de página, identidad del titular desde la configuración, lista permitida de cookies | 263 B | `5f2565d` |
+| corrección | credencial acotada del limitador para el servidor e2e «limitado» (regresión de S1 vista en el e2e de S3) | 265 | `bd456f5` |
+| S4a | roles, privilegios y comprobaciones del despliegue (SCRAM, migrador, aprovisionamiento, huella de ACL, `jit`) | 257, 264 | `7277549` |
+| S4b | `deploy` de extremo a extremo, semillas idempotentes, servicio de Compose | 257 | `b7e8919` |
+| S5a | worker en modo producción: JavaScript compilado, imagen propia, supervisor, parada ordenada, registro JSON, latido | 258 | `6eb0ef8` |
+| S5b | arrendamiento de jobs (migración 0021) y recuperación de `running` abandonados | 258 (parte 2) | `04fb276` |
+| S6 | avisos por Telegram con deduplicación duradera (migración 0022) y tope de salidas por tick | 259 | `2b70b82` |
+| S7 | copias cifradas con `age`, retención 7/4/3, simulacro de restauración con matriz de privilegios | 260 | `f408bfe` |
+| S8 | clasificador de entorno, `env:check`, `check:public-env`, CI, `docs/DEPLOYMENT.md`, README | 254, 263 C | `d53bb4d` |
+| — | documentación de cierre (decisiones, ARCHITECTURE, ROADMAP, PROMPTS, AI-NOTES) y nuevo paso 3.5 | — | este commit |
+
+**Qué queda comprobado y cómo.**
+
+- **Suites** (tras S8): core 995, db 556 (más bloqueo 18, consolidación 22, detalle 24), ingestion 1287 + 214 con base de datos,
+  web 1880; `pnpm lint` y `pnpm typecheck` limpios en los cuatro paquetes. e2e visual y de accesibilidad: 1117 pasadas, 0 fallos, 1007 omitidas.
+- **Despliegue idempotente**: contra un PostGIS desechable, la primera ejecución aplica 23 migraciones, crea los roles y siembra el catálogo;
+  la segunda informa `0 migrations, roles unchanged, privileges unchanged, seeds skipped` (la CI lo exige).
+- **Worker**: imagen `node:22.23.4-bookworm-slim` con usuario no root, sin `tsx` ni fuentes; con el entorno vacío sale con 2 y nombra lo que
+  falta. Recuperación de `running` abandonados y su SQL manual verificados contra la base (`docs/DEPLOYMENT.md`, «Jobs `running` atascados»).
+- **Copias de seguridad**: `bash ops/backup/test/e2e.sh` contra MinIO y dos PostGIS (78 comprobaciones), y `retention.test.sh` (16). No queda
+  texto plano en disco ni tras un fallo forzado.
+- **CI**: GitHub Actions no se puede ejecutar desde aquí. Se comprobó de forma estática (`ci-workflow.test.ts`) y se reprodujeron en local los
+  tres jobs: `checks` en una copia limpia sin ningún `.env*`, `db` contra un PostGIS desechable (despliegue doble y las seis suites con base de
+  datos) y `backup` (el e2e de copias). La primera ejecución real ocurre al subir la rama.
+
+**Qué NO se hizo (y pasa al 3.5).** Crear las cuentas (Vercel, Neon, host del worker, almacenamiento, Telegram, monitor de latido), el
+dominio y los secretos, el primer despliegue real, las comprobaciones que solo se pueden hacer contra Neon (verificador SCRAM, `jit` por rol,
+`attachDatabasePool`, latencia del proxy, agregación de IPv6), el proveedor de teselas con acuerdo, las condiciones de Idealista antes de indexar
+y la revisión de los textos legales. Tampoco hay imagen de la web (va a Vercel). La gestión de la cuota de cada mes sigue en manos del
+responsable (`set-monthly-quota`; la cuota se hereda mes a mes, decisión 248) con el aviso por Telegram al 80 % y al 100 %.
+
+**Pendientes del responsable.** `.env.example` no se pudo actualizar (ninguna herramienta lo puede leer ni editar): faltan todas las
+variables nuevas, que están en `docs/DEPLOYMENT.md`, y sigue declarando `OPERATION`. El servicio `web` de `docker-compose.yml` apunta a un
+`apps/web/Dockerfile` que no existe.
+
+**Riesgos abiertos.** Los precios y límites de los proveedores son la instantánea del 2026-10-21 y hay que repetirlos en el 3.5. Neon puede no
+aceptar verificadores SCRAM ya calculados ni `ALTER ROLE … SET jit`: ambos casos fallan en voz alta (salida 4) y están en la lista del 3.5. Con un
+único worker (decisión 252), un job reclamado a un dueño lento pero vivo podría terminarse dos veces; es benigno.
+
+---
+
+## [ ] 3.5 · Aprovisionamiento y puesta en marcha
+
+Decisión de producto del responsable (2026-10-21): la puesta en marcha real no ocurre hasta que el TFM esté aprobado. Este paso agrupa todo lo
+que el 3.4 dejó fuera por requerir cuentas, dinero o decisiones del propietario. El procedimiento y los comandos están en
+`docs/DEPLOYMENT.md`.
+
+```text
+Pon en marcha Buscahogar en producción con la arquitectura de la decisión 254: crea las cuentas y los servicios, configura el dominio y los
+secretos, ejecuta el primer despliegue y comprueba cada supuesto que el paso 3.4 solo pudo dejar preparado (Neon, Vercel, teselas, latido,
+copias). Antes de abrir la web al público, revisa los textos legales y las condiciones de las fuentes.
+```
+
+**Lista de traspaso** (detalle en `docs/DEPLOYMENT.md`, «Paso 3.5: lista de traspaso»):
+
+- [ ] Repetir los precios y límites de los proveedores (instantánea del 2026-10-21) y confirmar el presupuesto.
+- [ ] Cuentas: Vercel (Pro), Neon (Frankfurt, PostgreSQL 17 con PostGIS), host del worker, almacenamiento S3-compatible, bot de Telegram.
+- [ ] Dominio y DNS; `SITE_URL` definitiva.
+- [ ] Secretos en los gestores de cada proveedor (nunca en el repositorio); `CLIENT_IP_HEADER=x-forwarded-for` y las variables del limitador.
+- [ ] Par de claves `age` generado fuera del servidor; `AGE_RECIPIENT` en el host de copias; la privada custodiada fuera de línea.
+- [ ] Primer `deploy` contra Neon, dos veces; cuota mensual real; `env:check --target production` sin avisos.
+- [ ] Monitor de latido (dead-man's-switch) con su `HEARTBEAT_URL`; alerta de prueba por Telegram.
+- [ ] Verificar en Neon: verificador SCRAM aceptado y `jit` apagado por rol (o el respaldo a nivel de base de datos).
+- [ ] Verificar `attachDatabasePool` y la latencia del proxy frente a Neon dentro de los 200 ms del limitador (fallo abierto).
+- [ ] Decidir si hace falta agregar las direcciones IPv6 por `/64` en la clave del limitador.
+- [ ] Primera copia real, simulacro de restauración completo y programación diaria de la copia.
+- [ ] Proveedor de teselas con acuerdo (clave publicable restringida por dominio) y su atribución.
+- [ ] Condiciones de Idealista revisadas **antes** de activar `SITE_INDEXING=true`.
+- [ ] Rellenar `LEGAL_OWNER_*`, revisar los textos legales y nombrar a los encargados del tratamiento en la política de privacidad.
+- [ ] Actualizar `.env.example` (variables nuevas, sin `OPERATION`) y decidir qué hacer con el servicio `web` de `docker-compose.yml`.
+- [ ] Ejecutar `pnpm e2e` sobre el candidato a producción.
+
+**Notas:**
+
+**Estado: pendiente (no empezar antes de la aprobación del TFM).**
 
 ---
 
@@ -2271,3 +2354,11 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-20 | 3.3 | Partido en cinco commits de trabajo (PR1-PR4b) entregados como una sola PR con `size:exception`, aceptada por el responsable | ~7.5k líneas escritas frente a las ~2.98k previstas. Mismo patrón de subestimación de `sdd-tasks` que en los pasos 1.6 y 1.7; el grueso son tests. |
 | 2026-10-20 | 3.3 | El diseño necesitó una re-ejecución correctiva tras el validador de contexto limpio, y aparecieron tres decisiones de producto nuevas (PD10-PD12) que la propuesta no cubría | El validador detectó el índice único parcial sin `operation`, los privilegios por defecto que exponían la tabla mensual a `web_readonly`, una asignación por barrido que ignoraba el techo mensual y migraciones solo hacia delante que contradecían la spec. Detalle en `AI-NOTES.md`. |
 | 2026-10-20 | 3.3 | `.env.example` sin actualizar: sigue declarando `OPERATION`, que el worker ya rechaza | Los permisos de la herramienta denegaron la edición. Queda como paso manual del responsable, junto con quitarla de `.env`. |
+| 2026-10-23 | 3.4 | El paso se redefine de «desplegar» a «dejar el código listo para desplegar y comprobado en local»; el aprovisionamiento y el despliegue real pasan al nuevo paso 3.5, tras la aprobación del TFM | Decisión del responsable (2026-10-21): el despliegue no ocurre hasta aprobar el TFM. No se creó ninguna cuenta ni se gastó dinero. La arquitectura A (Vercel + Neon + worker aparte) se fijó en la decisión 254. |
+| 2026-10-23 | 3.4 | S4 se partió en S4a (roles, privilegios, `jit`, migrador) y S4b (`deploy` de extremo a extremo, semillas, Compose); S5 en S5a (worker en producción) y S5b (arrendamiento y recuperación de jobs) | Cada mitad superaba por sí sola el presupuesto de revisión; el migrador pasó a S4a porque las pruebas de S4a lo necesitan. S5b surgió del hallazgo de que un worker matado con SIGKILL deja su job en `running` para siempre (decisión 258, parte 2); no estaba en el diseño original. |
+| 2026-10-23 | 3.4 | Commit correctivo de la regresión de S1 en el e2e (rol `web_limiter_e2e`, decisión 265) | S1 hizo que el limitador cuente en PostgreSQL y falle abierto; el servidor e2e «limitado» tenía la URL vacía (decisión 135) y siete pruebas dejaron de ver el 429. No se ejecutó `pnpm e2e` tras S1; lo detectó el e2e de S3. Desde entonces se ejecuta tras cualquier rebanada que toque `apps/web`. Detalle en `AI-NOTES.md`. |
+| 2026-10-23 | 3.4 | Las copias de seguridad tienen su propio `ops/backup/compose.yml` en lugar de un perfil en `docker-compose.yml` (S7) | El volumen del compose principal tiene nombre fijo (`buscahogar_postgres_data`): un `down -v` desde cualquier proyecto lo borraría. El fichero aparte usa proyecto propio y solo `tmpfs`. |
+| 2026-10-23 | 3.4 | La imagen de MinIO pasa a ser `cgr.dev/chainguard/minio`, fijada por digest (S7) | `minio/minio` ya no se puede descargar de Docker Hub (acceso denegado). |
+| 2026-10-23 | 3.4 | Los tramos de retención de las copias son disjuntos, así que el escenario de la especificación «20 copias diarias → 7 + 4 + 3» no es alcanzable literalmente: 20 días conservan 9 y 120 días, 14 (S7) | Con tramos que se solaparan, la cuenta sería ambigua. Con tramos disjuntos se llega a 7 + 4 + 3 con unos cuatro meses de historia. Documentado en `docs/DEPLOYMENT.md` y en la decisión 260. |
+| 2026-10-23 | 3.4 | No hay imagen de `apps/web` (la tarea pedía «imágenes de web y del worker») y `.env.example` no se actualizó | La web va a Vercel (decisión 254), que construye la suya; el servicio `web` de Compose queda sin Dockerfile (pendiente del 3.5). `.env.example` no se puede leer ni editar con las herramientas: las variables nuevas están en `docs/DEPLOYMENT.md` y es tarea del responsable. |
+| 2026-10-23 | 3.4 | El e2e visual de Playwright no forma parte de la CI (S8) | Exige una imagen de Docker de varios GB por ejecución; se ejecuta a mano antes de fusionar cambios de interfaz (se ejecutó al cerrar S8: 1117 pasadas, 0 fallos, 1007 omitidas). |

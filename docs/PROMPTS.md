@@ -2251,3 +2251,54 @@ Granada. No se agrupó ningún anuncio de venta con uno de alquiler.
 **Observación.** Los dos pendientes que tocan `.env*` (`DAILY_SEARCH_CAP` y `OPERATION` en `.env.example`) se registran como confirmación
 del responsable, no como verificación, porque los permisos de la herramienta impiden leer esos ficheros. La confirmación de que la cuota se
 reinicia por mes natural UTC valida la suposición de la decisión 248.
+
+---
+
+### 2026-10-21 — Puesta en producción: código listo para desplegar (3.4)
+
+**Tipo de tarea:** configuración y operación (despliegue, imagen del worker, copias de seguridad, CI), dominio (limitador, avisos), seguridad
+(roles y privilegios), interfaz (páginas legales y pie) y documentación de operación
+**Forma de especificación:** SDD completo (exploración, investigación, propuesta, especificación, diseño, tareas y aplicación en ocho rebanadas)
+en ritmo automático y con Engram (`sdd/production-deployment/*`), con Strict TDD. Invocado con `/gentle-sdd-new production-deployment` sobre el
+prompt del paso 3.4 de `docs/ROADMAP.md`. Las once decisiones de producto (PD1-PD11) las confirmó el responsable antes de la especificación y el diseño. Una sola PR con
+`size:exception`
+**Resultado:** utilizable con retoques. La especificación y el diseño necesitaron una re-ejecución correctiva (v2) y la aplicación, una
+corrección posterior (la regresión del e2e tras S1, decisión 265). El resto se aceptó tal cual, con la salvedad de las pruebas que no vieron
+su ROJO (ver `AI-NOTES.md`)
+
+**Prompt:**
+
+> `/gentle-sdd-new production-deployment`, sobre el prompt del paso 3.4: «Deja la aplicación desplegable y operable en producción: imágenes
+> de web y del worker de cobertura (siempre activo, con reinicio automático), destino de despliegue con HTTPS y dominio, secretos fuera del
+> repositorio, migraciones y bootstrap de roles como parte del despliegue, avisos ante caída del worker, trabajos fallidos o cuota agotada,
+> copias de seguridad de PostgreSQL y gestión de la cuota de cada mes sin intervención manual».
+
+(La transcripción literal de la primera invocación no se conservó; lo que queda es el nombre del cambio y el prompt del paso en la hoja de ruta.)
+
+**Observación.** El prompt original pedía desplegar; el responsable aclaró tras la investigación que el despliegue real no ocurriría hasta aprobar
+el TFM, y el paso cambió de objetivo a «código listo para desplegar y comprobado en local» (decisión 254, paso 3.5 nuevo). Fue la decisión que
+más cambió el trabajo y la que menos aparece en el prompt. El volumen real fue más de tres veces la previsión (~21 000 líneas frente a ~5 600): el
+mismo patrón de subestimación que en los pasos 1.6, 1.7 y 3.3, con el grueso en tests. Lo que mejor funcionó fue la exigencia de ejecutar el
+artefacto real (imagen, contenedor, MinIO, `pnpm e2e`) además de las pruebas de unidad: encontró el temporizador de parada que sobrevivía en el
+worker, el montaje `noexec` que dejaba falsos verdes y la regresión del e2e. Lo que peor funcionó fue la interrupción por cuota de uso con una
+rebanada (S6) a medias: el trabajo en curso quedó sin commit y sin los ROJOS observados.
+
+---
+
+### 2026-10-23 — Reanudación y cierre del paso 3.4 (S6-S8)
+
+**Tipo de tarea:** continuación de un ciclo SDD (apply de S6, S7 y S8), documentación de operación y registro de cierre
+**Forma de especificación:** instrucción directa de reanudación sobre el estado persistido en Engram; S8 (CI, entorno, runbook, README y
+documentación de cierre) se delegó a un agente de aplicación con la lista de tareas 8.1-8.7 y las reglas del proyecto
+**Resultado:** utilizable con retoques (el agente de S8 corrigió en vuelo los fallos que se anotan en `AI-NOTES.md`: lint de los tests, una
+ejecución duplicada de la réplica del job `db` y la forma de las aserciones negativas del test de la CI)
+
+**Prompt:**
+
+> `/gentle-sdd-continue production-deployment`
+
+**Observación.** La reanudación funcionó porque el estado (qué rebanadas estaban confirmadas, qué había sin commit y la regla «ejecutar
+`pnpm e2e` tras tocar la web») estaba en Engram y no en la conversación. Aun así, el trabajo en curso de S6 no traía evidencia de su ROJO, y
+hubo que declararlo en la tabla de evidencia en lugar de reconstruirlo. S8 cerró el paso con `docs/DEPLOYMENT.md` vigilado por tests de
+deriva, la CI comprobada de forma estática y reproducida en local, y la lista de traspaso del paso 3.5. Los pendientes que ninguna herramienta
+puede hacer (`.env.example`) quedan escritos como tareas del responsable, no como hechos.

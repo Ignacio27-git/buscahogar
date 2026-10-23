@@ -4182,3 +4182,86 @@ a recuentos, topes, ciclos de vida y aritmética de los tests por igual. Una mig
 
 **Observación:** el texto con comillas va con las herramientas de ficheros (Write/Edit), que además conservan los finales de línea CRLF de
 `docs/*.md`. Un script, si hace falta, se escribe primero en un fichero y no se pasa en línea.
+
+### 2026-10-23 — Fallos de fondo en la aplicación del paso 3.4 (puesta en producción, S1-S8)
+
+**Contexto:** ciclo SDD `production-deployment` (Strict TDD, ritmo automático, ocho rebanadas: limitador compartido, salud y teselas, páginas
+legales, despliegue, worker en producción, avisos, copias de seguridad, CI y documentación). Solo se anotan los fallos que enseñan algo; los
+tropiezos de sintaxis y de herramientas van en la entrada siguiente.
+
+**Categoría:** código correcto en apariencia pero incorrecto / test que valida el comportamiento equivocado / suposición no comprobada /
+pérdida de contexto del orquestador.
+
+**Qué ocurrió:**
+
+1. **S1 dejó siete pruebas e2e rojas sin que nadie lo viera hasta S3.** El limitador pasó a contar en PostgreSQL con la credencial
+   `web_coverage` y a fallar abierto si no puede conectar. El servidor e2e «limitado» tenía esa URL vacía por la decisión 135, así que nunca
+   emitía el 429 (recibía 404). Las suites de unidad y de base de datos estaban verdes, y el orquestador no ejecutó `pnpm e2e` tras una
+   rebanada que tocaba `apps/web`. Lo encontró la ejecución e2e de S3 (1110 pasadas, 7 fallos). Se corrigió con un rol e2e acotado
+   (decisión 265) y desde entonces la regla es ejecutar `pnpm e2e` tras cualquier rebanada que toque `apps/web`.
+2. **S5a: un temporizador de parada que sobrevivía a la salida por configuración inválida.** `runWorkerProcess` volvía del camino de
+   configuración inválida sin liberar el plazo de parada, así que un SIGTERM durante la espera de 30 s terminaba con salida 1 a los 8 s en vez de
+   salida 2 de inmediato. Los 13 tests de proceso con reloj falso pasaban; solo lo reveló ejecutar la imagen real con el entorno vacío. Se corrigió
+   con un único `try/finally` y una prueba de regresión («SIGTERM durante la espera deja el temporizador liberado»).
+3. **S5a: reutilizar `shouldContinue` para la parada a mitad de tick rompió el requisito R11.** Un test existente cuenta las llamadas a
+   `shouldContinue`; las llamadas extra lo pusieron en rojo (28 → 1 fallo). La parada en el límite de página pasó a una opción propia,
+   `shouldStop`, que no altera el contrato previo.
+4. **S7: el aislamiento de Docker dio un falso verde.** `tmpfs` se monta `noexec` por defecto, así que los envoltorios (`shims`) del e2e de copias
+   en `/tmp` nunca se ejecutaban y los escenarios de fallo «pasaban» haciendo copias reales. Se vio al revisar por qué los escenarios de fallo
+   ejecutaban copias reales; el montaje pasó a `/tmp:exec`. Cerca de lo mismo: una comprobación de «no hay texto plano» encontraba el propio
+   fichero del envoltorio con la marca, y una expresión estática de «pg_dump no se redirige» casaba con la redirección legítima de `age`.
+5. **S7: se asumió que `minio/minio` se podía descargar.** Docker Hub ya no la sirve (acceso denegado); se pasó a la imagen de Chainguard fijada
+   por digest. También se asumió que `rclone mkdir` con `no_check_bucket=true` creaba el cubo: no creaba nada, en silencio.
+6. **S6: un test con una expresión sin escapar falló por el motivo equivocado.** La prueba de orden del bootstrap usaba
+   `to_regclass('public.alert_dispatch_log')` dentro de una expresión regular, con paréntesis y punto sin escapar; falló en la ejecución completa
+   por la expresión y no por el código. Otra prueba usó el `fetch` global, que la suite deshabilita a propósito (REQ-NONET), y hubo que pasar a un
+   cliente HTTP de `node:http` contra el bucle local en lugar de saltarse la regla.
+7. **S4: la matriz de privilegios marcó como fallo un permiso que no es nuestro.** PostGIS concede `SELECT` sobre `spatial_ref_sys` a `PUBLIC`, así
+   que `web_coverage` aparecía con un permiso que nadie había concedido; se excluyó de la matriz con una nota. Otro caso: un `||` entre `text` y
+   `"char"` en la huella de privilegios no existe en Postgres (hubo que convertir con `::text`).
+8. **S4: `pnpm deploy` falla en pnpm 11 sin `--legacy`** (`ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE`), y la primera imagen copió el directorio
+   completo del despliegue (fuentes y tests) a la etapa final; lo detectó un `ls` dentro de la imagen y ahora hay una lista explícita de `COPY` con
+   su test.
+9. **S6 y S5b: pruebas sin su RED observado.** En S6 el código de 6.1-6.5 ya existía (trabajo en curso de la sesión interrumpida por la cuota) y
+   los tests se escribieron con él; en S5b, y en parte de S7 y S5a, la prueba de proceso o de integración se escribió después de la
+   implementación. No se afirma un ROJO que no se vio: las tablas de evidencia de cada rebanada lo dicen.
+10. **S8: dos ejecuciones simultáneas de la misma suite contra un único PostGIS.** Lancé la réplica local del job `db` con `&` dentro de una
+    llamada y luego de nuevo en segundo plano; la primera no murió con la llamada, así que dos ejecuciones compartieron las bases `_test` y
+    produjeron 17 + 3 + 4 fallos espurios en `db`. Se mataron ambas y se repitió una sola vez, en limpio.
+11. **S8: el test estático de la CI miraba los comentarios.** La aserción negativa «no hay `continue-on-error`» encontró la frase que lo
+    explicaba en el encabezado del propio `ci.yml`. Las comprobaciones negativas pasaron a mirar solo las líneas que no son comentario.
+
+**Cómo se detectó:** 1 al ejecutar el e2e; 2, 4 y 8 al ejecutar el artefacto real (imagen, contenedor) y no solo las pruebas; 3, 6 y 11 en la
+primera ejecución de las suites; 5 y 7 al correr el escenario; 9 al redactar las tablas de evidencia; 10 por un recuento que no cuadraba.
+
+**Coste:** alto en 1 (una rebanada después y un commit correctivo con su decisión) y en 4 (un escenario falso verde durante varias ejecuciones);
+bajo en el resto.
+
+**Observación:** lo que más veces falló no fue el código sino la **prueba del artefacto real**: el temporizador de la imagen, el montaje `noexec`,
+la descarga de una imagen y el e2e tras tocar la web. Dos reglas salen de aquí: (a) cada rebanada se cierra ejecutando el artefacto en su
+entorno (la imagen, el e2e) y no solo sus pruebas de unidad; (b) un escenario de fallo que «pasa» debe demostrar que el fallo ocurrió
+(registro de llamadas, código de salida), porque un doble que no se ejecuta da el mismo verde que uno que sí.
+
+### 2026-10-23 — Heredocs, sustituciones y finales de línea, otra vez (3.4, recurrente)
+
+**Contexto:** todo el paso 3.4, ediciones desde Bash de código, tests y documentación.
+
+**Categoría:** herramienta.
+
+**Qué se generó mal:**
+
+1. Los heredocs con apóstrofos (abundantes en español) abortaron con «unexpected EOF» o dejaron los ficheros sin escribir (S5a, S5b y una vez
+   en S8). Un `node -e` con comillas invertidas dentro de comillas dobles ejecutó el texto como órdenes y dejó una sección sin sus
+   identificadores (S4); otro insertó un salto de línea real dentro de una cadena `'\n'` (S5b y S8).
+2. Las sustituciones con `python` o `node` perdieron barras invertidas (`\b` convertido en un retroceso, `\S` en `S`) en pruebas con
+   expresiones regulares (S1, S2, S4, S5a), y `String.replace` con `$'` en el texto nuevo pegó el resto del fichero (S3).
+3. Sobre ficheros con finales de línea CRLF, una sustitución de varias líneas no encontraba el ancla y no avisaba (S1, S4, S5a, S5b);
+   `python` ni siquiera está instalado en este entorno (S3).
+4. El formateador (`prettier`, ancho 100) reescribió líneas ajenas al cambio en un test (S3); y un `git stash` para medir una línea base obligó a comprobar después que todo el trabajo sin confirmar seguía intacto (S5b, sin
+   consecuencias).
+
+**Cómo se detectó:** al ejecutar el comando (error de la shell), al fallar un test por una expresión alterada, o al revisar el diff.
+
+**Observación:** es la misma entrada que el 3.3 y D.21, y sigue ocurriendo. La regla práctica que funcionó en S8: el texto con comillas va con
+las herramientas de ficheros (Write, Edit); si hace falta un script, se escribe primero en un fichero y un sustituidor propio que
+normaliza los finales de línea (aquí, uno que tolera CRLF y LF mezclados y falla si el ancla no es única) hace el cambio.
