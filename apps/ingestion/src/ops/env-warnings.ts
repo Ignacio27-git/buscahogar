@@ -17,5 +17,14 @@ export function classifyWorkerEnv(env: Readonly<Record<string, string | undefine
       reason: "sin latido (dead-man's-switch) nadie se entera de que el worker ha dejado de funcionar",
     });
   }
+  // Decisión 259: sin Telegram el worker corre, pero los fallos y la cuota solo quedan en el registro. Un único
+  // aviso (nombra el token; si solo hay una de las dos variables, `readEnv` ya rechaza la configuración).
+  if ((env['TELEGRAM_BOT_TOKEN'] ?? '').trim() === '') {
+    issues.push({
+      name: 'TELEGRAM_BOT_TOKEN',
+      severity: 'production-warning',
+      reason: 'sin Telegram (token y chat) los avisos operativos están desactivados: los fallos solo quedan en el registro',
+    });
+  }
   return issues;
 }

@@ -20,6 +20,27 @@ describe('barril público de @buscahogar/core', () => {
     expect(barrel.hasRetriesLeft(3)).toBe(false);
   });
 
+  it('ROADMAP 3.4: expone las comprobaciones y la selección puras de los avisos operativos', () => {
+    expect(barrel.WORKER_STARTED_COOLDOWN_MS).toBe(3_600_000);
+    const candidates = barrel.evaluateAlertChecks(
+      {
+        now: new Date('2026-10-22T10:00:00.000Z'),
+        failedJobs: 0,
+        staleReclaim: undefined,
+        quota: { totalCap: 100, searchRequests: 85 },
+        deniedReservations: 0,
+        workerStarted: false,
+      },
+      { failedJobsThreshold: 5, failedJobsWindowMs: 3_600_000, failedJobsCooldownMs: 3_600_000 }
+    );
+    expect(candidates.map((candidate) => candidate.dedupKey)).toEqual(['quota-80:2026-10']);
+    const selection = barrel.selectAlertsToSend(candidates, new Map(), new Date('2026-10-22T10:00:00.000Z'), {
+      maxPerTick: 3,
+      slots: 4,
+    });
+    expect(selection.messages).toHaveLength(1);
+  });
+
   it('ROADMAP 3.3: expone las reglas puras del techo mensual por carril', () => {
     expect(barrel.laneCeiling('batch', { totalCap: 100, reserve: 30 })).toBe(70);
     expect(barrel.laneRemaining('on-demand', { totalCap: 100, reserve: 30, searchRequests: 40 })).toBe(60);

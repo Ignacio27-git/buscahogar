@@ -159,6 +159,10 @@ export interface CoverageWorkerPorts {
   // el presupuesto de llamadas salientes de ESE tick. Aislado: si lanza, se registra y el worker sigue. Un tick
   // que lanza nunca llega aquí.
   onTickSuccess?(budget: OutboundBudget): Promise<void>;
+  // ROADMAP 3.4 (decisión 259, D17) — paso OPCIONAL de avisos operativos (Telegram). Corre al final de cada tick
+  // que NO lanzó, ANTES del latido, y comparte con él el presupuesto de salida del tick. Aislado: si lanza, se
+  // registra y ni el tick ni el latido se ven afectados. Ausente = sin avisos.
+  onAlertStep?(budget: OutboundBudget): Promise<void>;
   sleep(ms: number): Promise<void>;
   log(line: string): void;
 }
@@ -514,11 +518,18 @@ export async function runCoverageWorker(ports: CoverageWorkerPorts, options: Cov
       await ports.runDedup();
     }
 
-    // D16: el tick terminó sin lanzar. Un presupuesto de salida NUEVO por tick; aislado.
+    // D16/D17: el tick terminó sin lanzar. UN presupuesto de salida NUEVO por tick, compartido por los avisos y el
+    // latido (cada paso aislado: la avería de uno no impide el otro).
+    const onAlertStep = ports.onAlertStep?.bind(ports);
     const onTickSuccess = ports.onTickSuccess?.bind(ports);
-    if (onTickSuccess) {
+    if (onAlertStep || onTickSuccess) {
       const budget = createOutboundBudget(options.maxOutboundCallsPerTick ?? DEFAULT_MAX_OUTBOUND_CALLS_PER_TICK);
-      await runIsolatedStep(ports, 'latido', () => onTickSuccess(budget));
+      if (onAlertStep) {
+        await runIsolatedStep(ports, 'avisos-operativos', () => onAlertStep(budget));
+      }
+      if (onTickSuccess) {
+        await runIsolatedStep(ports, 'latido', () => onTickSuccess(budget));
+      }
     }
   }
 }

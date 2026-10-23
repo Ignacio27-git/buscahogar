@@ -336,6 +336,27 @@ de modo que `COVERAGE_JOB_MAX_ATTEMPTS` (3) acota a un job que mata al worker. C
 - **Respaldo manual:** el procedimiento de reclamación manual con SQL se documenta en el runbook, `docs/DEPLOYMENT.md`, apartado «Jobs
   `running` atascados».
 
+#### Avisos operativos por Telegram (paso 3.4, S6, decisión 259)
+
+El worker avisa al operador por Telegram de lo que hasta ahora solo quedaba en el registro. Todo vive en `apps/ingestion` (`apps/web` no
+hace ninguna llamada externa) y la lógica es pura en `packages/core/src/alerts/`:
+
+- `evaluateAlertChecks(foto, config)` convierte una foto del estado en candidatos `{dedupKey, severity, text, cooldownMs}`: jobs `failed`
+  en la ventana (≥ umbral; un solo aviso agregado), jobs `running` recuperados (`stale-reclaim:<día UTC>`, el gancho
+  `onStaleJobsReclaimed` de la decisión 258), cuota mensual al 80 % / 100 % / ausente (`quota-80:<mes>`…), reservas denegadas hoy y
+  arranque del worker (enfriamiento de 1 h).
+- `selectAlertsToSend` aplica el enfriamiento contra el último envío **persistido**, ordena por gravedad y respeta el tope: como mucho
+  3 mensajes por tick y las plazas libres del presupuesto de salidas; el exceso se pliega en un resumen «+N avisos más».
+- Tick (`runCoverageWorker`): al terminar sin lanzar se crea UN `OutboundBudget` (`MAX_OUTBOUND_CALLS_PER_TICK`, 4); corre el paso de avisos
+  (`onAlertStep`) y después el latido, cada uno aislado. Los avisos dejan siempre 1 plaza para el latido.
+- `alert_dispatch_log(dedup_key PK, last_sent_at)` (migración `0022`) guarda lo enviado, así que un reinicio dentro del enfriamiento no
+  reenvía. Es una tabla **solo del propietario**: `REVOKE ALL` a `web_readonly` y `web_coverage` en la migración y en el bloque final del
+  bootstrap, y presente en `OWNER_ONLY_TABLES` (matriz del `deploy`).
+- Notificador (`src/alerts/telegram-notifier.ts`): `POST /bot<token>/sendMessage`, secuencial, ≥ 1000 ms entre mensajes, 5 s de tiempo
+  límite, nunca lanza y el token se elimina de los errores. Sin `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` (las dos o ninguna) los avisos
+  quedan desactivados: cero lecturas y cero red.
+- Pruebas: Telegram falso (`scripts/fake-telegram.ts`, `TELEGRAM_API_BASE_URL`), servidor HTTP en el bucle local; nunca la API real.
+
 Fuera del alcance: colas externas, Redis, caché distribuida, autenticación.
 
 ## Rendimiento

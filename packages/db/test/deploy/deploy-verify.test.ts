@@ -162,7 +162,7 @@ describeWithTestDb('checkPrivilegeMatrix — matriz final de los roles web (R5.5
 
   it('tras el bootstrap no hay ningún desajuste', async () => {
     expect(await checkPrivilegeMatrix(pool, names)).toEqual([]);
-    expect(OWNER_ONLY_TABLES).toEqual(['monthly_request_budget', 'proxy_rate_limit']);
+    expect(OWNER_ONLY_TABLES).toEqual(['monthly_request_budget', 'proxy_rate_limit', 'alert_dispatch_log']);
   });
 
   it('un SELECT de web_readonly sobre proxy_rate_limit se nombra como fallo', async () => {

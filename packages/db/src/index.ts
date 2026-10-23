@@ -31,6 +31,7 @@ export * from './budget-ledger.js';
 export * from './presweep.js';
 export * from './client-quota.js';
 export * from './proxy-rate-limit.js';
+export * from './alert-dispatch-log.js';
 export * from './query-signals.js';
 export * from './zone-lifecycle.js';
 export * from './zone-purge.js';

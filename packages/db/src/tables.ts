@@ -3,6 +3,7 @@
 // fichero estuviera dentro del glob, drizzle-kit importaría cada tabla dos
 // veces y podría duplicarla en la migración generada (docs/DECISIONS.md,
 // decisión de módulos D1 del diseño).
+export { alertDispatchLog } from './schema/alert-dispatch-log.js';
 export { coverageJobStatus } from './schema/enums.js';
 export { coverageClientQuota } from './schema/coverage-client-quota.js';
 export { coverageJobs } from './schema/coverage-jobs.js';

@@ -41,6 +41,8 @@ const TABLES_IN_FK_ORDER = [
   'dedup_runs',
   // ROADMAP 3.3: registro mensual de cuota; referencia `sources` (va antes).
   'monthly_request_budget',
+  // ROADMAP 3.4 (decisión 259): deduplicación duradera de avisos; sin claves foráneas.
+  'alert_dispatch_log',
   'zones',
   'sources',
   'locations',

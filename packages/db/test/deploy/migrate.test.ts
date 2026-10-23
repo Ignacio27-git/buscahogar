@@ -63,20 +63,19 @@ describeWithTestDb('runMigrations — base vacía y segunda ejecución (decisió
     try {
       await runMigrations(db);
       // Simula una base migrada hasta la penúltima: el registro pierde su última fila y se deshace su efecto
-      // (la última migración es la 0021, `coverage_jobs.lease_renewed_at`; al añadir otra, actualizar esta pareja).
+      // (la última migración es la 0022, `alert_dispatch_log`; al añadir otra, actualizar esta pareja).
       await pool.query(
         'delete from drizzle.__drizzle_migrations where id = (select max(id) from drizzle.__drizzle_migrations)'
       );
-      await pool.query('alter table coverage_jobs drop column lease_renewed_at');
+      await pool.query('drop table alert_dispatch_log');
 
       const resumed = await runMigrations(db);
 
       expect(resumed).toEqual({ applied: 1 });
       const { rows } = await pool.query<{ name: string | null }>(
-        `select column_name as name from information_schema.columns
-         where table_name = 'coverage_jobs' and column_name = 'lease_renewed_at'`
+        `select to_regclass('public.alert_dispatch_log')::text as name`
       );
-      expect(rows[0]?.name).toBe('lease_renewed_at');
+      expect(rows[0]?.name).toBe('alert_dispatch_log');
     } finally {
       await pool.end();
       await partial.drop();

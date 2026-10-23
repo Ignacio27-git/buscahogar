@@ -100,10 +100,10 @@ export async function ensureJitOff(
   return 'database';
 }
 
-// Tablas SOLO del propietario: ningún rol web las toca (decisiones 248 y 255). Cada tabla nueva del
+// Tablas SOLO del propietario: ningún rol web las toca (decisiones 248, 255 y 259). Cada tabla nueva del
 // propietario se añade aquí y su REVOKE al bloque final del bootstrap (los privilegios por defecto le
 // darían SELECT a `web_readonly`).
-export const OWNER_ONLY_TABLES: readonly string[] = ['monthly_request_budget', 'proxy_rate_limit'];
+export const OWNER_ONLY_TABLES: readonly string[] = ['monthly_request_budget', 'proxy_rate_limit', 'alert_dispatch_log'];
 
 // Privilegios EXACTOS de `web_coverage` (decisiones 064, 076, 102 y 255); todo lo demás, denegado.
 const COVERAGE_GRANTS: Readonly<Record<string, readonly string[]>> = {

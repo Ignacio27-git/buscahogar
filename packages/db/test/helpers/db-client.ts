@@ -50,6 +50,8 @@ const TABLES_IN_FK_ORDER = [
   'coverage_client_quota',
   // ROADMAP 3.4: contadores del limitador compartido; sin claves foráneas.
   'proxy_rate_limit',
+  // ROADMAP 3.4 (decisión 259): deduplicación duradera de avisos; sin claves foráneas.
+  'alert_dispatch_log',
   // ROADMAP 2.5 (S1): referencia `zones` (ON DELETE CASCADE) — va antes.
   'zone_query_signals',
   'zones',

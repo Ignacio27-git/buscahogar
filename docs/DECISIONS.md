@@ -6928,6 +6928,64 @@ cursor, como mucho 3 veces. La alerta del día y el runbook (SQL manual de recla
 
 ---
 
+## 259 — Avisos operativos por Telegram con deduplicación duradera y tope de salidas por tick (paso 3.4, S6)
+
+**Estado:** aceptada (paso 3.4, S6). Hasta ahora un fallo de cobertura, una cuota casi agotada o un job atascado solo quedaban en el
+registro del worker, que nadie lee en tiempo real. El worker necesita avisar al operador sin poder inundar el canal ni bloquear un tick, y sin
+que `apps/web` haga ninguna llamada externa (NF1).
+
+**Decisión.**
+
+1. **Dónde.** Solo `apps/ingestion` (`src/alerts/`). La lógica de dominio es pura y vive en `packages/core/src/alerts/`:
+   `evaluateAlertChecks(foto, config)` devuelve candidatos `{dedupKey, severity, text, cooldownMs}` y `selectAlertsToSend(candidatos,
+   últimoEnvío, ahora, {maxPerTick, slots})` decide qué se envía. No leen reloj ni red. Los textos llevan solo cifras agregadas: ningún
+   secreto, URL, IP ni id de job (R7.5).
+2. **Condiciones.** (a) Jobs `failed` con `finished_at` dentro de la ventana (`ALERT_FAILED_JOBS_WINDOW_MS`, 24 h) ≥ `ALERT_FAILED_JOBS_THRESHOLD`
+   (5): UN aviso agregado, no uno por job (clave `failed-jobs`). (b) Recuperación de jobs atascados (decisión 258, parte 2): clave
+   `stale-reclaim:<día UTC>`, cableada al gancho `onStaleJobsReclaimed` del driver. (c) Cuota mensual: `quota-80:<mes>` al pasar del 80 %,
+   `quota-100:<mes>` al agotarse y `quota-missing:<mes>` si no hay fila utilizable; comparación entera, una vez por mes. (d) Reservas de cuota
+   denegadas hoy (`denied-reservations:<día UTC>`), contadas en el proceso. (e) Arranque del worker (`worker-started`, enfriamiento de 1 h, para
+   que un reinicio en bucle no inunde). Un fallo del propio canal solo se registra (R7.2.f).
+3. **Deduplicación duradera.** Tabla `alert_dispatch_log(dedup_key PK, last_sent_at timestamptz)` (migración `0022`, aditiva, con índice por
+   `last_sent_at`). Un aviso no se reenvía dentro de su enfriamiento (`ALERT_COOLDOWN_MS`, 6 h por defecto, para el aviso agregado de fallos;
+   24 h para los diarios y 32 días para los mensuales, cuyas claves ya llevan el periodo). Solo se registra lo realmente enviado: un
+   fallo de Telegram se reintenta tras la espera de fallo. Como el estado está en la base, un reinicio dentro del enfriamiento no reenvía.
+   Las filas de más de 90 días se purgan (como mucho 100 por pasada).
+4. **Privilegios: tabla solo del propietario.** Ni `web_readonly` ni `web_coverage` tienen ningún privilegio. Los privilegios por defecto del
+   bootstrap le darían `SELECT` a `web_readonly` sobre una tabla nueva, así que la migración (con la guarda `pg_roles` de la 0019) y el
+   bloque final de `bootstrap-roles-grants.sql` hacen `REVOKE ALL` a AMBOS roles; `alert_dispatch_log` se añade a `OWNER_ONLY_TABLES`, de
+   modo que la matriz del `deploy` y el simulacro de restauración la comprueban. No hay ningún `GRANT` nuevo.
+5. **Presupuesto de salidas compartido con el latido.** Cada tick que no lanzó crea UN `OutboundBudget` (`MAX_OUTBOUND_CALLS_PER_TICK`, 4).
+   Primero corre el paso de avisos y después el latido, cada uno aislado con `runIsolatedStep`. Los avisos envían como mucho 3 mensajes por tick
+   y dejan siempre 1 plaza libre para el latido: una ráfaga de avisos nunca deja sin plaza al dead-man's-switch. Si hay más avisos elegibles que
+   plazas, se envían `plazas − 1` y UN resumen «+N avisos más»; lo plegado no se registra y se recalcula del estado en el tick siguiente,
+   así que nunca hay una cola que crezca (R7.4).
+6. **Envío.** `POST https://api.telegram.org/bot<token>/sendMessage` (JSON, sin seguir redirecciones), secuencial, separación mínima de
+   1000 ms por chat (con la espera abortable del apagado, para que un SIGTERM no quede retenido), tiempo límite de 5 s por petición
+   (`AbortSignal.timeout`). Nunca lanza: devuelve `false` y registra un aviso con el motivo (`timeout`, `http`, `error`). El primer fallo
+   corta el tick y activa una espera de 60 s antes de volver a intentar. El token se elimina del mensaje de error y el logger oculta token y
+   chat aunque llegaran a un campo.
+7. **Sin configuración, sin red.** `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` se definen las dos o ninguna (Zod en `readEnv`; en blanco = no
+   definida; el error nombra la variable y nunca repite el valor). Sin ellas, los avisos quedan desactivados: ni lecturas de estado ni
+   intentos de red, y el clasificador de arranque emite un único aviso de producción. Variables opcionales de umbrales:
+   `ALERT_FAILED_JOBS_THRESHOLD` (mín. 1), `ALERT_FAILED_JOBS_WINDOW_MS` (mín. 60000), `ALERT_COOLDOWN_MS` (mín. 60000).
+8. **Telegram falso.** `TELEGRAM_API_BASE_URL` (opcional) cambia la base de la API: solo `https://<host>` o `http://127.0.0.1:<puerto>`, sin
+   credenciales, ruta ni consulta. `apps/ingestion/scripts/fake-telegram.ts` es un servidor HTTP en el bucle local (modos `ok`, `error500`,
+   `hang`) que registra los mensajes sin guardar el token. Ninguna prueba habla con la API real.
+
+**Alternativas descartadas.** (a) Estado de deduplicación en un fichero o en memoria: se pierde al reiniciar un contenedor (el disco de la imagen
+no es persistente) y un reinicio en bucle reenviaría todo; la base de datos ya es el estado duradero del worker. (b) Una cola de mensajes
+pendientes: crece sin límite con un canal caído; se prefiere recalcular los avisos del estado y plegar el exceso en un resumen. (c) Un aviso por
+job fallido: 10 fallos en un tick serían 10 mensajes; el umbral agregado informa igual y respeta el tope. (d) Que `apps/web` avise de la
+cuota o del limitador: rompería NF1 y daría a la web una credencial de salida.
+
+**Consecuencias.** Un fallo operativo llega al operador en el tick en que se detecta, como mucho 3 mensajes por tick y sin repetirse dentro de
+su enfriamiento, aunque el worker se reinicie. Un canal caído cuesta como mucho 5 s por intento y un intento por minuto. Quedan fuera la
+detección de «el worker no arranca» (la cubre el latido externo, paso 3.5) y las variables nuevas en la documentación de entorno
+(`docs/DEPLOYMENT.md`, S8).
+
+---
+
 ## 261 — Teselas del mapa configurables: plantilla, host de la CSP y atribución desde una sola configuración (enmienda la 112)
 
 **Estado:** aceptada (paso 3.4, S2). Decisiones de producto PD6 y PD11 del propietario. Enmienda la 112 y la regla de `CLAUDE.md` sobre la

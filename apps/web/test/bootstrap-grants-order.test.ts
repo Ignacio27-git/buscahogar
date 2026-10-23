@@ -43,6 +43,14 @@ describe('bootstrap-roles-grants.sql — orden de GRANT y REVOKE (decisión 255,
     expect(revoke).toBeGreaterThan(position(/ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT/));
   });
 
+  it('alert_dispatch_log (decisión 259) es solo del propietario: REVOKE a AMBOS roles web, tras todos los GRANT, sin ningún GRANT', () => {
+    expect(CODE).toMatch(/IF to_regclass\('public\.alert_dispatch_log'\) IS NOT NULL THEN/);
+    const revoke = position(/REVOKE ALL ON TABLE alert_dispatch_log FROM web_readonly, web_coverage/);
+    expect(revoke).toBeGreaterThan(position(/GRANT SELECT ON ALL TABLES IN SCHEMA public TO web_readonly/));
+    expect(revoke).toBeGreaterThan(position(/ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT/));
+    expect(CODE).not.toMatch(/GRANT[^;]*alert_dispatch_log/);
+  });
+
   it('el REVOKE no toca a web_coverage (conserva exactamente S/I/U/D) y está guardado por to_regclass', () => {
     expect(CODE).toMatch(/IF to_regclass\('public\.proxy_rate_limit'\) IS NOT NULL THEN/);
     expect(CODE).not.toMatch(/REVOKE[^;]*proxy_rate_limit[^;]*web_coverage/);

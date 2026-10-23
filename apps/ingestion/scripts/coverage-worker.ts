@@ -22,6 +22,8 @@ import { COVERAGE_JOB_MAX_ATTEMPTS, blockingThresholdsSchema } from '@buscahogar
 import { createDb } from '@buscahogar/db';
 import { z } from 'zod';
 
+import type { Alerting } from '../src/alerts/alerting.js';
+import { composeAlerting, withAlerting } from '../src/alerts/compose.js';
 import { createAbortableSleep } from '../src/ops/abortable-sleep.js';
 import { classifyWorkerEnv } from '../src/ops/env-warnings.js';
 import {
@@ -82,6 +84,15 @@ const EnvSchema = z.object({
   // ROADMAP 3.4 (decisión 258, parte 2; D14b): antigüedad del arrendamiento a partir de la cual un job `running`
   // se da por abandonado. Validada más abajo (mínimo 120000).
   STALE_RUNNING_JOB_AFTER_MS: z.string().optional(),
+  // ROADMAP 3.4 (decisión 259, D17): avisos operativos por Telegram. Las dos variables o ninguna (en blanco =
+  // no definida); el resto, umbrales de las comprobaciones. Validadas más abajo sin repetir nunca el valor.
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_CHAT_ID: z.string().optional(),
+  ALERT_FAILED_JOBS_THRESHOLD: z.string().optional(),
+  ALERT_FAILED_JOBS_WINDOW_MS: z.string().optional(),
+  ALERT_COOLDOWN_MS: z.string().optional(),
+  // Solo para el Telegram falso (`scripts/fake-telegram.ts`); sin definir, la API real.
+  TELEGRAM_API_BASE_URL: z.string().optional(),
 });
 
 // ROADMAP 2.5 (refresh-retention-policy, S1; decisión 104, S-ZRS-18) —
@@ -168,6 +179,79 @@ function parseStaleRunningJobAfterMs(value: string | undefined): number {
   return parsed;
 }
 
+// Avisos operativos (decisión 259, D17). El token es un secreto: los mensajes nombran la variable, nunca el valor.
+const TELEGRAM_TOKEN_PATTERN = /^\d{3,}:[A-Za-z0-9_-]{10,}$/;
+// Id numérico de chat/grupo/canal (los grupos son negativos) o @usuario de canal público.
+const TELEGRAM_CHAT_PATTERN = /^(-?\d+|@[A-Za-z]\w{3,})$/;
+const DEFAULT_ALERT_FAILED_JOBS_THRESHOLD = 5;
+const DEFAULT_ALERT_FAILED_JOBS_WINDOW_MS = 24 * 3_600_000;
+const DEFAULT_ALERT_COOLDOWN_MS = 6 * 3_600_000;
+const MIN_ALERT_WINDOW_MS = 60_000;
+
+function parseTelegram(
+  tokenRaw: string | undefined,
+  chatRaw: string | undefined
+): { readonly botToken: string; readonly chatId: string } | undefined {
+  const token = (tokenRaw ?? '').trim();
+  const chat = (chatRaw ?? '').trim();
+  if (token === '' && chat === '') {
+    return undefined;
+  }
+  if (token === '' || chat === '') {
+    throw new WorkerEnvError(
+      'TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID deben definirse las dos o ninguna (sin ellas, los avisos quedan desactivados).'
+    );
+  }
+  if (!TELEGRAM_TOKEN_PATTERN.test(token)) {
+    throw new WorkerEnvError('TELEGRAM_BOT_TOKEN inválido: se espera el formato <id numérico>:<clave> que entrega BotFather.');
+  }
+  if (!TELEGRAM_CHAT_PATTERN.test(chat)) {
+    throw new WorkerEnvError('TELEGRAM_CHAT_ID inválido: se espera un id numérico de chat (los grupos son negativos) o @canal.');
+  }
+  return { botToken: token, chatId: chat };
+}
+
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
+
+// Base alternativa de la API de Telegram: solo HTTPS, salvo bucle local en claro para el Telegram falso. Sin
+// credenciales, ruta, consulta ni fragmento. El error nombra la variable y NUNCA repite el valor.
+function parseTelegramApiBaseUrl(value: string | undefined): string | undefined {
+  const raw = (value ?? '').trim();
+  if (raw === '') {
+    return undefined;
+  }
+  const invalid = (): WorkerEnvError =>
+    new WorkerEnvError(
+      'TELEGRAM_API_BASE_URL inválida: se espera https://<host> (o http://127.0.0.1:<puerto> para el Telegram falso), sin credenciales, ruta ni consulta.'
+    );
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw invalid();
+  }
+  const secure = url.protocol === 'https:';
+  const loopback = url.protocol === 'http:' && LOOPBACK_HOSTS.has(url.hostname);
+  if ((!secure && !loopback) || url.username !== '' || url.password !== '' || url.search !== '' || url.hash !== '') {
+    throw invalid();
+  }
+  if (url.pathname !== '/') {
+    throw invalid();
+  }
+  return url.origin;
+}
+
+function parseAtLeast(name: string, value: string | undefined, fallback: number, minimum: number): number {
+  if (value === undefined) {
+    return fallback;
+  }
+  const parsed = Number(value.trim() === '' ? Number.NaN : value);
+  if (!Number.isInteger(parsed) || parsed < minimum) {
+    throw new WorkerEnvError(`${name} inválido "${value}": se espera un entero no menor que ${String(minimum)}.`);
+  }
+  return parsed;
+}
+
 const DEFAULT_POLL_INTERVAL_MS = 15_000;
 const DEFAULT_MAX_SEARCH_REQUESTS_PER_SWEEP = 10;
 
@@ -183,6 +267,15 @@ export interface WorkerEnv {
   // Modo producción (decisión 258, parte 2): antigüedad del arrendamiento que da un job `running` por abandonado.
   readonly staleRunningJobAfterMs: number;
   readonly heartbeat: { readonly url: string | undefined; readonly minIntervalMs: number };
+  // Avisos operativos (decisión 259): `telegram` ausente = desactivados (el worker corre igual).
+  readonly alerts: {
+    readonly telegram: { readonly botToken: string; readonly chatId: string } | undefined;
+    readonly failedJobsThreshold: number;
+    readonly failedJobsWindowMs: number;
+    readonly cooldownMs: number;
+    // Base alternativa de la API de Telegram (solo el Telegram falso); `undefined` = la real.
+    readonly apiBaseUrl: string | undefined;
+  };
   readonly blockingThresholds: ReturnType<typeof blockingThresholdsSchema.parse>;
 }
 
@@ -267,6 +360,23 @@ export function readEnv(env: Readonly<Record<string, string | undefined>>): Work
         ? parseNonNegativeInteger('VERIFICATION_RADIUS_MARGIN_M', raw.VERIFICATION_RADIUS_MARGIN_M)
         : DEFAULT_VERIFICATION_RADIUS_MARGIN_M,
     staleRunningJobAfterMs: parseStaleRunningJobAfterMs(raw.STALE_RUNNING_JOB_AFTER_MS),
+    alerts: {
+      telegram: parseTelegram(raw.TELEGRAM_BOT_TOKEN, raw.TELEGRAM_CHAT_ID),
+      failedJobsThreshold: parseAtLeast(
+        'ALERT_FAILED_JOBS_THRESHOLD',
+        raw.ALERT_FAILED_JOBS_THRESHOLD,
+        DEFAULT_ALERT_FAILED_JOBS_THRESHOLD,
+        1
+      ),
+      failedJobsWindowMs: parseAtLeast(
+        'ALERT_FAILED_JOBS_WINDOW_MS',
+        raw.ALERT_FAILED_JOBS_WINDOW_MS,
+        DEFAULT_ALERT_FAILED_JOBS_WINDOW_MS,
+        MIN_ALERT_WINDOW_MS
+      ),
+      cooldownMs: parseAtLeast('ALERT_COOLDOWN_MS', raw.ALERT_COOLDOWN_MS, DEFAULT_ALERT_COOLDOWN_MS, MIN_ALERT_WINDOW_MS),
+      apiBaseUrl: parseTelegramApiBaseUrl(raw.TELEGRAM_API_BASE_URL),
+    },
     stopGraceMs:
       raw.WORKER_STOP_GRACE_MS !== undefined
         ? parsePositiveInteger('WORKER_STOP_GRACE_MS', raw.WORKER_STOP_GRACE_MS)
@@ -322,7 +432,14 @@ export async function main(env: Readonly<Record<string, string | undefined>> = p
     now: () => Date.now(),
     loadConfig: () => readEnv(env),
     secretsOf: (config) =>
-      [config.apiKey, config.apiSecret, config.databaseUrl, config.heartbeat.url].filter(
+      [
+        config.apiKey,
+        config.apiSecret,
+        config.databaseUrl,
+        config.heartbeat.url,
+        config.alerts.telegram?.botToken,
+        config.alerts.telegram?.chatId,
+      ].filter(
         (value): value is string => value !== undefined
       ),
     warnings: classifyWorkerEnv(env),
@@ -342,6 +459,9 @@ export async function main(env: Readonly<Record<string, string | undefined>> = p
         now: () => Date.now(),
         log,
       });
+      // UNA instancia por sesión (como el latido): el estado de "arranque pendiente" y de espera tras un fallo
+      // sobrevive a los reinicios del supervisor. Se crea al primer `run`, cuando ya se conoce el id de la fuente.
+      let alerting: Alerting | undefined;
       return {
         probe: async (): Promise<void> => {
           await pool.query('select 1');
@@ -368,11 +488,25 @@ export async function main(env: Readonly<Record<string, string | undefined>> = p
             },
           });
 
+          // Decisión 259 (D17): avisos operativos por Telegram. Sin token/chat quedan desactivados (aviso de
+          // arranque del clasificador) y `withAlerting` devuelve los puertos intactos.
+          alerting ??= composeAlerting({
+            db,
+            sourceId: sourceUuid,
+            telegram: config.alerts.telegram,
+            alerts: config.alerts,
+            apiBaseUrl: config.alerts.apiBaseUrl,
+            fetchFn: (url, init) => fetch(url, init),
+            sleep,
+            now: () => new Date(),
+            log,
+          });
+
           // R11/D14: `shouldContinue` se mira entre ticks; `shouldStop`, dentro del tick y en cada límite de
           // página del barrido. La espera del sondeo se interrumpe con la señal de apagado.
           await runCoverageWorker(
             {
-              ...ports,
+              ...withAlerting(ports, alerting),
               sleep,
               onTickSuccess: (budget) => heartbeat.afterSuccessfulTick(budget),
             },

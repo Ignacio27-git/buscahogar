@@ -282,4 +282,21 @@ export type {
 // Tope de reintentos de un coverage_job, compartido entre ingesta y web (D.13b, decisión 184).
 export { COVERAGE_JOB_MAX_ATTEMPTS, hasRetriesLeft } from './coverage-jobs/job-retry.js';
 
+// Avisos operativos por Telegram (ROADMAP 3.4, decisión 259): comprobaciones y selección puras.
+export {
+  DAILY_ALERT_COOLDOWN_MS,
+  evaluateAlertChecks,
+  MONTHLY_ALERT_COOLDOWN_MS,
+  WORKER_STARTED_COOLDOWN_MS,
+} from './alerts/checks.js';
+export type {
+  AlertCandidate,
+  AlertCheckConfig,
+  AlertQuotaState,
+  AlertSeverity,
+  AlertSnapshot,
+} from './alerts/checks.js';
+export { selectAlertsToSend } from './alerts/throttle.js';
+export type { AlertMessage, AlertSelection, AlertSelectionOptions } from './alerts/throttle.js';
+
 export const CORE_VERSION = '0.0.1';

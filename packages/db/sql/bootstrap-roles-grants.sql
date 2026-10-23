@@ -136,3 +136,17 @@ BEGIN
   END IF;
 END
 $$;
+
+-- Deduplicación duradera de avisos operativos (ROADMAP 3.4, decisión 259, D17, R7.3): tabla SOLO del propietario
+-- (`apps/ingestion`). Mismo motivo que las dos anteriores: los `GRANT SELECT ON ALL TABLES` y los privilegios
+-- por defecto de más arriba le darían SELECT a `web_readonly`, así que este REVOKE va SIEMPRE DESPUÉS de
+-- ambos, junto a los anteriores, y es el último bloque del fichero. A diferencia del limitador, se revoca a
+-- AMBOS roles web. La migración 0022 hace el mismo REVOKE al crear la tabla; si el bootstrap corre antes, no hay
+-- nada que revocar.
+DO $$
+BEGIN
+  IF to_regclass('public.alert_dispatch_log') IS NOT NULL THEN
+    REVOKE ALL ON TABLE alert_dispatch_log FROM web_readonly, web_coverage;
+  END IF;
+END
+$$;

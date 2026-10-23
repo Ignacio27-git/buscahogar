@@ -58,6 +58,7 @@ describe('bootstrapGrantsSql — sustitución de nombres de rol y orden del REVO
     expect(firstRevoke).toBeGreaterThan(lastGrant);
     expect(sql.trimEnd().endsWith('$$;')).toBe(true);
     expect(sql.lastIndexOf('REVOKE ALL ON TABLE proxy_rate_limit')).toBeGreaterThan(firstRevoke);
+    expect(sql.lastIndexOf('REVOKE ALL ON TABLE alert_dispatch_log')).toBeGreaterThan(firstRevoke);
   });
 });
 
@@ -171,12 +172,13 @@ describeWithTestDb('applyBootstrapGrants — matriz de privilegios y huella (dec
 
     const { rows } = await pool.query<{ table: string; allowed: boolean }>(
       `select t as table, has_table_privilege($1, t, 'SELECT') as allowed
-       from unnest(array['monthly_request_budget', 'proxy_rate_limit']) as t`,
+       from unnest(array['monthly_request_budget', 'proxy_rate_limit', 'alert_dispatch_log']) as t`,
       [names.readonly]
     );
     expect(rows).toEqual([
       { table: 'monthly_request_budget', allowed: false },
       { table: 'proxy_rate_limit', allowed: false },
+      { table: 'alert_dispatch_log', allowed: false },
     ]);
   });
 });
