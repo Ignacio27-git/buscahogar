@@ -24,10 +24,18 @@ import NotFound from '../src/app/not-found.js';
 import * as notFoundModule from '../src/app/not-found.js';
 import { brandMarkSvg } from '../src/lib/brand-mark.js';
 import { STANDALONE_PAGE_CSS } from '../src/lib/standalone-page.js';
+import { stateIllustrationSvg } from '../src/lib/state-illustrations.js';
 
 const APP_DIR = fileURLToPath(new URL('../src/app/', import.meta.url));
 const TECHNICAL = /stack|digest|Error:|undefined|null|NEXT_|5432|refused|\b404\b|\b500\b|status/i;
 const IMPERSONAL = /\bSe (ha|han|pudo|produjo)\b/;
+
+// D.22 (N7): solo cuentan los elementos con la receta primaria; el enlace de texto secundario no.
+function primaryActions(html: string): string[] {
+  return [
+    ...html.matchAll(/<(?:a|button) [^>]*class="[^"]*\bstate-action\b[^"]*"[^>]*>([\s\S]*?)<\/(?:a|button)>/g),
+  ].map((match) => text(match[1] ?? ''));
+}
 
 function text(html: string): string {
   return html
@@ -64,8 +72,16 @@ describe('not-found.tsx', () => {
     expect(html).toMatch(/<a[^>]*href="\/"[^>]*>Ir a la búsqueda<\/a>/);
   });
 
+  it('D.22: ilustración «not-found» y una única acción principal «Ir a la búsqueda»', () => {
+    expect(html).toContain(stateIllustrationSvg('not-found'));
+    expect(primaryActions(html)).toEqual(['Ir a la búsqueda']);
+    expect(html).toContain('<a class="state-action" href="/">Ir a la búsqueda</a>');
+  });
+
   it('explica la causa sin decir «dirección» (podría leerse como domicilio)', () => {
-    expect(text(html)).toContain('Puede que el enlace esté mal escrito o que ya no exista.');
+    expect(text(html)).toContain(
+      'Puede que el enlace esté mal escrito o que el anuncio ya no esté publicado. Desde la búsqueda puedes seguir mirando viviendas.'
+    );
     expect(text(html)).not.toMatch(/dirección/i);
   });
 
@@ -105,7 +121,7 @@ describe('error.tsx', () => {
     const html = renderToStaticMarkup(<ErrorPage error={failure} retry={vi.fn()} />);
 
     expect(text(html)).toContain(
-      'Algo ha fallado al prepararla. Vuelve a intentarlo en un momento o regresa a la búsqueda.'
+      'Algo ha fallado al prepararla; no has hecho nada mal. Vuelve a intentarlo en un momento.'
     );
     expect(text(html)).not.toMatch(/filtros|dirección/i);
   });
@@ -117,6 +133,15 @@ describe('error.tsx', () => {
     expect(html).toMatch(/<button[^>]*type="button"[^>]*>Reintentar<\/button>/);
     expect(html).toMatch(/<a[^>]*href="\/"[^>]*>Ir a la búsqueda<\/a>/);
     expect(text(html)).not.toMatch(IMPERSONAL);
+  });
+
+  it('D.22 (N7): ilustración «unavailable», «Reintentar» es la única acción principal y el enlace sigue como texto', () => {
+    const html = renderToStaticMarkup(<ErrorPage error={failure} retry={vi.fn()} />);
+
+    expect(html).toContain(stateIllustrationSvg('unavailable'));
+    expect(primaryActions(html)).toEqual(['Reintentar']);
+    expect(html).toMatch(/<button[^>]*class="state-action"[^>]*>Reintentar<\/button>/);
+    expect(html).toContain('<a href="/">Ir a la búsqueda</a>');
   });
 });
 
@@ -136,7 +161,8 @@ describe('global-error.tsx', () => {
       `<header class="standalone-header"><a class="standalone-header__brand" href="/">${brandMarkSvg()}Buscahogar</a></header>`
     );
     expect(html.indexOf('</header>')).toBeLessThan(html.indexOf('<main'));
-    expect(html).toMatch(/<main class="standalone"><h1[ >]/);
+    // D.22: la ilustración decorativa (aria-hidden) precede al h1, que sigue siendo lo primero con significado.
+    expect(html).toContain(`<main class="standalone">${stateIllustrationSvg('unavailable')}<h1`);
     expect(html.match(/<header/g)).toHaveLength(1);
   });
 
@@ -164,6 +190,15 @@ describe('global-error.tsx', () => {
     expect(text(html)).toContain('Buscahogar no está disponible ahora mismo');
     expect(text(html)).not.toMatch(IMPERSONAL);
     expect(STANDALONE_PAGE_CSS).toContain('--surface');
+  });
+
+  it('D.22: copia cálida y «Reintentar» como única acción principal, sin script ni recursos externos', () => {
+    expect(text(html)).toContain(
+      'Algo ha fallado al cargar la página; no has hecho nada mal. Puedes reintentarlo o volver a la búsqueda.'
+    );
+    expect(primaryActions(html)).toEqual(['Reintentar']);
+    expect(html).toContain('<a href="/">Ir a la búsqueda</a>');
+    expect(html).not.toMatch(/<script|<link|url\(|https?:\/\//);
   });
 });
 

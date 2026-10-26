@@ -4,9 +4,12 @@
 // Next 16.3: vuelve a pedir y a renderizar el contenido de la frontera). Se pinta DENTRO del
 // layout raíz, así que la cabecera y el pie siguen ahí. Nunca muestra `error.message`, `stack` ni
 // `digest`: son texto técnico y pueden contener datos internos (host, puerto, consulta).
+// D.22 (decisión 269): ilustración «unavailable», copia que no culpa a quien la lee y UNA acción principal
+// («Reintentar», receta `state-action`); «Ir a la búsqueda» queda como enlace de texto secundario.
 import { useEffect, useRef } from 'react';
 import type { ReactElement } from 'react';
 
+import { StateIllustration } from '@/components/state-illustration';
 import { focusHeading, restoreFocusToMain } from '@/lib/error-focus';
 
 // Enlace normal a `/` (convención de la app, como en `site-header.tsx`): `next/link` añadiría
@@ -31,16 +34,18 @@ export default function ErrorPage({ retry }: ErrorPageProps): ReactElement {
 
   return (
     <section className="flex max-w-prose flex-col items-start gap-4 py-8">
+      <StateIllustration kind="unavailable" />
       {/* Sin contorno propio, como `main#contenido`: no es un control, el foco es programático. */}
       <h1 ref={headingRef} tabIndex={-1} className="focus-visible:outline-hidden">
         No hemos podido cargar esta página
       </h1>
       <p className="text-ink-muted">
-        Algo ha fallado al prepararla. Vuelve a intentarlo en un momento o regresa a la búsqueda.
+        Algo ha fallado al prepararla; no has hecho nada mal. Vuelve a intentarlo en un momento.
       </p>
       <div className="flex flex-wrap items-center gap-4">
         <button
           type="button"
+          className="state-action"
           onClick={() => {
             retry();
           }}

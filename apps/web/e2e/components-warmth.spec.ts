@@ -275,7 +275,8 @@ function contrastRatio(a: Rgb, b: Rgb): number {
 }
 
 test.describe('D.21 contraste del hover de enlaces', () => {
-  for (const selector of ['.empty-results__action a', '.pagination__prev']) {
+  // D.22: la acción del vacío es ahora el botón primario (.state-action); su contraste lo cubre states.spec.
+  for (const selector of ['.pagination__prev']) {
     test(`S-UI-2e ${selector} cumple 4,5:1 con el puntero encima`, async ({ page }, testInfo) => {
       test.skip(!testInfo.project.name.startsWith('w1280'), 'solo 1280 px, claro y oscuro');
       await page.goto('/?page=2');

@@ -23,6 +23,7 @@ const REQUIRED_TOKENS = [
   '--rule',
   '--rule-control',
   '--accent',
+  '--ink-on-accent',
   '--focus',
 ];
 
@@ -67,6 +68,7 @@ describe('STANDALONE_PAGE_CSS — contraste AA en ambos esquemas (D7)', () => {
     ['--ink', '--surface', 4.5],
     ['--ink-muted', '--surface', 4.5],
     ['--accent', '--surface', 4.5],
+    ['--ink-on-accent', '--accent', 4.5],
     ['--ink', '--surface-raised', 4.5],
     ['--rule-control', '--surface', 3],
   ];

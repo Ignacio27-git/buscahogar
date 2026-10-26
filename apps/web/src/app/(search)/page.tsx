@@ -11,7 +11,7 @@ import {
 import { resolveZoneGeometry, searchMapPoints, searchProperties, suggestZones } from '@buscahogar/db';
 import type { CoverageJobState, ZoneGeometry, ZoneSuggestion } from '@buscahogar/db';
 
-import { AppliedFilters, offersClearAll } from '@/components/applied-filters';
+import { AppliedFilters } from '@/components/applied-filters';
 import { CoverageNotice, isReloadable, noticeForOutcome } from '@/components/coverage-notice';
 import type { CoverageNoticeVariant } from '@/components/coverage-notice';
 import { ContourMotif } from '@/components/contour-motif';
@@ -490,7 +490,6 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
                 kind={listEmptyKind}
                 params={rawSearchParams}
                 keepOnClear={emptyScope.keepOnClear}
-                clearAllOffered={offersClearAll(countAppliedFilters(criteria))}
                 coveredZone={coveredZoneName}
               />
             ) : null

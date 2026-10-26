@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { brandMarkSvg } from '../src/lib/brand-mark.js';
 import { buildRateLimitResponse } from '../src/server/rate-limit-page.js';
 import { STANDALONE_PAGE_CSS } from '../src/lib/standalone-page.js';
+import { stateIllustrationSvg } from '../src/lib/state-illustrations.js';
 
 function visibleText(html: string): string {
   return html
@@ -35,7 +36,19 @@ describe('buildRateLimitResponse — cuerpo', () => {
       `<header class="standalone-header"><a class="standalone-header__brand" href="/">${brandMarkSvg()}Buscahogar</a></header>`
     );
     expect(body.indexOf('</header>')).toBeLessThan(body.indexOf('<main'));
-    expect(body).toContain('<main class="standalone">\n<h1>Demasiadas peticiones seguidas</h1>');
+    // D.22: la ilustración decorativa (aria-hidden) precede al h1, que sigue siendo lo primero con significado.
+    expect(body).toContain(
+      `<main class="standalone">\n${stateIllustrationSvg('unavailable')}\n<h1>Demasiadas peticiones seguidas</h1>`
+    );
+  });
+
+  it('D.22: ilustración «unavailable» y una única acción principal «Ir a la búsqueda» a /, sin script', () => {
+    const primary = [...body.matchAll(/<a [^>]*class="state-action"[^>]*>([^<]*)<\/a>/g)].map((match) => match[1]);
+
+    expect(primary).toEqual(['Ir a la búsqueda']);
+    expect(body).toContain('<a class="state-action" href="/">Ir a la búsqueda</a>');
+    expect(body).toContain('Has hecho muchas peticiones en poco tiempo. Es algo temporal.');
+    expect(body).not.toMatch(/<script|<link|<button/);
   });
 
   it('no usa texto técnico ni inglés y no depende de recursos externos', () => {

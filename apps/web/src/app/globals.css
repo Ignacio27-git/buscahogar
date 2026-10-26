@@ -372,6 +372,63 @@
     fill: var(--accent);
   }
 
+  /* Ilustraciones de los estados (D.22, decisión 269): 6rem x 4rem, decorativas. Los contornos toman
+     --rule-control, la figura hereda la tinta atenuada (currentColor) y la casa de la marca el acento, así
+     que siguen al tema sin tokens nuevos. El trazo de 1,5 no escala con el SVG. */
+  .state-illustration {
+    display: block;
+    inline-size: 6rem;
+    block-size: 4rem;
+    flex: none;
+    color: var(--ink-muted);
+  }
+
+  .state-illustration__ring {
+    stroke: var(--rule-control);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .state-illustration__figure {
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .state-illustration__house {
+    fill: var(--accent);
+  }
+
+  /* Acción principal de un estado (D.22, decisión 269): la receta del botón primario (relleno de acento,
+     texto --ink-on-accent) para un enlace o un botón. Una por estado. Sin transición: los enlaces no
+     animan el color (decisiones 205-208). El texto sigue siendo --ink-on-accent al pasar el puntero:
+     la regla de enlaces de la capa base lo teñiría de acento sobre acento. */
+  .state-action {
+    display: inline-flex;
+    min-block-size: 2.5rem;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background-color: var(--accent);
+    color: var(--ink-on-accent);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-control);
+    font-weight: 600;
+    text-decoration-line: none;
+  }
+
+  .state-action:active {
+    background-color: color-mix(in oklab, var(--accent), var(--ink) 20%);
+    border-color: color-mix(in oklab, var(--accent), var(--ink) 20%);
+    color: var(--ink-on-accent);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .state-action:hover {
+      background-color: color-mix(in oklab, var(--accent), var(--ink) 12%);
+      border-color: color-mix(in oklab, var(--accent), var(--ink) 12%);
+      color: var(--ink-on-accent);
+    }
+  }
+
   .theme-selector fieldset {
     display: flex;
     flex-wrap: wrap;
@@ -1826,6 +1883,10 @@
     margin-block-start: 1rem;
   }
 
+  .empty-results > .state-illustration {
+    margin-block-end: 0.75rem;
+  }
+
   .empty-results__title {
     margin: 0;
     font-weight: 600;
@@ -1892,15 +1953,13 @@
     }
   }
 
-  /* D.18 (decisión 225): una sola acción, en su propio párrafo, con el objetivo de 40px de toda la app. */
+  /* D.18 (decisión 225): una sola acción, en su propio párrafo. D.22 (decisión 269): es el enlace primario
+     (.state-action), que ya mide los 40px de toda la app, con algo más de aire sobre él. */
   .empty-results__action {
-    margin: 0.5rem 0 0;
+    margin: 0.75rem 0 0;
   }
 
   .empty-results__action a {
-    display: inline-flex;
-    min-block-size: 2.5rem;
-    align-items: center;
     overflow-wrap: anywhere;
   }
 

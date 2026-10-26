@@ -102,7 +102,7 @@ function contrast(a: Rgb, b: Rgb): number {
 // añadir un enlace al cuerpo de la 429 comprueba también el color de enlace de ambas.
 function pageWithLink(): string {
   const { body } = buildRateLimitResponse(RETRY_AFTER_SECONDS);
-  return body.replace('</main>', '<p><a href="/">Ir a la búsqueda</a></p></main>');
+  return body.replace('</main>', '<p><a class="text-link" href="/">Volver al inicio</a></p></main>');
 }
 
 test.describe('página 429 y CSS autónomo: contraste AA (D.14)', () => {
@@ -114,7 +114,7 @@ test.describe('página 429 y CSS autónomo: contraste AA (D.14)', () => {
     test(`el título, el párrafo y el enlace cumplen AA en ${scheme}`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await page.setContent(pageWithLink());
-      for (const selector of ['.standalone h1', '.standalone p', '.standalone a']) {
+      for (const selector of ['.standalone h1', '.standalone p', '.standalone a.text-link']) {
         const { fg, bg } = await resolvedColors(page, selector);
         expect(contrast(fg, bg), `${selector} en ${scheme}`).toBeGreaterThanOrEqual(AA_TEXT_RATIO);
       }

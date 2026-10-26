@@ -333,7 +333,6 @@ test.describe('hover y color con preferencia normal (D.21)', () => {
     ['resumen nl-disclosure', '/', '.nl-disclosure > summary', /background-color/, HOVER_TIME],
     ['preset de ordenación', '/', '.sort-presets__link', /border-color/, HOVER_TIME],
     ['fila de resultado', '/', '.result-row__link', /background-color/, HOVER_TIME],
-    ['enlace de texto', PAGINATION_PATH, '.empty-results__action a', /^color$/, HOVER_TIME],
     ['enlace del paginador', PAGINATION_PATH, '.pagination__prev', /^color$/, HOVER_TIME],
   ];
 
@@ -354,7 +353,7 @@ test.describe('hover y color con preferencia normal (D.21)', () => {
     onlyDesktop();
     await page.goto(PAGINATION_PATH);
     const expected = await resolveColour(page, LINK_HOVER_RECIPE);
-    for (const link of [page.locator('.empty-results__action a'), page.locator('.pagination__prev')]) {
+    for (const link of [page.locator('.pagination__prev')]) {
       const rest = await style(link, 'color');
       const box = await boxOf(link);
       expect(expected, 'la receta difiere del color en reposo').not.toBe(rest);
@@ -455,7 +454,7 @@ test.describe('hover sin puntero fino (D.21)', () => {
     onlyProject('w320-light');
     await page.goto(PAGINATION_PATH);
     expect(await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches)).toBe(false);
-    const link = page.locator('.empty-results__action a');
+    const link = page.locator('.pagination__prev');
     const rest = await style(link, 'color');
     await link.hover();
     expect(await style(link, 'color')).toBe(rest);

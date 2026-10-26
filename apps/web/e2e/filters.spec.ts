@@ -70,18 +70,19 @@ test.describe('barra de filtros y filtros aplicados', () => {
     ).toHaveCount(0);
   });
 
-  // D.18 (decisión 225, C-11): el estado vacío filtrado no repite los chips; una frase que remite a
-  // ellos y, solo si la fila de chips no ofrece ya «Quitar todos» (un único chip), una acción.
-  test('el estado vacío filtrado tiene la frase y ningún enlace repetido ni por filtro', async ({
+  // D.18 (decisión 225, C-11) y D.22 (decisión 269): el estado vacío filtrado no repite los chips; una frase
+  // que remite a ellos y UNA acción principal siempre visible (D.22 enmienda la 225).
+  test('el estado vacío filtrado tiene la frase y una única acción, sin enlaces por filtro', async ({
     page,
   }) => {
     await openRoute(page, route('home-filtered'));
     const results = page.getByRole('region', { name: 'Resultados', exact: true });
     await expect(results.getByText('Ninguna vivienda coincide con tu búsqueda.')).toBeVisible();
     await expect(
-      results.getByText('Los filtros aplicados están arriba; pulsa uno para quitarlo')
+      results.getByText('Prueba a quitar algún filtro: están arriba y basta con pulsar uno.')
     ).toBeVisible();
-    await expect(results.getByRole('link')).toHaveCount(0);
+    await expect(results.getByRole('link')).toHaveCount(1);
+    await expect(results.getByRole('link', { name: 'Quitar todos los filtros' })).toBeVisible();
     await expect(results.getByRole('link', { name: /^Quitar «/ })).toHaveCount(0);
   });
 
@@ -107,8 +108,8 @@ test.describe('barra de filtros y filtros aplicados', () => {
     await expect(detail).toBeVisible();
     await expect(detail).not.toHaveAttribute('role', /.+/);
     await expect(results.locator('[role="status"], [role="alert"], [aria-live]')).toHaveCount(0);
-    await expect(results.getByRole('link')).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Quitar todos los filtros' })).toHaveCount(1);
+    await expect(results.getByRole('link')).toHaveCount(1);
+    await expect(results.getByRole('link', { name: 'Quitar todos los filtros' })).toBeVisible();
   });
 
   test('zona no cubierta sin resultados: el detalle de siempre, sin el aviso de zona cubierta', async ({

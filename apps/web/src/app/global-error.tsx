@@ -5,11 +5,14 @@
 // un `<title>` de React. Sin clase de tema (el script de tema y el layout no existen) y con el
 // mismo CSS autónomo que la página 429, que elige el esquema con `prefers-color-scheme`.
 // D.22 (decisión 266): la franja lleva la marca como `<BrandMark />` (SVG incrustado, sin recurso servido).
+// D.22 (decisión 269): ilustración «unavailable» como `<StateIllustration />`, copia cálida y UNA acción
+// principal («Reintentar», receta `state-action` del CSS autónomo); «Ir a la búsqueda» queda como texto.
 // Nunca muestra `error.message`, `stack` ni `digest`.
 import { useEffect, useRef } from 'react';
 import type { ReactElement } from 'react';
 
 import { BrandMark } from '@/components/brand-mark';
+import { StateIllustration } from '@/components/state-illustration';
 import { focusHeading } from '@/lib/error-focus';
 import { STANDALONE_PAGE_CSS } from '@/lib/standalone-page';
 
@@ -42,13 +45,15 @@ export default function GlobalError({ retry }: GlobalErrorProps): ReactElement {
           </a>
         </header>
         <main className="standalone">
+          <StateIllustration kind="unavailable" />
           <h1 ref={headingRef} tabIndex={-1}>
             Buscahogar no está disponible ahora mismo
           </h1>
-          <p>Algo ha fallado al cargar la página. Puedes reintentarlo o volver a la búsqueda.</p>
+          <p>Algo ha fallado al cargar la página; no has hecho nada mal. Puedes reintentarlo o volver a la búsqueda.</p>
           <div className="standalone__actions">
             <button
               type="button"
+              className="state-action"
               onClick={() => {
                 retry();
               }}

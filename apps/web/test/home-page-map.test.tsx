@@ -69,7 +69,7 @@ const RELOAD_LINK = '>Comprobar de nuevo</a>';
 const EMPTY_LINES = [
   'Ninguna vivienda coincide',
   'Ninguna vivienda con ubicación',
-  'Todavía no hay viviendas',
+  'Aún no tenemos viviendas que enseñarte',
   'Esta página ya no tiene viviendas',
 ];
 
@@ -302,12 +302,14 @@ describe('lista y mapa en cada petición válida (SMV-15, WSL-D8a-1)', () => {
 
   it('sin resultados ni filtros la lista dice su vacío y el mapa el suyo, una vez cada uno, sin hablar de filtros', async () => {
     const html = await render({});
-    expect(count(html, 'Todavía no hay viviendas.')).toBe(1);
-    expect(listSection(html)).toContain('Todavía no hay viviendas.');
+    expect(count(html, 'Aún no tenemos viviendas que enseñarte.')).toBe(1);
+    expect(listSection(html)).toContain('Aún no tenemos viviendas que enseñarte.');
     expect(count(html, 'Todavía no hay viviendas con ubicación.')).toBe(1);
     expect(mapSection(html)).toContain('Todavía no hay viviendas con ubicación.');
     expect(mapSection(html)).not.toMatch(/filtros/);
     expect(html).not.toContain('Quitar');
+    // D.22: una única acción principal en la lista, «Comprobar de nuevo», hacia la URL actual.
+    expect(listSection(html)).toContain('<a class="state-action" href="/?">Comprobar de nuevo</a>');
   });
 });
 
@@ -903,7 +905,7 @@ describe('estado vacío filtrado con una sola acción (D.18)', () => {
     centroid: { latitude: 40.33, longitude: -3.76 },
     sweepRadiusM: 4500,
   };
-  const SENTENCE = 'Los filtros aplicados están arriba; pulsa uno para quitarlo';
+  const SENTENCE = 'Prueba a quitar algún filtro: están arriba y basta con pulsar uno';
 
   async function renderUncovered(extra: Record<string, string>): Promise<string> {
     resolveZoneGeometryMock.mockResolvedValue(geometry);
@@ -914,9 +916,9 @@ describe('estado vacío filtrado con una sola acción (D.18)', () => {
     return render({ zone: '28074', ...extra });
   }
 
-  // Refinamiento de C-11 (decisión de la persona usuaria): con dos o más chips la fila ya ofrece «Quitar
-  // todos», así que el estado vacío no repite un enlace idéntico; con un solo chip sí ofrece la acción.
-  it('zona + operación: la fila de chips ya ofrece «Quitar todos»; el estado vacío no repite el enlace', async () => {
+  // D.22 (decisión 269, enmienda la 225): la acción principal del vacío filtrado se muestra siempre, aunque la
+  // fila de chips ya ofrezca «Quitar todos» (mismo nombre y mismo destino, WCAG 3.2.4).
+  it('zona + operación: el estado vacío ofrece su acción principal además de «Quitar todos» de la fila de chips', async () => {
     const html = await renderUncovered({ operation: 'sale' });
     expect(count(html, 'Todavía no hay viviendas de Leganés.')).toBe(1);
     expect(count(html, 'role="status"')).toBe(1);
@@ -924,11 +926,11 @@ describe('estado vacío filtrado con una sola acción (D.18)', () => {
     expect(list).toContain('Ninguna vivienda coincide con tu búsqueda.');
     expect(list).toContain(SENTENCE);
     expect(mapSection(html)).toContain('Ninguna vivienda con ubicación coincide con tu búsqueda.');
-    expect(list).not.toContain('empty-results__action');
-    expect(list).not.toContain('>Quitar');
-    // El único «Quitar todos» de la página es el de la fila de chips, fuera de la sección de resultados.
+    expect(list).toContain('empty-results__action');
+    expect(count(list, '>Quitar')).toBe(1);
+    // «Quitar todos» de la fila de chips queda fuera de la sección de resultados; la acción del vacío es la otra.
     expect(count(html, 'Quitar todos<span class="sr-only"> los filtros</span>')).toBe(1);
-    expect(count(html, 'Quitar todos los filtros</a>')).toBe(0);
+    expect(count(html, 'Quitar todos los filtros</a>')).toBe(1);
   });
 
   it('zona sola: sigue siendo un filtro, así que el vacío es filtered y la acción quita la zona', async () => {
@@ -936,7 +938,7 @@ describe('estado vacío filtrado con una sola acción (D.18)', () => {
     expect(count(html, 'role="status"')).toBe(1);
     const list = listSection(html);
     expect(list).toContain('Ninguna vivienda coincide con tu búsqueda.');
-    expect(list).toContain('<a href="/">Quitar todos los filtros</a>');
+    expect(list).toContain('<a class="state-action" href="/">Quitar todos los filtros</a>');
     expect(list).not.toContain('Todavía no hay viviendas.');
   });
 
@@ -946,9 +948,9 @@ describe('estado vacío filtrado con una sola acción (D.18)', () => {
     expect(html).not.toContain('sr-only"> los filtros');
   });
 
-  it('con tres filtros no hay acción en el estado vacío y la fila de chips sí ofrece «Quitar todos»', async () => {
+  it('con tres filtros el estado vacío y la fila de chips ofrecen el mismo destino', async () => {
     const html = await renderUncovered({ operation: 'sale', propertyType: 'flat', view: 'map', sort: 'price' });
-    expect(listSection(html)).not.toContain('>Quitar');
+    expect(listSection(html)).toContain('href="/?view=map&amp;sort=price">Quitar todos los filtros</a>');
     expect(html).toMatch(/href="\/\?view=map&amp;sort=price"[^>]*>Quitar todos<span class="sr-only"> los filtros<\/span>/);
   });
 
@@ -960,7 +962,7 @@ describe('estado vacío filtrado con una sola acción (D.18)', () => {
   });
 
   // Paso 3.2 (decisión 246, enmienda la 225): la zona cubierta y localizable nombra el municipio.
-  it('zona cubierta con filtros: filtered con el municipio, sin aviso de cobertura y sin acción repetida', async () => {
+  it('zona cubierta con filtros: filtered con el municipio, sin aviso de cobertura y con una única acción', async () => {
     resolveZoneGeometryMock.mockResolvedValue({ ...geometry, state: 'covered' });
     resolveCoverageForZoneMock.mockResolvedValue({ kind: 'covered' });
     resolveNewZonesDailyCapMock.mockReturnValue(10);
@@ -969,9 +971,9 @@ describe('estado vacío filtrado con una sola acción (D.18)', () => {
     expect(html).not.toContain('coverage-notice');
     expect(listSection(html)).toContain('Ninguna vivienda coincide con tu búsqueda.');
     expect(listSection(html)).toContain('Los anuncios de Leganés están al día');
-    expect(listSection(html)).toContain('Están arriba; pulsa uno para quitarlo');
+    expect(listSection(html)).toContain('Prueba a quitar alguno: están arriba.');
     expect(listSection(html)).not.toMatch(/role="|aria-live/);
-    expect(count(listSection(html), '>Quitar')).toBe(0);
+    expect(count(listSection(html), '>Quitar')).toBe(1);
   });
 
   // Decisión 251 (PD9): «al día» sale del resultado de la cobertura por operación, no de `zones.state`.
