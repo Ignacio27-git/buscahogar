@@ -4350,3 +4350,24 @@ afectado en cada unidad y no solo al final: el fallo de la cabecera a 320 px hab
 
 **Observación:** un resumen de una investigación en el estado no es una fuente: ante un conflicto manda lo que el responsable dijo. Y los
 artefactos que lee una herramienta deben ajustarse al formato que esa herramienta espera, no al que parece natural al escribirlos.
+
+### 2026-10-26 — Diagnóstico incompleto del 500 en una búsqueda con zona
+
+**Contexto:** búsqueda local con `zone=08019` (Barcelona) que devolvía 500. Pasos de verificación propuestos al responsable.
+
+**Categoría:** diagnóstico incompleto · instrucción que no hacía lo que se decía.
+
+**Qué se generó mal:**
+
+1. Se atribuyó el 500 solo a dos variables ausentes en `apps/web/.env.local` (`NEW_ZONES_DAILY_CAP`, `WEB_COVERAGE_DATABASE_URL`).
+   Tras añadirlas, el 500 seguía: la base de datos local tenía 20 de 23 migraciones y faltaba `coverage_jobs.lease_renewed_at` (0021),
+   así que fallaba el `INSERT` del job de cobertura. Se resolvió con `pnpm db:migrate`.
+2. Se indicó `pnpm env:check` para comprobar `.env.local`, pero el script solo inspecciona `process.env` y no carga ningún fichero: en local
+   siempre falla. La forma correcta es `node --env-file=.env.local --import tsx scripts/env-check.ts` desde `apps/web`.
+3. El aviso «Encountered a script tag» no era un fallo propio de `layout.tsx`: aparecía solo cuando el 500 hacía que React volviera a
+   pintar el layout en el navegador. Desapareció al corregir el 500.
+
+**Cómo se detectó:** al reproducir la búsqueda con el navegador después del cambio de variables.
+
+**Observación:** un primer error en la pila puede tapar otros. Hay que reproducir la petición completa después de cada corrección, y leer qué
+hace un script de verificación antes de recomendarlo.
