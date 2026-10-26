@@ -489,10 +489,13 @@ describe('D.20: la regla de marginalia enmendada es idéntica en los tres docume
 // vive en DESIGN.md (resumen y «Don't») y en el sidecar, y este bloque impide que se separen. PRODUCT.md
 // no cambia: el principio de producto sigue siendo el mismo.
 const MOTION_RULE =
-  'Sin movimiento decorativo: el movimiento solo responde a una acción o anuncia un estado (pulsación, bandeja de filtros, color de los controles, realce de la fila y aparición de los avisos); nada se repite en bucle, no hay paralaje ni movimiento ligado al desplazamiento, y con movimiento reducido todo es instantáneo y la imagen de la fila no se amplía.';
+  'El movimiento responde a una acción, anuncia un estado o acompaña una entrada única: pulsación, bandeja de filtros, color de los controles, realce de la fila, aparición de los avisos, entrada escalonada de la lista y barrido del motivo del inicio; nada se repite en bucle, no hay paralaje ni movimiento ligado al desplazamiento, y con movimiento reducido todo es instantáneo y la imagen de la fila no se amplía.';
 const MOTION_DONT =
-  "**Don't** añadir movimiento decorativo, en bucle, de paralaje o ligado al desplazamiento: solo la pulsación (100 ms), la bandeja de filtros bajo 64rem, el color de los controles y el realce de la fila (150 ms) y la aparición de los avisos (200 ms, solo opacidad); nunca en las alertas ni con movimiento reducido.";
+  "**Don't** añadir movimiento en bucle, de paralaje o ligado al desplazamiento: solo la pulsación (100 ms), la bandeja de filtros, el color de los controles y el realce de la fila (150 ms), la aparición de los avisos (200 ms, solo opacidad), la entrada de la lista (200 ms, seis filas, escalonado máximo 100 ms) y el barrido del motivo del inicio (250 ms); nunca en las alertas ni con movimiento reducido.";
 const OLD_MOTION_RULE = 'Sin movimiento decorativo: solo la respuesta de pulsación y la bandeja de filtros.';
+// D.22 (decisión 270) sustituye la redacción de D.21.
+const D21_MOTION_RULE = 'Sin movimiento decorativo: el movimiento solo responde a una acción o anuncia un estado';
+const D21_MOTION_DONT = "**Don't** añadir movimiento decorativo, en bucle";
 const OLD_MOTION_DONT = 'solo la respuesta de pulsación (100 ms) y la bandeja de filtros bajo 64rem.';
 
 describe('D.21: la regla de movimiento enmendada es idéntica en DESIGN.md y el sidecar', () => {
@@ -511,6 +514,13 @@ describe('D.21: la regla de movimiento enmendada es idéntica en DESIGN.md y el 
     expect(flatten(DESIGN_MD)).not.toContain(OLD_MOTION_DONT);
     expect(flatten(SIDECAR_TEXT)).not.toContain(OLD_MOTION_RULE);
     expect(flatten(SIDECAR_TEXT)).not.toContain(OLD_MOTION_DONT);
+  });
+
+  it('D.22: ya no queda la redacción de D.21 (sin movimiento decorativo) en ninguno de los dos', () => {
+    for (const old of [D21_MOTION_RULE, D21_MOTION_DONT]) {
+      expect(flatten(DESIGN_MD)).not.toContain(old);
+      expect(flatten(SIDECAR_TEXT)).not.toContain(old);
+    }
   });
 
   it('el sidecar lista los siete tokens de movimiento, con los valores de la hoja, y habla de cinco duraciones', () => {

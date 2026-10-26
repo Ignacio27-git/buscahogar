@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-19T18:00:00Z",
+  "generatedAt": "2026-10-26T18:00:00Z",
   "title": "Design System: Buscahogar",
   "extensions": {
     "colorMeta": {
@@ -458,15 +458,16 @@
   ],
   "narrative": {
     "northStar": "La Hoja del Mapa Topográfico",
-    "overview": "Cada búsqueda es una hoja del Mapa Topográfico Nacional del IGN (MTN25): un margen sobrio, una leyenda que filtra y los datos al milímetro. Buscahogar es una herramienta de servicio, no un escaparate, y desde D.19 una herramienta con calidez: el mismo mundo, impreso en papel cálido y con una letra propia. Habla con voz factual, sin lenguaje comercial: el precio va primero, la densidad es alta y los filtros se ven siempre. Las referencias de uso son las de Google Flights o Kayak, no las de un portal inmobiliario. El sistema se reconoce por lo que no lleva. Una vivienda es una fila fina separada por un filete, no una tarjeta con una foto grande como unidad de lectura. No hay marginalia cartográfica más allá de un marco, una trama y un único motivo de curvas de nivel: el marco del mapa, la trama de la ubicación aproximada y el motivo decorativo junto al título de la búsqueda. Todo lo demás es papel, tinta y un único azul.",
+    "overview": "Cada búsqueda es una hoja del Mapa Topográfico Nacional del IGN (MTN25): un margen sobrio, una leyenda que filtra y los datos al milímetro. Buscahogar es una herramienta de servicio, no un escaparate, y desde D.19 una herramienta con calidez: el mismo mundo, impreso en papel cálido y con una letra propia. Habla con voz factual, sin lenguaje comercial: el precio va primero, la densidad es alta y los filtros se ven siempre. Las referencias de uso son las de Google Flights o Kayak, no las de un portal inmobiliario. El sistema se reconoce por lo que no lleva. Una vivienda es una fila fina separada por un filete, no una tarjeta con una foto grande como unidad de lectura. No hay marginalia cartográfica más allá de un marco, una trama y un único motivo de curvas de nivel: el marco del mapa, la trama de la ubicación aproximada y el motivo decorativo junto al título de la búsqueda. Todo lo demás es papel, tinta y un único azul. Desde D.22 la marca, la portada y los estados llevan una voz más cercana y una ilustración propia, sin tocar las pantallas con precios (decisiones 266-271).",
     "keyCharacteristics": [
       "Papel cálido (crema, no blanco puro) o, en oscuro, una plancha de carbón cálido; tinta casi negra, un único acento interactivo azul y un verde de estado favorable.",
       "Estructura con filetes de 1px y superficies, no con sombras ni tarjetas.",
       "Controles de alto fijo (40px como mínimo en todo lo que se pulsa) y radios algo más amables (0,375 y 0,5rem).",
       "Una sola trama (siena) reservada a la ubicación aproximada.",
       "Un único motivo decorativo de curvas de nivel junto al título de la búsqueda, en trazo fino y por debajo de los datos.",
+      "Una marca propia, la lupa con una casa dentro («casa encontrada»), en la cabecera, las páginas sueltas y los iconos; y tres ilustraciones de estado en el mismo trazo, siempre aparte de los datos.",
       "Una sola familia, Figtree autoalojada, con cifras tabulares donde se comparan precios, recuentos y fechas.",
-      "Sin movimiento decorativo: el movimiento solo responde a una acción o anuncia un estado (pulsación, bandeja de filtros, color de los controles, realce de la fila y aparición de los avisos); nada se repite en bucle, no hay paralaje ni movimiento ligado al desplazamiento, y con movimiento reducido todo es instantáneo y la imagen de la fila no se amplía."
+      "El movimiento responde a una acción, anuncia un estado o acompaña una entrada única: pulsación, bandeja de filtros, color de los controles, realce de la fila, aparición de los avisos, entrada escalonada de la lista y barrido del motivo del inicio; nada se repite en bucle, no hay paralaje ni movimiento ligado al desplazamiento, y con movimiento reducido todo es instantáneo y la imagen de la fila no se amplía."
     ],
     "rules": [
       {
@@ -521,6 +522,7 @@
       "**Do** mantener 40px de alto mínimo en todo lo que se pulsa, a todos los anchos (decisión 200), también en botones de icono y enlaces de ordenación.",
       "**Do** dar a cada control de solo icono un nombre accesible en texto oculto y una señal de estado que no sea el color.",
       "**Do** dar cada estado con texto o con peso, además de con color (insignias, pasos, tema activo, estado de cobertura).",
+      "**Do** dar a cada estado (vacío, 404, error, 429) una ilustración, un mensaje cercano en tuteo y una sola acción principal; en las pantallas con precios la voz sigue siendo neutra (decisión 271).",
       "**Do** usar cifras tabulares donde se comparan precios, recuentos y fechas.",
       "**Do** declarar todo valor de color, tamaño y radio en `globals.css` y reflejarlo aquí; `apps/web/test/design-md.test.ts` lo comprueba."
     ],
@@ -530,7 +532,7 @@
       "**Don't** usar `hatch` (siena) como texto, fondo ni acento.",
       "**Don't** pintar de verde un enlace, un botón ni «Último precio más bajo»; el verde no es interactivo.",
       "**Don't** proyectar sombra en reposo; las dos sombras son para lo que flota sobre el mapa o surge al enfocar.",
-      "**Don't** añadir movimiento decorativo, en bucle, de paralaje o ligado al desplazamiento: solo la pulsación (100 ms), la bandeja de filtros bajo 64rem, el color de los controles y el realce de la fila (150 ms) y la aparición de los avisos (200 ms, solo opacidad); nunca en las alertas ni con movimiento reducido.",
+      "**Don't** añadir movimiento en bucle, de paralaje o ligado al desplazamiento: solo la pulsación (100 ms), la bandeja de filtros, el color de los controles y el realce de la fila (150 ms), la aparición de los avisos (200 ms, solo opacidad), la entrada de la lista (200 ms, seis filas, escalonado máximo 100 ms) y el barrido del motivo del inicio (250 ms); nunca en las alertas ni con movimiento reducido.",
       "**Don't** cargar fuentes, iconos ni scripts de terceros (Figtree se sirve desde el propio origen; las páginas independientes usan la pila del sistema), ni usar lados con un borde de color más grueso que el resto."
     ]
   }

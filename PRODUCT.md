@@ -94,18 +94,24 @@ Restricciones:
   dividida lista + mapa y la lista primero en móvil, y C9 (secundaria) sobre el histórico de
   precios. Sin evidencia primaria sobre la presentación de la ficha (hueco a).
 
-Ausencias que ningún trabajo posterior debe inventar: no hay logotipo (el icono de D.5, un tejado dentro de un marco, es un glifo funcional de pestaña y de pantalla de inicio, no un logotipo; decisión 149), investigación con usuarios,
+Marca (D.22, decisión 266): la lupa con una casa dentro («casa encontrada») es el logotipo y la fuente de los iconos de pestaña y
+pantalla de inicio (decisión 267); sustituye al tejado dentro de un marco de D.5.
+
+Ausencias que ningún trabajo posterior debe inventar: investigación con usuarios,
 métricas de uso, testimonios, cifras de cobertura ni acuerdos con portales.
 
 ## Product Principles
 
-1. El precio y los datos comparables mandan; la decoración no compite con ellos. La única decoración admitida es el motivo de curvas de nivel junto al título de la búsqueda: un trazo fino que nunca se coloca sobre los datos ni compite con ellos. Enmienda de D.20 (decisión 235).
+1. El precio y los datos comparables mandan; la decoración no compite con ellos. La única decoración admitida es el motivo de curvas de nivel junto al título de la búsqueda: un trazo fino que nunca se coloca sobre los datos ni compite con ellos. Enmienda de D.20 (decisión 235). Enmienda de D.22 (decisión 271): fuera de las pantallas con precios (portada,
+   estados vacío, 404, error y 429) la marca, las ilustraciones y la voz cercana en tuteo son bienvenidas; en la lista y la ficha el tono
+   sigue siendo neutro.
 2. Mostrar la evidencia de la agregación: de qué fuentes sale cada vivienda y cuál es la más
    barata.
 3. Honestidad con la incertidumbre: lo aproximado, lo no consolidado y lo inactivo se dicen como
    tales.
 4. Nada depende del cliente: la URL es el estado y toda página funciona sin JavaScript.
-5. Una herramienta a la que se vuelve cada día: consistencia y densidad antes que efecto.
+5. Una herramienta a la que se vuelve cada día: consistencia y densidad antes que efecto. La calidez se gana con detalles (marca,
+   ilustraciones y entradas breves), nunca con ruido ni a costa de la densidad de los resultados (decisión 271).
 
 ## Accessibility & Inclusion
 

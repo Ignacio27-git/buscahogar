@@ -175,7 +175,7 @@ El sistema se reconoce por lo que no lleva. Una vivienda es una fila fina separa
 no una tarjeta con una foto grande como unidad de lectura. No hay marginalia cartográfica más allá
 de un marco, una trama y un único motivo de curvas de nivel: el marco del mapa, la trama de la
 ubicación aproximada y el motivo decorativo junto al título de la búsqueda.
-Esa excepción es de D.20 (decisión 235). Todo lo demás es papel cálido, tinta, un azul para lo que se pulsa y un verde para lo que está bien.
+Esa excepción es de D.20 (decisión 235). Todo lo demás es papel cálido, tinta, un azul para lo que se pulsa y un verde para lo que está bien. Desde D.22 la marca, la portada y los estados llevan una voz más cercana y una ilustración propia, sin tocar las pantallas con precios (decisiones 266-271).
 
 **Key Characteristics:**
 
@@ -184,8 +184,9 @@ Esa excepción es de D.20 (decisión 235). Todo lo demás es papel cálido, tint
 - Controles de alto fijo (40px como mínimo en todo lo que se pulsa) y radios algo más amables (0,375 y 0,5rem).
 - Una sola trama (siena) reservada a la ubicación aproximada.
 - Un único motivo decorativo de curvas de nivel junto al título de la búsqueda, en trazo fino y por debajo de los datos.
+- Una marca propia, la lupa con una casa dentro («casa encontrada»), en la cabecera, las páginas sueltas y los iconos; y tres ilustraciones de estado en el mismo trazo, siempre aparte de los datos.
 - Una sola familia, Figtree autoalojada, con cifras tabulares donde se comparan precios, recuentos y fechas.
-- Sin movimiento decorativo: el movimiento solo responde a una acción o anuncia un estado (pulsación, bandeja de filtros, color de los controles, realce de la fila y aparición de los avisos); nada se repite en bucle, no hay paralaje ni movimiento ligado al desplazamiento, y con movimiento reducido todo es instantáneo y la imagen de la fila no se amplía.
+- El movimiento responde a una acción, anuncia un estado o acompaña una entrada única: pulsación, bandeja de filtros, color de los controles, realce de la fila, aparición de los avisos, entrada escalonada de la lista y barrido del motivo del inicio; nada se repite en bucle, no hay paralaje ni movimiento ligado al desplazamiento, y con movimiento reducido todo es instantáneo y la imagen de la fila no se amplía.
 
 ## Colors
 
@@ -418,6 +419,13 @@ de ordenación y la fila de resultado; los campos, el selector de tema y el aro 
 con un fundido de opacidad de 200 ms, sin desplazamiento; las alertas aparecen al instante. El fundido se repite en cada
 carga completa de la página, no en una navegación suave sobre lo que ya estaba montado, y nunca deja contenido oculto.
 
+D.22 (decisión 270) añade dos entradas únicas, sin tokens nuevos. Las seis primeras filas de la lista entran con un fundido y un
+desplazamiento de 0,25rem de 200 ms, escalonadas de 20 en 20 ms (la sexta con 100 ms de retraso, todo termina a 300 ms); las demás
+no se animan y ninguna fila queda oculta. Un `router.refresh()` puede repetir la entrada si una fila nueva desplaza a las
+visibles, y se acepta. El motivo de la portada se descubre de izquierda a derecha en 250 ms (una máscara que se escala en X). Los
+chips de ejemplo y las acciones de los estados se hunden al pulsar como los botones. Con movimiento reducido las duraciones y los
+retrasos valen 0s y todo aparece ya en su sitio.
+
 ### Ordenación (sort-preset)
 
 Cinco enlaces junto a la etiqueta «Ordenar por», bajo la bandeja de filtros: «Más recientes» (el orden por
@@ -437,17 +445,44 @@ campo conserva el mismo nombre. Se abre sola en la portada, con `?q=`, con pará
 zona no se reconoce; en una página de resultados queda cerrada. Su color y su borde transicionan en 150 ms como los de
 los botones, sin escala de pulsación.
 
+### Marca (brand-mark)
+
+Una lupa con una casa dentro («casa encontrada», D.22, decisión 266): un SVG de 32 × 32 con la lente y el mango en `currentColor`
+(tinta) y la casa, con puerta recortada, rellena con `primary`. Vive en una sola fuente de geometría (`lib/brand-mark.ts`) que
+alimenta el componente, el HTML de las páginas sueltas (429 y error global) y la prueba del icono. Mide 1,75rem, es `aria-hidden`,
+va delante del nombre «Buscahogar», que sigue siendo texto vivo y es el único nombre accesible del enlace. No lleva colores nuevos.
+El icono de pestaña (`icon.svg`, fondo transparente) lleva su variante oscura con `prefers-color-scheme`, y el icono de pantalla de
+inicio es un PNG opaco con el papel claro (decisión 267).
+
+### Portada (home-hero)
+
+La portada sin criterios es una franja tintada (`primary-wash`, radio `panel`) con un titular en voz cercana («Todas las viviendas
+de los portales, en una sola búsqueda»), una frase de apoyo, los pasos, la caja de texto abierta y «Búsquedas para empezar»: seis
+enlaces de 44px a búsquedas por criterios (operación, tipo, precio, habitaciones, superficie), sin zona, que devuelven resultados
+sin consultar nada externo. Los filtros avanzados quedan plegados bajo la franja a todos los anchos con el modificador
+`filter-tray--disclosure` (mismo formulario, mismos nombres y misma URL). El resto de páginas de búsqueda conservan su título
+sobrio «Buscar vivienda» (decisión 268).
+
+### Estados ilustrados (state-illustration)
+
+Vacío, 404, error de ruta, error global y 429 llevan una ilustración de 6 × 4rem sobre el titular (`empty`: lupa sobre tres curvas
+de nivel; `not-found`: curvas con un rastro que acaba en una parcela vacía; `unavailable`: la casa de la marca con una curva rota).
+Son SVG `aria-hidden` con trazo de ancho constante, anillos en `rule-control`, figura en `currentColor` y la casa en `primary`.
+Cada estado ofrece una sola acción principal con la receta del botón primario (acento y `ink-on-accent`): «Comprobar de nuevo»,
+«Ir a la búsqueda», «Reintentar» o «Ir a la primera página»; el vacío filtrado la muestra siempre. El tono es de tuteo cercano
+(«no has hecho nada mal») solo en estos estados; las pantallas con precios no cambian (decisiones 269 y 271).
+
 ### Motivo de curvas de nivel
 
-Único momento decorativo del sistema (D.20, decisión 235). Cinco anillos cerrados e irregulares anidados alrededor de una cima,
+Único motivo decorativo del sistema (D.20, decisión 235). Cinco anillos cerrados e irregulares anidados alrededor de una cima,
 con el tercero como curva maestra (trazo de 2), en un SVG propio incrustado en la cabecera de la búsqueda
 (`contour-motif`, `aria-hidden`, sin foco ni texto). Desde D.21 (decisión 243) el dibujo se encuadra en una caja 5:1
 centrada en la cima, de modo que ningún anillo queda cortado en plano por el borde del SVG, y los bordes visibles se
 desvanecen con una máscara de alfa en línea (sin color y sin recurso servido). Tras la revisión de las capturas el
 desvanecido es radial (una elipse inscrita en la caja, no un degradado horizontal) y, bajo 400px, se retiran los dos
 anillos exteriores (recortados por los lados quedaban como arcos sueltos) y la curva gruesa pasa al segundo anillo, porque el
-tercero quedaba como borde y sus extremos se apagaban. Va junto al título de resultados y solo ahí: ni en la portada con consulta en
-lenguaje natural, ni en la ficha, ni en los 404. Es un trazo fino que no reserva espacio (posición absoluta, sin eventos de
+tercero quedaba como borde y sus extremos se apagaban. Va junto al título de resultados y, desde D.22, dentro de la franja de la portada (arriba a la derecha, oculto bajo 48rem); no
+aparece en la portada con consulta en lenguaje natural, ni en la ficha, ni en los 404. Es un trazo fino que no reserva espacio (posición absoluta, sin eventos de
 puntero), pinta por debajo del título y no cambia ni el alto de la cabecera ni el orden del DOM. El trazo es `rule-control` al
 35% de opacidad en claro y `rule` entero en oscuro, para que los dos temas pesen parecido (contraste de línea de 1,49:1 y
 1,41:1); a 320px se recorta en lugar de desbordar. No es un dato: el motivo no sustituye ninguna señal.
@@ -539,6 +574,7 @@ del borde. El panel aparece con el fundido de opacidad de 200 ms, salvo si es un
 - **Do** mantener 40px de alto mínimo en todo lo que se pulsa, a todos los anchos (decisión 200), también en botones de icono y enlaces de ordenación.
 - **Do** dar a cada control de solo icono un nombre accesible en texto oculto y una señal de estado que no sea el color.
 - **Do** dar cada estado con texto o con peso, además de con color (insignias, pasos, tema activo, estado de cobertura).
+- **Do** dar a cada estado (vacío, 404, error, 429) una ilustración, un mensaje cercano en tuteo y una sola acción principal; en las pantallas con precios la voz sigue siendo neutra (decisión 271).
 - **Do** usar cifras tabulares donde se comparan precios, recuentos y fechas.
 - **Do** declarar todo valor de color, tamaño y radio en `globals.css` y reflejarlo aquí; `apps/web/test/design-md.test.ts` lo comprueba.
 
@@ -549,5 +585,5 @@ del borde. El panel aparece con el fundido de opacidad de 200 ms, salvo si es un
 - **Don't** usar `hatch` (siena) como texto, fondo ni acento.
 - **Don't** pintar de verde un enlace, un botón ni «Último precio más bajo»; el verde no es interactivo.
 - **Don't** proyectar sombra en reposo; las dos sombras son para lo que flota sobre el mapa o surge al enfocar.
-- **Don't** añadir movimiento decorativo, en bucle, de paralaje o ligado al desplazamiento: solo la pulsación (100 ms), la bandeja de filtros bajo 64rem, el color de los controles y el realce de la fila (150 ms) y la aparición de los avisos (200 ms, solo opacidad); nunca en las alertas ni con movimiento reducido.
+- **Don't** añadir movimiento en bucle, de paralaje o ligado al desplazamiento: solo la pulsación (100 ms), la bandeja de filtros, el color de los controles y el realce de la fila (150 ms), la aparición de los avisos (200 ms, solo opacidad), la entrada de la lista (200 ms, seis filas, escalonado máximo 100 ms) y el barrido del motivo del inicio (250 ms); nunca en las alertas ni con movimiento reducido.
 - **Don't** cargar fuentes, iconos ni scripts de terceros (Figtree se sirve desde el propio origen; las páginas independientes usan la pila del sistema), ni usar lados con un borde de color más grueso que el resto.

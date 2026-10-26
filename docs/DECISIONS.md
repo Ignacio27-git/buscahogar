@@ -7362,6 +7362,156 @@ sin privilegios fuera de `buscahogar_e2e` (que se destruye en la siguiente siemb
 
 ---
 
+## 266 — Marca «casa encontrada»: una lupa con una casa dentro, en SVG incrustado con una sola geometría
+
+**Estado:** aceptada (D.22); enmienda la ausencia de logotipo de `PRODUCT.md` (y la lectura de la 149 como «glifo funcional, no logotipo»).
+
+**Contexto.** Hasta D.21 la cabecera era solo el nombre en texto y el icono de D.5 (un tejado dentro de un marco) era un glifo de pestaña. El
+responsable pidió un logotipo simple y directo y una web menos seria. Tras dos rondas de propuestas renderizadas eligió la variante 2c.
+
+**Decisión.** La marca es una lupa con una casa dentro («casa encontrada»): un SVG de 32 × 32 con la lente (`cx`/`cy` 13,5, radio 10, trazo
+3) y el mango (`M21 21l7.5 7.5`, trazo 4, extremos redondos) en `currentColor`, y la casa con la puerta recortada (`evenodd`) rellena con
+`var(--accent)`. La geometría vive solo en `lib/brand-mark.ts` (módulo puro, sin JSX ni `server-only`, alcanzable desde el `proxy`):
+constantes `BRAND_MARK` y `brandMarkSvg()`. El componente `BrandMark` (servidor, sin props ni `className`) y el HTML de las páginas sueltas
+(429 y error global) salen de las mismas constantes, y una prueba de paridad exige que `renderToStaticMarkup(<BrandMark />)` sea idéntico
+a `brandMarkSvg()`. Mide 1,75rem, es `aria-hidden` y `focusable="false"`, y va antes del nombre «Buscahogar», que sigue siendo texto vivo y
+el único nombre accesible del enlace de la cabecera. No añade ningún token de color.
+
+**Alternativas descartadas.** (1) `dangerouslySetInnerHTML` con una cadena: inyecta HTML sin necesidad. (2) Dos copias a mano (React y cadena):
+se separan en silencio. (3) Un fichero generado en la compilación: añade un paso y saca la geometría del código revisable. (4) El nombre como
+texto SVG: perdería el texto vivo. (5) Marca solo en pantallas anchas: a 320 px cabe (28 px en una fila de 40). (6) Las demás propuestas de
+las dos rondas renderizadas, descartadas por el responsable al elegir la 2c.
+
+**Motivo.** Una fuente de geometría para el componente, las páginas sueltas y el icono; la marca aporta calidez con tokens que ya existen.
+
+---
+
+## 267 — Iconos derivados de la marca: `icon.svg` con variante oscura y `apple-icon.png` regenerado (enmienda la 149)
+
+**Estado:** aceptada (D.22); enmienda la 149.
+
+**Contexto.** La 149 fijó `icon.svg` (tejado en un marco sobre una baldosa blanca, colores del tema claro) y `apple-icon.png` (180 × 180,
+opaco). Con la marca nueva ambos debían cambiar, y la pestaña oscura del navegador dejaba la baldosa blanca como un parche.
+
+**Decisión.** `icon.svg` pasa a ser la marca sobre fondo transparente, escrito a mano y fijado por prueba: la geometría es la de `BRAND_MARK` y
+una hoja interna define `.i` (trazo) y `.h` (casa) con los literales del tema claro (`#1e1c19` y `#1f5fa8`) y un bloque
+`@media (prefers-color-scheme: dark)` con los del oscuro (`oklch(92% 0.012 85)` y `oklch(72% 0.12 252)`); la prueba compara esos literales con
+`--ink` y `--accent` de `:root` y `.dark`. Sin texto, `href`, `url(` ni script. `apple-icon.png` se regenera con el comando de la 149 dentro de
+la imagen e2e (solo cambia el `setContent`): baldosa opaca `#faf8f3` (el papel claro) y la marca de 120 px con 30 px de margen. Sigue sin haber
+manifiesto ni imagen para redes. A 16 px la lente y la silueta se distinguen en ambos temas; la puerta recortada solo se ve como una muesca
+tenue, y el responsable decide en la puerta de capturas si se simplifica la casa en `icon.svg` (solo ahí).
+
+**Alternativas descartadas.** (1) Un script de generación (la 149 ya lo descartó: fuera de `tsconfig` y del lint). (2) `icon.tsx` con
+`ImageResponse`: pierde el SVG y el estilo oscuro. (3) Conservar la baldosa blanca en la pestaña. (4) Baldosa blanca o oscura en el icono de
+pantalla de inicio: iOS exige opacidad y el papel coincide con la aplicación.
+
+**Motivo.** Los literales de color quedan fuera del TypeScript, el favicon es un documento aislado donde no se pueden leer variables, y una
+prueba impide que se desvíen de los tokens.
+
+---
+
+## 268 — Portada con invitación: franja tintada, búsquedas de ejemplo por criterios y filtros plegados
+
+**Estado:** aceptada (D.22); enmienda la 132 (tono de la portada), la 153 (la bandeja plegada también en la portada ancha) y la 235 (el motivo,
+ahora dentro de la franja).
+
+**Contexto.** La portada era el motivo, «Buscar vivienda», los pasos y la caja de texto sobre una barra de filtros siempre abierta: correcta pero
+fría. El responsable pidió un diseño más acogedor y que invite a probar.
+
+**Decisión.** La portada sin criterios (`isPlainHome`) renderiza `HomeHero` (servidor): una franja con `--accent-wash`, radio `panel` y
+`overflow: hidden`, con el titular «Todas las viviendas de los portales, en una sola búsqueda» (un solo `h1`), una frase de apoyo, los pasos,
+la caja de texto abierta y «Búsquedas para empezar». Son seis enlaces de ejemplo (`lib/example-searches.ts`) que navegan por **criterios** con
+GET (por ejemplo `/?operation=rent&propertyType=flat&maxPrice=900`), de 44 px de alto, validados por prueba con `searchQuerySchema`, con
+claves que son un subconjunto de las del `FilterBar` y sin zona, polígono, coordenadas, radio ni `q`. Los filtros avanzados quedan plegados bajo
+la franja a todos los anchos con el modificador `filter-tray--disclosure` de `FilterBar` (mismo formulario, mismos nombres y campos ocultos,
+misma URL); las reglas de apertura forzada desde 64rem llevan `:not(.filter-tray--disclosure)`. El resto de ramas de la página conservan
+`<h1>Buscar vivienda</h1>` y el motivo junto al título. Dentro de la franja el motivo va arriba a la derecha y se oculta bajo 48rem.
+
+**Alternativas descartadas.** (1) Enlaces con `?q=`: aterrizan en la revisión de la interpretación y no en resultados. (2) Enlaces con `zone=`
+(códigos INE): `resolveCoverageForZone` puede registrar un `coverage_job`, de modo que un rastreador que siguiera los chips gastaría cuota de la
+API de Idealista. (3) Una franja a todo el ancho con márgenes negativos: choca con `SHELL_CONTAINER`. (4) Un tamaño de titular nuevo: ya
+existen `heading-1` y la escala es cerrada. (5) Un componente de filtros nuevo o alternarlos con JavaScript: cambiaría el comportamiento.
+
+**Motivo.** Resultados inmediatos, sin cuota y sin código de cliente, con los tokens y el formulario que ya existen.
+
+---
+
+## 269 — Estados ilustrados con una acción principal y voz cercana (enmienda la 225 y la 189)
+
+**Estado:** aceptada (D.22); enmienda la 225 y la 189; no enmienda la 187.
+
+**Contexto.** Los estados vacío, 404, error y 429 eran texto con un enlace. El responsable quería que dejaran de ser callejones fríos.
+
+**Decisión.** Tres ilustraciones de 96 × 64 (`lib/state-illustrations.ts` y `StateIllustration`): `empty` (lupa vacía sobre tres curvas de
+nivel), `not-found` (curvas con un rastro que acaba en una parcela vacía) y `unavailable` (la casa de la marca con una curva rota; error de ruta,
+error global y 429). Se renderizan a 6 × 4rem, `aria-hidden`, con trazo de ancho constante y solo tokens o `currentColor`; en las páginas
+sueltas se reutiliza la cadena. Cada estado tiene una única acción principal con la receta del botón primario: vacío «Comprobar de nuevo»
+(sin filtros) o la salida de filtros, 404 «Ir a la búsqueda», error «Reintentar» (con «Ir a la búsqueda» como enlace secundario), error
+global «Reintentar», fin de lista «Ir a la primera página». Enmienda de la 225: la acción del vacío filtrado se muestra **siempre** (antes solo
+si la fila de chips no ofrecía «Quitar todos»), porque comparte nombre y destino con ese enlace (WCAG 3.2.4) y el estado no puede quedar sin
+salida; la prop `clearAllOffered` desaparece. Enmienda de la 189: la página 429 gana una acción («Ir a la búsqueda», `href="/"`). Las páginas
+sueltas ponen la ilustración antes del `h1`. Un arreglo de paso: `buildCurrentHref` usa `toHref` y devuelve `/` y no `/?` con parámetros
+vacíos. Las ilustraciones y la voz son solo de estos estados; la 187 (existencia de la ficha) no cambia.
+
+**Alternativas descartadas.** (1) Ilustraciones rasterizadas o servidas: una petición más y sin paridad de tema. (2) Una ilustración ad hoc por
+estado: se desvía. (3) Mantener la condición de la 225: dejaba el vacío sin acción con dos o más chips. (4) Mantener la 429 sin acción: el
+resto de estados ya la tienen y el usuario bloqueado no sabe adónde ir. (5) Dos acciones principales: la jerarquía se pierde.
+
+**Motivo.** Cada estado dice qué pasa, tranquiliza y ofrece un camino, sin añadir colores ni código de cliente.
+
+---
+
+## 270 — Entrada escalonada de la lista, barrido del motivo y pulsación (enmienda la regla «sin movimiento decorativo» de D.21)
+
+**Estado:** aceptada (D.22); enmienda la 240 (regla de movimiento) y completa la 207 y la 242.
+
+**Contexto.** La regla de D.21 solo admitía el movimiento que responde a una acción o anuncia un estado. El responsable quiso un poco más de
+vida en la entrada de los resultados y en la portada, sin bucles.
+
+**Decisión.** La regla pasa a: «El movimiento responde a una acción, anuncia un estado o acompaña una entrada única: pulsación, bandeja de
+filtros, color de los controles, realce de la fila, aparición de los avisos, entrada escalonada de la lista y barrido del motivo del inicio».
+Tres `@keyframes` exactos (`notice-appear`, `row-enter`, `contour-wipe`), sin ningún token nuevo. (1) Lista: `.result-list > li:nth-child(-n+6)`
+con `row-enter` (opacidad desde 0 y desplazamiento de 0,25rem), `--duration-appear` (200 ms), `--ease-enter`, `animation-fill-mode: backwards` y
+retardo `calc(var(--duration-feedback) / 5 * (k - 1))` (0, 20, 40, 60, 80 y 100 ms): termina a 300 ms; las filas 7 y siguientes no se animan.
+(2) Motivo: `.home-hero .contour-motif__fade` con `contour-wipe` (`scaleX` desde 0, origen a la izquierda, `--duration-panel-enter`, 250 ms), solo
+en la portada. (3) Pulsación: los chips de ejemplo y la acción de los estados entran en el conjunto de pulsación (escala 0,97 en `:active`
+sin foco visible) y en la lista cerrada de transiciones de color. La barrera de `design-tokens.test.ts` fija los tres `@keyframes`, dónde
+puede haber `animation-*` y que `backwards` solo vive en la fila. Notas: **W1.** Un `router.refresh()` de `CoverageStatus` conserva las filas
+con clave estable, pero si una fila nueva desplaza a otra a las seis primeras posiciones, su entrada se repite; se acepta por rara y
+cosmética, y una prueba e2e comprueba que ninguna fila queda oculta (opacidad 1 al final, todas en el DOM). **W2.** Con movimiento reducido (la
+207) las duraciones y los retrasos valen `0s`: la animación existe pero dura 0 y la opacidad es 1 en la primera lectura, lo que cumple «nada o
+solo opacidad» del requisito MS-1. **W3.** El barrido sobre el rectángulo de la máscara se probó antes de apoyarse en él: anima en Chromium y
+WebKit (fotogramas a 0, 60, 125, 190 y 249 ms distintos de la referencia y el final idéntico al estático), así que no hizo falta el
+fundido de reserva.
+
+**Alternativas descartadas.** (1) Animar todas las filas: alarga la lista y la entrada pasaría de 300 ms. (2) `fill-mode: none`: las filas
+parpadearían antes del retraso. (3) `IntersectionObserver` o `@starting-style`: JavaScript o soporte desigual. (4) Dibujar el trazo con
+`stroke-dashoffset`: no es opacidad ni transformación. (5) Un fundido de opacidad del motivo: solo como reserva si W3 fallaba.
+
+**Motivo.** Un único interruptor de movimiento reducido (la 207), CSS puro y un tope visible de 300 ms en una herramienta de uso diario.
+
+---
+
+## 271 — Voz cálida en tuteo fuera de las pantallas con precios (enmienda la 132, la 134 y los principios 1 y 5 de `PRODUCT.md`)
+
+**Estado:** aceptada (D.22); enmienda la 132 (voz factual), la 134 (registro) y la 235 (el motivo, ahora también dentro de la portada).
+
+**Contexto.** La 132 fijó una voz factual y sin lenguaje comercial; los principios de `PRODUCT.md` priorizaban consistencia y densidad frente a
+efecto. El responsable quiere una web menos seria y más acogedora sin perder esa disciplina donde se comparan precios.
+
+**Decisión.** Voz cálida en tuteo («no has hecho nada mal», «Prueba a quitar algún filtro») en la portada y en los estados vacío, 404, error y
+429; voz neutra y factual en la lista, la ficha, el histórico y las cifras. El principio 1 admite la marca, las ilustraciones y la voz
+cercana fuera de las pantallas con precios, y el 5 añade que la calidez se gana con detalles y no a costa de la densidad. La prueba de
+cadenas de la lista, la ficha y el histórico no cambia. El motivo de la 235 aparece también dentro de la franja de la portada. El tuteo ya
+era el registro de la 134: lo que cambia es el tono, no el tratamiento.
+
+**Alternativas descartadas.** (1) Voz cálida en toda la web: contamina los precios y las cifras comparables. (2) Mantener la voz factual en
+los estados: era la fuente del tono frío que motivó el paso. (3) Reescribir los principios enteros: basta con acotar el 1 y el 5.
+
+**Motivo.** El tono cercano donde el usuario se pierde o decide si seguir, y el neutro donde compara dinero.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

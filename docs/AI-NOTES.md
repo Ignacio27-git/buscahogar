@@ -4280,3 +4280,56 @@ que el 2026-10-21 se había confirmado su ausencia.
 
 **Observación:** sobre un fichero que la herramienta no puede leer solo cabe decir que no se ha podido revisar; el estado conocido sale de
 lo ya registrado, no de una suposición. Se reescribieron las dos menciones como comprobación pendiente del responsable.
+
+### 2026-10-26 — Fallos intermedios en la aplicación de D.22 (identidad y alegría)
+
+**Contexto:** unidades 1-5 del cambio `design-identity-d22` (marca, portada, estados, movimiento y documentación). Todos se detectaron antes
+de cada commit, por una prueba, el typecheck o la lectura del diff.
+
+**Categoría:** código correcto en apariencia pero incorrecto · test que valida el comportamiento equivocado.
+
+**Qué se generó mal:**
+
+1. Un comentario CSS con comillas invertidas dentro de la plantilla `STANDALONE_PAGE_CSS`: la comilla invertida cerraba la plantilla y
+   rompía el análisis del TypeScript.
+2. Expresiones regulares construidas en una plantilla de cadena simple (`\s`, `\{` se degradan a `s` y `{`): un ayudante devolvía `''` y la
+   prueba comparaba `'' === ''`, un falso verde. El ayudante antiguo `lightToken` tenía el mismo defecto latente. Se corrigió con
+   `String.raw` y una guarda de no vacío.
+3. Una prueba de pureza que buscaba `<svg` y `server-only` encontraba cadenas y comentarios; se redujo a «sin líneas `import`». Otra que
+   buscaba `'use client'` coincidía con el propio comentario de cabecera; se limitó a la directiva al inicio de línea.
+4. Un identificador declarado dos veces y un ternario sin sentido en el código nuevo, que el typecheck y la lectura descubrieron.
+5. Una regla base `a:hover` pintaba el acento sobre un botón que ya era acento (texto sobre fondo del mismo color); se excluyó el botón.
+6. `findBlock` devuelve el primer bloque con ese prólogo: con dos `@media (width < 30rem)` el primero no era el esperado. Se escribió un
+   ayudante `inMedia`.
+7. Fijaciones de pruebas antiguas (`class="filter-tray"`, `<h1>Buscar vivienda</h1>` en `/`, el motivo en la portada) que el cambio
+   semántico de la portada rompió: seis fallos que no se habían previsto al planificar la unidad 2.
+8. Una expresión `/focus/` de una prueba coincidió con mis selectores nuevos `:not(:focus-visible)` (falso positivo); y un primer caso
+   sintético de la auditoría de movimiento usaba una propiedad frente a tres duraciones y la propia auditoría lo marcó.
+9. Heredocs de shell y de Python con comillas y `\n`: un `\n` escapado produjo un salto de línea real dentro de una cadena TypeScript, y una
+   comilla simple de `Don't` dentro de un heredoc rompió otra (en esta unidad, otra vez). Ya constaba en 3.3 y 3.4.
+
+**Cómo se detectó:** por las propias pruebas o por el typecheck, salvo el 3 y el 8, que salieron al revisar por qué una prueba pasaba o fallaba
+sin motivo.
+
+**Observación:** el patrón dominante es la prueba que pasa sin comprobar nada (comparar vacío con vacío, regex que coincide con su propio
+comentario). Una guarda de «no vacío» y un caso negativo sintético por cada barrera habrían cazado 2, 3 y 8 al escribirlas. El texto con
+comillas va con las herramientas de ficheros, no con heredocs.
+
+### 2026-10-26 — Dos fallos propios del orquestador en D.22
+
+**Contexto:** coordinación del cambio `design-identity-d22`, antes y durante la aplicación.
+
+**Categoría:** pérdida de contexto en tareas largas · deriva entre artefactos.
+
+**Qué se generó mal:**
+
+1. El estado en su revisión 3 parafraseó la investigación como «sin entrada escalonada en las páginas de resultados», lo que contradecía la
+   elección de movimiento del responsable (la entrada escalonada sí entraba). Lo detectó la puerta de la especificación y se corrigió en la
+   revisión 4.
+2. El artefacto de tareas se guardó sin casillas de verificación en Markdown, así que `sdd-status` nativo bloqueaba la aplicación al no
+   poder contar tareas. Se volvió a guardar con `- [ ]`.
+
+**Cómo se detectó:** (1) por la comparación de la especificación con la elección del responsable; (2) por el bloqueo del estado nativo.
+
+**Observación:** un resumen de una investigación en el estado no es una fuente: ante un conflicto manda lo que el responsable dijo. Y los
+artefactos que lee una herramienta deben ajustarse al formato que esa herramienta espera, no al que parece natural al escribirlos.

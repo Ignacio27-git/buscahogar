@@ -1813,6 +1813,53 @@ Paso D.21 de docs/DESIGN-ROADMAP.md. Usa `impeccable animate`, `impeccable polis
 
 ---
 
+## [~] D.22 · Identidad y alegría: logotipo, portada y estados
+
+```text
+Paso D.22 de docs/DESIGN-ROADMAP.md. Usa `impeccable craft`, `impeccable animate` e
+`impeccable document`.
+
+- Un logotipo simple y directo (lupa con una casa dentro) en cabecera, páginas sueltas e
+  iconos.
+- Portada con invitación: titular cercano, búsquedas de ejemplo por criterios y filtros
+  plegados.
+- Estados vacío, 404, error y 429 ilustrados, con una acción principal y tuteo cercano.
+- Entrada escalonada de la lista y barrido del motivo, dentro de los tokens de movimiento
+  y del interruptor de movimiento reducido (decisión 207).
+- DESIGN.md, `.impeccable/design.json` y PRODUCT.md derivados del código entregado.
+- Regenera en Docker las capturas de referencia y revisa su diferencia una a una; axe a
+  cero.
+```
+
+**Objetivo.** Dar a la web una identidad propia y un tono menos serio sin tocar la densidad ni la neutralidad de las pantallas con precios.
+
+**Revisar.**
+
+- La marca se reconoce a 16 px en ambos temas y el nombre «Buscahogar» sigue siendo texto vivo.
+- Los enlaces de ejemplo devuelven resultados con los datos actuales y no consultan ninguna fuente externa.
+- Con `prefers-reduced-motion: reduce` todo aparece ya en su sitio; ninguna fila queda oculta.
+- Capturas revisadas una a una y aprobadas por el responsable (puerta GATE-1).
+
+**Notas:**
+
+- **Estado (2026-10-26): en curso.** Aplicada con SDD completo (investigación, propuesta, especificación, diseño y tareas) en modo
+  automático (Engram `sdd/design-identity-d22/*`), en un único PR con `size:exception` aceptado por el responsable antes de aplicar y un
+  commit por unidad. El paso se cierra solo tras la aprobación de las capturas por el responsable (unidad 6).
+- **Unidades entregadas:** 1 `22745d3` (marca, cabecera, páginas sueltas e iconos), 2 `70da845` (portada, enlaces de ejemplo y filtros
+  plegados), 3 `d4440f8` (estados ilustrados y textos), 4 `0876ac8` (entrada escalonada, barrido del motivo, pulsación y barrera de CSS),
+  5 (documentación y decisiones 266-271). Pendiente la unidad 6: líneas base de Docker, revisión de capturas y puerta del responsable.
+- **Tests:** web 119 ficheros / 2.002 tests en verde al terminar la unidad 4; typecheck y eslint limpios. `pnpm e2e` (Docker) aún no
+  ejecutado: lo hace la unidad 6 con las líneas base.
+- **Decisiones:** 266 (marca), 267 (iconos), 268 (portada), 269 (estados), 270 (movimiento; W1, W2 y W3) y 271 (voz).
+- **Prueba previa (W3):** el barrido del motivo con `scaleX` sobre el rectángulo de la máscara anima en Chromium y WebKit y deja el
+  fotograma final idéntico al estático, así que no se usó el fundido de reserva.
+- **A 16 px** la puerta recortada de la casa se ve solo como una muesca tenue; el responsable decide en la puerta de capturas si se
+  simplifica en `icon.svg`.
+- **Seguimientos:** los que salgan de la revisión de capturas.
+- **Tamaño:** previsión ~1.970 líneas frente a un presupuesto de 800 (véase la tabla de desviaciones).
+
+---
+
 # Evidencia de la investigación
 
 Resumen de la investigación del cambio `web-ux-ui-design-roadmap` (Engram, revisión 2, consultada el
@@ -2048,3 +2095,13 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-19 | D.21 | `size:exception` aceptado antes de aplicar: 25 ficheros y +3.004/−246 líneas en código, tests y e2e (27 ficheros y +3.098/−279 con `DESIGN.md` y el sidecar; sin PNG ni documentación) frente a una previsión de ~1.000-1.150 y un presupuesto de 800. | El pulido y sus tests superaron la previsión (el test de CSS del pulido, 325 líneas, y los e2e de geometría); el ledger se reinició dos veces. No se recortó ningún test. |
 | 2026-10-19 | D.21 | El diseño falló dos veces la validación en contexto limpio y el flujo automático se detuvo una vez. | Barrera sin restringir por selector, cambio de banda que afectaba al tema oscuro y borde de ordenación contradictorio con el spec; el responsable resolvió con las decisiones 11-13. |
 | 2026-10-20 | D.21 | 86 de las 120 líneas base cambiaron y se regeneraron borrando y reescribiendo (decisión 239). | Los cambios de pulido caen por debajo del umbral de `changed`; las 34 restantes (páginas de error, 404 y 429 y poco más) no cambiaron. |
+| 2026-10-26 | D.22 | El paso se añade al bloque 7 con la hoja de ruta ya cerrada y su cabecera usa `[~]` (en curso) y no `[ ]`. | Petición del responsable (logotipo, más zonas y un diseño menos serio); se cierra tras la aprobación de capturas. |
+| 2026-10-26 | D.22 | `size:exception` aceptado antes de aplicar: previsión de ~1.970 líneas (seis unidades, un commit cada una) frente al presupuesto de 800, en un único PR. | Trabajo cohesivo (marca, portada, estados, movimiento y sus pruebas); cada unidad se revierte por separado. Las líneas base PNG no cuentan. |
+| 2026-10-26 | D.22 | Los chips de ejemplo son enlaces por criterios (sin zona) y no enlaces `?q=`, como decía el borrador de la especificación. | `?q=` aterriza en la revisión y no en resultados; `zone=` podría registrar un `coverage_job` y gastar cuota si un rastreador sigue los chips (decisión 268). |
+| 2026-10-26 | D.22 | Los chips de ejemplo miden 44 px y no los 40 px mínimos del sistema. | Objetivo táctil cómodo en la pieza principal de la portada (decisión 268). |
+| 2026-10-26 | D.22 | La página 429 gana una acción principal («Ir a la búsqueda») que antes no tenía. | Ningún estado debe quedar sin salida; coherencia con los demás estados (decisión 269, enmienda la 189). |
+| 2026-10-26 | D.22 | El vacío filtrado muestra siempre su acción, aunque la fila de chips ofrezca «Quitar todos». | Enmienda la 225: comparten nombre y destino (WCAG 3.2.4) y el estado no puede quedar sin salida (decisión 269). |
+| 2026-10-26 | D.22 | En las páginas sueltas la ilustración va antes del `h1`. | Las páginas sin el diseño de la aplicación no tienen otra estructura donde situarla; es decorativa y `aria-hidden` (decisión 269). |
+| 2026-10-26 | D.22 | `buildCurrentHref` devuelve `/` y no `/?` cuando no hay parámetros. | Corrección de paso: la acción del vacío sin filtros apuntaba a `/?` (decisión 269). |
+| 2026-10-26 | D.22 | `BrandMark` no admite `className`; el tamaño y el color de la casa salen de las reglas `.brand-mark` y `.brand-mark__house`. | Una sola presentación para la cabecera y la página de error global, sin utilidades de Tailwind en el componente (decisión 266). |
+| 2026-10-26 | D.22 | Los filtros avanzados quedan en la barra de herramientas bajo la franja y no dentro de ella; el motivo se oculta bajo 48rem y no 40rem. | La barra conserva su estructura y el resto de páginas no cambian; a menos de 48rem el motivo no cabe junto al titular (decisión 268). |

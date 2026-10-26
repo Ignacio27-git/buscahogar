@@ -2302,3 +2302,25 @@ ejecución duplicada de la réplica del job `db` y la forma de las aserciones ne
 hubo que declararlo en la tabla de evidencia en lugar de reconstruirlo. S8 cerró el paso con `docs/DEPLOYMENT.md` vigilado por tests de
 deriva, la CI comprobada de forma estática y reproducida en local, y la lista de traspaso del paso 3.5. Los pendientes que ninguna herramienta
 puede hacer (`.env.example`) quedan escritos como tareas del responsable, no como hechos.
+
+---
+
+### 2026-10-26 — Identidad y alegría: logotipo, portada y estados (D.22)
+
+**Tipo de tarea:** diseño (identidad visual, portada, estados y movimiento), con diagnóstico de un fallo local y explicación de la cobertura
+**Forma de especificación:** SDD completo (investigación, propuesta, especificación, diseño y tareas) en modo automático, almacén Engram, un
+único PR con `size:exception` y presupuesto de 800 líneas; doce decisiones de producto del responsable y logotipo elegido tras dos rondas
+renderizadas (variante 2c)
+**Resultado:** pendiente de la aprobación de las capturas (unidad 6); allí se fija si fue utilizable sin cambios, con retoques o descartado
+
+**Prompt:**
+
+> (Resumen fiel; no se conservó la transcripción literal.) El responsable pidió un logotipo simple y directo, más zonas cubiertas y un diseño
+> menos serio y más acogedor. Aportó una búsqueda en Barcelona que devolvía un error 500.
+
+**Observación.** El 500 no era de código: faltaban `NEW_ZONES_DAILY_CAP` y `WEB_COVERAGE_DATABASE_URL` en `apps/web/.env.local`, una
+configuración local. Se le explicó la cobertura (barrido previo, bajo demanda y manual). El resto se resolvió por SDD con doce decisiones de
+producto suyas (marca, portada con búsquedas de ejemplo, estados ilustrados, entrada escalonada de la lista, tuteo cálido solo fuera de las
+pantallas con precios) y la marca se eligió viendo dos rondas renderizadas. Lo que más cambió el diseño fue verificar las propuestas contra el
+código: los enlaces `?q=` y `zone=` de los ejemplos se descartaron por aterrizar en la revisión o por poder gastar cuota. Quedó fuera lo que
+solo puede juzgar el responsable: cómo se ven las capturas.
