@@ -56,7 +56,12 @@ import type {
 
 import { runReprocessCore } from '../dedup/reprocess-core.js';
 import type { ReprocessIo } from '../dedup/reprocess-core.js';
-import { createIdealistaSource, IdealistaListingNormalizer } from '../sources/idealista/index.js';
+import {
+  createIdealistaSource,
+  createReusableTokenPort,
+  IdealistaListingNormalizer,
+  invalidateOnRejectedToken,
+} from '../sources/idealista/index.js';
 import { filterForRawType } from '../sources/idealista/filter-for-raw-type.js';
 import type { IdealistaSearchPort, IdealistaTokenPort } from '../sources/idealista/ports.js';
 import { createIdealistaPresenceVerifier } from '../sources/idealista/presence-verifier.js';
@@ -117,6 +122,13 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
   // UNA instancia compartida por el proceso — composeStore ya es la misma
   // composición reutilizada por scripts/sweep-zone.ts (CR-2).
   const store = composeStore(deps.db);
+
+  // ROADMAP 3.3 (decisión 272): UN token para todo el proceso mientras no caduque (`expires_in` menos un margen),
+  // compartido por los barridos y la verificación de presencia; un 401 de la búsqueda lo invalida para el siguiente
+  // uso. El registro anota solo las adquisiciones REALES de cada barrido o verificación (`tokenSpentSince`).
+  const tokenPort = createReusableTokenPort(deps.tokenPort, { now: Date.now });
+  const searchPort = invalidateOnRejectedToken(deps.searchPort, tokenPort);
+  const tokenSpentSince = (acquisitionsBefore: number): number => tokenPort.acquisitions() - acquisitionsBefore;
 
   // Recibos de las reservas mensuales en curso, por objeto de reserva (ver `reserveBudget`).
   const grants = new WeakMap<BudgetReservation, RequestBudgetGrant>();
@@ -198,11 +210,13 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
     },
 
     async verifyPresence(batches: readonly PresenceBatch[]): Promise<PresenceVerification> {
-      // Una instancia POR llamada (token propio) y con el tope duro = nº de
-      // lotes: el propio presupuesto impide una petición de más.
+      // Una instancia POR llamada y con el tope duro = nº de lotes: el propio
+      // presupuesto impide una petición de más. El token es el del proceso
+      // (decisión 272), así que la instancia solo sale a la red si no hay uno vigente.
+      const acquisitionsBefore = tokenPort.acquisitions();
       const verifier = createIdealistaPresenceVerifier({
-        searchPort: deps.searchPort,
-        tokenPort: deps.tokenPort,
+        searchPort,
+        tokenPort,
         radiusMarginM: presenceDeps.radiusMarginM,
         maxRequests: batches.length,
         log: (line: string): void => {
@@ -215,7 +229,7 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
           verdicts.set(externalId, verdict);
         }
       }
-      return { verdicts, actual: verifier.budgetSnapshot() };
+      return { verdicts, actual: { search: verifier.budgetSnapshot().search, token: tokenSpentSince(acquisitionsBefore) } };
     },
 
     async applyPresence(result: PartitionedPresence): Promise<void> {
@@ -311,9 +325,10 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
       // batch: se limpia `presweep_requested_at`. En cualquier otro job la marca ya es NULL (no-op).
       const claimed = await store.claimJob(job.zoneId, job.sourceId, job.operation, fingerprint, { presweep: 'clear' });
 
+      const acquisitionsBefore = tokenPort.acquisitions();
       const source = createIdealistaSource({
-        searchPort: deps.searchPort,
-        tokenPort: deps.tokenPort,
+        searchPort,
+        tokenPort,
         maxSearchRequestsPerSweep: deps.maxSearchRequestsPerSweep,
       });
       const normalizer = new IdealistaListingNormalizer();
@@ -344,7 +359,11 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
       });
       deps.io.log(JSON.stringify(report, null, 2));
 
-      return { outcome: result.outcome, actual: source.diagnostics().budget };
+      // Token: las llamadas REALES de este barrido, no las que pidió la fuente (decisión 272).
+      return {
+        outcome: result.outcome,
+        actual: { search: source.diagnostics().budget.search, token: tokenSpentSince(acquisitionsBefore) },
+      };
     },
 
     async runDedup(): Promise<void> {

@@ -220,7 +220,9 @@ const DEFAULT_MAX_VERIFICATION_REQUESTS_PER_TICK = 2;
 // El token se reserva una vez por barrido, igual que budget.ts::TOKEN_CAP
 // (1.6) — no un valor nuevo, el mismo principio repetido en el nivel diario
 // (DD-13: los dos niveles componen porque la reserva ES el tope por
-// barrido).
+// barrido). Con el token reutilizado por el proceso (decisión 272) el gasto
+// real suele ser 0 y la reconciliación devuelve la reserva; reservar 0 no sería
+// seguro, porque la reconciliación mensual solo reembolsa.
 const TOKEN_RESERVE = 1;
 
 type IsolatedResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false };

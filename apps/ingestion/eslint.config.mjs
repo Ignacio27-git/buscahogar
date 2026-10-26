@@ -25,6 +25,8 @@ export default [
       'src/sources/idealista/presence-verifier.ts',
       'src/sources/idealista/http-client.ts',
       'src/sources/idealista/idealista-source.ts',
+      // Decisión 272: decorador del token, envuelve los dos puertos de red.
+      'src/sources/idealista/reusable-token-port.ts',
       // Paso 1.14 (diseño D14) — mismo criterio: superficies que orquestan
       // la única petición del adaptador de Kyero.
       'src/sources/kyero/kyero-source.ts',

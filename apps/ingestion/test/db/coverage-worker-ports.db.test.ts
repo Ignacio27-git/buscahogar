@@ -211,6 +211,59 @@ describe('createRealCoverageWorkerPorts — CR-2: reutiliza runSweep/composeStor
     ]);
   });
 
+  // Decisión 272: el worker es de larga duración y barre un job tras otro; cada barrido creaba su propia fuente y
+  // pedía su propio token. Ahora los barridos del proceso comparten el token mientras no caduca, y el registro
+  // (diario y mensual) anota solo la adquisición real.
+  it('dos barridos del mismo proceso piden y anotan UN solo token (decisión 272)', async () => {
+    const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
+    const sourceId = await insertSourceWithQuota(db);
+    await db.insert(coverageJobs).values([
+      { zoneId, sourceId, operation: 'sale', status: 'pending', requestedAt: new Date(Date.now() - 2_000) },
+      { zoneId, sourceId, operation: 'rent', status: 'pending', requestedAt: new Date(Date.now() - 1_000) },
+    ]);
+    const counting = { calls: 0 };
+    const tokenPort: IdealistaTokenPort = {
+      acquire(): Promise<TransportOutcome> {
+        counting.calls += 1;
+        return Promise.resolve({
+          kind: 'ok',
+          status: 200,
+          headers: {},
+          body: { access_token: `fake-token-${String(counting.calls)}`, expires_in: 43_200 },
+        });
+      },
+    };
+    const ports = createRealCoverageWorkerPorts({
+      db,
+      sourceUuid: sourceId,
+      searchPort: createExhaustingSearchPort(),
+      tokenPort,
+      maxSearchRequestsPerSweep: 10,
+      maxAttempts: 3,
+      dailySearchCap: 500,
+      blockingThresholds: BLOCKING_THRESHOLDS,
+      io: { log: () => undefined },
+    });
+
+    await runCoverageWorker(ports, {
+      pollIntervalMs: 1,
+      maxSearchRequestsPerSweep: 10,
+      dailySearchCap: 500,
+      maxAttempts: 3,
+      maxTicks: 2,
+    });
+
+    expect(counting.calls).toBe(1);
+    const { rows: daily } = await db.execute<{ search: number; token: number }>(
+      sql`select search_requests as search, token_requests as token from daily_request_budget`
+    );
+    expect(daily).toEqual([{ search: 10, token: 1 }]);
+    const { rows: monthly } = await db.execute<{ search: number; token: number }>(
+      sql`select search_requests as search, token_requests as token from monthly_request_budget`
+    );
+    expect(monthly).toEqual([{ search: 10, token: 1 }]);
+  });
+
   it('A-8.1: un trabajo ya reclamado por otro proceso lanza JobAlreadyClaimedError REAL (coverage-store.ts CAS)', async () => {
     const { zoneId } = await insertLocationWithZone(db, { centroid: geographyPointWkt(GRANADA), sweepRadiusM: 4500 });
     const sourceId = await insertSourceWithQuota(db);

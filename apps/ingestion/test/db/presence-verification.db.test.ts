@@ -136,12 +136,16 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
     await truncateAll(pool);
   });
 
-  function buildPorts(sourceId: string, searchPort: IdealistaSearchPort): ReturnType<typeof createRealCoverageWorkerPorts> {
+  function buildPorts(
+    sourceId: string,
+    searchPort: IdealistaSearchPort,
+    sourceTokenPort: IdealistaTokenPort = tokenPort
+  ): ReturnType<typeof createRealCoverageWorkerPorts> {
     return createRealCoverageWorkerPorts({
       db,
       sourceUuid: sourceId,
       searchPort,
-      tokenPort,
+      tokenPort: sourceTokenPort,
       maxSearchRequestsPerSweep: 10,
       maxAttempts: 3,
       dailySearchCap: 500,
@@ -332,6 +336,37 @@ describe('verificación de presencia de extremo a extremo con puertos falsos (S3
       sql`select search_requests as search, refresh_requests as refresh from monthly_request_budget`
     );
     expect(rows).toEqual([{ search: 6, refresh: 6 }]);
+  });
+
+  // Decisión 272: el barrido y la verificación del MISMO proceso comparten el token mientras no caduca; el
+  // registro (diario y mensual) anota solo la adquisición real.
+  it('barrido y verificación en el mismo tick piden y anotan UN solo token (decisión 272)', async () => {
+    const sourceId = await insertSourceWithQuota(db);
+    await seedZone(sourceId, 'refresh');
+    await seedGhost(sourceId, 'ghost-1', 'flat');
+    const searchPort = createSearchPort((ids) => reply(ids));
+    const counting = { calls: 0 };
+    const expiringTokenPort: IdealistaTokenPort = {
+      acquire(): Promise<TransportOutcome> {
+        counting.calls += 1;
+        return Promise.resolve({
+          kind: 'ok',
+          status: 200,
+          headers: {},
+          body: { access_token: `fake-token-${String(counting.calls)}`, expires_in: 43_200 },
+        });
+      },
+    };
+
+    await runCoverageWorker(buildPorts(sourceId, searchPort, expiringTokenPort), options());
+
+    expect(counting.calls).toBe(1);
+    const [budget] = await db.select().from(dailyRequestBudget).where(eq(dailyRequestBudget.sourceId, sourceId));
+    expect(budget).toMatchObject({ searchRequests: 6, tokenRequests: 1 });
+    const { rows } = await db.execute<{ search: number; token: number }>(
+      sql`select search_requests as search, token_requests as token from monthly_request_budget`
+    );
+    expect(rows).toEqual([{ search: 6, token: 1 }]);
   });
 
   it('S-LR-13: si el techo del carril de refresco está agotado no sale ninguna petición de verificación y nada cambia', async () => {

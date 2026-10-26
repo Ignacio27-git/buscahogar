@@ -12,7 +12,12 @@ import {
 } from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
 
-import { createIdealistaSource, IdealistaListingNormalizer } from '../sources/idealista/index.js';
+import {
+  createIdealistaSource,
+  createReusableTokenPort,
+  IdealistaListingNormalizer,
+  invalidateOnRejectedToken,
+} from '../sources/idealista/index.js';
 import { InvalidCursorError } from '../sources/idealista/errors.js';
 import type { IdealistaSearchPort, IdealistaTokenPort } from '../sources/idealista/ports.js';
 import { areaFingerprint, buildArea } from '../sweep/area.js';
@@ -32,11 +37,17 @@ export interface RealPresweepDeps {
   readonly log: (line: string) => void;
 }
 
-// El token se reserva una vez por barrido, igual que el worker y `sweep-zone`.
+// Cada unidad reserva el token que PODRÍA pedir (su fuente pide como mucho uno, budget.ts). Si lo reutiliza,
+// `settle` lo devuelve con el gasto real 0 (decisión 272). Reservar 0 al tener un token vigente no sería seguro: la
+// reconciliación solo reembolsa, así que un token pedido sin reservar (caducidad o 401 entre unidades) no quedaría
+// anotado. La reserva de token no consume margen: el techo del carril solo mira las búsquedas.
 const TOKEN_RESERVE = 1;
 
 export function createRealPresweepPorts(deps: RealPresweepDeps): PresweepPorts {
   const store = composeStore(deps.db);
+  // Decisión 272: UN token para toda la ejecución mientras no caduque; un 401 lo invalida para la unidad siguiente.
+  const tokenPort = createReusableTokenPort(deps.tokenPort, { now: Date.now });
+  const searchPort = invalidateOnRejectedToken(deps.searchPort, tokenPort);
 
   return {
     readLedger(): Promise<MonthlyLedgerState | null> {
@@ -97,9 +108,10 @@ export function createRealPresweepPorts(deps: RealPresweepDeps): PresweepPorts {
         throw error;
       }
 
+      const acquisitionsBefore = tokenPort.acquisitions();
       const source = createIdealistaSource({
-        searchPort: deps.searchPort,
-        tokenPort: deps.tokenPort,
+        searchPort,
+        tokenPort,
         // Tope duro del barrido = lo concedido por el registro mensual (R4).
         maxSearchRequestsPerSweep: hardCap,
       });
@@ -130,10 +142,11 @@ export function createRealPresweepPorts(deps: RealPresweepDeps): PresweepPorts {
         )
       );
 
+      // Token: las llamadas REALES de esta unidad, no las adquisiciones que pidió la fuente (decisión 272).
       return {
         kind: 'swept',
         outcome: result.outcome,
-        actual: source.diagnostics().budget,
+        actual: { search: source.diagnostics().budget.search, token: tokenPort.acquisitions() - acquisitionsBefore },
         ...(result.error !== undefined ? { error: result.error } : {}),
       };
     },

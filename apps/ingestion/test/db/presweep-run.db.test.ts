@@ -57,7 +57,13 @@ function createFakeIdealista(options: { readonly homesPages: number; readonly fa
     tokenPort: {
       acquire(): Promise<TransportOutcome> {
         fake.tokenCalls += 1;
-        return Promise.resolve({ kind: 'ok', status: 200, headers: {}, body: { access_token: 'fake-token' } });
+        // Misma forma que la respuesta real grabada por la sonda (paso 1.5): `expires_in` de 43200 s (12 h).
+        return Promise.resolve({
+          kind: 'ok',
+          status: 200,
+          headers: {},
+          body: { access_token: `fake-token-${String(fake.tokenCalls)}`, token_type: 'bearer', expires_in: 43_200, scope: 'read' },
+        });
       },
     },
     searchPort: {
@@ -210,18 +216,36 @@ describe('presweep-top-cities — comando de punta a punta (decisión 253)', () 
     ]);
   });
 
-  it('el gasto real queda en el carril batch del registro mensual (peticiones + un token por barrido) y nada en el diario (D7)', async () => {
+  it('el gasto real queda en el carril batch del registro mensual (peticiones + un token por EJECUCIÓN) y nada en el diario (D7)', async () => {
     await setup();
     await seedCity(MADRID);
     const fake = createFakeIdealista({ homesPages: 36 });
 
     await run(ARGS(1, 8, 5), fake);
 
-    // venta: 5 peticiones (tope por barrido), alquiler: 3 (tope de la ejecución). Dos barridos = 2 tokens.
+    // venta: 5 peticiones (tope por barrido), alquiler: 3 (tope de la ejecución). Dos barridos, UN token
+    // (decisión 272): el segundo barrido reutiliza el del primero y su reserva de token vuelve al registro.
     expect(fake.requests).toHaveLength(8);
-    expect(await ledger()).toEqual({ search: 8, batch: 8, token: 2 });
-    expect(fake.tokenCalls).toBe(2);
+    expect(await ledger()).toEqual({ search: 8, batch: 8, token: 1 });
+    expect(fake.tokenCalls).toBe(1);
     expect(await dailyRows()).toBe(0);
+  });
+
+  // Decisión 272 — el caso real del 2026-10-26: 24 unidades con una petición cada una dejaron 24 tokens en el
+  // registro. Con el token reutilizado, cuatro unidades de una petición dejan UN token, el único que salió.
+  it('cuatro unidades de una petición cada una piden y anotan UN solo token (hallazgo del 2026-10-26)', async () => {
+    await setup();
+    await seedCity(MADRID);
+    await seedCity(BARCELONA);
+    const fake = createFakeIdealista({ homesPages: 36 });
+    const logged: string[] = [];
+
+    const code = await run(ARGS(2, 4, 1), fake, logged);
+
+    expect(code).toBe(0);
+    expect(fake.requests).toHaveLength(4);
+    expect(fake.tokenCalls).toBe(1);
+    expect(await ledger()).toEqual({ search: 4, batch: 4, token: 1 });
   });
 
   it('S4.3: el tope de la ejecución recorta el último barrido y la ejecución se detiene sin tocar las ciudades siguientes', async () => {

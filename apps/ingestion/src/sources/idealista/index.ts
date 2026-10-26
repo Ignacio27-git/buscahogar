@@ -46,6 +46,10 @@ export type { ScrubbableCredentials } from './scrub-credentials.js';
 export { createHttpSearchPort, createHttpTokenPort } from './http-client.js';
 export type { HttpTokenCredentials } from './http-client.js';
 
+// ROADMAP 3.3 (decisión 272) — un token por proceso mientras no caduque.
+export { createReusableTokenPort, invalidateOnRejectedToken, TOKEN_EXPIRY_MARGIN_MS } from './reusable-token-port.js';
+export type { ReusableTokenPort, ReusableTokenPortOptions } from './reusable-token-port.js';
+
 export type {
   Headers,
   IdealistaSearchPort,
