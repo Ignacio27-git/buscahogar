@@ -23,6 +23,7 @@ import { Pagination } from '@/components/pagination';
 import { ResultCard } from '@/components/result-card';
 import { SearchMap } from '@/components/search-map';
 import type { MapPointView } from '@/components/search-map-types';
+import { HomeHero } from '@/components/home-hero';
 import { SearchTextForm } from '@/components/search-text-form';
 import { SortPresets } from '@/components/sort-presets';
 import { StepIndicator } from '@/components/step-indicator';
@@ -427,19 +428,27 @@ export default async function HomePage(props: HomePageProps): Promise<ReactEleme
           de CSS: título, [pasos], buscador, barra de herramientas, recuento y chips, sugerencias y, ya en
           la rejilla de resultados, panel de cobertura, aviso del polígono y conmutador de vista. */}
       <div className="search-header">
-        {/* D.20 (decisión 235): motivo decorativo, fuera del flujo y aria-hidden; solo aquí, no en las
-            ramas de `?q=` ni en los rechazos. Va antes del h1 en el DOM para que este pinte por encima. */}
-        <ContourMotif />
-        <h1>Buscar vivienda</h1>
-        {/* D.17 (B6): los pasos «Describe · Revisa · Busca» solo se muestran en la home sin parámetros
-            y en la revisión de `?q=`: son el recorrido del texto libre. Con una búsqueda ya hecha la
-            persona ya salió de él y el indicador sería ruido sobre los resultados. */}
-        {isPlainHome ? <StepIndicator current={1} /> : null}
-        {/* D.18 (decisión 228): abierta en el inicio y cuando la zona es desconocida, porque su aviso manda
-            escribir el municipio aquí; cerrada en el resto de resultados. */}
-        <SearchTextForm value="" open={isPlainHome || zoneUnknown} />
+        {/* D.22 (decisión 268): la portada sin parámetros es la franja de bienvenida (motivo, titular de la
+            propuesta de valor, pasos, caja de texto y búsquedas de ejemplo); el resto de ramas conserva el
+            título «Buscar vivienda». */}
+        {isPlainHome ? (
+          <HomeHero />
+        ) : (
+          <>
+            {/* D.20 (decisión 235): motivo decorativo, fuera del flujo y aria-hidden; solo en la portada y
+                aquí, no en las ramas de `?q=` ni en los rechazos. Va antes del h1 en el DOM para que este
+                pinte por encima. */}
+            <ContourMotif />
+            <h1>Buscar vivienda</h1>
+            {/* D.18 (decisión 228): abierta cuando la zona es desconocida, porque su aviso manda escribir
+                el municipio aquí; cerrada en el resto de resultados. (D.17, B6: los pasos «Describe ·
+                Revisa · Busca» ya no se pintan aquí: viven en la portada y en la revisión de `?q=`.) */}
+            <SearchTextForm value="" open={zoneUnknown} />
+          </>
+        )}
         <div className="search-toolbar">
-          <FilterBar params={rawSearchParams} activeCount={countAppliedFilters(criteria)} />
+          {/* D.22 (decisión 268, HH-3): en la portada los filtros avanzados quedan plegados a todos los anchos. */}
+          <FilterBar params={rawSearchParams} activeCount={countAppliedFilters(criteria)} disclosure={isPlainHome} />
           {/* D.18 (decisión 227): ordenación como enlaces predefinidos; solo con resultados. */}
           {results.length > 0 ? (
             <SortPresets params={rawSearchParams} sort={criteria.sort} dir={criteria.dir} />

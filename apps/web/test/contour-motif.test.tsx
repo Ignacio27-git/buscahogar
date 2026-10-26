@@ -157,11 +157,12 @@ describe('ContourMotif (S1.1)', () => {
 });
 
 describe('ContourMotif (R1.2) — solo en la cabecera de la búsqueda', () => {
-  it('únicamente (search)/page.tsx importa el componente', () => {
+  // D.22 (decisión 268): la portada pinta el motivo desde su franja de bienvenida, que la página rinde.
+  it('únicamente (search)/page.tsx y la franja de la portada importan el componente', () => {
     const importers = sourceFiles(SRC_DIR)
       .filter((file) => !file.endsWith('contour-motif.tsx'))
       .filter((file) => /from\s+['"][^'"]*contour-motif['"]/.test(readFileSync(file, 'utf8')))
       .map((file) => relative(SRC_DIR, file).split(sep).join('/'));
-    expect(importers).toEqual(['app/(search)/page.tsx']);
+    expect(importers.sort()).toEqual(['app/(search)/page.tsx', 'components/home-hero.tsx']);
   });
 });

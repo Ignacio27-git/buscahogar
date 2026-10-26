@@ -92,14 +92,37 @@ test.describe('D.20 motivo de curvas de nivel', () => {
     });
   }
 
-  test('S1.3 la home lleva exactamente un motivo, dentro de la cabecera de la búsqueda', async ({ page }) => {
+  test('S1.3 la home lleva exactamente un motivo, dentro de la franja de bienvenida (D.22)', async ({ page }) => {
     await openRoute(page, route('home'));
+    await expect(page.locator('.contour-motif')).toHaveCount(1);
+    await expect(page.locator('.search-header > .home-hero > .contour-motif')).toHaveCount(1);
+  });
+
+  test('S1.3 una página de resultados lleva un motivo, dentro de la cabecera de la búsqueda', async ({ page }) => {
+    await page.goto('/?operation=sale');
     await expect(page.locator('.contour-motif')).toHaveCount(1);
     await expect(page.locator('.search-header > .contour-motif')).toHaveCount(1);
   });
 
-  test('S1.4 el motivo no desplaza el título ni la cabecera', async ({ page }) => {
+  test('S1.4 el motivo no desplaza el título ni la franja de la portada', async ({ page }) => {
     await openRoute(page, route('home'));
+    const before = {
+      title: await boxOf(page, '.home-hero > h1'),
+      hero: await boxOf(page, '.home-hero'),
+      results: await boxOf(page, '.search-results'),
+    };
+    expect(before.title).not.toBeNull();
+    await page.addStyleTag({ content: MOTIF_HIDDEN });
+    const after = {
+      title: await boxOf(page, '.home-hero > h1'),
+      hero: await boxOf(page, '.home-hero'),
+      results: await boxOf(page, '.search-results'),
+    };
+    expect(after).toEqual(before);
+  });
+
+  test('S1.4 el motivo no desplaza el título ni la cabecera en los resultados', async ({ page }) => {
+    await page.goto('/?operation=sale');
     const before = {
       title: await boxOf(page, '.search-header > h1'),
       header: await boxOf(page, '.search-header'),
@@ -115,9 +138,29 @@ test.describe('D.20 motivo de curvas de nivel', () => {
     expect(after).toEqual(before);
   });
 
+  // D.22: en la portada el motivo ocupa la esquina de la franja a partir de 48rem y se oculta antes.
+  test('el motivo de la franja se oculta bajo 48rem y, en escritorio, queda dentro de ella', async ({ page }) => {
+    await openRoute(page, route('home'));
+    const motif = page.locator('.home-hero > .contour-motif');
+    if (test.info().project.name.startsWith('w320')) {
+      await expect(motif).toBeHidden();
+      return;
+    }
+    await expect(motif).toBeVisible();
+    const hero = await boxOf(page, '.home-hero');
+    const box = await boxOf(page, '.home-hero > .contour-motif');
+    expect(hero).not.toBeNull();
+    expect(box).not.toBeNull();
+    if (hero === null || box === null) return;
+    expect(box.x + box.width).toBeLessThanOrEqual(hero.x + hero.width + 0.5);
+    expect(box.y).toBeGreaterThanOrEqual(hero.y - 0.5);
+  });
+
   test('S1.5 a 320 px no desborda, queda recortado y a la derecha del texto del título', async ({ page }) => {
     test.skip(!test.info().project.name.startsWith('w320'), 'solo 320 px');
-    await openRoute(page, route('home'));
+    // D.22: la portada oculta el motivo a 320 px; la comprobación vale en la cabecera de los resultados.
+    await page.goto('/?operation=sale');
+    await page.evaluate(() => document.fonts.ready);
     const page320 = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,
       client: document.documentElement.clientWidth,
@@ -600,7 +643,8 @@ test.describe('D.21 pulido: formulario de revisión, chips y cobertura sin resul
 
   test('P5 los enlaces de ordenación empiezan en el margen de la página', async ({ page }) => {
     test.skip(test.info().project.name.startsWith('w1280'), 'a 1280 la ordenación comparte fila con «Filtros»');
-    await openRoute(page, route('home'));
+    // D.22: la portada lleva su titular dentro de la franja; el margen se mide en los resultados.
+    await page.goto('/?operation=sale');
     const offsets = await page.evaluate(() => ({
       link: document.querySelector('.sort-presets__link')?.getBoundingClientRect().x ?? -1,
       title: document.querySelector('.search-header > h1')?.getBoundingClientRect().x ?? -2,

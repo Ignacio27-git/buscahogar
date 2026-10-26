@@ -2,8 +2,13 @@
 // `?q=` de la página `/`: interpreta y pide confirmación, nunca busca. Misma
 // técnica que `home-page-map.test.tsx`: invocación directa de la página con
 // `@buscahogar/db`, cobertura y señal de demanda sustituidos por dobles.
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { EXAMPLE_SEARCHES, exampleSearchHref } from '../src/lib/example-searches.js';
 
 const searchPropertiesMock = vi.fn();
 const searchMapPointsMock = vi.fn();
@@ -239,7 +244,8 @@ describe('confirmar el panel ejecuta la búsqueda normal (spec "Confirm")', () =
   });
 });
 
-// D.5 (app-shell R5): un único h1 «Buscar vivienda» en las ramas de la home y ni
+// D.5 (app-shell R5): un único h1 «Buscar vivienda» en las ramas de la home (D.22: salvo la portada
+// sin parámetros, que lleva el titular de la propuesta de valor) y ni
 // rastro del nombre antiguo ni de la línea de desarrollo. El `<main>` lo aporta el
 // layout, así que la página no debe pintarlo.
 describe('encabezado único de la home (D.5)', () => {
@@ -247,7 +253,7 @@ describe('encabezado único de la home (D.5)', () => {
     ['rechazo de q vacío', { q: '' }],
     ['interpretación', { q: 'piso en alquiler' }],
     ['rechazo de parámetros', { minPrice: 'abc' }],
-    ['resultados en lista', {}],
+    ['resultados por filtros', { operation: 'sale' }],
     ['resultados en mapa', { view: 'map' }],
   ] as const)('%s: exactamente un <h1>Buscar vivienda</h1>', async (_name, params) => {
     searchMapPointsMock.mockResolvedValue({ points: [], total: 0, truncated: false });
@@ -451,7 +457,7 @@ describe('lista y paginador en la home (D.6b)', () => {
 describe('bandeja de filtros en la home (D.6b, S15-S17, S21, S22)', () => {
   function summaryOf(html: string): string {
     // D.18: la caja de texto también lleva un `<summary>`; aquí se lee el de la bandeja de filtros.
-    return /<details class="filter-tray"[^>]*><summary[^>]*>(.*?)<\/summary>/s.exec(html)?.[1] ?? '';
+    return /<details class="filter-tray[^"]*"[^>]*><summary[^>]*>(.*?)<\/summary>/s.exec(html)?.[1] ?? '';
   }
 
   it('rama válida: cerrada y con el recuento de los chips, zona incluida (sort no cuenta; D.18)', async () => {
@@ -886,12 +892,115 @@ describe('motivo de curvas de nivel (D.20)', () => {
   });
 
   it.each([
-    ['resultados en lista', {}],
+    ['resultados en lista', { operation: 'sale' }],
     ['resultados en mapa', { view: 'map' }],
   ] as const)('%s: un único motivo y el <h1> exacto', async (_name, params) => {
     searchMapPointsMock.mockResolvedValue({ points: [], total: 0, truncated: false });
     const html = await render({ ...params });
     expect(html.match(/class="contour-motif"/g)).toHaveLength(1);
     expect(html).toContain('<h1>Buscar vivienda</h1>');
+  });
+
+  it('la portada: un único motivo, dentro de la franja de bienvenida (D.22)', async () => {
+    const html = await render({});
+    expect(html.match(/class="contour-motif"/g)).toHaveLength(1);
+    const hero = html.slice(html.indexOf('<section class="home-hero"'), html.indexOf('</section>'));
+    expect(hero).toContain('class="contour-motif"');
+  });
+});
+
+// D.22 (decisión 268, HH-1, HH-2, HH-3, HH-4) — la portada sin parámetros es una invitación: franja
+// tintada con la propuesta de valor, la caja de texto promovida, ejemplos de búsqueda y los filtros
+// plegados. Las demás ramas conservan el título «Buscar vivienda» y no llevan nada de esto.
+describe('portada con invitación (D.22)', () => {
+  const HERO_TITLE = 'Todas las viviendas de los portales, en una sola búsqueda';
+
+  function heroOf(html: string): string {
+    const start = html.indexOf('<section class="home-hero"');
+    expect(start).toBeGreaterThan(-1);
+    return html.slice(start, html.indexOf('</section>', start));
+  }
+
+  it('HH-1: un único h1 con la propuesta de valor, en la franja y sin el título genérico', async () => {
+    const html = await render({});
+    expect(html.match(/<h1[ >]/g)).toHaveLength(1);
+    expect(html).toContain(`<h1 id="home-hero-title">${HERO_TITLE}</h1>`);
+    expect(html).not.toContain('Buscar vivienda');
+    expect(html).toContain('<section class="home-hero" aria-labelledby="home-hero-title">');
+    expect(heroOf(html)).toContain(HERO_TITLE);
+  });
+
+  it('HH-1: el texto de apoyo habla en tuteo y explica la unión de anuncios duplicados', async () => {
+    const hero = heroOf(await render({}));
+    const lead = /<p class="home-hero__lead">(.*?)<\/p>/s.exec(hero)?.[1] ?? '';
+    expect(lead).not.toBe('');
+    expect(lead).toContain('veas cada vivienda una vez');
+    expect(lead).toContain('precio más bajo');
+  });
+
+  it('HH-1: la caja de texto y el indicador de pasos van dentro de la franja, tras el titular', async () => {
+    const html = await render({});
+    const hero = heroOf(html);
+    expect(hero).toContain('<search class="nl-search">');
+    expect(hero).toContain('aria-label="Pasos de la búsqueda"');
+    expect(hero.indexOf('<h1')).toBeLessThan(hero.indexOf('<search'));
+    expect(html.match(/<search[ >]/g)).toHaveLength(1);
+  });
+
+  it('HH-2: los ejemplos son una lista con rótulo y un enlace GET por búsqueda, con el href del módulo', async () => {
+    const hero = heroOf(await render({}));
+    expect(hero).toContain('<p id="example-searches-label"');
+    expect(hero).toContain('Búsquedas para empezar');
+    expect(hero).toMatch(/<ul[^>]*aria-labelledby="example-searches-label"/);
+    const anchors = hero.match(/<a [^>]*class="example-searches__link"[^>]*>/g) ?? [];
+    expect(anchors.length).toBe(EXAMPLE_SEARCHES.length);
+    const hrefs = anchors.map((anchor) => (/href="([^"]+)"/.exec(anchor)?.[1] ?? '').replaceAll('&amp;', '&'));
+    expect(hrefs).toEqual(EXAMPLE_SEARCHES.map(exampleSearchHref));
+    for (const href of hrefs) {
+      expect(href).not.toBe('');
+      expect(href).not.toMatch(/[?&](zone|zoneQuery|polygon|lat|lng|radius|q)=/);
+    }
+    for (const search of EXAMPLE_SEARCHES) {
+      expect(hero).toContain(`>${search.label}</a>`);
+    }
+  });
+
+  it('HH-2: pintar la portada no consulta zona, cobertura ni señal de demanda', async () => {
+    await render({});
+    expect(resolveZoneGeometryMock).not.toHaveBeenCalled();
+    expect(resolveCoverageForZoneMock).not.toHaveBeenCalled();
+    expect(recordSignalMock).not.toHaveBeenCalled();
+  });
+
+  it('HH-3: los filtros avanzados llevan el modificador de despliegue y empiezan cerrados', async () => {
+    const html = await render({});
+    expect(html).toContain('<details class="filter-tray filter-tray--disclosure"><summary');
+    expect(html).toContain(BAR);
+    expect(html).not.toMatch(/<details class="filter-tray[^"]*"[^>]*\sopen/);
+  });
+
+  it.each([
+    ['filtros', { operation: 'sale' }],
+    ['mapa', { view: 'map' }],
+    ['ordenación', { sort: 'price', dir: 'asc' }],
+    ['interpretación ?q=', { q: 'piso en venta' }],
+    ['rechazo de ?q= vacío', { q: '' }],
+    ['parámetros inválidos', { minPrice: 'abc' }],
+  ] as const)('HH-1: %s no lleva franja, ni ejemplos, ni el titular de la portada', async (_name, params) => {
+    searchMapPointsMock.mockResolvedValue({ points: [], total: 0, truncated: false });
+    const html = await render({ ...params });
+    expect(html).not.toContain('home-hero');
+    expect(html).not.toContain('example-searches');
+    expect(html).not.toContain(HERO_TITLE);
+    expect(html).toContain('<h1>Buscar vivienda</h1>');
+    expect(html).not.toContain('filter-tray--disclosure');
+  });
+
+  it('HH-4: el componente es de servidor y no añade JavaScript de cliente', () => {
+    const source = readFileSync(fileURLToPath(new URL('../src/components/home-hero.tsx', import.meta.url)), 'utf8');
+    expect(source.length).toBeGreaterThan(200);
+    // La directiva es una sentencia al principio de línea; la mención en un comentario no cuenta.
+    expect(source).not.toMatch(/^\s*['"]use client['"]/m);
+    expect(source).not.toMatch(/\buse(State|Effect|Router|Transition)\b/);
   });
 });

@@ -24,7 +24,10 @@ function blockAfter(css: string, start: number): string {
   throw new Error('Llaves sin cerrar en globals.css');
 }
 
-const HIDE_RULE = /\.filter-tray\s*>\s*summary\s*\{[^}]*display:\s*none/g;
+// D.22 (decisión 268): la regla solo vale para la bandeja SIN el modificador de despliegue de la
+// portada, que queda plegada a todos los anchos.
+const HIDE_RULE =
+  /\.filter-tray:not\(\.filter-tray--disclosure\)\s*>\s*summary\s*\{[^}]*display:\s*none/g;
 
 describe('CSS de la bandeja — S18', () => {
   it('la regla que oculta el resumen existe', () => {
@@ -86,6 +89,38 @@ describe('CSS de la bandeja — movimiento (D.16)', () => {
     const names = findBlocks(desktop()).flatMap((rule) => rule.declarations.map(([name]) => name));
     expect(names).toContain('content-visibility');
     expect(names.filter((name) => /^(opacity|transform|transition)/.test(name))).toEqual([]);
+  });
+
+  // D.22 (decisión 268, A7): en la portada la bandeja plegada anima su contenido también desde 64rem,
+  // con los mismos valores que bajo 64rem. Vive en el @supports, entre el bloque móvil y el de escritorio.
+  it('la bandeja con el modificador anima al abrir y cerrar a todos los anchos', () => {
+    const preludes = supports().children.map((child) => child.prelude.replace(/\s+/g, ' '));
+    const closedRule = findBlock(supports(), '.filter-tray--disclosure::details-content');
+    const openRule = findBlock(supports(), '.filter-tray--disclosure[open]::details-content');
+    const mobileClosed = declarations(findBlock(mobile(), '.filter-tray::details-content'));
+    const mobileOpen = declarations(findBlock(mobile(), '.filter-tray[open]::details-content'));
+    expect(declarations(closedRule)).toEqual(mobileClosed);
+    expect(declarations(openRule)).toEqual(mobileOpen);
+    expect(mobileClosed.size).toBeGreaterThan(3);
+    expect(preludes.indexOf('.filter-tray--disclosure::details-content')).toBeGreaterThan(
+      preludes.indexOf('@media (width < 64rem)')
+    );
+    expect(preludes.indexOf('.filter-tray--disclosure::details-content')).toBeLessThan(
+      preludes.indexOf('@media (width >= 64rem)')
+    );
+  });
+
+  it('desde 64rem el contenido siempre desplegado y la fila completa solo valen sin el modificador', () => {
+    const hidden = findBlock(desktop(), '.filter-tray:not(.filter-tray--disclosure) > summary');
+    expect(declarations(hidden).get('display')).toBe('none');
+    const content = findBlock(desktop(), '.filter-tray:not(.filter-tray--disclosure)::details-content');
+    expect(declarations(content).get('content-visibility')).toBe('visible');
+    const toolbar = findBlock(findBlock(root, '@layer components'), '@media (width >= 64rem)');
+    expect(
+      declarations(findBlock(toolbar, '.search-toolbar > .filter-tray:not(.filter-tray--disclosure)')).get(
+        'flex-basis'
+      )
+    ).toBe('100%');
   });
 
   it('el movimiento de la bandeja no aparece fuera del @supports (UM-4)', () => {

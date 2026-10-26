@@ -1435,3 +1435,88 @@ describe('marca (D.22)', () => {
     }
   });
 });
+
+// D.22 (decisión 268, HH-1, HH-2) — la franja de bienvenida de la portada y sus ejemplos de búsqueda:
+// solo lavados y tokens existentes, objetivo táctil de 44 px y anillo de foco global (N6).
+describe('portada (D.22)', () => {
+  const components = (): CssNode => findBlock(ROOT, '@layer components');
+  const rule = (selector: string): Map<string, string> => declarations(findBlock(components(), selector));
+  // Hay más de un `@media` con el mismo preludio en la capa: se busca el que contiene la regla pedida.
+  const inMedia = (prelude: string, selector: string): Map<string, string> => {
+    const found = components()
+      .children.filter((child) => child.prelude.replace(/\s+/g, ' ') === prelude)
+      .flatMap((child) => child.children)
+      .find((child) => child.prelude === selector);
+    expect(found, `${prelude} { ${selector} }`).toBeDefined();
+    return declarations(found as CssNode);
+  };
+
+  it('la franja usa el lavado azul y el radio de panel, y recorta el motivo', () => {
+    const hero = rule('.home-hero');
+    expect(hero.get('background-color')).toBe('var(--accent-wash)');
+    expect(hero.get('border-radius')).toBe('var(--radius-panel)');
+    expect(hero.get('overflow')).toBe('hidden');
+    expect(hero.get('padding')).toBe('2rem 1.5rem');
+  });
+
+  it('el relleno de la franja se reduce bajo 30rem', () => {
+    const narrow = inMedia('@media (width < 30rem)', '.home-hero');
+    expect(narrow.get('padding')).toBe('1.25rem 1rem');
+  });
+
+  it('el titular de la franja se equilibra y no pasa de 32rem', () => {
+    const title = rule('.home-hero h1');
+    expect(title.get('text-wrap')).toBe('balance');
+    expect(title.get('max-inline-size')).toBe('32rem');
+  });
+
+  it('el motivo de la franja va a la derecha y se oculta bajo 48rem', () => {
+    const motif = rule('.home-hero > .contour-motif');
+    expect(motif.get('inset-inline-end')).toBe('0');
+    const hidden = inMedia('@media (width < 48rem)', '.home-hero > .contour-motif');
+    expect(hidden.get('display')).toBe('none');
+  });
+
+  it('cada ejemplo mide al menos 44 px (2.75rem) y sale solo de tokens', () => {
+    const link = rule('.example-searches__link');
+    expect(link.get('min-block-size')).toBe('2.75rem');
+    expect(link.get('background-color')).toBe('var(--surface-raised)');
+    expect(link.get('color')).toBe('var(--ink)');
+    expect(link.get('border')).toBe('1px solid var(--rule-control)');
+    expect(link.get('border-radius')).toBe('var(--radius-control)');
+    for (const value of link.values()) expect(value).not.toMatch(/#[0-9a-f]{3,8}|oklch\(|rgba?\(/i);
+  });
+
+  it('el texto de la franja contrasta 4.5:1 y el filete 3:1 sobre el lavado, en los dos temas', () => {
+    const { root, dark } = themeBlocks();
+    for (const [theme, values] of [
+      ['claro', themeValues(root)],
+      ['oscuro', themeValues(dark)],
+    ] as const) {
+      const wash = parseColor(values['accent-wash'] ?? '');
+      for (const fg of ['ink', 'ink-muted', 'accent'] as const) {
+        const ratio = contrast(parseColor(values[fg] ?? ''), wash);
+        expect(ratio, `${theme}: ${fg} sobre accent-wash`).toBeGreaterThanOrEqual(TEXT_MIN);
+      }
+      expect(contrast(parseColor(values['rule-control'] ?? ''), wash), theme).toBeGreaterThanOrEqual(NON_TEXT_MIN);
+      // El ejemplo se pinta sobre --surface-raised: tinta y filete del control.
+      const raised = parseColor(values['surface-raised'] ?? '');
+      expect(contrast(parseColor(values['ink'] ?? ''), raised), theme).toBeGreaterThanOrEqual(TEXT_MIN);
+      expect(contrast(parseColor(values['rule-control'] ?? ''), raised), theme).toBeGreaterThanOrEqual(NON_TEXT_MIN);
+    }
+  });
+
+  // N6: los ejemplos son enlaces y heredan el anillo global; ninguna regla de la portada lo anula.
+  it('N6: ninguna regla de la franja ni de los ejemplos toca el outline y el anillo global cubre los enlaces', () => {
+    const ownRules = findBlocks(components()).filter((node) => /\.home-hero|\.example-searches/.test(node.prelude));
+    expect(ownRules.length).toBeGreaterThan(4);
+    for (const node of ownRules) {
+      const names = node.declarations.map(([name]) => name);
+      expect(names.filter((name) => /^outline/.test(name)), node.prelude).toEqual([]);
+      expect(node.prelude, node.prelude).not.toMatch(/focus/);
+    }
+    const ring = declarations(findBlock(findBlock(ROOT, '@layer base'), ':focus-visible'));
+    expect(ring.get('outline')).toBe('2px solid var(--focus)');
+    expect(ring.get('outline-offset')).toBe('2px');
+  });
+});

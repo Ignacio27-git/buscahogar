@@ -84,10 +84,13 @@ test.describe('bandeja de filtros a 1280px (S20)', () => {
     test.skip(test.info().project.name !== 'w1280-light', 'solo el ancho de escritorio');
   });
 
+  // D.22 (decisión 268, HH-3): la portada sin parámetros pliega la bandeja también en escritorio, así
+  // que la comprobación de «siempre visible» se hace sobre una página de resultados.
   test('el formulario está siempre visible, el resumen oculto y Tab llega al primer campo', async ({
     page,
   }) => {
-    await openRoute(page, route('home'));
+    await page.goto('/?operation=sale');
+    await page.evaluate(() => document.fonts.ready);
     await expect(traySummary(page)).toBeHidden();
     await expect(page.getByRole('form', { name: BAR })).toBeVisible();
     const operation = page.getByLabel('Operación');

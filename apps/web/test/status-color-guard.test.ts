@@ -81,8 +81,11 @@ describe('guarda del verde de estado (spec «Green means favorable status, never
     );
   });
 
-  it('--accent-wash no tiñe ningún estado: solo se consume como utilidad bg-accent-wash', () => {
-    expect(consumers('accent-wash')).toEqual([]);
+  // D.22 (decisión 268): la franja de bienvenida de la portada es el único consumo con `var()`; es una
+  // superficie decorativa, no un estado ni un control.
+  it('--accent-wash no tiñe ningún estado: utilidad bg-accent-wash y la franja .home-hero', () => {
+    expect(consumers('accent-wash')).toEqual(['.home-hero']);
+    expect(consumers('accent-wash').filter((selector) => INTERACTIVE.test(selector))).toEqual([]);
   });
 
   it('el verde no aparece fuera de globals.css (ni como utilidad ni en estilos en línea)', () => {

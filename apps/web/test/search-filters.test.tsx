@@ -299,6 +299,43 @@ describe('FilterBar — bandeja (S16, S17)', () => {
   });
 });
 
+// D.22 (decisión 268, HH-3) — en la portada la bandeja va plegada a todos los anchos. Solo cambia la
+// clase del <details>: el formulario, los nombres, los ocultos y, por tanto, la URL que produce el
+// envío son exactamente los de antes.
+describe('FilterBar — modificador de despliegue (D.22, HH-3)', () => {
+  const params = { operation: 'sale', maxPrice: '200000', view: 'map', zone: '28079', sort: 'price', dir: 'asc' };
+
+  it('con `disclosure` la clase añade filter-tray--disclosure y sigue cerrada por defecto', () => {
+    const html = renderToStaticMarkup(<FilterBar params={{}} disclosure />);
+    expect(html).toMatch(/^<details class="filter-tray filter-tray--disclosure"><summary[^>]*>/);
+    expect(html).not.toMatch(/<details[^>]*\sopen/);
+  });
+
+  it('sin `disclosure` la clase es la de siempre', () => {
+    expect(renderToStaticMarkup(<FilterBar params={{}} />)).toMatch(/^<details class="filter-tray">/);
+  });
+
+  it('el resumen sigue siendo el control nativo de la bandeja, operable con teclado', () => {
+    const html = renderToStaticMarkup(<FilterBar params={{}} disclosure />);
+    expect(html).toMatch(/<details[^>]*><summary[^>]*>Filtros<\/summary><form /);
+    expect(html).not.toMatch(/<summary[^>]*(tabindex|role)=/);
+  });
+
+  it('el formulario es idéntico con y sin el modificador (mismos nombres, ocultos y envío)', () => {
+    const plain = renderToStaticMarkup(<FilterBar params={params} activeCount={3} />);
+    const disclosure = renderToStaticMarkup(<FilterBar params={params} activeCount={3} disclosure />);
+    const formOf = (html: string): string => html.slice(html.indexOf('<form'), html.indexOf('</form>') + 7);
+    expect(formOf(disclosure)).toBe(formOf(plain));
+    expect(formOf(disclosure).length).toBeGreaterThan(200);
+    expect(disclosure.replace('filter-tray filter-tray--disclosure', 'filter-tray')).toBe(plain);
+  });
+
+  it('`disclosure` y `open` se combinan (rama de parámetros inválidos)', () => {
+    const html = renderToStaticMarkup(<FilterBar params={{}} disclosure open />);
+    expect(html).toMatch(/^<details class="filter-tray filter-tray--disclosure" open="">/);
+  });
+});
+
 // Spec «Submit equivalence»: lo que envía la barra, canonicalizado, valida igual
 // que la URL escrita a mano.
 describe('FilterBar — equivalencia de envío (spec "Same validated params")', () => {

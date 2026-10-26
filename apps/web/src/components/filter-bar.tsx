@@ -44,9 +44,13 @@ export interface FilterBarProps {
   // Bandeja abierta de inicio: la rama de parámetros inválidos, para que se
   // vean los campos que la alerta nombra.
   readonly open?: boolean | undefined;
+  // D.22 (decisión 268, HH-3): en la portada la bandeja queda plegada a TODOS los anchos (el CSS no la
+  // fuerza abierta desde 64rem). Solo cambia la clase del <details>: el formulario, los nombres, los
+  // campos ocultos y el envío son los de siempre.
+  readonly disclosure?: boolean | undefined;
 }
 
-export function FilterBar({ params, rejectedKeys, alertId, activeCount, open }: FilterBarProps): ReactElement {
+export function FilterBar({ params, rejectedKeys, alertId, activeCount, open, disclosure }: FilterBarProps): ReactElement {
   // El valor crudo que escribió el usuario, no el normalizado. Un valor repetido
   // (array) no prefija nada.
   const values: Partial<Record<NlParamKey, string>> = {};
@@ -58,7 +62,7 @@ export function FilterBar({ params, rejectedKeys, alertId, activeCount, open }: 
   }
 
   return (
-    <details className="filter-tray" open={open === true}>
+    <details className={disclosure === true ? 'filter-tray filter-tray--disclosure' : 'filter-tray'} open={open === true}>
       <summary>
         Filtros
         {activeCount !== undefined && activeCount > 0 ? (

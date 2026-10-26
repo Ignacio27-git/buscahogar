@@ -153,9 +153,11 @@ test.describe('movimiento con preferencia normal', () => {
     expect(await pseudoStyle(page, 'transform')).toBe('none');
   });
 
+  // D.22: la portada pliega la bandeja a todos los anchos; «siempre visible» vale en los resultados.
   test('bandeja a 1280px: siempre visible y sin transición (S-UM-2)', async ({ page }) => {
     onlyProject('w1280-light');
-    await openRoute(page, route('home'));
+    await page.goto('/?operation=sale');
+    await page.evaluate(() => document.fonts.ready);
 
     await expect(traySummary(page)).toBeHidden();
     expect(await pseudoStyle(page, 'opacity')).toBe('1');

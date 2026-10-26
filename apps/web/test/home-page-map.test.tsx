@@ -383,7 +383,9 @@ describe('orden del DOM de la cabecera (D.18, decisión 229)', () => {
   it('la barra de herramientas agrupa la bandeja de filtros y la ordenación, en ese orden', async () => {
     searchPropertiesMock.mockResolvedValue({ results: [makeListResult(0)], hasNextPage: false });
     mapResult(1);
-    const html = await render({});
+    // D.22: la portada sin parámetros lleva la bandeja con el modificador de despliegue; la barra de
+    // herramientas de los resultados conserva la clase de siempre.
+    const html = await render({ operation: 'sale' });
     const toolbar = html.slice(html.indexOf('class="search-toolbar"'), html.indexOf('class="search-results"'));
     const end = toolbar.indexOf('class="sort-presets"');
     expect(toolbar.indexOf('class="filter-tray"')).toBeGreaterThan(-1);
