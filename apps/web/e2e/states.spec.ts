@@ -78,7 +78,7 @@ test.describe('estados ilustrados (D.22)', () => {
       await removeIllustrations(page);
 
       await expect(page.getByText(state.status, { exact: true })).toBeVisible();
-      await expect(page.locator('main').getByRole('link', { name: state.action })).toBeVisible();
+      await expect(page.locator(`main ${PRIMARY_ACTION}`).filter({ hasText: state.action })).toBeVisible();
       await expect(page.locator(`main ${PRIMARY_ACTION}`)).toHaveCount(1);
     });
 

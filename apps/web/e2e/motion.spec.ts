@@ -428,6 +428,9 @@ test.describe('realce de la fila con preferencia normal (D.21)', () => {
     expect(await computed(image, 'transitionProperty')).toBe('transform');
     expect(await computed(image, 'transitionDuration')).toBe(HOVER_TIME);
 
+    // D.22: con la franja de la portada la primera fila queda bajo el pliegue y `hover()` desplazaría la
+    // página; las cajas se miden ya a la vista para comparar la misma posición antes y después.
+    await row.scrollIntoViewIfNeeded();
     const restBackground = await style(row, 'background-color');
     const rowBox = await boxOf(row);
     const mediaBox = await boxOf(media);

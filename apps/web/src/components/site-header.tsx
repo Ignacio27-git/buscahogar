@@ -53,7 +53,7 @@ export function SiteHeader(): ReactElement {
   return (
     <header className="border-b border-rule">
       <div
-        className={`${SHELL_CONTAINER} flex flex-wrap items-center gap-x-6 gap-y-2 py-3 max-[30rem]:gap-y-0 max-[30rem]:py-2`}
+        className={`${SHELL_CONTAINER} flex flex-wrap items-center gap-x-6 gap-y-2 py-3 max-[30rem]:gap-x-3 max-[30rem]:gap-y-0 max-[30rem]:py-2`}
       >
         <a href="/" className={`${HEADER_LINK} gap-2 text-heading-3 text-ink no-underline`}>
           <BrandMark />

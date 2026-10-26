@@ -57,17 +57,18 @@ test.describe('barra de filtros y filtros aplicados', () => {
     for (const name of names) {
       expect(name).toMatch(/^Quitar filtro: /);
     }
-    // Refinamiento de C-11: esta ruta no devuelve resultados, pero con nueve chips la fila ya ofrece
-    // «Quitar todos»; el estado vacío no repite un enlace idéntico (WCAG 3.2.4 y menos ruido).
+    // Con nueve chips la fila ofrece «Quitar todos» y, desde D.22 (decisión 269, enmienda la 225), el
+    // estado vacío filtrado repite la acción como su única acción principal: dos enlaces con el mismo
+    // nombre y el mismo destino (misma función, mismo nombre: WCAG 3.2.4).
     const clearAll = page.getByRole('link', { name: 'Quitar todos los filtros' });
-    await expect(clearAll).toHaveCount(1);
-    await expect(clearAll).toBeVisible();
-    await expect(clearAll).toHaveAttribute('href', '/');
+    await expect(clearAll).toHaveCount(2);
+    await expect(page.locator('.applied-filters__clear')).toHaveCount(1);
+    await expect(page.locator('.applied-filters__clear')).toHaveAttribute('href', '/');
     await expect(
       page.getByRole('region', { name: 'Resultados', exact: true }).getByRole('link', {
         name: 'Quitar todos los filtros',
       })
-    ).toHaveCount(0);
+    ).toHaveAttribute('href', '/');
   });
 
   // D.18 (decisión 225, C-11) y D.22 (decisión 269): el estado vacío filtrado no repite los chips; una frase

@@ -52,7 +52,12 @@ function isPlaywrightJsxNode(value: unknown): value is PlaywrightJsxNode {
 function toReactNode(value: unknown): ReactNode {
   if (Array.isArray(value)) return createElement(Fragment, null, ...value.map(toReactNode));
   if (!isPlaywrightJsxNode(value)) return typeof value === 'string' ? value : null;
-  if (typeof value.type !== 'string') throw new Error('el puente JSX solo admite etiquetas HTML');
+  // D.22: las páginas de error llevan componentes puros sin ganchos (`BrandMark`, `StateIllustration`);
+  // se invocan con sus props y se convierte el árbol que devuelven.
+  if (typeof value.type === 'function') {
+    return toReactNode((value.type as (props: unknown) => unknown)(value.props));
+  }
+  if (typeof value.type !== 'string') throw new Error('el puente JSX solo admite etiquetas y componentes puros');
   const { children, ...props } = value.props;
   return createElement(
     value.type,

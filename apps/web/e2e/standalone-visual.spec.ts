@@ -70,7 +70,11 @@ async function expectBrandStrip(page: Page): Promise<void> {
     '/'
   );
   await expect(page.getByRole('main').locator('header, .standalone-header__brand')).toHaveCount(0);
-  await expect(page.getByRole('main').locator('> *').first()).toHaveJSProperty('tagName', 'H1');
+  // D.22 (decisión 269): la ilustración decorativa abre el bloque; el h1 es el primer elemento con contenido.
+  await expect(page.getByRole('main').locator('> :not(svg.state-illustration)').first()).toHaveJSProperty(
+    'tagName',
+    'H1'
+  );
 }
 
 test.describe('páginas autónomas (D.17)', () => {
