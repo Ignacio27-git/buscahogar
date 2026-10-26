@@ -2351,3 +2351,22 @@ validada. El responsable preguntó entonces «¿pero ahora no lanzamos un barrid
 reserva y se barrieron ya las 12 ciudades con 1 página por operación (24 búsquedas, de 3 251 a 4 413 anuncios). Al revisar el registro
 apareció que el pre-barrido pide un token por unidad. Lo propuesto al principio, esperar a noviembre, desperdiciaba cuota que se perdía
 igualmente.
+
+---
+
+### 2026-10-26 — Reutilización del token de Idealista en el pre-barrido y el worker (paso 3.3, corrección)
+
+**Tipo de tarea:** fix
+**Forma de especificación:** respuesta breve a una propuesta del asistente; encargo delegado con causa, objetivo y reglas (TDD estricto,
+sin red)
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «si» (respuesta del responsable a «¿Corrijo ahora la reutilización del token en el pre-barrido?»)
+
+**Observación.** El token se cachea en un decorador sobre `IdealistaTokenPort` mientras no caduca (`expires_in` menos 5 min), y un 401
+lo invalida. El registro anota solo las llamadas reales (decisión 272). La revisión previa encontró el mismo patrón en el worker, que es
+de larga duración, y se corrigió con el mismo mecanismo. `sweep-zone` no estaba afectado. La reserva de token se mantuvo en 1: reservar
+0 con un token vigente habría podido dejar sin anotar un token pedido, porque la reconciliación mensual solo reembolsa. Tests en rojo
+primero: 4 de base de datos y el unitario del decorador.

@@ -2166,7 +2166,10 @@ ciudad son dos unidades (venta y alquiler), y el tope de la ejecución las cuent
   4 328 viviendas. Registro de octubre: 54 de 62 búsquedas y 26 peticiones de token.
 - **Hallazgo (2026-10-26):** el pre-barrido pidió un token OAuth nuevo por unidad (24 tokens para 24 búsquedas) en vez de
   reutilizarlo. El registro cuenta los tokens aparte del tope de búsquedas. Si Idealista los computa en su cuota, el gasto real
-  es mayor del que refleja el tope. Queda pendiente reutilizar el token dentro de una misma ejecución.
+  es mayor del que refleja el tope. **Corregido el 2026-10-26** (commit `7039b15`, decisión 272): el token se reutiliza en toda la
+  ejecución mientras no caduca (`expires_in` menos 5 min), un 401 lo invalida y el registro anota solo las adquisiciones reales.
+  El worker tenía el mismo patrón (un token por barrido y por verificación de presencia) y se corrigió igual. `sweep-zone` no estaba
+  afectado: hace un solo barrido por proceso.
 - **Pendiente del responsable desde el 2026-11-01 (UTC):** lanzar `presweep --top 12 --max-requests 48 --max-requests-per-sweep 2`
   (cada unidad sigue desde su cursor) y, después,
   `reprocess` con los umbrales de Granada. En la misma fecha hay que arrancar el worker para el job bajo demanda de

@@ -4371,3 +4371,19 @@ artefactos que lee una herramienta deben ajustarse al formato que esa herramient
 
 **Observación:** un primer error en la pila puede tapar otros. Hay que reproducir la petición completa después de cada corrección, y leer qué
 hace un script de verificación antes de recomendarlo.
+
+### 2026-10-26 — El pre-barrido pedía un token OAuth por unidad
+
+**Contexto:** pre-barrido de las ciudades más pobladas (`apps/ingestion`, paso 3.3), generado con asistencia. Primera ejecución real.
+
+**Categoría:** código correcto en apariencia pero incorrecto · test que valida el comportamiento equivocado.
+
+**Qué se generó mal:** cada unidad creaba su propia fuente de Idealista, y cada fuente pedía su propio token. 24 unidades de una búsqueda
+dejaron 24 tokens en el registro mensual. El worker tenía el mismo patrón por barrido y por verificación de presencia. El test de base de
+datos lo daba por bueno: esperaba «dos barridos = 2 tokens», y el token falso no traía `expires_in`, así que nada contaba los tokens entre
+unidades como un gasto evitable.
+
+**Cómo se detectó:** solo al leer el registro tras la ejecución real (26 tokens para 54 búsquedas en octubre), no en los tests.
+
+**Observación:** los dobles deben imitar la respuesta grabada (aquí, `expires_in` de 12 h), y los tests de gasto deben fijar cuántas llamadas
+de red salen en toda la ejecución, no por unidad. Corregido con la decisión 272.

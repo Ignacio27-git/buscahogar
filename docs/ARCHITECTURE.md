@@ -169,7 +169,8 @@ barrido con tope duro igual a lo concedido, cursor persistido y reconciliación 
 `--max-requests` y `--max-requests-per-sweep` son obligatorios y sin valor por defecto; la cuota sale solo del
 registro. Cada unidad acaba con un motivo (`unit-exhausted`, `per-sweep-cap`, `run-cap`, `monthly-batch-ceiling`,
 `upstream-signal`) y una unidad completada no se vuelve a barrer. El presweep nunca se ejecuta en el servidor web ni
-durante una búsqueda.
+durante una búsqueda. El presweep y el worker piden el token OAuth una vez por proceso y lo reutilizan mientras no caduca;
+el registro anota solo las adquisiciones reales (decisión 272).
 
 **Promoción de trabajo parcial (decisión 253).** El reclamo batch del presweep marca el job (`presweep_requested_at`). El
 worker lo ignora salvo que la zona tenga al menos un día con señal de demanda en los últimos 30 días UTC (la ventana de la

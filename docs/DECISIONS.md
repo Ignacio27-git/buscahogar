@@ -7521,6 +7521,32 @@ los estados: era la fuente del tono frío que motivó el paso. (3) Reescribir lo
 
 ---
 
+## 272 — Un token de Idealista por proceso mientras no caduque, y el registro anota solo las adquisiciones reales
+
+**Estado:** aceptada (3.3, corrección tras el pre-barrido real del 2026-10-26).
+
+**Contexto.** El pre-barrido creaba una fuente de Idealista por unidad, y cada fuente pedía su propio token OAuth: 24 unidades de una
+búsqueda dejaron 24 tokens en `monthly_request_budget.token_requests`. El worker repetía el patrón con cada barrido y cada verificación de
+presencia. `sweep-zone` hace un solo barrido por proceso, así que no tenía el problema. La sonda del paso 1.5 grabó `expires_in` = 43 200 s.
+
+**Decisión.** Un decorador puro sobre `IdealistaTokenPort` (`createReusableTokenPort`, junto a los puertos de Idealista y con el reloj
+inyectado) cachea el token mientras `ahora < instante de la petición + expires_in - 5 min`. Sin un `expires_in` válido, con una respuesta
+fallida o sin `access_token`, no cachea. Un decorador de la búsqueda (`invalidateOnRejectedToken`) invalida ese token ante un 401 para que
+la unidad siguiente pida otro. La fuente no tenía ninguna ruta para el 401: la unidad que lo recibe sigue terminando con error, sin
+reintento. El pre-barrido y el worker envuelven sus puertos una vez por proceso. El gasto de token de cada unidad, barrido o verificación es
+la diferencia del contador de llamadas reales del decorador, no `diagnostics().budget.token`. La reserva sigue siendo de 1 token, y
+`settle` y la reconciliación devuelven lo no usado.
+
+**Alternativas descartadas.** (1) Reservar 0 tokens cuando hay uno vigente: la reconciliación mensual solo reembolsa, así que un token
+pedido sin reserva (caducidad o 401 entre la reserva y el barrido) no quedaría anotado. Además, la reserva de token no consume margen,
+porque el techo del carril solo mira las búsquedas. (2) Una única fuente para toda la ejecución: el adaptador fija el área y el tope por
+barrido en su instancia, y cambiarlo tocaba el contrato probado de la 1.6. (3) Cachear también sin `expires_in`: daría por bueno un token
+de vigencia desconocida en un proceso de larga duración.
+
+**Motivo.** Un token por ejecución en vez de uno por unidad, y un registro que cuenta las llamadas de red, no las peticiones internas.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
