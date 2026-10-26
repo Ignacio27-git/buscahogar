@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { brandMarkSvg } from '../src/lib/brand-mark.js';
 import { buildRateLimitResponse } from '../src/server/rate-limit-page.js';
 import { STANDALONE_PAGE_CSS } from '../src/lib/standalone-page.js';
 
@@ -29,8 +30,9 @@ describe('buildRateLimitResponse — cuerpo', () => {
   });
 
   it('lleva la marca en un <header> fuera de <main>, y el h1 es lo primero de <main> (D.18)', () => {
+    // D.22 (decisión 266): la marca decorativa va dentro del enlace, delante del nombre en vivo.
     expect(body).toContain(
-      '<header class="standalone-header"><a class="standalone-header__brand" href="/">Buscahogar</a></header>'
+      `<header class="standalone-header"><a class="standalone-header__brand" href="/">${brandMarkSvg()}Buscahogar</a></header>`
     );
     expect(body.indexOf('</header>')).toBeLessThan(body.indexOf('<main'));
     expect(body).toContain('<main class="standalone">\n<h1>Demasiadas peticiones seguidas</h1>');

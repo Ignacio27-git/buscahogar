@@ -5,6 +5,7 @@
 // `Retry-After` conserva el valor que decide el limitador, sin recortar: lo leen clientes y
 // cachés. El recorte (`Math.max(1, Math.ceil(n))`) solo afecta al texto que ve la persona. Sin
 // `RateLimit-*` y con `no-store`: la respuesta es un estado del momento, no se cachea.
+import { brandMarkSvg } from '../lib/brand-mark';
 import { STANDALONE_PAGE_CSS } from '../lib/standalone-page';
 
 const SECONDS_PER_MINUTE = 60;
@@ -39,7 +40,7 @@ export function buildRateLimitResponse(retryAfterSeconds: number): RateLimitResp
 <style>${STANDALONE_PAGE_CSS}</style>
 </head>
 <body>
-<header class="standalone-header"><a class="standalone-header__brand" href="/">Buscahogar</a></header>
+<header class="standalone-header"><a class="standalone-header__brand" href="/">${brandMarkSvg()}Buscahogar</a></header>
 <main class="standalone">
 <h1>${title}</h1>
 <p>Has hecho muchas peticiones en poco tiempo. Es algo temporal. Espera ${formatWait(retryAfterSeconds)} y vuelve a cargar la página.</p>

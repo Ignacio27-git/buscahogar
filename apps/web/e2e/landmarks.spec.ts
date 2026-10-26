@@ -215,3 +215,31 @@ test.describe('títulos e iconos', () => {
     expect(minAlpha).toBe(255);
   });
 });
+
+// D.22 (decisión 266; BM-2, BM-4) — la cabecera lleva la marca decorativa delante del nombre a todos los
+// anchos: el enlace sigue llamándose exactamente «Buscahogar» (una sola coincidencia), la marca no expone
+// rol ni nombre, y marca y nombre caben sin desbordar (a 320 px incluido).
+test.describe('marca en la cabecera (D.22)', () => {
+  test('el enlace se llama «Buscahogar», la marca es decorativa y ambos caben sin desbordar', async ({ page }) => {
+    test.skip(!LIGHT_PROJECTS.includes(test.info().project.name), 'el diseño no depende del esquema');
+    await page.goto('/no-existe');
+
+    const banner = page.getByRole('banner');
+    const brand = banner.getByRole('link', { name: 'Buscahogar', exact: true });
+    await expect(brand).toHaveCount(1);
+    const mark = brand.locator('svg.brand-mark');
+    await expect(mark).toHaveAttribute('aria-hidden', 'true');
+    await expect(mark).toHaveAttribute('focusable', 'false');
+    await expect(mark).not.toHaveAttribute('role', /.+/);
+
+    const markBox = await mark.boundingBox();
+    const brandBox = await brand.boundingBox();
+    expect(markBox?.width).toBeCloseTo(28, 0);
+    expect(markBox?.height).toBeCloseTo(28, 0);
+    expect((markBox?.x ?? 0) + (markBox?.width ?? 0)).toBeLessThanOrEqual((brandBox?.x ?? 0) + (brandBox?.width ?? 0));
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+});

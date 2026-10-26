@@ -22,6 +22,7 @@ import GlobalError from '../src/app/global-error.js';
 import * as globalErrorModule from '../src/app/global-error.js';
 import NotFound from '../src/app/not-found.js';
 import * as notFoundModule from '../src/app/not-found.js';
+import { brandMarkSvg } from '../src/lib/brand-mark.js';
 import { STANDALONE_PAGE_CSS } from '../src/lib/standalone-page.js';
 
 const APP_DIR = fileURLToPath(new URL('../src/app/', import.meta.url));
@@ -130,8 +131,9 @@ describe('global-error.tsx', () => {
   });
 
   it('lleva la marca en un <header> con enlace a / fuera de <main>; el h1 abre <main> (D.18)', () => {
-    expect(html).toMatch(
-      /<header class="standalone-header"><a class="standalone-header__brand" href="\/">Buscahogar<\/a><\/header>/
+    // D.22 (decisión 266): la marca decorativa va dentro del enlace, delante del nombre en vivo.
+    expect(html).toContain(
+      `<header class="standalone-header"><a class="standalone-header__brand" href="/">${brandMarkSvg()}Buscahogar</a></header>`
     );
     expect(html.indexOf('</header>')).toBeLessThan(html.indexOf('<main'));
     expect(html).toMatch(/<main class="standalone"><h1[ >]/);

@@ -1411,3 +1411,27 @@ describe('movimiento (D.16, ampliado en D.21)', () => {
     expect(RAW_CSS).not.toMatch(/movimiento llega en D\.16/);
   });
 });
+
+// D.22 (decisión 266, BM-3) — marca «casa encontrada»: sin tokens de color nuevos (el conjunto de
+// COLOR_TOKENS de arriba sigue siendo el vigente). La caja mide 1.75rem sin encoger y la casa toma el
+// acento del tema; la tinta es `currentColor` y no necesita regla.
+describe('marca (D.22)', () => {
+  const brand = declarations(findBlock(findBlock(ROOT, '@layer components'), '.brand-mark'));
+  const house = declarations(findBlock(findBlock(ROOT, '@layer components'), '.brand-mark__house'));
+
+  it('.brand-mark mide 1.75rem y no se encoge en la fila de la cabecera', () => {
+    expect(brand.get('inline-size')).toBe('1.75rem');
+    expect(brand.get('block-size')).toBe('1.75rem');
+    expect(brand.get('flex')).toBe('none');
+  });
+
+  it('.brand-mark__house se rellena con el acento del tema', () => {
+    expect(house.get('fill')).toBe('var(--accent)');
+  });
+
+  it('el color de la marca sale solo de var(--accent) y currentColor: sin literales en las reglas', () => {
+    for (const body of [brand, house]) {
+      for (const value of body.values()) expect(value).not.toMatch(/#[0-9a-f]{3,8}|oklch\(|rgba?\(/i);
+    }
+  });
+});

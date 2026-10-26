@@ -4,10 +4,12 @@
 // propio `<html>` y `<body>`. Sin `metadata` (no se puede exportar desde aquí): el título va con
 // un `<title>` de React. Sin clase de tema (el script de tema y el layout no existen) y con el
 // mismo CSS autónomo que la página 429, que elige el esquema con `prefers-color-scheme`.
+// D.22 (decisión 266): la franja lleva la marca como `<BrandMark />` (SVG incrustado, sin recurso servido).
 // Nunca muestra `error.message`, `stack` ni `digest`.
 import { useEffect, useRef } from 'react';
 import type { ReactElement } from 'react';
 
+import { BrandMark } from '@/components/brand-mark';
 import { focusHeading } from '@/lib/error-focus';
 import { STANDALONE_PAGE_CSS } from '@/lib/standalone-page';
 
@@ -35,6 +37,7 @@ export default function GlobalError({ retry }: GlobalErrorProps): ReactElement {
         <style dangerouslySetInnerHTML={{ __html: STANDALONE_PAGE_CSS }} />
         <header className="standalone-header">
           <a className="standalone-header__brand" href="/">
+            <BrandMark />
             Buscahogar
           </a>
         </header>

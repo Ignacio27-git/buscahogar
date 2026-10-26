@@ -360,6 +360,18 @@
     vertical-align: -0.125em;
   }
 
+  /* Marca (D.22, decisión 266): 1.75rem sin encoger en la fila de la cabecera. La tinta de la lupa es
+     `currentColor` (hereda el texto del enlace) y la casa toma el acento del tema; ningún token nuevo. */
+  .brand-mark {
+    inline-size: 1.75rem;
+    block-size: 1.75rem;
+    flex: none;
+  }
+
+  .brand-mark__house {
+    fill: var(--accent);
+  }
+
   .theme-selector fieldset {
     display: flex;
     flex-wrap: wrap;

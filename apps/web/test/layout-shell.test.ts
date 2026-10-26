@@ -73,7 +73,8 @@ describe('Cabecera (R3)', () => {
   // D.18 (decisión 223, enmienda la 147): la cabecera pierde `<nav>` y «Buscar»; el nombre sigue
   // siendo el enlace a «/». El tema pasa a tres botones de icono con nombre accesible oculto.
   it('lleva el nombre como enlace a / y ninguna navegación ni «Buscar»', () => {
-    expect(header).toMatch(/<a href="\/"[^>]*>Buscahogar<\/a>/);
+    // D.22 (decisión 266): el enlace lleva la marca decorativa (aria-hidden) delante del texto en vivo.
+    expect(header).toMatch(/<a href="\/"[^>]*><svg[^>]*aria-hidden="true"[\s\S]*?<\/svg>Buscahogar<\/a>/);
     expect(count(header, '<nav')).toBe(0);
     expect(header).not.toContain('Buscar<');
     expect(count(header, '<a ')).toBe(1);

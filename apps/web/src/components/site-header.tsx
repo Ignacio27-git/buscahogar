@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 
+import { BrandMark } from './brand-mark';
 import { Icon } from './icon';
 import type { IconName } from './icon';
 import { SHELL_CONTAINER } from './shell-container';
@@ -42,6 +43,9 @@ function ThemeSelector(): ReactElement {
 // no fija al desplazarse, y sin buscador propio: la búsqueda vive en la página.
 // D.18 (decisión 223): sin `<nav>` ni «Buscar»; el nombre es el enlace a «/». A 320 px el nombre y
 // los tres botones caben en una fila; el orden del DOM es el visual.
+// D.22 (decisión 266): el enlace lleva la marca «casa encontrada» (decorativa, `aria-hidden`) delante del
+// texto, a todos los anchos; el nombre accesible sigue siendo el texto en vivo «Buscahogar». La marca mide
+// 1.75rem (`.brand-mark`) y cabe en la fila de 40 px.
 // Enlaces con `<a href>` normal, nunca `next/link` (convención de toda la app): `Link`
 // añadiría JavaScript de cliente y prefetch, y la cabecera debe seguir siendo estática.
 /* eslint-disable @next/next/no-html-link-for-pages */
@@ -51,7 +55,8 @@ export function SiteHeader(): ReactElement {
       <div
         className={`${SHELL_CONTAINER} flex flex-wrap items-center gap-x-6 gap-y-2 py-3 max-[30rem]:gap-y-0 max-[30rem]:py-2`}
       >
-        <a href="/" className={`${HEADER_LINK} text-heading-3 text-ink no-underline`}>
+        <a href="/" className={`${HEADER_LINK} gap-2 text-heading-3 text-ink no-underline`}>
+          <BrandMark />
           Buscahogar
         </a>
         <ThemeSelector />

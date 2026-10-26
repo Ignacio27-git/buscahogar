@@ -10,6 +10,7 @@
 // `--rule`, marca con `--text-heading-3*` y 40 px de alto) y queda fuera del bloque centrado.
 // D.19 (decisiones 232 y 233): paleta y radio de la paleta cálida; la familia tipográfica sigue siendo la pila del
 // sistema (excepción documentada: sin Figtree ni fuente autoalojada, porque esta página debe funcionar cuando el layout falla).
+// D.22 (decisión 266): la franja lleva la marca «casa encontrada» (`lib/brand-mark.ts`) delante del nombre.
 // Módulo puro y sin `server-only`: el proxy lo alcanza fuera del grafo de componentes de servidor.
 export const STANDALONE_PAGE_CSS = `:root {
   color-scheme: light dark;
@@ -52,6 +53,7 @@ body {
 .standalone-header__brand {
   display: inline-flex;
   align-items: center;
+  gap: 0.5rem;
   min-height: 2.5rem;
   font-size: 1.125rem;
   line-height: 1.5rem;
@@ -59,6 +61,10 @@ body {
   color: var(--ink);
   text-decoration-line: none;
 }
+/* D.22 (decisión 266): la marca espeja .brand-mark y .brand-mark__house de globals.css. La tinta de la lupa es
+   currentColor (el color del enlace) y la casa toma el acento del esquema. */
+.brand-mark { inline-size: 1.75rem; block-size: 1.75rem; flex: none; }
+.brand-mark__house { fill: var(--accent); }
 /* 34rem de texto + 2 x 1.5rem de relleno: border-box, así que el ancho útil no cambia. */
 .standalone { max-width: 37rem; margin: auto; padding: 1.5rem; }
 .standalone h1 {

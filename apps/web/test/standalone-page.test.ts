@@ -155,3 +155,26 @@ describe('STANDALONE_PAGE_CSS — franja de marca (decisión 219)', () => {
     expect(declarations(findBlock(STANDALONE, '.standalone-header')).get('padding')).toBe('0.5rem 1.5rem');
   });
 });
+
+// D.22 (decisión 266, BM-4) — la marca «casa encontrada» va en la franja de las páginas autónomas. El CSS
+// espeja `.brand-mark` y `.brand-mark__house` de `globals.css`; sin `url(`, sin recursos y sin movimiento
+// (los tests de arriba siguen vigentes).
+describe('STANDALONE_PAGE_CSS — marca (D.22)', () => {
+  const brand = declarations(findBlock(STANDALONE, '.standalone-header__brand'));
+  const mark = declarations(findBlock(STANDALONE, '.brand-mark'));
+  const house = declarations(findBlock(STANDALONE, '.brand-mark__house'));
+  const globalMark = declarations(findBlock(findBlock(GLOBALS, '@layer components'), '.brand-mark'));
+  const globalHouse = declarations(findBlock(findBlock(GLOBALS, '@layer components'), '.brand-mark__house'));
+
+  it('separa la marca del nombre con 0.5rem (el `gap-2` de la cabecera de la app)', () => {
+    expect(brand.get('gap')).toBe('0.5rem');
+  });
+
+  it('.brand-mark y .brand-mark__house espejan las reglas de globals.css', () => {
+    expect(mark.get('inline-size')).toBe(globalMark.get('inline-size'));
+    expect(mark.get('block-size')).toBe(globalMark.get('block-size'));
+    expect(mark.get('flex')).toBe(globalMark.get('flex'));
+    expect(house.get('fill')).toBe('var(--accent)');
+    expect(globalHouse.get('fill')).toBe('var(--accent)');
+  });
+});
