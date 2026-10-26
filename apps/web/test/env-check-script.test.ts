@@ -60,7 +60,8 @@ function omit(source: Readonly<Record<string, string>>, name: string): Record<st
   return Object.fromEntries(Object.entries(source).filter(([key]) => key !== name));
 }
 
-describe('env:check como proceso', () => {
+// Cada caso arranca un proceso con tsx; con la suite en paralelo supera a veces los 5 s por defecto.
+describe('env:check como proceso', { timeout: 60_000 }, () => {
   it('local con el entorno mínimo: sale 0 aunque haya avisos de producción', () => {
     const result = run(ENV_CHECK, ['--target', 'local'], MINIMUM_ENV, WEB_DIR);
 
@@ -135,7 +136,7 @@ describe('env:check como proceso', () => {
   });
 });
 
-describe('check:public-env como proceso', () => {
+describe('check:public-env como proceso', { timeout: 60_000 }, () => {
   it('sobre el repositorio real (git ls-files) no encuentra ninguna credencial NEXT_PUBLIC_*', () => {
     const result = run(CHECK_PUBLIC_ENV, [], {}, WEB_DIR);
 

@@ -61,7 +61,8 @@ function omit(source: Readonly<Record<string, string>>, name: string): Record<st
   return Object.fromEntries(Object.entries(source).filter(([key]) => key !== name));
 }
 
-describe('env:check (ingestion) como proceso', () => {
+// Cada caso arranca un proceso con tsx; con la suite en paralelo supera a veces los 5 s por defecto.
+describe('env:check (ingestion) como proceso', { timeout: 60_000 }, () => {
   it('worker en local con el entorno mínimo: sale 0 aunque falten latido y Telegram', () => {
     const result = run(['--target', 'local'], WORKER_ENV, INGESTION_DIR);
 
