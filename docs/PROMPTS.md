@@ -2311,7 +2311,8 @@ puede hacer (`.env.example`) quedan escritos como tareas del responsable, no com
 **Forma de especificación:** SDD completo (investigación, propuesta, especificación, diseño y tareas) en modo automático, almacén Engram, un
 único PR con `size:exception` y presupuesto de 800 líneas; doce decisiones de producto del responsable y logotipo elegido tras dos rondas
 renderizadas (variante 2c)
-**Resultado:** pendiente de la aprobación de las capturas (unidad 6); allí se fija si fue utilizable sin cambios, con retoques o descartado
+**Resultado:** utilizable con retoques: el logotipo necesitó dos rondas (la primera se rechazó; 2 → iterar → 2c) y en la puerta de capturas el
+responsable pidió ajustar los 320 px («Aprobar ajustando 320 px»)
 
 **Prompt:**
 
@@ -2323,4 +2324,6 @@ configuración local. Se le explicó la cobertura (barrido previo, bajo demanda 
 producto suyas (marca, portada con búsquedas de ejemplo, estados ilustrados, entrada escalonada de la lista, tuteo cálido solo fuera de las
 pantallas con precios) y la marca se eligió viendo dos rondas renderizadas. Lo que más cambió el diseño fue verificar las propuestas contra el
 código: los enlaces `?q=` y `zone=` de los ejemplos se descartaron por aterrizar en la revisión o por poder gastar cuota. Quedó fuera lo que
-solo puede juzgar el responsable: cómo se ven las capturas.
+solo puede juzgar el responsable: cómo se ven las capturas. En la puerta GATE-1 las aprobó con un ajuste: a 320 px la portada apilaba seis
+chips y empujaba el primer resultado a y≈1380; se limitó a tres bajo 30rem, se reordenaron y los pasos dejaron de partirse (commit `901a4cc`).
+El favicon de 16 px se aceptó tal cual (la puerta se lee como una muesca).

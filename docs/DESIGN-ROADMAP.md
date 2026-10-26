@@ -1813,7 +1813,7 @@ Paso D.21 de docs/DESIGN-ROADMAP.md. Usa `impeccable animate`, `impeccable polis
 
 ---
 
-## [~] D.22 · Identidad y alegría: logotipo, portada y estados
+## [x] D.22 · Identidad y alegría: logotipo, portada y estados
 
 ```text
 Paso D.22 de docs/DESIGN-ROADMAP.md. Usa `impeccable craft`, `impeccable animate` e
@@ -1842,20 +1842,24 @@ Paso D.22 de docs/DESIGN-ROADMAP.md. Usa `impeccable craft`, `impeccable animate
 
 **Notas:**
 
-- **Estado (2026-10-26): en curso.** Aplicada con SDD completo (investigación, propuesta, especificación, diseño y tareas) en modo
+- **Estado (2026-10-26): hecho.** Aplicada con SDD completo (investigación, propuesta, especificación, diseño y tareas) en modo
   automático (Engram `sdd/design-identity-d22/*`), en un único PR con `size:exception` aceptado por el responsable antes de aplicar y un
-  commit por unidad. El paso se cierra solo tras la aprobación de las capturas por el responsable (unidad 6).
+  commit por unidad. Cerrada tras la aprobación de las capturas por el responsable (GATE-1).
+- **Puerta GATE-1:** el responsable revisó las capturas y respondió «Aprobar ajustando 320 px». Corrección en `901a4cc`: bajo 30rem la portada
+  muestra solo los tres primeros chips, los chips se reordenaron a todos los anchos y los pasos de la franja no se parten (decisión 268,
+  enmienda). Primer resultado a 320 px de y≈1380 a y≈1200. Se mantiene «Áticos en venta» aunque devuelve 0 con la semilla de e2e.
 - **Unidades entregadas:** 1 `22745d3` (marca, cabecera, páginas sueltas e iconos), 2 `70da845` (portada, enlaces de ejemplo y filtros
   plegados), 3 `d4440f8` (estados ilustrados y textos), 4 `0876ac8` (entrada escalonada, barrido del motivo, pulsación y barrera de CSS),
-  5 (documentación y decisiones 266-271). Pendiente la unidad 6: líneas base de Docker, revisión de capturas y puerta del responsable.
-- **Tests:** web 119 ficheros / 2.002 tests en verde al terminar la unidad 4; typecheck y eslint limpios. `pnpm e2e` (Docker) aún no
-  ejecutado: lo hace la unidad 6 con las líneas base.
+  5 (documentación y decisiones 266-271), 6 `c461463` y `c3acc4d` (cabecera a 320 px, specs e2e reparados y 144 líneas base regeneradas) y
+  el ajuste de la puerta `901a4cc`.
+- **Tests:** vitest 2.006 tests en verde; typecheck y eslint limpios; `pnpm e2e` (Docker) 1.205 superados y 0 fallos; axe a cero en claro y
+  oscuro. La primera ejecución e2e dio 157 fallos (véase la tabla de desviaciones y `docs/AI-NOTES.md`).
 - **Decisiones:** 266 (marca), 267 (iconos), 268 (portada), 269 (estados), 270 (movimiento; W1, W2 y W3) y 271 (voz).
 - **Prueba previa (W3):** el barrido del motivo con `scaleX` sobre el rectángulo de la máscara anima en Chromium y WebKit y deja el
   fotograma final idéntico al estático, así que no se usó el fundido de reserva.
-- **A 16 px** la puerta recortada de la casa se ve solo como una muesca tenue; el responsable decide en la puerta de capturas si se
-  simplifica en `icon.svg`.
-- **Seguimientos:** los que salgan de la revisión de capturas.
+- **A 16 px** la puerta recortada de la casa se ve solo como una muesca; el responsable aceptó el favicon tal cual.
+- **Seguimientos (observaciones, sin corregir):** el motivo de contornos en modo oscuro es muy tenue y a 768 px queda cerca del borde
+  derecho de la franja.
 - **Tamaño:** previsión ~1.970 líneas frente a un presupuesto de 800 (véase la tabla de desviaciones).
 
 ---
@@ -2105,3 +2109,5 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-26 | D.22 | `buildCurrentHref` devuelve `/` y no `/?` cuando no hay parámetros. | Corrección de paso: la acción del vacío sin filtros apuntaba a `/?` (decisión 269). |
 | 2026-10-26 | D.22 | `BrandMark` no admite `className`; el tamaño y el color de la casa salen de las reglas `.brand-mark` y `.brand-mark__house`. | Una sola presentación para la cabecera y la página de error global, sin utilidades de Tailwind en el componente (decisión 266). |
 | 2026-10-26 | D.22 | Los filtros avanzados quedan en la barra de herramientas bajo la franja y no dentro de ella; el motivo se oculta bajo 48rem y no 40rem. | La barra conserva su estructura y el resto de páginas no cambian; a menos de 48rem el motivo no cabe junto al titular (decisión 268). |
+| 2026-10-26 | D.22 | Tras la puerta GATE-1, bajo 30rem la portada muestra solo tres chips, los seis se reordenan a todos los anchos y los pasos de la franja no se parten. | Seis chips apilados a 320 px alejaban el primer resultado (y≈1380 a y≈1200); ajuste pedido por el responsable (decisión 268, enmienda). |
+| 2026-10-26 | D.22 | La primera ejecución e2e (157 fallos) obligó a corregir la cabecera a 320 px (`max-[30rem]:gap-x-3`), el puente JSX de los estados, los recuentos de «Quitar todos» y supuestos de primer hijo y de ventana en los specs; 144 líneas base regeneradas. | Los specs de las unidades 1-3 no se habían ejecutado en Docker; la cabecera partida en dos filas era un fallo real (decisión 239, `docs/AI-NOTES.md`). |

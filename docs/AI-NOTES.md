@@ -4315,6 +4315,23 @@ sin motivo.
 comentario). Una guarda de «no vacío» y un caso negativo sintético por cada barrera habrían cazado 2, 3 y 8 al escribirlas. El texto con
 comillas va con las herramientas de ficheros, no con heredocs.
 
+### 2026-10-26 — Specs e2e de D.22 escritos sin ejecutarse en Docker
+
+**Contexto:** unidades 1-3 del cambio `design-identity-d22`; los e2e se ejecutaron por primera vez en la unidad 6.
+
+**Categoría:** test que valida el comportamiento equivocado · código correcto en apariencia pero incorrecto.
+
+**Qué se generó mal:** los specs de las unidades 1-3 se escribieron sin correrlos en Docker y la primera ejecución completa dio 157 fallos.
+Entre ellos un fallo real de producto (la cabecera se partía en dos filas a 320 px con la marca; corregido con `max-[30rem]:gap-x-3` en
+`site-header.tsx`), el puente JSX de los estados que no aceptaba componentes de función, «Quitar todos» presente dos veces por diseño
+(decisión 269), suposiciones de «primer hijo» en `standalone-visual` y una medición de desplazamiento al pasar el puntero en `motion.spec`
+que dependía del tamaño de la ventana. Las 144 líneas base se regeneraron (decisión 239).
+
+**Cómo se detectó:** al ejecutar `pnpm e2e` en la unidad 6.
+
+**Observación:** los tests unitarios y el typecheck verdes no cubren la interacción real con el navegador. Hay que correr el subconjunto e2e
+afectado en cada unidad y no solo al final: el fallo de la cabecera a 320 px habría salido en la unidad 1.
+
 ### 2026-10-26 — Dos fallos propios del orquestador en D.22
 
 **Contexto:** coordinación del cambio `design-identity-d22`, antes y durante la aplicación.

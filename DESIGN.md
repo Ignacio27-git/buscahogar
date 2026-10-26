@@ -459,7 +459,8 @@ inicio es un PNG opaco con el papel claro (decisión 267).
 La portada sin criterios es una franja tintada (`primary-wash`, radio `panel`) con un titular en voz cercana («Todas las viviendas
 de los portales, en una sola búsqueda»), una frase de apoyo, los pasos, la caja de texto abierta y «Búsquedas para empezar»: seis
 enlaces de 44px a búsquedas por criterios (operación, tipo, precio, habitaciones, superficie), sin zona, que devuelven resultados
-sin consultar nada externo. Los filtros avanzados quedan plegados bajo la franja a todos los anchos con el modificador
+sin consultar nada externo. Bajo 30rem solo se ven los tres primeros (alquiler hasta 900 €, venta hasta 250.000 € y venta con 3
+habitaciones o más) y los pasos no se parten. Los filtros avanzados quedan plegados bajo la franja a todos los anchos con el modificador
 `filter-tray--disclosure` (mismo formulario, mismos nombres y misma URL). El resto de páginas de búsqueda conservan su título
 sobrio «Buscar vivienda» (decisión 268).
 

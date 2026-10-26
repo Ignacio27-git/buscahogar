@@ -7434,6 +7434,15 @@ existen `heading-1` y la escala es cerrada. (5) Un componente de filtros nuevo o
 
 **Motivo.** Resultados inmediatos, sin cuota y sin código de cliente, con los tokens y el formulario que ya existen.
 
+**Enmienda (puerta GATE-1, 2026-10-26).** El responsable aprobó las capturas pidiendo ajustar los 320 px. (1) Bajo 30rem la portada muestra solo
+los tres primeros enlaces de ejemplo (`.example-searches__list > li:nth-child(n+4) { display: none }`): seis chips apilados empujaban el primer
+resultado hasta y≈1380 y con tres queda en y≈1200. (2) Los pasos de la franja (`.home-hero .steps`) no se parten y llevan `column-gap` de
+0,75rem, acotado a la franja porque `StepIndicator` también se usa en la rama `?q=`. (3) Orden de los chips a todos los anchos: 1 «Pisos en
+alquiler hasta 900 €», 2 «Venta hasta 250.000 €», 3 «Venta con 3 habitaciones o más», 4 «Áticos en venta», 5 «Estudios en alquiler», 6
+«Casas de más de 120 m²»; los tres visibles son los de un solo criterio más amplio y cubren alquiler y venta. El responsable decidió conservar
+«Áticos en venta» aunque devuelve 0 con la semilla de e2e. Alternativa descartada: reducir el tamaño de los chips a 320 px (rompe el objetivo
+táctil de 44 px).
+
 ---
 
 ## 269 — Estados ilustrados con una acción principal y voz cercana (enmienda la 225 y la 189)
