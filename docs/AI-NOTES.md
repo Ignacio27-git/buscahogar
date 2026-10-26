@@ -4265,3 +4265,18 @@ entorno (la imagen, el e2e) y no solo sus pruebas de unidad; (b) un escenario de
 **Observación:** es la misma entrada que el 3.3 y D.21, y sigue ocurriendo. La regla práctica que funcionó en S8: el texto con comillas va con
 las herramientas de ficheros (Write, Edit); si hace falta un script, se escribe primero en un fichero y un sustituidor propio que
 normaliza los finales de línea (aquí, uno que tolera CRLF y LF mezclados y falla si el ancla no es única) hace el cambio.
+
+### 2026-10-26 — Afirmación sobre `.env.example` sin poder leerlo (3.4, S8)
+
+**Contexto:** cierre documental del paso 3.4 (S8, tarea 8.7) y resumen al responsable.
+
+**Categoría:** afirmación no verificada.
+
+**Qué se generó mal:** el agente de S8, que no tiene permiso para leer los `.env*`, escribió en `docs/DEPLOYMENT.md` y `docs/ROADMAP.md` que
+`.env.example` «sigue declarando `OPERATION`», y el orquestador lo repitió al responsable sin comprobarlo. El propio ROADMAP ya recogía
+que el 2026-10-21 se había confirmado su ausencia.
+
+**Cómo se detectó:** lo corrigió el responsable. Contrastado después con las notas del ROADMAP del paso 3.3.
+
+**Observación:** sobre un fichero que la herramienta no puede leer solo cabe decir que no se ha podido revisar; el estado conocido sale de
+lo ya registrado, no de una suposición. Se reescribieron las dos menciones como comprobación pendiente del responsable.

@@ -440,7 +440,7 @@ aprobación del TFM.
 - [ ] Proveedor de teselas con acuerdo, su clave publicable restringida por dominio y su atribución (`TILE_URL_TEMPLATE`, `TILE_ATTRIBUTION`).
 - [ ] **Condiciones de Idealista** revisadas antes de activar `SITE_INDEXING=true` (la indexación expone el contenido a buscadores).
 - [ ] Ejecutar `pnpm e2e` (visual y accesibilidad) sobre el candidato a producción.
-- [ ] Actualizar `.env.example` con las variables de las tablas de arriba y quitar `OPERATION` (retirada en la decisión 252). Ninguna herramienta
-      del proyecto puede leer ni editar los `.env*`, así que es un paso del responsable.
+- [ ] Comprobar que `.env.example` recoge las variables de las tablas de arriba. Ninguna herramienta del proyecto puede leer ni editar los
+      `.env*`, así que es un paso del responsable.
 - [ ] Decidir qué hacer con el servicio `web` de `docker-compose.yml` (perfil `app`): apunta a un `apps/web/Dockerfile` que no existe y, con la
       web en Vercel, no hace falta una imagen de la web. Quitarlo o dejarlo documentado como solo de desarrollo.

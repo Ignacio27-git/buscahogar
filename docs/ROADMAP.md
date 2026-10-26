@@ -2217,8 +2217,8 @@ dominio y los secretos, el primer despliegue real, las comprobaciones que solo s
 y la revisión de los textos legales. Tampoco hay imagen de la web (va a Vercel). La gestión de la cuota de cada mes sigue en manos del
 responsable (`set-monthly-quota`; la cuota se hereda mes a mes, decisión 248) con el aviso por Telegram al 80 % y al 100 %.
 
-**Pendientes del responsable.** `.env.example` no se pudo actualizar (ninguna herramienta lo puede leer ni editar): faltan todas las
-variables nuevas, que están en `docs/DEPLOYMENT.md`, y sigue declarando `OPERATION`. El servicio `web` de `docker-compose.yml` apunta a un
+**Pendientes del responsable.** `.env.example` no se pudo revisar (ninguna herramienta lo puede leer ni editar): hay que comprobar que
+recoge las variables nuevas, que están en `docs/DEPLOYMENT.md`. `OPERATION` ya no figura en él (confirmado el 2026-10-21). El servicio `web` de `docker-compose.yml` apunta a un
 `apps/web/Dockerfile` que no existe.
 
 **Riesgos abiertos.** Los precios y límites de los proveedores son la instantánea del 2026-10-21 y hay que repetirlos en el 3.5. Neon puede no
@@ -2255,7 +2255,7 @@ copias). Antes de abrir la web al público, revisa los textos legales y las cond
 - [ ] Proveedor de teselas con acuerdo (clave publicable restringida por dominio) y su atribución.
 - [ ] Condiciones de Idealista revisadas **antes** de activar `SITE_INDEXING=true`.
 - [ ] Rellenar `LEGAL_OWNER_*`, revisar los textos legales y nombrar a los encargados del tratamiento en la política de privacidad.
-- [ ] Actualizar `.env.example` (variables nuevas, sin `OPERATION`) y decidir qué hacer con el servicio `web` de `docker-compose.yml`.
+- [ ] Comprobar que `.env.example` recoge las variables nuevas y decidir qué hacer con el servicio `web` de `docker-compose.yml`.
 - [ ] Ejecutar `pnpm e2e` sobre el candidato a producción.
 
 **Notas:**
