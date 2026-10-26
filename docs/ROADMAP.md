@@ -2159,7 +2159,16 @@ ciudad son dos unidades (venta y alquiler), y el tope de la ejecución las cuent
   `presweep --top 12 --max-requests 48 --max-requests-per-sweep 2 --dry-run` planifica 24 unidades sin gastar nada:
   Madrid, Barcelona, Valencia, Zaragoza, Sevilla, Málaga, Murcia, Palma, Las Palmas, Alicante, Bilbao y Córdoba. Madrid
   se reanuda desde su cursor.
-- **Pendiente del responsable desde el 2026-11-01 (UTC):** lanzar el mismo comando sin `--dry-run` y, después,
+- Hecho el 2026-10-26, a petición del responsable, para no perder la cuota de octubre que caducaba: reserva de octubre
+  liberada (`set-monthly-quota --total 62 --reserve 0 --month 2026-10`) y pre-barrido real
+  `presweep --top 12 --max-requests 24 --max-requests-per-sweep 1`. Gastó 24 búsquedas (1 por ciudad y operación, motivo
+  `run-cap`) y no hubo rechazos. Se pasó de 3 251 a 4 413 anuncios, que tras `reprocess` con los umbrales de Granada quedan en
+  4 328 viviendas. Registro de octubre: 54 de 62 búsquedas y 26 peticiones de token.
+- **Hallazgo (2026-10-26):** el pre-barrido pidió un token OAuth nuevo por unidad (24 tokens para 24 búsquedas) en vez de
+  reutilizarlo. El registro cuenta los tokens aparte del tope de búsquedas. Si Idealista los computa en su cuota, el gasto real
+  es mayor del que refleja el tope. Queda pendiente reutilizar el token dentro de una misma ejecución.
+- **Pendiente del responsable desde el 2026-11-01 (UTC):** lanzar `presweep --top 12 --max-requests 48 --max-requests-per-sweep 2`
+  (cada unidad sigue desde su cursor) y, después,
   `reprocess` con los umbrales de Granada. En la misma fecha hay que arrancar el worker para el job bajo demanda de
   Barcelona (alquiler), que va contra la reserva. Si la producción tiene su propia base, hay que repetir allí
   `set-monthly-quota` y el pre-barrido.

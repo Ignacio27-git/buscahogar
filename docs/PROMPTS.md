@@ -2347,4 +2347,7 @@ El favicon de 16 px se aceptó tal cual (la puerta se lee como una muesca).
 aviso de `<script>` desapareció con el 500. Para las ciudades, el límite es la cuota de Idealista (unas 100 peticiones al mes, de 50 anuncios
 cada una) y no el código: el pre-barrido del paso 3.3 ya existía. El responsable descartó pedir más cuota porque se reinicia el 1 de
 noviembre y eligió anchura: 12 ciudades con 2 páginas por ciudad y operación. La cuota de noviembre quedó registrada y la simulación,
-validada. El barrido real queda en sus manos a partir de esa fecha.
+validada. El responsable preguntó entonces «¿pero ahora no lanzamos un barrido?»: con la cuota de octubre a punto de caducar, se liberó su
+reserva y se barrieron ya las 12 ciudades con 1 página por operación (24 búsquedas, de 3 251 a 4 413 anuncios). Al revisar el registro
+apareció que el pre-barrido pide un token por unidad. Lo propuesto al principio, esperar a noviembre, desperdiciaba cuota que se perdía
+igualmente.
