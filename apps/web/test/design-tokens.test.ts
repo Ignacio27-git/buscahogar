@@ -1684,6 +1684,19 @@ describe('portada (D.22)', () => {
     expect(narrow.get('padding')).toBe('1.25rem 1rem');
   });
 
+  // Revisión del GATE-1: a 320 px la franja llenaba la primera pantalla. Bajo 30rem solo se ven tres
+  // ejemplos (display: none los saca también del árbol de accesibilidad) y los pasos caben en una fila.
+  it('bajo 30rem solo se ven los tres primeros ejemplos', () => {
+    const hidden = inMedia('@media (width < 30rem)', '.example-searches__list > li:nth-child(n+4)');
+    expect(hidden.get('display')).toBe('none');
+  });
+
+  it('bajo 30rem los pasos de la franja caben en una fila, sin encoger el texto', () => {
+    const steps = inMedia('@media (width < 30rem)', '.home-hero .steps');
+    expect(steps.get('flex-wrap')).toBe('nowrap');
+    expect(steps.has('font-size')).toBe(false);
+  });
+
   it('el titular de la franja se equilibra y no pasa de 32rem', () => {
     const title = rule('.home-hero h1');
     expect(title.get('text-wrap')).toBe('balance');

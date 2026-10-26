@@ -31,6 +31,16 @@ describe('EXAMPLE_SEARCHES (D.22, HH-2)', () => {
     }
   });
 
+  // Bajo 30rem solo se ven los tres primeros (CSS): han de ser los más útiles y equilibrar alquiler y venta.
+  it('los tres primeros son los que se ven a 320 px: alquiler con tope, venta con tope y venta por habitaciones', () => {
+    expect(EXAMPLE_SEARCHES.slice(0, 3).map((search) => search.label)).toEqual([
+      'Pisos en alquiler hasta 900 €',
+      'Venta hasta 250.000 €',
+      'Venta con 3 habitaciones o más',
+    ]);
+    expect(EXAMPLE_SEARCHES.map((search) => search.label)).toContain('Áticos en venta');
+  });
+
   it.each(EXAMPLE_SEARCHES.map((search) => [search.label, search] as const))(
     '%s: sus parámetros pasan searchQuerySchema',
     (_label, search) => {

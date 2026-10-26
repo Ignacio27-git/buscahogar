@@ -1525,9 +1525,22 @@
     }
   }
 
+  /* Revisión del GATE-1 (D.22): a 320 px la franja llenaba la primera pantalla. Solo se ven los tres
+     primeros ejemplos (`display: none` los saca también del árbol de accesibilidad; el orden lo fija
+     `lib/example-searches.ts`) y los pasos de la franja van en una sola fila con menos hueco entre ellos,
+     sin encoger el texto. El indicador de la rama `?q=` no cambia. */
   @media (width < 30rem) {
     .home-hero {
       padding: 1.25rem 1rem;
+    }
+
+    .example-searches__list > li:nth-child(n+4) {
+      display: none;
+    }
+
+    .home-hero .steps {
+      flex-wrap: nowrap;
+      column-gap: 0.75rem;
     }
   }
 

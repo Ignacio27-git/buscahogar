@@ -2,6 +2,7 @@
 // valor, caja de texto promovida, búsquedas de ejemplo y filtros avanzados plegados. Se ejecuta sobre el
 // servidor de producción con la siembra e2e (paso 6 de D.22: Docker + base de datos); aquí solo se escribe.
 import AxeBuilder from '@axe-core/playwright';
+import type { Page } from '@playwright/test';
 
 import { EXAMPLE_SEARCHES } from '../src/lib/example-searches';
 
@@ -17,6 +18,11 @@ function onlyProjects(...names: string[]): void {
   test.skip(!names.includes(test.info().project.name), `solo ${names.join(', ')}`);
 }
 
+// Bajo 30rem (320 px) la franja enseña solo los tres primeros ejemplos.
+function visibleExamples(page: Page): number {
+  return (page.viewportSize()?.width ?? 1280) < 480 ? 3 : EXAMPLE_SEARCHES.length;
+}
+
 test.describe('portada con invitación (HH-1, HH-2, HH-4)', () => {
   test('el titular es el único h1 y la franja lleva caja de texto, pasos y ejemplos', async ({ page }) => {
     onlyProjects('w320-light', 'w1280-light');
@@ -28,8 +34,27 @@ test.describe('portada con invitación (HH-1, HH-2, HH-4)', () => {
     await expect(hero.getByRole('searchbox')).toBeVisible();
     await expect(hero.getByRole('list', { name: 'Pasos de la búsqueda' })).toBeVisible();
     await expect(hero.getByRole('list', { name: 'Búsquedas para empezar' }).getByRole('link')).toHaveCount(
-      EXAMPLE_SEARCHES.length
+      visibleExamples(page)
     );
+  });
+
+  // Revisión del GATE-1: a 320 px solo se ven tres ejemplos (los demás, display: none, salen también del
+  // árbol de accesibilidad) y los pasos van en una sola fila, para que los resultados suban.
+  test('a 320 px se ven tres ejemplos y los pasos caben en una fila', async ({ page }) => {
+    onlyProjects('w320-light', 'w320-dark');
+    await page.goto('/');
+    const links = page.getByRole('list', { name: 'Búsquedas para empezar' }).getByRole('link');
+    await expect(links).toHaveCount(3);
+    await expect(links).toHaveText(EXAMPLE_SEARCHES.slice(0, 3).map((search) => search.label));
+    const tops = await page
+      .locator('section.home-hero .steps > li')
+      .evaluateAll((items) => items.map((item) => (item as HTMLElement).offsetTop));
+    expect(tops).toHaveLength(3);
+    expect(new Set(tops).size, `offsetTop de los pasos: ${tops.join(', ')}`).toBe(1);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
   });
 
   test('una página de resultados no lleva franja ni ejemplos y conserva el título genérico', async ({ page }) => {
@@ -45,7 +70,7 @@ test.describe('portada con invitación (HH-1, HH-2, HH-4)', () => {
     await page.goto('/');
     const links = page.getByRole('list', { name: 'Búsquedas para empezar' }).getByRole('link');
     const heights = await links.evaluateAll((elements) => elements.map((el) => el.getBoundingClientRect().height));
-    expect(heights).toHaveLength(EXAMPLE_SEARCHES.length);
+    expect(heights).toHaveLength(visibleExamples(page));
     for (const height of heights) expect(height).toBeGreaterThanOrEqual(43.5);
     // Rellena con la superficie elevada y borde: no es texto corrido subrayado.
     const style = await links.first().evaluate((el) => {
