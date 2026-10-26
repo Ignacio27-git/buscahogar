@@ -2151,6 +2151,18 @@ ciudad son dos unidades (venta y alquiler), y el tope de la ejecución las cuent
 - Confirmado por el responsable el 2026-10-21: la cuota de Idealista se reinicia por mes natural UTC, así que la
   suposición del registro mensual (decisión 248) queda validada. El responsable fijará de nuevo la cuota completa
   en noviembre.
+- Hecho el 2026-10-26 en la base de desarrollo: migraciones 0020-0022 aplicadas (23/23). Faltaba
+  `coverage_jobs.lease_renewed_at` y por eso fallaba con 500 cualquier búsqueda con zona sin cubrir. Cuota de noviembre
+  registrada con `set-monthly-quota --total 100 --reserve 50 --month 2026-11` (techo del lote: 50).
+- Decidido por el responsable el 2026-10-26: en noviembre se prima la anchura, con 12 ciudades y 2 páginas por ciudad y
+  operación (unos 100 anuncios de cada). La simulación
+  `presweep --top 12 --max-requests 48 --max-requests-per-sweep 2 --dry-run` planifica 24 unidades sin gastar nada:
+  Madrid, Barcelona, Valencia, Zaragoza, Sevilla, Málaga, Murcia, Palma, Las Palmas, Alicante, Bilbao y Córdoba. Madrid
+  se reanuda desde su cursor.
+- **Pendiente del responsable desde el 2026-11-01 (UTC):** lanzar el mismo comando sin `--dry-run` y, después,
+  `reprocess` con los umbrales de Granada. En la misma fecha hay que arrancar el worker para el job bajo demanda de
+  Barcelona (alquiler), que va contra la reserva. Si la producción tiene su propia base, hay que repetir allí
+  `set-monthly-quota` y el pre-barrido.
 
 **Estado del paso: cerrado.** No queda nada pendiente del responsable. Madrid queda a medias en venta y alquiler y se
 reanuda desde su cursor cuando haya cuota.

@@ -2319,11 +2319,32 @@ responsable pidió ajustar los 320 px («Aprobar ajustando 320 px»)
 > (Resumen fiel; no se conservó la transcripción literal.) El responsable pidió un logotipo simple y directo, más zonas cubiertas y un diseño
 > menos serio y más acogedor. Aportó una búsqueda en Barcelona que devolvía un error 500.
 
-**Observación.** El 500 no era de código: faltaban `NEW_ZONES_DAILY_CAP` y `WEB_COVERAGE_DATABASE_URL` en `apps/web/.env.local`, una
-configuración local. Se le explicó la cobertura (barrido previo, bajo demanda y manual). El resto se resolvió por SDD con doce decisiones de
+**Observación.** El 500 no era de código. En un primer momento se atribuyó solo a la falta de `NEW_ZONES_DAILY_CAP` y
+`WEB_COVERAGE_DATABASE_URL` en `apps/web/.env.local`, pero además faltaban las migraciones 0020-0022 en la base local (véase la entrada
+siguiente). Se le explicó la cobertura (barrido previo, bajo demanda y manual). El resto se resolvió por SDD con doce decisiones de
 producto suyas (marca, portada con búsquedas de ejemplo, estados ilustrados, entrada escalonada de la lista, tuteo cálido solo fuera de las
 pantallas con precios) y la marca se eligió viendo dos rondas renderizadas. Lo que más cambió el diseño fue verificar las propuestas contra el
 código: los enlaces `?q=` y `zone=` de los ejemplos se descartaron por aterrizar en la revisión o por poder gastar cuota. Quedó fuera lo que
 solo puede juzgar el responsable: cómo se ven las capturas. En la puerta GATE-1 las aprobó con un ajuste: a 320 px la portada apilaba seis
 chips y empujaba el primer resultado a y≈1380; se limitó a tres bajo 30rem, se reordenaron y los pasos dejaron de partirse (commit `901a4cc`).
 El favicon de 16 px se aceptó tal cual (la puerta se lee como una muesca).
+
+---
+
+### 2026-10-26 — Reparación del 500 con zona y preparación de la cobertura de noviembre (paso 3.3, operación)
+
+**Tipo de tarea:** operación y diagnóstico (base local, variables de entorno, cuota mensual)
+**Forma de especificación:** instrucciones breves en la conversación; una decisión del responsable sobre el reparto de la cuota
+**Resultado:** utilizable con retoques: el primer diagnóstico del 500 fue incompleto y el comando de comprobación indicado no cargaba
+`.env.local` (véase AI-NOTES)
+
+**Prompt:**
+
+> «si ya no hacen falta bórralos, y ya he hecho los cambios en el .env.local que me has indicado ejecuta lo que queda, si hay algún
+> problema infórmame» · «ejecuta el comando adecuado y con respecto a las ciudades cubiertas ahora vemos como solucionamos esto»
+
+**Observación.** Reproducir la búsqueda de Barcelona tras corregir las variables sacó a la luz la causa real: faltaban tres migraciones. El
+aviso de `<script>` desapareció con el 500. Para las ciudades, el límite es la cuota de Idealista (unas 100 peticiones al mes, de 50 anuncios
+cada una) y no el código: el pre-barrido del paso 3.3 ya existía. El responsable descartó pedir más cuota porque se reinicia el 1 de
+noviembre y eligió anchura: 12 ciudades con 2 páginas por ciudad y operación. La cuota de noviembre quedó registrada y la simulación,
+validada. El barrido real queda en sus manos a partir de esa fecha.
