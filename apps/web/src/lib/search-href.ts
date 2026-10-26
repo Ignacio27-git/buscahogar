@@ -250,7 +250,8 @@ export function buildFirstPageHref(params: RawSearchParams): string {
   return toHref(copyParams(params, new Set(['page'])));
 }
 
-// Enlace de recarga PLANO: la misma URL actual, un `href` real, sin JavaScript.
+// Enlace de recarga PLANO: la misma URL actual, un `href` real, sin JavaScript. Sin ningún parámetro
+// es «/» y no «/?» (D.22: el vacío sin filtros recarga la portada).
 export function buildCurrentHref(params: RawSearchParams): string {
-  return `/?${copyParams(params, new Set()).toString()}`;
+  return toHref(copyParams(params, new Set()));
 }

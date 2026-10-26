@@ -246,6 +246,12 @@ describe('buildPageHref y buildCurrentHref — movidos desde la página, misma s
   it('buildCurrentHref conserva todo, incluido page, y omite los indefinidos', () => {
     expect(buildCurrentHref({ operation: 'sale', page: '2', zone: undefined })).toBe('/?operation=sale&page=2');
   });
+
+  // D.22: la acción «Comprobar de nuevo» del vacío sin filtros apunta a «/», no a «/?».
+  it('buildCurrentHref sin ningún parámetro devuelve «/» y no «/?»', () => {
+    expect(buildCurrentHref({})).toBe('/');
+    expect(buildCurrentHref({ zone: undefined })).toBe('/');
+  });
 });
 
 describe('pickFilterBarContext — D.6a "Hidden state kept, page dropped"', () => {

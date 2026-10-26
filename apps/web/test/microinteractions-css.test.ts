@@ -55,6 +55,9 @@ describe('transiciones de color de los controles (UI-1, S-UI-1, M2)', () => {
     ['button:not(.theme-selector button)', 'transform, background-color, border-color', FEEDBACK_HOVER],
     ['.filter-tray > summary', 'transform, background-color, border-color', FEEDBACK_HOVER],
     ['.applied-filters__chip', 'transform, background-color, border-color', FEEDBACK_HOVER],
+    // D.22 (decisión 270, MS-1): la chip de ejemplo y la acción de un estado se suman a la pulsación.
+    ['.example-searches__link', 'transform, background-color, border-color', FEEDBACK_HOVER],
+    ['.state-action', 'transform, background-color, border-color', FEEDBACK_HOVER],
     ['.nl-disclosure > summary', 'background-color, border-color', 'var(--duration-hover)'],
     ['a:not(.skip-link)', 'color', 'var(--duration-hover)'],
     ['.sort-presets__link', 'color, border-color', 'var(--duration-hover)'],
@@ -193,17 +196,22 @@ describe('fundido de los avisos (UI-4..UI-6, S-UI-9, S-UI-10, S-UI-14, decisión
 
   const FRAMES = keyframes(ROOT);
 
-  it('hay un único @keyframes, notice-appear, con un solo fotograma «from» que fija opacity: 0', () => {
-    expect(FRAMES).toHaveLength(1);
-    const [only] = FRAMES;
-    expect(only?.prelude).toBe('@keyframes notice-appear');
+  it('notice-appear sigue siendo un único fotograma «from» que fija opacity: 0, en @layer components', () => {
+    const only = FRAMES.find((frames) => frames.prelude === '@keyframes notice-appear');
+    expect(only).toBeDefined();
     // Sin `to`: el final es el estilo del propio elemento, así que nunca se queda a 0.
     expect(only?.frames).toEqual([{ prelude: 'from', declarations: [['opacity', '0']] }]);
     expect(only?.layer).toBe('@layer components');
+    // D.22 suma row-enter y contour-wipe; la lista cerrada la vigila design-tokens.test.ts.
+    expect(FRAMES.map((frames) => frames.prelude).sort()).toEqual([
+      '@keyframes contour-wipe',
+      '@keyframes notice-appear',
+      '@keyframes row-enter',
+    ]);
   });
 
-  it('una sola regla anima: la lista exacta de avisos, con cuatro longhands y sin relleno de fotogramas', () => {
-    const animating = RULES.filter((rule) => [...rule.declarations.keys()].some((name) => name.startsWith('animation')));
+  it('la regla del fundido es la lista exacta de avisos, con cuatro longhands y sin relleno de fotogramas', () => {
+    const animating = RULES.filter((rule) => rule.declarations.get('animation-name') === 'notice-appear');
     expect(animating.map((rule) => rule.selector)).toEqual([FADE_SELECTOR]);
     const rule = animating[0] as Rule;
     expect(Object.fromEntries(rule.declarations)).toEqual({
@@ -267,5 +275,36 @@ describe('marcador del estado de cobertura (PL-3, S-PL-4, M9)', () => {
     const state = declaring('.coverage-notice__state', 'border').declarations;
     expect(state.get('border')).toBe('1px solid var(--rule-control)');
     expect(state.get('font-weight')).toBe('400');
+  });
+});
+
+// D.22 (MS-1, decisión 270): la chip de ejemplo y la acción de un estado se suman a la pulsación de D.16
+// (transform, --duration-feedback = 100 ms) y a la lista cerrada de color de D.21. El anillo de foco
+// sigue siendo el global (:focus-visible): ninguna regla propia lo toca.
+describe('pulsación de la chip de ejemplo y de la acción de un estado (MS-1, decisión 270)', () => {
+  const SELECTORS = ['.example-searches__link', '.state-action'] as const;
+
+  it.each(SELECTORS)('«%s» escala a 0,97 al pulsar, y no con el foco del teclado', (selector) => {
+    const rule = declaring(`${selector}:active:not(:focus-visible)`, 'transform');
+    expect(rule.declarations.get('transform')).toBe('scale(0.97)');
+    expect([...rule.declarations.keys()]).toEqual(['transform']);
+  });
+
+  it.each(SELECTORS)('«%s» tarda --duration-feedback (100 ms) en la pulsación, la primera de la lista', (selector) => {
+    const rule = declaring(selector, 'transition-property');
+    expect(rule.declarations.get('transition-property')?.split(',')[0]).toBe('transform');
+    expect(rule.declarations.get('transition-duration')?.split(',')[0]).toBe('var(--duration-feedback)');
+    expect(rule.declarations.get('transition-timing-function')).toBe(EASE);
+  });
+
+  it.each(SELECTORS)('«%s» conserva el anillo de foco global: ninguna regla suya toca outline', (selector) => {
+    const own = RULES.filter((rule) => rule.selector.split(', ').some((part) => part.startsWith(selector)));
+    expect(own.length).toBeGreaterThan(1);
+    for (const rule of own) {
+      expect([...rule.declarations.keys()].filter((name) => name.startsWith('outline')), rule.selector).toEqual([]);
+    }
+    const ring = rulesFor(':focus-visible');
+    expect(ring.length).toBeGreaterThan(0);
+    expect(ring[0]?.declarations.get('outline')).toBe('2px solid var(--focus)');
   });
 });

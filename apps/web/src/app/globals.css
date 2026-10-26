@@ -399,9 +399,10 @@
   }
 
   /* Acción principal de un estado (D.22, decisión 269): la receta del botón primario (relleno de acento,
-     texto --ink-on-accent) para un enlace o un botón. Una por estado. Sin transición: los enlaces no
-     animan el color (decisiones 205-208). El texto sigue siendo --ink-on-accent al pasar el puntero:
-     la regla de enlaces de la capa base lo teñiría de acento sobre acento. */
+     texto --ink-on-accent) para un enlace o un botón. Una por estado. D.22 (decisión 270) la suma a la
+     pulsación (100 ms) y al color (150 ms) de los controles, con las duraciones emparejadas por posición
+     con la lista de propiedades. El texto sigue siendo --ink-on-accent al pasar el puntero: la regla de
+     enlaces de la capa base lo teñiría de acento sobre acento. */
   .state-action {
     display: inline-flex;
     min-block-size: 2.5rem;
@@ -413,12 +414,19 @@
     border-radius: var(--radius-control);
     font-weight: 600;
     text-decoration-line: none;
+    transition-property: transform, background-color, border-color;
+    transition-duration: var(--duration-feedback), var(--duration-hover), var(--duration-hover);
+    transition-timing-function: var(--ease-enter);
   }
 
   .state-action:active {
     background-color: color-mix(in oklab, var(--accent), var(--ink) 20%);
     border-color: color-mix(in oklab, var(--accent), var(--ink) 20%);
     color: var(--ink-on-accent);
+  }
+
+  .state-action:active:not(:focus-visible) {
+    transform: scale(0.97);
   }
 
   @media (hover: hover) and (pointer: fine) {
@@ -1145,6 +1153,48 @@
     animation-fill-mode: none;
   }
 
+  /* Entrada escalonada de la lista (D.22, decisión 270, MS-2): las seis primeras filas aparecen con
+     opacidad y un desplazamiento de 0,25rem, 200 ms, una vez por cada render de servidor de la lista.
+     Los fotogramas no llevan `to`: el final es el estilo de la propia fila, así que nunca se queda a 0.
+     `backwards` mantiene la fila oculta solo durante su retardo (la fila 1 no tiene retardo). El retardo
+     de la fila k es k-1 veces la quinta parte de --duration-feedback (0 a 100 ms): la última acaba a 300 ms
+     y las filas 7 en adelante aparecen sin animar. Duraciones y retardos salen de tokens: con movimiento
+     reducido valen 0 s y la fila está opaca desde la primera lectura. Un refresco de fondo conserva las
+     filas con clave y no repite la entrada; una fila que pase a las seis primeras sí la anima una vez. */
+  @keyframes row-enter {
+    from {
+      opacity: 0;
+      transform: translateY(0.25rem);
+    }
+  }
+
+  .result-list > li:nth-child(-n+6) {
+    animation-name: row-enter;
+    animation-duration: var(--duration-appear);
+    animation-timing-function: var(--ease-enter);
+    animation-fill-mode: backwards;
+  }
+
+  .result-list > li:nth-child(2) {
+    animation-delay: calc(var(--duration-feedback) / 5 * 1);
+  }
+
+  .result-list > li:nth-child(3) {
+    animation-delay: calc(var(--duration-feedback) / 5 * 2);
+  }
+
+  .result-list > li:nth-child(4) {
+    animation-delay: calc(var(--duration-feedback) / 5 * 3);
+  }
+
+  .result-list > li:nth-child(5) {
+    animation-delay: calc(var(--duration-feedback) / 5 * 4);
+  }
+
+  .result-list > li:nth-child(6) {
+    animation-delay: calc(var(--duration-feedback) / 5 * 5);
+  }
+
   .nl-issues {
     display: flex;
     flex-direction: column;
@@ -1387,6 +1437,26 @@
     block-size: 6rem;
   }
 
+  /* Barrido del motivo de la portada (D.22, decisión 270, MS-3): el desvanecido que enmascara el motivo
+     crece de izquierda a derecha una vez, 250 ms, solo con transform. `fill-box` toma como caja el propio
+     rect de la máscara (sin él, el origen sería el del lienzo SVG); sin relleno de fotogramas el rect
+     queda a escala 1. Solo bajo `.home-hero`: el motivo de las demás páginas no se anima. Con movimiento
+     reducido la duración es 0 s y el motivo está dibujado entero. */
+  @keyframes contour-wipe {
+    from {
+      transform: scaleX(0);
+    }
+  }
+
+  .home-hero .contour-motif__fade {
+    transform-box: fill-box;
+    transform-origin: left center;
+    animation-name: contour-wipe;
+    animation-duration: var(--duration-panel-enter);
+    animation-timing-function: var(--ease-enter);
+    animation-fill-mode: none;
+  }
+
   /* La caja de texto es el gesto principal de la portada: controles de 3rem. */
   .home-hero .search-text input,
   .home-hero .search-text button {
@@ -1429,6 +1499,18 @@
     font-size: var(--text-dense);
     line-height: var(--text-dense--line-height);
     text-decoration: none;
+    transition-property: transform, background-color, border-color;
+    transition-duration: var(--duration-feedback), var(--duration-hover), var(--duration-hover);
+    transition-timing-function: var(--ease-enter);
+  }
+
+  /* Respuesta de pulsación de la chip (D.22, decisión 270): la misma que la de los botones. */
+  .example-searches__link:active {
+    background-color: var(--surface-sunken);
+  }
+
+  .example-searches__link:active:not(:focus-visible) {
+    transform: scale(0.97);
   }
 
   @media (hover: hover) and (pointer: fine) {

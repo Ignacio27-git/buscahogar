@@ -936,9 +936,12 @@ describe('movimiento (D.16, ampliado en D.21)', () => {
     'a:not(.skip-link)',
     '.sort-presets__link',
     '.result-row__link',
+    // D.22 (decisión 270, MS-1): la chip de ejemplo y la acción de un estado se suman a la pulsación.
+    '.example-searches__link',
+    '.state-action',
   ];
 
-  /** Selector exacto de la única regla que anima (D.21, M6): los avisos que aparecen al montarse. */
+  /** Selector exacto de la regla del fundido (D.21, M6): los avisos que aparecen al montarse. */
   const FADE_SELECTOR = [
     ".coverage-panel:not(:has(> .coverage-notice[role='alert']))",
     ".search-results__notices > .coverage-notice:not([role='alert'])",
@@ -954,6 +957,36 @@ describe('movimiento (D.16, ampliado en D.21)', () => {
     ['animation-fill-mode', 'none'],
     ['animation-name', 'notice-appear'],
     ['animation-timing-function', 'var(--ease-enter)'],
+  ];
+
+  /**
+   * D.22 (decisión 270, MS-1..MS-3): las dos animaciones nuevas. Entrada de las seis primeras filas
+   * (opacidad y desplazamiento, `backwards` solo aquí) y barrido del motivo de la portada (solo bajo
+   * `.home-hero`). Los retardos de las filas salen del token de pulsación: con movimiento reducido
+   * valen 0 s con el resto.
+   */
+  const ROW_SELECTOR = '.result-list > li:nth-child(-n+6)';
+  const ROW_DECLARATIONS: Array<[string, string]> = [
+    ['animation-duration', 'var(--duration-appear)'],
+    ['animation-fill-mode', 'backwards'],
+    ['animation-name', 'row-enter'],
+    ['animation-timing-function', 'var(--ease-enter)'],
+  ];
+  const ROW_DELAY_SELECTORS = [2, 3, 4, 5, 6].map((position) => `.result-list > li:nth-child(${String(position)})`);
+  const rowDelay = (selector: string): string =>
+    `calc(var(--duration-feedback) / 5 * ${String(Number(/\((\d)\)/.exec(selector)?.[1]) - 1)})`;
+  const WIPE_SELECTOR = '.home-hero .contour-motif__fade';
+  const WIPE_DECLARATIONS: Array<[string, string]> = [
+    ['animation-duration', 'var(--duration-panel-enter)'],
+    ['animation-fill-mode', 'none'],
+    ['animation-name', 'contour-wipe'],
+    ['animation-timing-function', 'var(--ease-enter)'],
+  ];
+  /** Los tres únicos @keyframes y su forma exacta: solo `from`, solo opacity/transform. */
+  const KEYFRAMES: Array<[string, Array<[string, string]>]> = [
+    ['@keyframes notice-appear', [['opacity', '0']]],
+    ['@keyframes row-enter', [['opacity', '0'], ['transform', 'translateY(0.25rem)']]],
+    ['@keyframes contour-wipe', [['transform', 'scaleX(0)']]],
   ];
 
   interface Located {
@@ -1056,15 +1089,16 @@ describe('movimiento (D.16, ampliado en D.21)', () => {
 
     const nodes = locate(css).map(({ node }) => node);
     const keyframes = nodes.filter((node) => /^@(-webkit-)?keyframes\b/.test(node.prelude));
-    if (keyframes.length > 1) found.push('más de un @keyframes');
+    if (keyframes.length > KEYFRAMES.length) found.push('más @keyframes de los permitidos');
     for (const frames of keyframes) {
       const [frame] = frames.children;
+      const expected = KEYFRAMES.find(([prelude]) => prelude === frames.prelude)?.[1];
       const shape =
-        frames.prelude === '@keyframes notice-appear' &&
+        expected !== undefined &&
         frames.children.length === 1 &&
         frame?.prelude === 'from' &&
-        JSON.stringify(frame.declarations) === JSON.stringify([['opacity', '0']]);
-      if (!shape) found.push(`@keyframes ajeno al fundido: «${frames.prelude}»`);
+        JSON.stringify(frame.declarations) === JSON.stringify(expected);
+      if (!shape) found.push(`@keyframes ajeno a los permitidos: «${frames.prelude}»`);
     }
 
     for (const node of nodes) {
@@ -1115,11 +1149,20 @@ describe('movimiento (D.16, ampliado en D.21)', () => {
 
       const animations = node.declarations.filter(([name]) => name.startsWith('animation'));
       if (animations.length > 0) {
-        const sorted = [...animations].sort(([a], [b]) => a.localeCompare(b));
+        const sorted = [...animations]
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([name, value]) => [name, normalizeValue(value)]);
+        const same = (expected: string[][]): boolean =>
+          JSON.stringify(sorted) === JSON.stringify(expected);
+        // Cada regla con animation-* es exactamente una de las permitidas; el retardo solo existe en
+        // las de las filas 2 a 6, con la forma calc() sobre el token de pulsación.
         const exact =
-          selector === FADE_SELECTOR &&
-          JSON.stringify(sorted) === JSON.stringify(FADE_DECLARATIONS);
-        if (!exact) found.push(`animation-* fuera de la regla del fundido: «${selector}»`);
+          (selector === FADE_SELECTOR && same(FADE_DECLARATIONS)) ||
+          (selector === ROW_SELECTOR && same(ROW_DECLARATIONS)) ||
+          (selector === WIPE_SELECTOR && same(WIPE_DECLARATIONS)) ||
+          (ROW_DELAY_SELECTORS.includes(selector) &&
+            same([['animation-delay', rowDelay(selector)]]));
+        if (!exact) found.push(`animation-* fuera de las reglas permitidas: «${selector}»`);
       }
     }
     return found;
@@ -1214,13 +1257,135 @@ describe('movimiento (D.16, ampliado en D.21)', () => {
   });
 
   // D.21 (S-UI-9, S-UI-10): globals.css lleva exactamente el fundido, y la auditoría lo acepta.
-  it('globals.css declara exactamente un @keyframes (notice-appear) y una regla animation-* con el selector del fundido', () => {
+  it('globals.css declara exactamente tres @keyframes (notice-appear, row-enter, contour-wipe) con su forma', () => {
     const nodes = locate(RAW_CSS).map(({ node }) => node);
-    expect(nodes.filter((node) => node.prelude.startsWith('@keyframes')).map((node) => node.prelude)).toEqual([
-      '@keyframes notice-appear',
-    ]);
+    const frames = nodes.filter((node) => node.prelude.startsWith('@keyframes'));
+    expect(frames.map((node) => node.prelude)).toEqual(KEYFRAMES.map(([prelude]) => prelude));
+    for (const [prelude, expected] of KEYFRAMES) {
+      const node = frames.find((candidate) => candidate.prelude === prelude);
+      expect(node?.children.map((child) => child.prelude), prelude).toEqual(['from']);
+      expect(node?.children[0]?.declarations, prelude).toEqual(expected);
+    }
+  });
+
+  it('las reglas con animation-* son el fundido, la entrada de las filas (base + cinco retardos) y el barrido', () => {
+    const nodes = locate(RAW_CSS).map(({ node }) => node);
     const animating = nodes.filter((node) => node.declarations.some(([name]) => name.startsWith('animation')));
-    expect(animating.map((node) => normalizeSelector(node.prelude))).toEqual([FADE_SELECTOR]);
+    expect(animating.map((node) => normalizeSelector(node.prelude))).toEqual([
+      FADE_SELECTOR,
+      ROW_SELECTOR,
+      ...ROW_DELAY_SELECTORS,
+      WIPE_SELECTOR,
+    ]);
+  });
+
+  it('ninguna animación es infinita, ninguna usa fill-mode distinto de none salvo `backwards` en las filas, y ningún fotograma anima más que opacity/transform', () => {
+    const text = stripComments(RAW_CSS);
+    expect(text).not.toMatch(/infinite|animation-iteration-count|animation-direction/);
+    const fills = locate(RAW_CSS).flatMap(({ node }) =>
+      node.declarations.filter(([name]) => name === 'animation-fill-mode').map(([, value]) => value)
+    );
+    expect(fills.sort()).toEqual(['backwards', 'none', 'none']);
+    for (const { node } of locate(RAW_CSS)) {
+      if (!node.prelude.startsWith('@keyframes')) continue;
+      for (const frame of node.children) {
+        for (const [name] of frame.declarations) {
+          expect(['opacity', 'transform'], `${node.prelude} ${name}`).toContain(name);
+        }
+      }
+    }
+  });
+
+  // D.22 (MS-2, A9): la entrada de las filas. Duración 200 ms, retardo k·20 ms (k = 0..5), así que la
+  // última acaba a 300 ms; las filas 7 en adelante quedan fuera de los selectores y aparecen sin animar.
+  describe('entrada escalonada de la lista (MS-2, decisión 270)', () => {
+    const nodes = (): CssNode[] => locate(RAW_CSS).map(({ node }) => node);
+    const ruleFor = (selector: string): CssNode[] =>
+      nodes().filter((node) => normalizeSelector(node.prelude) === selector);
+
+    it('la fila 1 a 6 anima row-enter con --duration-appear, --ease-enter y relleno hacia atrás', () => {
+      const rules = ruleFor(ROW_SELECTOR);
+      expect(rules).toHaveLength(1);
+      expect(declarations(rules[0] as CssNode)).toEqual(new Map(ROW_DECLARATIONS));
+    });
+
+    it.each(ROW_DELAY_SELECTORS)('«%s» solo añade un retardo calc() sobre --duration-feedback', (selector) => {
+      const rules = ruleFor(selector).filter((node) => declarations(node).has('animation-delay'));
+      expect(rules).toHaveLength(1);
+      const rule = rules[0] as CssNode;
+      expect(rule.declarations).toEqual([['animation-delay', rowDelay(selector)]]);
+    });
+
+    it('el retardo de la última fila más la duración suma como mucho 300 ms con los tokens vigentes', () => {
+      const all = tokens();
+      const feedback = toMs(all.get('--duration-feedback') ?? 'NaN');
+      const appear = toMs(all.get('--duration-appear') ?? 'NaN');
+      expect(feedback / 5).toBe(20);
+      expect((feedback / 5) * 5 + appear).toBeLessThanOrEqual(300);
+    });
+
+    it('las filas 7 en adelante no aparecen en ningún selector de la entrada', () => {
+      const selectors = [ROW_SELECTOR, ...ROW_DELAY_SELECTORS];
+      expect(selectors.every((selector) => !/nth-child\((?:[7-9]|\d\d)\)/.test(selector))).toBe(true);
+      expect(selectors.filter((selector) => /nth-child\(-n\+6\)/.test(selector))).toHaveLength(1);
+    });
+
+    it('la fila nunca se queda oculta: ninguna regla de las filas fija opacity y el fotograma no lleva `to`', () => {
+      for (const selector of [ROW_SELECTOR, ...ROW_DELAY_SELECTORS, '.result-list > li']) {
+        for (const node of ruleFor(selector)) {
+          expect(node.declarations.map(([name]) => name).filter((name) => /^(opacity|visibility|display)$/.test(name)), selector).toEqual([]);
+        }
+      }
+      const frames = nodes().find((node) => node.prelude === '@keyframes row-enter');
+      expect(frames?.children.map((child) => child.prelude)).toEqual(['from']);
+    });
+  });
+
+  // D.22 (MS-3, A10): el barrido del motivo, solo transform, solo bajo `.home-hero`.
+  describe('barrido del motivo de la portada (MS-3, decisión 270)', () => {
+    const rules = (): CssNode[] =>
+      locate(RAW_CSS)
+        .map(({ node }) => node)
+        .filter((node) => normalizeSelector(node.prelude) === WIPE_SELECTOR);
+
+    it('la regla anima contour-wipe con --duration-panel-enter (250 ms) y sin relleno', () => {
+      const [rule, ...rest] = rules();
+      expect(rest).toEqual([]);
+      const declared = declarations(rule as CssNode);
+      for (const [name, value] of WIPE_DECLARATIONS) expect(declared.get(name), name).toBe(value);
+      expect(toMs(tokens().get('--duration-panel-enter') ?? 'NaN')).toBe(250);
+    });
+
+    it('la caja de la transformación es el propio rect (fill-box) y crece desde la izquierda', () => {
+      const declared = declarations(rules()[0] as CssNode);
+      expect(declared.get('transform-box')).toBe('fill-box');
+      expect(declared.get('transform-origin')).toBe('left center');
+    });
+
+    it('contour-wipe solo se usa en esa regla, y esa regla cuelga de .home-hero', () => {
+      const users = locate(RAW_CSS).filter(({ node }) =>
+        node.declarations.some(([name, value]) => name === 'animation-name' && value === 'contour-wipe')
+      );
+      expect(users).toHaveLength(1);
+      expect(normalizeSelector(users[0]?.node.prelude ?? '')).toMatch(/^\.home-hero /);
+    });
+  });
+
+  // D.22 (W2): bajo movimiento reducido las duraciones valen 0 s, y los retardos salen del token de
+  // pulsación, así que valen 0 s también. Es el único interruptor (decisión 207).
+  describe('movimiento reducido de las animaciones nuevas (W2, decisión 207)', () => {
+    it('toda duración y todo retardo de animación se expresa con var(--duration-*)', () => {
+      const values = locate(RAW_CSS).flatMap(({ node }) =>
+        node.declarations.filter(([name]) => name === 'animation-duration' || name === 'animation-delay').map(([, value]) => normalizeValue(value))
+      );
+      expect(values.length).toBe(1 + 1 + 1 + 5);
+      for (const value of values) expect(value).toMatch(/^(var\(--duration-[a-z-]+\)|calc\(var\(--duration-[a-z-]+\) \/ 5 \* [0-5]\))$/);
+    });
+
+    it('las cinco duraciones del bloque reducido son 0 s (de ahí cuelgan duraciones y retardos)', () => {
+      const rule = findBlock(findBlock(ROOT, REDUCE), ':root');
+      expect(rule.declarations).toEqual(DURATION_TOKENS.map((name) => [name, '0s']));
+    });
   });
 
   it('el mapa no declara animation* ni @keyframes (S-MT-5, fuera de alcance: decisión 206)', () => {
@@ -1242,8 +1407,46 @@ describe('movimiento (D.16, ampliado en D.21)', () => {
       transition-timing-function: var(--ease-enter);
     }`;
 
+    const ROW_FRAMES = '@keyframes row-enter { from { opacity: 0; transform: translateY(0.25rem); } }';
+    const WIPE_FRAMES = '@keyframes contour-wipe { from { transform: scaleX(0); } }';
+    const ROW_RULE = `${ROW_SELECTOR} {
+      animation-name: row-enter;
+      animation-duration: var(--duration-appear);
+      animation-timing-function: var(--ease-enter);
+      animation-fill-mode: backwards;
+    }`;
+    const ROW_DELAY_RULE = `.result-list > li:nth-child(3) {
+      animation-delay: calc(var(--duration-feedback) / 5 * 2);
+    }`;
+    const WIPE_RULE = `${WIPE_SELECTOR} {
+      animation-name: contour-wipe;
+      animation-duration: var(--duration-panel-enter);
+      animation-timing-function: var(--ease-enter);
+      animation-fill-mode: none;
+    }`;
+
     it('acepta el diseño previsto: fundido único y color en un control de la lista', () => {
       expect(auditMotion(`${FADE_FRAMES} ${FADE_RULE} ${GOOD_COLOUR}`)).toEqual([]);
+    });
+
+    it('acepta la entrada de las filas, su retardo y el barrido del motivo (D.22)', () => {
+      expect(
+        auditMotion(`${FADE_FRAMES} ${ROW_FRAMES} ${WIPE_FRAMES} ${FADE_RULE} ${ROW_RULE} ${ROW_DELAY_RULE} ${WIPE_RULE}`)
+      ).toEqual([]);
+    });
+
+    it.each([
+      ['.example-searches__link', 'transform, background-color, border-color'],
+      ['.state-action', 'transform, background-color, border-color'],
+    ])('acepta el color de «%s» con «%s» (lista cerrada ampliada, D.22)', (selector, property) => {
+      const css = `${selector} { transition-property: ${property}; transition-duration: var(--duration-feedback), var(--duration-hover), var(--duration-hover); }`;
+      expect(auditMotion(css)).toEqual([]);
+    });
+
+    it('sigue rechazando el color en una chip ajena a la lista', () => {
+      expect(auditMotion('.example-searches__label { transition-property: color; }').join(' ')).toContain(
+        'transition-property «color»'
+      );
     });
 
     it.each([
@@ -1268,7 +1471,19 @@ describe('movimiento (D.16, ampliado en D.21)', () => {
         '.x { transition-property: opacity, transform; transition-duration: var(--duration-hover), var(--duration-hover), var(--duration-hover); }',
         'no empareja',
       ],
-      [`${FADE_FRAMES} @keyframes other { from { opacity: 0; } }`, 'más de un @keyframes'],
+      [`${FADE_FRAMES} @keyframes other { from { opacity: 0; } }`, '@keyframes ajeno'],
+      [
+        `${FADE_FRAMES} ${ROW_FRAMES} ${WIPE_FRAMES} @keyframes slide { from { opacity: 0; } }`,
+        'más @keyframes de los permitidos',
+      ],
+      ['@keyframes row-enter { from { opacity: 0; color: red; } }', '@keyframes ajeno'],
+      ['@keyframes contour-wipe { from { opacity: 0; } }', '@keyframes ajeno'],
+      ['.x { animation-delay: var(--duration-feedback); }', 'animation-* fuera'],
+      ['.result-list > li:nth-child(7) { animation-delay: calc(var(--duration-feedback) / 5 * 6); }', 'animation-* fuera'],
+      ['.result-list > li:nth-child(3) { animation-delay: 60ms; }', 'animation-* fuera'],
+      ['.x { animation-fill-mode: backwards; }', 'animation-* fuera'],
+      ['.contour-motif__fade { animation-name: contour-wipe; }', 'animation-* fuera'],
+      [ROW_RULE.replace('backwards', 'forwards'), 'animation-* fuera'],
       [
         '@keyframes notice-appear { from { opacity: 0; transform: translateY(4px); } }',
         '@keyframes ajeno',
@@ -1322,11 +1537,16 @@ describe('movimiento (D.16, ampliado en D.21)', () => {
       'button:not(.theme-selector button):active:not(:focus-visible)',
       '.filter-tray > summary:active:not(:focus-visible)',
       '.applied-filters__chip:active:not(:focus-visible)',
+      // D.22 (decisión 270, MS-1): la chip de ejemplo y la acción de un estado.
+      '.example-searches__link:active:not(:focus-visible)',
+      '.state-action:active:not(:focus-visible)',
     ];
     const BASE_SELECTORS = [
       'button:not(.theme-selector button)',
       '.filter-tray > summary',
       '.applied-filters__chip',
+      '.example-searches__link',
+      '.state-action',
     ];
     const nodes = (): CssNode[] => locate(RAW_CSS).map(({ node }) => node);
     const ruleFor = (selector: string): CssNode[] =>
@@ -1343,11 +1563,11 @@ describe('movimiento (D.16, ampliado en D.21)', () => {
       expect(factor).toBeLessThanOrEqual(0.99);
     });
 
-    // D.21 (S-UI-5, S-UI-15): las tres reglas de pulsación siguen siendo las únicas con
+    // D.21 (S-UI-5, S-UI-15): las reglas de pulsación siguen siendo las únicas con
     // :active, y la ampliación de la imagen de la fila es la única otra regla con scale().
     const HOVER_SCALE_SELECTOR = '.result-row__link:hover .result-row__img';
 
-    it('toda regla con scale() es una de las tres de pulsación o la ampliación de la imagen de la fila', () => {
+    it('toda regla con scale() es una de las cinco de pulsación o la ampliación de la imagen de la fila', () => {
       const scaled = nodes().filter((node) =>
         node.declarations.some(([name, value]) => name === 'transform' && value.includes('scale('))
       );
@@ -1513,7 +1733,8 @@ describe('portada (D.22)', () => {
     for (const node of ownRules) {
       const names = node.declarations.map(([name]) => name);
       expect(names.filter((name) => /^outline/.test(name)), node.prelude).toEqual([]);
-      expect(node.prelude, node.prelude).not.toMatch(/focus/);
+      // D.22: `:active:not(:focus-visible)` (la pulsación de ratón no escala con el teclado) no es un estilo de foco.
+      expect(node.prelude.replace(/:not\(:focus-visible\)/g, ''), node.prelude).not.toMatch(/focus/);
     }
     const ring = declarations(findBlock(findBlock(ROOT, '@layer base'), ':focus-visible'));
     expect(ring.get('outline')).toBe('2px solid var(--focus)');

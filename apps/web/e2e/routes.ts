@@ -77,6 +77,19 @@ export const ROUTES: readonly E2eRoute[] = [
   { name: 'not-found-property', path: `/properties/${E2E_MISSING_LISTING_ID}`, map: 'none' },
 ];
 
+// D.22 (tarea 4.8): espera a que acaben las animaciones finitas (entrada de las filas, barrido del
+// motivo, fundido de los avisos) antes de capturar. Con la configuración global (`reducedMotion:
+// 'reduce'`) no hay ninguna y vuelve al instante; la guarda de CSS prohíbe las infinitas, que nunca
+// terminarían.
+export async function settleAnimations(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const finite = document
+      .getAnimations()
+      .filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity);
+    await Promise.all(finite.map((animation) => animation.finished));
+  });
+}
+
 // Navega y espera a que la página esté estable: fuentes cargadas, la primera foto de
 // la galería decodificada (si hay galería) y, si el mapa se ve, lienzo, marcadores
 // (si se esperan) y todas las teselas (locales) cargadas (S9.2).
@@ -85,6 +98,7 @@ export const ROUTES: readonly E2eRoute[] = [
 export async function openRoute(page: Page, route: E2eRoute): Promise<void> {
   await page.goto(route.path);
   await page.evaluate(() => document.fonts.ready);
+  await settleAnimations(page);
   // Solo la primera: las demás quedan fuera de la tira y su carga diferida no se ve.
   await page.waitForFunction(() => {
     const image = document.querySelector<HTMLImageElement>('.property-gallery img');

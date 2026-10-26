@@ -4,6 +4,7 @@
 // proyectos son Chromium y los dos anchos relevantes (320 y 1280 en claro) se eligen con
 // `onlyProject`. Se leen estilos calculados y estados finales con `expect.poll`; nunca
 // `getAnimations()` sobre `::details-content` (no expone esas transiciones) ni esperas fijas.
+import AxeBuilder from '@axe-core/playwright';
 import type { Locator, Page } from '@playwright/test';
 
 import { expect, test } from './fixtures';
@@ -627,5 +628,178 @@ test.describe('fundido de los avisos con reducción de movimiento (D.21)', () =>
     expect(await style(notice, 'opacity')).toBe('1');
     expect(await style(notice, 'visibility')).toBe('visible');
     expect(await style(notice, 'animation-duration')).toBe('0s');
+  });
+});
+
+// D.22 (MS-1..MS-3, decisión 270): la entrada escalonada de la lista y el barrido del motivo de la
+// portada. Se lee el estilo calculado (retardo, duración) y los `animationstart`; nunca esperas fijas.
+const ROW_PATH = '/?operation=sale';
+const ROWS = '.result-list > li';
+const IDENTITY = /^(none|matrix\(1, 0, 0, 1, 0, 0\))$/;
+
+// Añade copias de la última fila hasta que haya `count`: la siembra no llega a siete filas. Las copias
+// reciben las mismas reglas por posición (nth-child), que es lo que se quiere leer.
+async function padRows(page: Page, count: number): Promise<void> {
+  await page.evaluate((wanted) => {
+    const list = document.querySelector('.result-list');
+    const rows = list?.querySelectorAll(':scope > li') ?? [];
+    const last = rows[rows.length - 1];
+    if (list === null || last === undefined) throw new Error('no hay filas que copiar');
+    for (let index = rows.length; index < wanted; index += 1) list.append(last.cloneNode(true));
+  }, count);
+}
+
+async function rowTimings(page: Page): Promise<Array<{ name: string; delay: number; duration: number }>> {
+  return page.locator(ROWS).evaluateAll((rows) =>
+    rows.map((row) => {
+      const css = window.getComputedStyle(row);
+      const ms = (value: string): number =>
+        value.endsWith('ms') ? Number.parseFloat(value) : Number.parseFloat(value) * 1000;
+      return { name: css.animationName, delay: ms(css.animationDelay), duration: ms(css.animationDuration) };
+    })
+  );
+}
+
+test.describe('entrada de la lista y barrido del motivo con preferencia normal (D.22)', () => {
+  test.use({ reducedMotion: 'no-preference' });
+
+  test('seis filas con retardo de 20 ms por posición, la séptima sin animar y todo acaba en 300 ms o menos (MS-2)', async ({
+    page,
+  }) => {
+    onlyProject('w1280-light');
+    await page.goto(ROW_PATH);
+    await expect(page.locator(ROWS).first()).toBeVisible();
+    await padRows(page, 8);
+    const timings = await rowTimings(page);
+    expect(timings).toHaveLength(8);
+    timings.slice(0, 6).forEach((timing, index) => {
+      expect(timing.name, `fila ${String(index + 1)}`).toBe('row-enter');
+      expect(timing.duration).toBe(200);
+      expect(timing.delay).toBeCloseTo(index * 20, 5);
+    });
+    expect(timings[5]?.delay).toBeCloseTo(100, 5);
+    for (const timing of timings.slice(6)) expect(timing.name).toBe('none');
+    const end = Math.max(...timings.slice(0, 6).map((timing) => timing.delay + timing.duration));
+    expect(end).toBeLessThanOrEqual(300);
+  });
+
+  test('cada carga repite la entrada de las filas y todas acaban opacas, enfocables y en el mismo orden (MS-2)', async ({
+    page,
+  }) => {
+    onlyProject('w1280-light');
+    await recordFades(page);
+    await page.goto(ROW_PATH);
+    const rows = page.locator(ROWS);
+    await expect(rows.first()).toBeVisible();
+    const total = await rows.count();
+    const links = rows.locator('a');
+    const hrefs = await links.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('href')));
+    const expected = Math.min(total, 6);
+    await expect
+      .poll(async () => (await fades(page)).filter((record) => record.name === 'row-enter').length)
+      .toBe(expected);
+    await expect
+      .poll(() => rows.evaluateAll((nodes) => nodes.map((node) => window.getComputedStyle(node).opacity)))
+      .toEqual(Array.from({ length: total }, () => '1'));
+    // Contenido intacto: mismo orden y la primera fila enlazable con teclado.
+    expect(await links.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('href')))).toEqual(hrefs);
+    await links.first().focus();
+    await expect(links.first()).toBeFocused();
+
+    // Una nueva carga completa la repite.
+    await page.reload();
+    await expect(rows.first()).toBeVisible();
+    await expect
+      .poll(async () => (await fades(page)).filter((record) => record.name === 'row-enter').length)
+      .toBe(expected);
+  });
+
+  test('axe no encuentra nada mientras las filas se animan (MS-2)', async ({ page }) => {
+    onlyProject('w1280-light');
+    await page.goto(ROW_PATH);
+    await expect(page.locator(ROWS).first()).toBeVisible();
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('el barrido del motivo existe solo en la portada: 250 ms, una vez, y acaba entero (MS-3)', async ({ page }) => {
+    onlyProject('w1280-light');
+    await recordFades(page);
+    await page.goto('/');
+    const fade = page.locator('.home-hero .contour-motif__fade');
+    await expect(fade).toHaveCount(1);
+    expect(await style(fade, 'animation-name')).toBe('contour-wipe');
+    expect(await style(fade, 'animation-duration')).toBe('0.25s');
+    expect(await style(fade, 'animation-iteration-count')).toBe('1');
+    await expect
+      .poll(async () => (await fades(page)).filter((record) => record.name === 'contour-wipe').length)
+      .toBe(1);
+    await expect.poll(() => fade.evaluate((node) => window.getComputedStyle(node).transform)).toMatch(IDENTITY);
+
+    // Fuera de la portada el mismo motivo no se anima.
+    await page.goto(ROW_PATH);
+    const other = page.locator('.contour-motif__fade');
+    if ((await other.count()) > 0) expect(await style(other.first(), 'animation-name')).toBe('none');
+  });
+
+  test('la chip y la acción de un estado responden a la pulsación en 100 ms (MS-1)', async ({ page }) => {
+    onlyProject('w1280-light');
+    await page.goto('/');
+    const chip = page.locator('.example-searches__link').first();
+    expect(await computed(chip, 'transitionProperty')).toBe('transform, background-color, border-color');
+    expect(await computed(chip, 'transitionDuration')).toBe(PRESS_AND_COLOUR);
+    await pressWithMouse(page, chip);
+    await expect.poll(() => computed(chip, 'transform')).toBe(SCALE_PRESSED);
+    await releaseOffTarget(page);
+
+    await page.goto(EMPTY_PATH);
+    const action = page.locator('.state-action').first();
+    expect(await computed(action, 'transitionDuration')).toBe(PRESS_AND_COLOUR);
+  });
+
+  // W1 (tarea 4.7): `CoverageStatus` llama a `router.refresh()`. Las filas con clave se conservan y
+  // las nuevas se animan una vez; en ningún caso queda una fila a opacidad menor que 1.
+  test('tras un router.refresh() toda fila acaba opaca y visible (W1)', async ({ page }) => {
+    onlyProject('w1280-light');
+    await openRoute(page, route('coverage-pending'));
+    const rows = page.locator(ROWS);
+    await expect(rows.first()).toBeVisible();
+    await page.waitForResponse((response) => response.url().includes('_rsc'), { timeout: 20_000 });
+    const total = await rows.count();
+    await expect
+      .poll(() =>
+        rows.evaluateAll((nodes) =>
+          nodes.map((node) => [window.getComputedStyle(node).opacity, window.getComputedStyle(node).visibility])
+        )
+      )
+      .toEqual(Array.from({ length: total }, () => ['1', 'visible']));
+  });
+});
+
+test.describe('entrada de la lista y barrido del motivo con reducción de movimiento (D.22, W2)', () => {
+  test.use({ reducedMotion: 'reduce' });
+
+  test('las filas y el motivo tienen duración y retardo efectivos de 0 s y están opacos desde la primera lectura', async ({
+    page,
+  }) => {
+    onlyProject('w1280-light');
+    await page.goto('/');
+    await expect(page.locator(ROWS).first()).toBeVisible();
+    const rows = await page.locator(ROWS).evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const css = window.getComputedStyle(node);
+        return { duration: css.animationDuration, delay: css.animationDelay, opacity: css.opacity, transform: css.transform };
+      })
+    );
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row.duration).toBe('0s');
+      expect(row.delay).toBe('0s');
+      expect(row.opacity).toBe('1');
+      expect(row.transform).toBe('none');
+    }
+    const fade = page.locator('.home-hero .contour-motif__fade');
+    expect(await style(fade, 'animation-duration')).toBe('0s');
+    expect(await fade.evaluate((node) => window.getComputedStyle(node).transform)).toMatch(IDENTITY);
   });
 });

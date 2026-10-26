@@ -309,7 +309,7 @@ describe('lista y mapa en cada petición válida (SMV-15, WSL-D8a-1)', () => {
     expect(mapSection(html)).not.toMatch(/filtros/);
     expect(html).not.toContain('Quitar');
     // D.22: una única acción principal en la lista, «Comprobar de nuevo», hacia la URL actual.
-    expect(listSection(html)).toContain('<a class="state-action" href="/?">Comprobar de nuevo</a>');
+    expect(listSection(html)).toContain('<a class="state-action" href="/">Comprobar de nuevo</a>');
   });
 });
 
