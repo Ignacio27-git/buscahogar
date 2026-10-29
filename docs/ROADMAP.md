@@ -2302,7 +2302,13 @@ decisión 273: Vercel Hobby, Neon Free en Frankfurt y ningún worker. Los datos 
   la región no afecta al optimizador. En un navegador real, las 24 filas de alquiler terminan en «Sin foto» y ninguna muestra el icono de
   imagen rota.
 
-**Pendiente del responsable:** actualizar los datos tras el barrido de noviembre (sección «Actualizar los datos» de la guía).
+- 2026-10-29: se estudia una solución definitiva para las fotos: la ingesta copia cada miniatura a un almacenamiento propio, se
+  registra en una tabla aparte sin tocar `listings`, y la demo ejecuta esa copia una vez desde casa. Técnicamente cabe en un plan gratuito
+  (muestra de 30 fotos: unos 28,7 KB de media, unos 126 MB para las 4.396 miniaturas). **Queda bloqueada por la licencia**: no hay
+  condiciones legibles de la API sobre guardar imágenes (obs #189 del paso 1.12, sin cambios hoy). Se redacta una consulta a Idealista.
+
+**Pendiente del responsable:** actualizar los datos tras el barrido de noviembre (sección «Actualizar los datos» de la guía), y enviar
+la consulta a Idealista sobre si se pueden guardar copias de las miniaturas.
 
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.

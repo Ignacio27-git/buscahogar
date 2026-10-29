@@ -2445,3 +2445,21 @@ comprobando `data-nimg` en lugar de suprimir el aviso.
 **Observación.** La captura era correcta, pero se refería a otra pieza: Neon sí estaba en Frankfurt, y lo que estaba en Washington eran las
 funciones de Vercel. Tras el cambio, `X-Vercel-Id` pasa a `cdg1::fra1` y la página baja de unos 0,9 s a unos 0,4 s. Las fotos siguen
 dando 404, porque el optimizador no se ejecuta en la región de funciones, y el marcador desplegado las sustituye bien.
+
+---
+
+### 2026-10-29 — Solución definitiva para las fotos y consulta a Idealista (paso 3.4b)
+
+**Tipo de tarea:** investigación y redacción
+**Forma de especificación:** preguntas abiertas y dos respuestas a cuestionarios
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «y porque no arreglamos el tema de la fotos para la presentación?» · «pero yo quiero tener una solución que sea la definitiva no?» ·
+> «redáctame un correo para mandárselo a Idealista»
+
+**Observación.** De las tres vías, cargar las fotos desde Idealista en el navegador y montar un proxy propio chocan con reglas del
+proyecto. La copia en un almacenamiento propio, hecha por la ingesta, cumple las reglas y sirve igual para la demo que para producción. Cabe
+en un plan gratuito: 126 MB medidos con una muestra de 30 fotos. Pero no se pudo confirmar que la licencia permita guardar copias, así que
+no se construye nada hasta tener respuesta de Idealista. Se redactó el correo de consulta.
