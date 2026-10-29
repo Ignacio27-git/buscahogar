@@ -7566,6 +7566,13 @@ no del volcado.
 **Motivo.** Es gratis, no gasta cuota y no se aparta de las reglas de credenciales. Además, adelanta las dos comprobaciones sobre Neon
 (verificador SCRAM y `jit`) que el paso 3.5 necesita saber.
 
+**Ampliación (2026-10-29).** Neon rechaza el verificador SCRAM ya calculado («only supports being given plaintext passwords»). Para la
+demo, el responsable eligió crear a mano `web_readonly` y `web_coverage` con `CREATE ROLE … PASSWORD` en texto plano: va por TLS, Neon lo
+convierte en hash y se usan los mismos atributos que en `provision-roles.ts`. Después se ejecuta `deploy` sin cambios en el código: ve los
+roles, entra con el secreto y no los toca, y aplica los privilegios y las comprobaciones. Alternativa descartada para la demo: añadir ya a
+`deploy` un modo de texto plano. Es el arreglo correcto, pero es trabajo de código con TDD y no es necesario para la defensa, así que pasa
+al paso 3.5.
+
 ---
 
 ## Pendientes de decidir

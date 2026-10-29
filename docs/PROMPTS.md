@@ -2389,3 +2389,22 @@ Vercel `next build` por sí solo fallaría, porque `packages/core` y `packages/d
 Command de la guía compila primero las dependencias. Al revisar la base también se vio que solo Granada está cubierta y que las 12 ciudades
 del pre-barrido tienen jobs pendientes. Sin worker, esos jobs no avanzan, y por eso la guía recomienda hacer la foto después del
 pre-barrido de noviembre.
+
+---
+
+### 2026-10-29 — Ejecución de la demo en Neon: volcado, roles y `deploy` (paso 3.4b)
+
+**Tipo de tarea:** operación
+**Forma de especificación:** respuestas breves y una elección en un cuestionario (crear los roles a mano)
+**Resultado:** utilizable con retoques: la guía preveía mal el modo de fallo del verificador SCRAM (véase AI-NOTES)
+
+**Prompt:**
+
+> «la he creado pero no tenía ningún apartado que pusiera connect y me ha dado un prompt que dice que te lo pase para que te conectes, lo
+> hacemos ya? o nos esperamos a noviembre» · (prompt de arranque de Neon pegado) · «ya está creado y con la url de neon»
+
+**Observación.** El prompt de arranque de Neon (`neon init` y `neon deploy`) no se ejecutó: habría escrito la URL del propietario en el
+`.env` raíz, que comparten Compose y la ingesta, y habría cambiado el driver de la web, lo que choca con la regla de las dos credenciales
+de la web. En su lugar, el responsable guardó la URL directa en un fichero fuera del repositorio, y los comandos la usaron sin imprimirla.
+Volcado y recuentos correctos. `deploy` destapó que Neon rechaza el verificador SCRAM: se crearon los roles a mano y `deploy` cerró con
+salida 0 dos veces. La web en local contra el pooler funcionó, y el limitador falló abierto por la latencia de conexión desde casa.

@@ -18,7 +18,8 @@ y **ningún worker**. Los datos son una **foto fija** de la base de desarrollo, 
 | Teselas | Proveedor con acuerdo | OpenStreetMap por defecto (uso puntual) |
 
 **Lo que no cambia y no se negocia:** la web solo ve los roles `web_readonly` y `web_coverage` a través del pooler, ninguna credencial de
-fuentes llega a Vercel, y el esquema, los roles y los privilegios se crean con `deploy`, igual que en producción.
+fuentes llega a Vercel, y el esquema, los privilegios y las comprobaciones salen de `deploy`, igual que en producción. La única excepción
+es la creación de los dos roles, que en Neon se hace a mano (paso 3).
 
 **Límites revisados el 2026-10-29.** La base de desarrollo ocupa 129 MB (4 413 anuncios y 4 328 viviendas), así que cabe en Neon Free con
 margen. Si cambian los planes, vuelve a comprobarlo en [neon.com/pricing](https://neon.com/pricing) y en
@@ -84,7 +85,7 @@ Comprueba los recuentos. Deben coincidir con los de la base local:
 docker exec -e NEON_DIRECT_URL="$env:NEON_DIRECT_URL" buscahogar-db-1 sh -c 'psql "$NEON_DIRECT_URL" -At -c "select (select count(*) from listings), (select count(*) from properties), (select count(*) from drizzle.__drizzle_migrations), (select extversion from pg_extension where extname = \$\$postgis\$\$);"'
 ```
 
-## 3. Roles y privilegios con `deploy`
+## 3. Roles y privilegios
 
 Genera **dos secretos nuevos**. No reutilices los de desarrollo. Guárdalos en tu gestor de contraseñas, porque los necesitarás en el paso 4.
 
@@ -92,10 +93,26 @@ Genera **dos secretos nuevos**. No reutilices los de desarrollo. Guárdalos en t
 node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"   # una vez para cada rol
 ```
 
+**Neon no acepta el verificador SCRAM ya calculado** que envía `deploy`. Se comprobó el 2026-10-29: el paso `roles` falla con
+`Neon only supports being given plaintext passwords` y la salida es 1. Por eso, en la demo los dos roles se crean **a mano**, con la
+contraseña en texto plano: viaja por TLS y Neon la convierte en hash. Se usan los mismos atributos que usa `deploy`. Después, `deploy` ve
+que los roles existen y aceptan el secreto, así que no los toca y se encarga del resto. El arreglo de `deploy` es del paso 3.5.
+
 ```powershell
-$env:DIRECT_DATABASE_URL   = $env:NEON_DIRECT_URL
 $env:WEB_READONLY_PASSWORD = '<secreto de web_readonly>'
 $env:WEB_COVERAGE_PASSWORD = '<secreto de web_coverage>'
+
+# Las contraseñas llegan a psql como variables (:'ro', :'co'), nunca dentro del texto del comando
+@"
+CREATE ROLE web_readonly LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'ro';
+CREATE ROLE web_coverage LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'co';
+"@ | docker exec -i -e NEON_DIRECT_URL="$env:NEON_DIRECT_URL" -e RO="$env:WEB_READONLY_PASSWORD" -e CO="$env:WEB_COVERAGE_PASSWORD" buscahogar-db-1 sh -c 'psql "$NEON_DIRECT_URL" -v ON_ERROR_STOP=1 -v ro="$RO" -v co="$CO"'
+```
+
+Después, `deploy` dos veces:
+
+```powershell
+$env:DIRECT_DATABASE_URL = $env:NEON_DIRECT_URL
 
 pnpm --filter @buscahogar/ingestion env:check --service deploy --target production
 pnpm --filter @buscahogar/ingestion run build:runtime
@@ -105,14 +122,11 @@ pnpm --filter @buscahogar/ingestion run deploy:runtime
 Remove-Item Env:DIRECT_DATABASE_URL, Env:WEB_READONLY_PASSWORD, Env:WEB_COVERAGE_PASSWORD, Env:NEON_DIRECT_URL
 ```
 
-Qué debería salir:
+Resultado obtenido el 2026-10-29:
 
-- **Primera ejecución:** `0 migrations` (vienen con el volcado), `roles created` y `privileges changed`. Las semillas se omiten, porque el
-  catálogo y la cuota ya vienen en el volcado.
+- **Primera ejecución:** `0 migrations, roles unchanged, privileges changed, seeds skipped`, con `jit off` (estrategia `role`) y salida 0.
 - **Segunda ejecución:** `0 migrations, roles unchanged, privileges unchanged, seeds skipped`, con salida 0.
-- **Si sale con 4** («¿verificador SCRAM no aceptado?» o un fallo de `jit`): es uno de los dos supuestos sobre Neon que el paso 3.4 no pudo
-  comprobar (`docs/DEPLOYMENT.md`, «Neon»). **Para** y registra el resultado. Es justo lo que el paso 3.5 necesita saber, así que la demo
-  lo adelanta.
+- `ALTER ROLE … SET jit = off` **sí** está permitido en Neon, así que no hace falta el respaldo a nivel de base de datos (decisión 264).
 
 ## 4. Vercel: proyecto y variables
 
@@ -158,8 +172,13 @@ web, **nunca** a `neondb_owner`.
 2. Una búsqueda en Granada y otra en una de las 12 ciudades, con mapa y teselas.
 3. El detalle de una vivienda con varios anuncios (agrupación y desglose de la deduplicación).
 4. `/robots.txt` bloquea el rastreo (`SITE_INDEXING=false`).
-5. Comprueba que `jit` está desactivado para la web:
-   `docker exec buscahogar-db-1 psql "<URL de web_readonly>" -c "SHOW jit"` → `off`.
+5. Comprueba que el limitador escribe en Neon: después de unas cuantas peticiones, `select count(*) from proxy_rate_limit` con la URL del
+   propietario debe dar más de 0.
+
+**El limitador y la latencia.** El pool del limitador da 150 ms para conectar (decisión 255). Desde un equipo en España contra el pooler de
+Frankfurt, conectar tarda unos 300 ms (medido el 2026-10-29; la consulta, unos 50 ms). Por eso, una web arrancada **en local** contra Neon
+registra `store-unavailable` y deja pasar todas las peticiones: falla abierto. No es un problema de permisos, porque la inserción como
+`web_coverage` funciona. Desde Vercel en `fra1` la conexión debería caber en el plazo, y la comprobación 5 lo confirma.
 
 ## El día de la presentación
 
@@ -174,7 +193,8 @@ Para volcar una foto nueva (por ejemplo, después del pre-barrido de noviembre):
 
 1. En la consola de Neon, borra la base `neondb` y créala de nuevo, vacía y con propietario `neondb_owner`. El host no cambia, y los roles
    `web_readonly` y `web_coverage` se conservan porque pertenecen a la rama, no a la base.
-2. Repite los pasos 2 y 3. `deploy` debería decir `roles unchanged` si usas los mismos secretos. En Vercel no hay que tocar nada.
+2. Repite el paso 2 y, del paso 3, solo `deploy`. Los roles ya existen, así que no hay que crearlos otra vez y `deploy` dirá
+   `roles unchanged`. En Vercel no hay que tocar nada.
 
 ## Desmontaje
 

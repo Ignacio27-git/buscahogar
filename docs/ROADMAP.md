@@ -2271,10 +2271,24 @@ decisión 273: Vercel Hobby, Neon Free en Frankfurt y ningún worker. Los datos 
   Build Command es `pnpm --filter "@buscahogar/web..." build`, que compila primero las dependencias del espacio de trabajo. Se comprobó
   en local con salida correcta.
 - Recomendación: volcar la foto después del pre-barrido de noviembre y de su `reprocess` (paso 3.3).
-- La demo adelanta dos comprobaciones del paso 3.5 sobre Neon: si acepta el verificador SCRAM ya calculado y si `jit` queda apagado por
-  rol. Hay que registrar aquí el resultado.
+- Hecho el 2026-10-29 (Neon: proyecto en Frankfurt, PostgreSQL 17.11 y PostGIS 3.5.7): volcado restaurado sin errores. Los recuentos
+  coinciden con la base local (4 413 anuncios, 4 328 viviendas, 38 438 pares de evidencia, 23 migraciones) y la base ocupa 104 MB.
+- **Hallazgo (2026-10-29): Neon no acepta el verificador SCRAM ya calculado.** `deploy` falla en el paso `roles` con
+  `Neon only supports being given plaintext passwords` y salida 1, no 4 como decía `docs/DEPLOYMENT.md` (véase AI-NOTES). Antes de fallar
+  no había cambiado nada: 0 migraciones y ningún rol. En la demo, los dos roles se crearon a mano con contraseña en texto plano y los
+  mismos atributos que usa `deploy`. Después, `deploy` dos veces: `0 migrations, roles unchanged, privileges changed, seeds skipped` y
+  luego `… privileges unchanged …`, las dos con salida 0. **`jit off` por rol sí funciona en Neon.**
+- Comprobado el 2026-10-29: la web compilada y arrancada en local contra el pooler de Neon, con los roles de la web, responde bien en
+  `/api/health`, en una búsqueda en Granada (24 resultados) y en el detalle de una vivienda. El limitador falló abierto (`store-unavailable`)
+  porque conectar desde España al pooler de Frankfurt cuesta unos 300 ms, frente a los 150 ms que da su pool. La consulta tarda unos 50 ms
+  y los permisos están bien. Queda por confirmar desde Vercel `fra1`.
+- Las URL del pooler para Vercel y los secretos están en ficheros fuera del repositorio, en el perfil del responsable.
 
-**Pendiente del responsable:** las cuentas de Neon y Vercel, los pasos 1-5 de la guía y anotar aquí la URL y el resultado de `deploy`.
+**Pendiente del responsable:** crear el proyecto en Vercel (pasos 4 y 5 de la guía) y anotar aquí la URL y si el limitador escribe en
+`proxy_rate_limit` desde `fra1`.
+
+**Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
+proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
 
 ---
 
@@ -2299,7 +2313,8 @@ copias). Antes de abrir la web al público, revisa los textos legales y las cond
 - [ ] Par de claves `age` generado fuera del servidor; `AGE_RECIPIENT` en el host de copias; la privada custodiada fuera de línea.
 - [ ] Primer `deploy` contra Neon, dos veces; cuota mensual real; `env:check --target production` sin avisos.
 - [ ] Monitor de latido (dead-man's-switch) con su `HEARTBEAT_URL`; alerta de prueba por Telegram.
-- [ ] Verificar en Neon: verificador SCRAM aceptado y `jit` apagado por rol (o el respaldo a nivel de base de datos).
+- [ ] Verificar en Neon: verificador SCRAM aceptado y `jit` apagado por rol (o el respaldo a nivel de base de datos). **Adelantado en el
+      3.4b:** Neon rechaza el verificador (hay que añadir a `deploy` un modo de texto plano) y `jit` por rol funciona.
 - [ ] Verificar `attachDatabasePool` y la latencia del proxy frente a Neon dentro de los 200 ms del limitador (fallo abierto).
 - [ ] Decidir si hace falta agregar las direcciones IPv6 por `/64` en la clave del limitador.
 - [ ] Primera copia real, simulacro de restauración completo y programación diaria de la copia.

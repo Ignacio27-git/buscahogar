@@ -4387,3 +4387,21 @@ unidades como un gasto evitable.
 
 **Observación:** los dobles deben imitar la respuesta grabada (aquí, `expires_in` de 12 h), y los tests de gasto deben fijar cuántas llamadas
 de red salen en toda la ejecución, no por unidad. Corregido con la decisión 272.
+
+### 2026-10-29 — Modo de fallo mal previsto para el verificador SCRAM en Neon
+
+**Contexto:** primer `deploy` real contra Neon, en el despliegue de demostración (paso 3.4b). La documentación del paso 3.4 y la guía de la
+demo, las dos generadas con asistencia, describían qué pasaría si Neon no aceptaba el verificador SCRAM ya calculado.
+
+**Categoría:** suposición sin verificar presentada como comportamiento conocido.
+
+**Qué se generó mal:** `docs/DEPLOYMENT.md` («Neon») y la primera versión de `docs/DEMO-DEPLOYMENT.md` decían que el despliegue saldría con
+**4** y el mensaje «¿verificador SCRAM no aceptado?». Ese camino solo existe cuando el rol se crea y luego no puede iniciar sesión. Neon
+rechaza el propio `CREATE ROLE` (error 400 de su plano de control: «only supports being given plaintext passwords»), así que el despliegue
+falla antes, en el paso `roles`, con salida **1** y el mensaje del proveedor. La guía también daba por hecho que la primera ejecución diría
+`roles created`.
+
+**Cómo se detectó:** al ejecutar `deploy` contra Neon. No se rompió nada: el fallo llegó antes de crear ningún rol.
+
+**Observación:** el resultado fue el previsto (no se aceptaba), pero el **cómo** era otro. Cuando un supuesto sobre un proveedor no se puede
+comprobar sin cuenta, la documentación debe describir el síntoma como posible, no como seguro. Corregidos `docs/DEPLOYMENT.md` y la guía.

@@ -377,8 +377,8 @@ Dos supuestos del diseño que **no se pueden verificar sin una cuenta de Neon** 
 
 | Comprobación | Cómo | Si falla |
 |---|---|---|
-| El proveedor acepta el verificador SCRAM-SHA-256 ya calculado (`ALTER ROLE … PASSWORD 'SCRAM-SHA-256$4096:…'`) | ejecutar `deploy` y comprobar que el inicio de sesión posterior de ambos roles pasa | salida 4 con «¿verificador SCRAM no aceptado?»; no hay respaldo en texto plano. Decidir en 3.5 |
-| `ALTER ROLE web_readonly … SET jit = off` está permitido | `psql "<URL de web_readonly>" -c 'SHOW jit'` → `off` | el despliegue aplica `ALTER DATABASE … SET jit = off` (afecta a toda la base, la ingesta incluida; decisión 264) y lo registra; si tampoco se permite, salida 4 |
+| El proveedor acepta el verificador SCRAM-SHA-256 ya calculado (`ALTER ROLE … PASSWORD 'SCRAM-SHA-256$4096:…'`) | ejecutar `deploy` y comprobar que el inicio de sesión posterior de ambos roles pasa | **Comprobado el 2026-10-29 (paso 3.4b): Neon NO lo acepta.** El `CREATE ROLE` falla en el paso `roles` con `Neon only supports being given plaintext passwords` y la salida es **1**, no 4. No hay respaldo en texto plano. En la demo, los roles se crearon a mano (`docs/DEMO-DEPLOYMENT.md`, paso 3). Arreglarlo en `deploy` es tarea del 3.5 |
+| `ALTER ROLE web_readonly … SET jit = off` está permitido | `psql "<URL de web_readonly>" -c 'SHOW jit'` → `off` | **Comprobado el 2026-10-29: sí está permitido** (`jit off`, estrategia `role`). Si no lo estuviera, el despliegue aplicaría `ALTER DATABASE … SET jit = off` (afecta a toda la base, la ingesta incluida; decisión 264) y lo registraría; si tampoco se permitiera, salida 4 |
 | La URL del pooler (`-pooler`) funciona con el código de la web | `GET /api/health` y una búsqueda desde Vercel | revisar la decisión 256 (sin estado de sesión) |
 | `sslmode=verify-full` en todas las URL | las URL de producción llevan `?sslmode=verify-full` | `pg` interpreta `sslmode` según su versión: confirmar con una conexión real |
 
