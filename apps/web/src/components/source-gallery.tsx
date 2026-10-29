@@ -13,12 +13,16 @@
 // Cada slide lleva SU PROPIO enlace «anterior»/«siguiente» apuntando al id del
 // slide vecino en el array — nunca a un id inventado: sin vecino no hay ancla,
 // y no existe una rama para una sola foto.
-import Image from 'next/image';
+//
+// Paso 3.4b (decisión 274): una foto que no carga se cambia por «Foto no disponible» dentro de la misma
+// caja 4:3. El pie «Foto N de M» se mantiene, porque la posición en el carrusel sigue siendo cierta.
 import type { ReactElement } from 'react';
 
 import type { PropertyDetailSource } from '@buscahogar/db';
 
 import { sourceLabel } from '@/lib/search-labels';
+
+import { FallbackImage } from './fallback-image';
 
 export interface SourceGalleryProps {
   readonly sources: readonly PropertyDetailSource[];
@@ -80,12 +84,17 @@ export function SourceGallery({ sources }: SourceGalleryProps): ReactElement | n
               className="basis-full shrink-0 snap-start focus-visible:-outline-offset-2"
             >
               <div className="relative aspect-[4/3] overflow-hidden rounded-(--radius-panel) bg-surface-sunken">
-                <Image
+                <FallbackImage
                   src={slide.url}
                   alt={`Foto del anuncio de ${slide.label}`}
                   fill
                   sizes="(min-width: 64rem) 48rem, 100vw"
                   className="object-cover"
+                  fallback={
+                    <span className="absolute inset-0 grid place-items-center text-dense text-ink-muted">
+                      Foto no disponible
+                    </span>
+                  }
                 />
               </div>
               <p id={captionId} className="mt-2 text-dense text-ink-muted">

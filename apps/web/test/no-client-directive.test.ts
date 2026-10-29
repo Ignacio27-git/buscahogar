@@ -28,11 +28,14 @@ const SRC_DIR = fileURLToPath(new URL('../src/', import.meta.url));
 // grafo de imports (lo fija `map-guards.test.ts`).
 // D.14 (decisión 186, enmienda la 113): crece en otras DOS entradas, las fronteras de error de
 // Next. `error.tsx` y `global-error.tsx` DEBEN ser componentes de cliente (reciben `retry`).
+// Paso 3.4b (decisión 274, enmienda la 186): crece en UNA entrada, la imagen con marcador. `onError`
+// es un manejador de eventos del navegador y solo existe en un componente de cliente.
 const CLIENT_COMPONENT_ALLOWLIST = [
   'components/coverage-status.tsx',
   'components/search-map.tsx',
   'app/error.tsx',
   'app/global-error.tsx',
+  'components/fallback-image.tsx',
 ] as const;
 
 function collectSourceFiles(dir: string): string[] {
@@ -67,8 +70,8 @@ describe('apps/web/src — "use client" solo en el allowlist explícito (D10, DD
     }
   });
 
-  it('el allowlist tiene exactamente 4 entradas (decisiones 113 y 186)', () => {
-    expect(CLIENT_COMPONENT_ALLOWLIST).toHaveLength(4);
+  it('el allowlist tiene exactamente 5 entradas (decisiones 113, 186 y 274)', () => {
+    expect(CLIENT_COMPONENT_ALLOWLIST).toHaveLength(5);
   });
 
   it('cada entrada del allowlist existe de verdad en disco — una entrada obsoleta falla en voz alta', () => {
