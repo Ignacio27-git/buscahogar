@@ -16,6 +16,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["next-env.d.ts", "src", "test", "vitest.config.ts", ".next/types/**/*.ts"],
+  "include": ["next-env.d.ts", "src", "test", "e2e", "scripts", "vitest.config.ts", "playwright.config.ts", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]
 }

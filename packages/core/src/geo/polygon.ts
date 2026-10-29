@@ -47,15 +47,15 @@ const EARTH_RADIUS_KM = 6371;
 const COORDINATE_PATTERN = /^-?\d{1,3}(\.\d{1,5})?$/;
 
 const MESSAGES: Readonly<Record<PolygonIssueCode, string>> = {
-  'too-long': `polygon: el valor supera los ${String(POLYGON_MAX_PARAM_LENGTH)} caracteres`,
-  malformed: 'polygon: formato inválido, se esperaba lat,lng;lat,lng;... con hasta 5 decimales',
-  'out-of-range': 'polygon: latitud fuera de [-90, 90] o longitud fuera de [-180, 180]',
-  'too-few': `polygon: se necesitan al menos ${String(POLYGON_MIN_VERTICES)} vértices`,
-  'too-many': `polygon: se admiten como máximo ${String(POLYGON_MAX_VERTICES)} vértices`,
-  'duplicate-vertex': 'polygon: hay un vértice repetido (el anillo es abierto: no repitas el primero al final)',
-  degenerate: 'polygon: todos los vértices están alineados, el área es cero',
-  'self-intersecting': 'polygon: las aristas se cruzan o se tocan',
-  'too-large': `polygon: el área supera el máximo de ${String(POLYGON_MAX_AREA_KM2)} km²`,
+  'too-long': 'es demasiado larga para el enlace; dibuja una zona más sencilla.',
+  malformed: 'el enlace está dañado; vuelve a dibujar la zona.',
+  'out-of-range': 'tiene puntos fuera del mapa; vuelve a dibujar la zona.',
+  'too-few': `necesita al menos ${String(POLYGON_MIN_VERTICES)} vértices.`,
+  'too-many': `admite como máximo ${String(POLYGON_MAX_VERTICES)} vértices.`,
+  'duplicate-vertex': 'tiene un vértice repetido; vuelve a dibujar la zona.',
+  degenerate: 'sus vértices están alineados y no tiene área; vuelve a dibujar la zona.',
+  'self-intersecting': 'sus lados se cruzan; vuelve a dibujar la zona.',
+  'too-large': `supera el área máxima de ${String(POLYGON_MAX_AREA_KM2)} km²; dibuja una zona más pequeña.`,
 };
 
 interface Issue {

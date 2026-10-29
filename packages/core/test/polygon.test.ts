@@ -143,10 +143,26 @@ describe('polygon — un código por fila', () => {
     expect(codeOf('0,0;0,10;10,10;10,0')).toBe('too-large');
   });
 
-  it('el mensaje está en español y nombra polygon', () => {
+  it('el mensaje está en español, en tuteo y sin la clave polygon (la página pone el rótulo)', () => {
     const result = parsePolygonParam('abc');
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.message).toMatch(/^polygon: /);
+    if (!result.ok) expect(result.message).toBe('el enlace está dañado; vuelve a dibujar la zona.');
+  });
+
+  it.each([
+    ['0,0;1,1', 'too-few', 'necesita al menos 3 vértices.'],
+    ['0,0;0,0;1,1', 'duplicate-vertex', 'tiene un vértice repetido; vuelve a dibujar la zona.'],
+    ['0,0;1,1;2,2', 'degenerate', 'sus vértices están alineados y no tiene área; vuelve a dibujar la zona.'],
+    ['95,0;1,1;1,0', 'out-of-range', 'tiene puntos fuera del mapa; vuelve a dibujar la zona.'],
+    ['0,0;0,10;10,10;10,0', 'too-large', 'supera el área máxima de 2500 km²; dibuja una zona más pequeña.'],
+    ['1'.repeat(1101), 'too-long', 'es demasiado larga para el enlace; dibuja una zona más sencilla.'],
+  ])('%s: código %s con su mensaje en español', (raw, code, message) => {
+    const result = parsePolygonParam(raw);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe(code);
+      expect(result.message).toBe(message);
+    }
   });
 });
 
@@ -199,7 +215,7 @@ describe('validatePolygonRing — anillos ya construidos (UI de dibujo)', () => 
         { lat: 1, lon: 0 },
         { lat: 0, lon: 1 },
       ])?.message
-    ).toMatch(/^polygon: /);
+    ).toBe('sus lados se cruzan; vuelve a dibujar la zona.');
   });
 });
 

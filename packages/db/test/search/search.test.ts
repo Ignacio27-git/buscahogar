@@ -132,6 +132,14 @@ describe('buildPropertySearchQuery — recuento de fuentes: subconsulta correlac
     // (decisión 058): listings.source_id ya es NOT NULL REFERENCES sources.id.
     expect(sql).not.toMatch(/join\s+"sources"/i);
   });
+
+  // D.9 (decisión 177): el recuento solo cuenta fuentes con algún anuncio
+  // activo, igual que la ficha (decisión 176). Mismo literal que
+  // `visibility.ts` usa para `active_listing_count`.
+  it('la subconsulta solo cuenta anuncios con status = \'active\'', () => {
+    const { sql } = toSql(BASE);
+    expect(sql).toMatch(/src_l\."status"\s*=\s*'active'/);
+  });
 });
 
 // ROADMAP 1.12 (diseño D4/AR-4) — guarda de regresión de FORMA, no de

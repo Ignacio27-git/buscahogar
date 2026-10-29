@@ -19,6 +19,8 @@ export default defineConfig({
     // suite necesita una base de datos real, nunca la red. `setup-db-env.ts`
     // carga el .env, retira las credenciales de Idealista y lanza si
     // DATABASE_URL sigue ausente.
+    // Decisión 245: crea y migra la base `_ingestion_test` una vez por ejecución.
+    globalSetup: ['test/db/global-setup.ts'],
     setupFiles: ['test/setup-no-network.ts', 'test/db/setup-db-env.ts'],
   },
 });

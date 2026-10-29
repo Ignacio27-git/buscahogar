@@ -263,7 +263,10 @@ export function createListingWriter(db: Database): ListingWriter {
       if (input.nextCursor !== undefined) {
         await tx
           .update(coverageJobs)
-          .set({ cursor: encodeJobCursor(input.fingerprint, input.nextCursor) })
+          // ROADMAP 3.4 (decisión 258, parte 2; D14b): cada página persistida renueva el arrendamiento del job
+          // (reloj de la base de datos), en la MISMA transacción que el cursor: si la página se revierte, el
+          // arrendamiento tampoco avanza.
+          .set({ cursor: encodeJobCursor(input.fingerprint, input.nextCursor), leaseRenewedAt: sql`now()` })
           .where(eq(coverageJobs.id, input.jobId));
       }
 

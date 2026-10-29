@@ -20,3 +20,19 @@ export function shouldKeepRefreshing(status: CoverageJobStatus, refreshCount: nu
   }
   return refreshCount < MAX_REFRESH_COUNT;
 }
+
+// D.13 (decisión 181) — texto que acompaña al refresco automático, puro por la
+// misma razón que `shouldKeepRefreshing`. Los números salen de las constantes.
+// En estado terminal no hay nada que decir: el aviso del servidor ya lo dice.
+const REFRESH_SECONDS = REFRESH_INTERVAL_MS / 1_000;
+const REFRESH_MINUTES = (MAX_REFRESH_COUNT * REFRESH_INTERVAL_MS) / 60_000;
+
+export function describeRefresh(status: CoverageJobStatus, refreshCount: number): string | null {
+  if (status === 'done' || status === 'failed') {
+    return null;
+  }
+  if (shouldKeepRefreshing(status, refreshCount)) {
+    return `Esta página se actualiza sola cada ${String(REFRESH_SECONDS)} segundos durante ${String(REFRESH_MINUTES)} minutos. Después, pulsa «Comprobar de nuevo».`;
+  }
+  return 'Esta página ya no se actualiza sola. Pulsa «Comprobar de nuevo» para ver cómo va.';
+}

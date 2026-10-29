@@ -6,9 +6,10 @@
 import { z } from 'zod';
 
 import { parsePolygonParam, type PolygonRing } from '../geo/polygon.js';
+import { REPEATED_VALUE } from './param-messages.js';
 
 export const polygonParamSchema = z
-  .string({ error: 'polygon: se esperaba un único valor (la clave está repetida o no es texto)' })
+  .string({ error: REPEATED_VALUE })
   .transform((raw, ctx): PolygonRing => {
     const result = parsePolygonParam(raw);
     if (!result.ok) {

@@ -5,7 +5,7 @@
 //
 // Nota de secuenciación (tarea 10.3/10.4, fase 10): en el momento en que
 // esta prueba se escribe, `coverage-db.ts` todavía no tiene ningún
-// importador real — `apps/web/src/app/page.tsx` no lo consume hasta la fase
+// importador real — `apps/web/src/app/(search)/page.tsx` no lo consume hasta la fase
 // 12 de esta misma unidad. La aserción de abajo permite 0 o 1 importadores
 // (nunca más de uno) para que la prueba sea significativa en TODO momento
 // del desarrollo de esta unidad, no solo al final; queda re-confirmada con

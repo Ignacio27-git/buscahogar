@@ -1,6 +1,6 @@
 // ROADMAP 1.11 — searchQuerySchema (diseño D2; docs/DECISIONS.md, decisión
 // 057). Frontera externa real: entra desde los search params de la página
-// de resultados (`apps/web/src/app/page.tsx`). Cada valor reconocido llega
+// de resultados (`apps/web/src/app/(search)/page.tsx`). Cada valor reconocido llega
 // como `string | string[] | undefined` —tal como Next.js resuelve
 // `searchParams`—, nunca ya tipado.
 //
@@ -22,27 +22,42 @@ import type { PolygonRing } from '../geo/polygon.js';
 import { OPERATION_TYPES } from '../types/operation-type.js';
 import { PROPERTY_TYPES } from '../types/property-type.js';
 import { areaQuerySchema } from './area-query.schema.js';
+import { CHOOSE_OPTION, REPEATED_VALUE } from './param-messages.js';
 import { polygonParamSchema } from './polygon-param.schema.js';
 import { zoneSelectionSchema } from './zone-selection.schema.js';
 
 // Un entero decimal sin signo: la ausencia de `-?` es lo que rechaza un
 // umbral negativo (minRooms=-1) sin necesitar una comprobación aparte.
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-function intParam(field: string) {
-  return z.string().trim().regex(/^\d+$/, `${field}: se esperaba un entero decimal sin signo`).transform(Number);
+function intParam() {
+  return z
+    .string({ error: REPEATED_VALUE })
+    .trim()
+    .regex(/^\d+$/, 'escribe un número entero, sin signo ni decimales.')
+    .transform(Number);
 }
 
 // Con signo opcional y parte decimal opcional: hace falta para lat/lng
 // (pueden ser negativos). El rango no-negativo de precio/superficie se
 // acota aparte con `nonNegativeDecimalParam`.
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-function decimalParam(field: string) {
-  return z.string().trim().regex(/^-?\d+(\.\d+)?$/, `${field}: se esperaba un número decimal`).transform(Number);
+function decimalParam() {
+  return z
+    .string({ error: REPEATED_VALUE })
+    .trim()
+    .regex(/^-?\d+(\.\d+)?$/, 'escribe un número; usa punto para los decimales.')
+    .transform(Number);
 }
 
+// D.14 (N1): `Number('9'.repeat(400))` es `Infinity` y `z.number()` lo rechaza como error de tipo;
+// sin `{ error }` propio saldría el texto inglés por defecto de Zod.
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-function nonNegativeDecimalParam(field: string) {
-  return decimalParam(field).pipe(z.number().nonnegative(`${field}: no puede ser negativo`));
+function nonNegativeDecimalParam() {
+  return decimalParam().pipe(
+    z
+      .number({ error: 'escribe un número más pequeño.' })
+      .nonnegative('escribe un número igual o mayor que cero.')
+  );
 }
 
 // ROADMAP 3.1 (decisión 121) — `minPrice`/`maxPrice` llegan en EUROS, con a
@@ -52,38 +67,49 @@ function nonNegativeDecimalParam(field: string) {
 // binario (19.99 * 100 = 1998.9999…) y jamás cambia la intención del usuario.
 // La columna es bigint(number), de modo que el resultado debe ser un entero
 // seguro.
+const PRICE_TOO_LARGE = 'escribe un importe más pequeño.';
+
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-function priceEurosParam(field: string) {
+function priceEurosParam() {
   return z
-    .string()
+    .string({ error: REPEATED_VALUE })
     .trim()
-    .regex(/^\d+(\.\d{1,2})?$/, `${field}: se esperaba un importe en euros con hasta dos decimales`)
+    .regex(/^\d+(\.\d{1,2})?$/, 'escribe un importe en euros, con dos decimales como mucho.')
     .transform((value) => Math.round(Number(value) * 100))
-    .pipe(z.number().refine((cents) => Number.isSafeInteger(cents), `${field}: importe demasiado grande`));
+    .pipe(
+      z
+        .number({ error: PRICE_TOO_LARGE })
+        .refine((cents) => Number.isSafeInteger(cents), PRICE_TOO_LARGE)
+    );
 }
 
 // `page` en un rango fijo (D2): 1..100 — el mismo tope que impone el máximo
 // offset (A-4) expresado aquí como límite de página, nunca clamped, siempre
 // un rechazo nombrado por encima.
 const MAX_PAGE = 100;
+const PAGE_RANGE = `elige una página entre 1 y ${String(MAX_PAGE)}.`;
+
+const ONE_WAY_TO_SET_ZONE = 'usa solo una forma de indicar la zona.';
 
 const rawSearchQuerySchema = z
   .object({
-    operation: z.enum(OPERATION_TYPES).optional(),
-    propertyType: z.enum(PROPERTY_TYPES).optional(),
+    operation: z.enum(OPERATION_TYPES, { error: CHOOSE_OPTION }).optional(),
+    propertyType: z.enum(PROPERTY_TYPES, { error: CHOOSE_OPTION }).optional(),
     // Ya en céntimos tras el parseo (decisión 121).
-    minPrice: priceEurosParam('minPrice').optional(),
-    maxPrice: priceEurosParam('maxPrice').optional(),
-    minSurface: nonNegativeDecimalParam('minSurface').optional(),
-    maxSurface: nonNegativeDecimalParam('maxSurface').optional(),
-    minRooms: intParam('minRooms').optional(),
-    minBathrooms: intParam('minBathrooms').optional(),
-    lat: decimalParam('lat').optional(),
-    lng: decimalParam('lng').optional(),
-    radius: decimalParam('radius').optional(),
-    sort: z.enum(['price', 'surface', 'updated']).optional(),
-    dir: z.enum(['asc', 'desc']).optional(),
-    page: intParam('page').pipe(z.number().min(1).max(MAX_PAGE)).optional(),
+    minPrice: priceEurosParam().optional(),
+    maxPrice: priceEurosParam().optional(),
+    minSurface: nonNegativeDecimalParam().optional(),
+    maxSurface: nonNegativeDecimalParam().optional(),
+    minRooms: intParam().optional(),
+    minBathrooms: intParam().optional(),
+    lat: decimalParam().optional(),
+    lng: decimalParam().optional(),
+    radius: decimalParam().optional(),
+    sort: z.enum(['price', 'surface', 'updated'], { error: CHOOSE_OPTION }).optional(),
+    dir: z.enum(['asc', 'desc'], { error: CHOOSE_OPTION }).optional(),
+    page: intParam()
+      .pipe(z.number({ error: PAGE_RANGE }).min(1, PAGE_RANGE).max(MAX_PAGE, PAGE_RANGE))
+      .optional(),
     // Nunca declarado: cualquier `pageSize` en la URL cae en la rama de
     // clave desconocida de `z.object()` (strip por defecto) y se ignora
     // (Uniform Validation Policy — «no MUST NOT trigger a rejection»).
@@ -104,20 +130,15 @@ const rawSearchQuerySchema = z
     // antes que el resto, así un geo parcial junto a `polygon` se nombra por
     // este motivo y no por «bloque incompleto».
     if (data.polygon !== undefined) {
-      const conflicting = (
-        [
-          ['zone', data.zone],
-          ['lat', data.lat],
-          ['lng', data.lng],
-          ['radius', data.radius],
-        ] as const
-      )
-        .filter(([, value]) => value !== undefined)
-        .map(([name]) => name);
+      // Sin claves en el mensaje: la persona ve «el municipio» y «el punto con radio», una vez.
+      const conflicting = [
+        ...(data.zone !== undefined ? ['el municipio'] : []),
+        ...([data.lat, data.lng, data.radius].some((value) => value !== undefined) ? ['el punto con radio'] : []),
+      ];
       if (conflicting.length > 0) {
         ctx.addIssue({
           code: 'custom',
-          message: `polygon no puede combinarse con ${conflicting.join(', ')}`,
+          message: `no puede combinarse con ${conflicting.join(' ni con ')}; ${ONE_WAY_TO_SET_ZONE}`,
           path: ['polygon'],
         });
         return;
@@ -134,8 +155,7 @@ const rawSearchQuerySchema = z
     if (data.zone !== undefined && geoPresent > 0) {
       ctx.addIssue({
         code: 'custom',
-        message:
-          'zone no puede combinarse con lat/lng/radius: son dos formas distintas de indicar la misma zona geográfica (usa solo una).',
+        message: `no puede combinarse con el punto con radio; ${ONE_WAY_TO_SET_ZONE}`,
         path: ['zone'],
       });
       return;
@@ -148,7 +168,7 @@ const rawSearchQuerySchema = z
     if (present < 3) {
       ctx.addIssue({
         code: 'custom',
-        message: 'lat, lng y radius deben aparecer juntos o no aparecer ninguno (bloque geográfico incompleto).',
+        message: 'el punto con radio está incompleto; elige un municipio en el buscador.',
         path: ['radius'],
       });
       return;
@@ -162,17 +182,17 @@ const rawSearchQuerySchema = z
       radiusMeters: data.radius,
     });
     if (!geoResult.success) {
-      ctx.addIssue({ code: 'custom', message: 'radius debe ser un número positivo.', path: ['radius'] });
+      ctx.addIssue({ code: 'custom', message: 'escribe un número mayor que cero.', path: ['radius'] });
     }
   })
   .refine(
     (data) => data.minPrice === undefined || data.maxPrice === undefined || data.minPrice <= data.maxPrice,
-    { message: 'minPrice no puede ser mayor que maxPrice.', path: ['minPrice'] }
+    { message: 'no puede ser mayor que el precio máximo.', path: ['minPrice'] }
   )
   .refine(
     (data) =>
       data.minSurface === undefined || data.maxSurface === undefined || data.minSurface <= data.maxSurface,
-    { message: 'minSurface no puede ser mayor que maxSurface.', path: ['minSurface'] }
+    { message: 'no puede ser mayor que la superficie máxima.', path: ['minSurface'] }
   );
 
 export const searchQuerySchema = rawSearchQuerySchema.transform(
@@ -211,7 +231,7 @@ export interface PropertySearchCriteria {
   readonly minBathrooms?: number;
   readonly geo?: { readonly lon: number; readonly lat: number; readonly radiusMeters: number };
   // ROADMAP 1.13 Unit D (DD-21) — código INE resuelto, consumido por
-  // `apps/web/src/app/page.tsx` (resolución de zona) para derivar `geo` en
+  // `apps/web/src/app/(search)/page.tsx` (resolución de zona) para derivar `geo` en
   // un paso posterior; `buildPropertySearchQuery` (packages/db/src/search.ts)
   // ignora este campo — no es una columna de `properties`, no filtra nada
   // por sí solo.

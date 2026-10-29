@@ -28,6 +28,7 @@ import type {
   PresenceBatch,
   PresenceCandidate,
   PresenceVerdict,
+  RefreshTarget,
 } from '@buscahogar/core';
 import {
   applyPresenceVerdicts,
@@ -37,18 +38,30 @@ import {
   purgeExpiredClientQuota,
   purgeExpiredZoneQuerySignals,
   purgeZones,
-  reconcileDailyBudget,
+  reconcileRequestBudget,
   refreshLaneCeiling,
-  reserveDailyBudget,
+  reserveRequestBudget,
   resolveZoneGeometryById,
   scheduleRefresh,
   tombstoneExpiredListings,
 } from '@buscahogar/db';
-import type { BudgetReservation, BudgetSnapshotLike, Database, LedgerState, ZoneGeometry } from '@buscahogar/db';
+import type {
+  BudgetReservation,
+  BudgetSnapshotLike,
+  Database,
+  LedgerState,
+  RequestBudgetGrant,
+  ZoneGeometry,
+} from '@buscahogar/db';
 
 import { runReprocessCore } from '../dedup/reprocess-core.js';
 import type { ReprocessIo } from '../dedup/reprocess-core.js';
-import { createIdealistaSource, IdealistaListingNormalizer } from '../sources/idealista/index.js';
+import {
+  createIdealistaSource,
+  createReusableTokenPort,
+  IdealistaListingNormalizer,
+  invalidateOnRejectedToken,
+} from '../sources/idealista/index.js';
 import { filterForRawType } from '../sources/idealista/filter-for-raw-type.js';
 import type { IdealistaSearchPort, IdealistaTokenPort } from '../sources/idealista/ports.js';
 import { createIdealistaPresenceVerifier } from '../sources/idealista/presence-verifier.js';
@@ -64,6 +77,7 @@ import type {
 import { markJobFailedWithoutClaim, selectNextClaimableJob } from './job-selection.js';
 import type { JobLane, PollJob } from './job-selection.js';
 import { buildReport } from './report.js';
+import { DEFAULT_STALE_RUNNING_JOB_AFTER_MS, reclaimStaleRunningJobs } from './stale-job-reclaim.js';
 import { runSweep } from './sweep-runner.js';
 
 export interface CoverageWorkerRealDeps {
@@ -82,14 +96,19 @@ export interface CoverageWorkerRealDeps {
   // composition root). Ausente = 0: el refresco no gasta nada por defecto.
   readonly refreshBudgetFraction?: number;
   // ROADMAP 2.5 (S3; decisión 105): verificación de presencia por `adIds`.
-  // Ausente = sin verificación (composiciones anteriores a S3). `operation` es
-  // la del worker (un proceso cubre UNA operación); `radiusMarginM` se suma al
-  // radio de la zona en la petición.
+  // Ausente = sin verificación (composiciones anteriores a S3). El worker único
+  // verifica anuncios de las dos operaciones (decisión 252); `radiusMarginM` se
+  // suma al radio de la zona en la petición.
   readonly presenceVerification?: {
-    readonly operation: 'sale' | 'rent';
     readonly radiusMarginM: number;
   };
   readonly blockingThresholds: BlockingThresholds;
+  // ROADMAP 3.4 (decisión 258, D14): parada pedida (SIGTERM/SIGINT). Se pasa a `runSweep`, que cierra el barrido
+  // en el límite de página con el desenlace `budget-exhausted`. Ausente = nunca.
+  readonly shouldStop?: () => boolean;
+  // ROADMAP 3.4 (decisión 258, parte 2; D14b): antigüedad del arrendamiento que da un job `running` por
+  // abandonado. Ausente = 900000 ms.
+  readonly staleRunningJobAfterMs?: number;
   readonly io: ReprocessIo;
 }
 
@@ -103,6 +122,16 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
   // UNA instancia compartida por el proceso — composeStore ya es la misma
   // composición reutilizada por scripts/sweep-zone.ts (CR-2).
   const store = composeStore(deps.db);
+
+  // ROADMAP 3.3 (decisión 272): UN token para todo el proceso mientras no caduque (`expires_in` menos un margen),
+  // compartido por los barridos y la verificación de presencia; un 401 de la búsqueda lo invalida para el siguiente
+  // uso. El registro anota solo las adquisiciones REALES de cada barrido o verificación (`tokenSpentSince`).
+  const tokenPort = createReusableTokenPort(deps.tokenPort, { now: Date.now });
+  const searchPort = invalidateOnRejectedToken(deps.searchPort, tokenPort);
+  const tokenSpentSince = (acquisitionsBefore: number): number => tokenPort.acquisitions() - acquisitionsBefore;
+
+  // Recibos de las reservas mensuales en curso, por objeto de reserva (ver `reserveBudget`).
+  const grants = new WeakMap<BudgetReservation, RequestBudgetGrant>();
 
   // ROADMAP 2.5 — mantenimiento de zonas sobre el MISMO pool propietario.
   // Solo delega en `packages/db`: la política (qué zonas, cuándo) vive en
@@ -130,8 +159,8 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
       }
       return result.purged.length;
     },
-    scheduleRefresh(zoneIds: readonly string[]): Promise<number> {
-      return scheduleRefresh(deps.db, { sourceId: deps.sourceUuid, zoneIds, maxAttempts: deps.maxAttempts });
+    scheduleRefresh(targets: readonly RefreshTarget[]): Promise<number> {
+      return scheduleRefresh(deps.db, { sourceId: deps.sourceUuid, targets, maxAttempts: deps.maxAttempts });
     },
     tombstoneExpiredListings(): Promise<number> {
       return tombstoneExpiredListings(deps.db, {
@@ -143,8 +172,9 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
 
   const presenceDeps = deps.presenceVerification;
   const verification: PresenceVerificationPorts | undefined = presenceDeps && {
-    markAbsenceCandidates(job: PollJob, area: AreaQuery): Promise<number> {
-      return markAbsenceCandidates(deps.db, { jobId: job.jobId, operation: area.operation });
+    // La operación que se juzga es la del job (`coverage_jobs.operation`).
+    markAbsenceCandidates(job: PollJob): Promise<number> {
+      return markAbsenceCandidates(deps.db, { jobId: job.jobId });
     },
 
     async nextPresenceBatches(maxBatches: number): Promise<PresencePlan> {
@@ -152,7 +182,6 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
       // verificación de un tick nunca es ilimitada (corte explícito).
       const due = await listDuePresenceCandidates(deps.db, {
         sourceId: deps.sourceUuid,
-        operation: presenceDeps.operation,
         limit: maxBatches * PRESENCE_BATCH_SIZE,
         retryBackoffDays: PRESENCE_RETRY_BACKOFF_DAYS,
       });
@@ -181,11 +210,13 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
     },
 
     async verifyPresence(batches: readonly PresenceBatch[]): Promise<PresenceVerification> {
-      // Una instancia POR llamada (token propio) y con el tope duro = nº de
-      // lotes: el propio presupuesto impide una petición de más.
+      // Una instancia POR llamada y con el tope duro = nº de lotes: el propio
+      // presupuesto impide una petición de más. El token es el del proceso
+      // (decisión 272), así que la instancia solo sale a la red si no hay uno vigente.
+      const acquisitionsBefore = tokenPort.acquisitions();
       const verifier = createIdealistaPresenceVerifier({
-        searchPort: deps.searchPort,
-        tokenPort: deps.tokenPort,
+        searchPort,
+        tokenPort,
         radiusMarginM: presenceDeps.radiusMarginM,
         maxRequests: batches.length,
         log: (line: string): void => {
@@ -198,7 +229,7 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
           verdicts.set(externalId, verdict);
         }
       }
-      return { verdicts, actual: verifier.budgetSnapshot() };
+      return { verdicts, actual: { search: verifier.budgetSnapshot().search, token: tokenSpentSince(acquisitionsBefore) } };
     },
 
     async applyPresence(result: PartitionedPresence): Promise<void> {
@@ -213,6 +244,11 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
   return {
     maintenance,
     ...(verification ? { verification } : {}),
+    // ROADMAP 3.4 (decisión 258, parte 2; D14b): jobs `running` con el arrendamiento caducado -> `failed` (cursor
+    // y ciclo conservados; `maxAttempts` acota los reinicios). Corre al arrancar y en cada tick, antes de elegir.
+    reclaimStaleJobs(): Promise<readonly string[]> {
+      return reclaimStaleRunningJobs(deps.db, deps.staleRunningJobAfterMs ?? DEFAULT_STALE_RUNNING_JOB_AFTER_MS);
+    },
     selectNextJob(): Promise<PollJob | null> {
       return selectNextClaimableJob(deps.db, deps.maxAttempts);
     },
@@ -233,18 +269,45 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
       return markJobFailedWithoutClaim(deps.db, jobId, reason);
     },
 
-    // ROADMAP 2.5 (ZRS-11): el carril de refresco reserva contra el TECHO
+    // ROADMAP 3.3 (decisión 248): TODO gasto pasa por `reserveRequestBudget`, que en una sola
+    // transacción aplica el techo MENSUAL del carril (registro `monthly_request_budget`; sin
+    // fila utilizable no se gasta nada, tampoco a demanda) y el cupo DIARIO.
+    // ROADMAP 2.5 (ZRS-11): el carril de refresco reserva contra el TECHO diario
     // `least(cap, floor(cap × fracción))` sobre el gasto total del día — el
-    // gasto a demanda también cuenta contra él. La demanda no lleva techo y
+    // gasto a demanda también cuenta contra él. La demanda no lleva techo diario y
     // conserva siempre al menos `cap × (1 - fracción)`.
-    reserveBudget(reservation: BudgetReservation, lane: JobLane): Promise<LedgerState | null> {
-      const ceiling =
+    async reserveBudget(reservation: BudgetReservation, lane: JobLane): Promise<LedgerState | null> {
+      const laneCeiling =
         lane === 'refresh' ? refreshLaneCeiling(deps.dailySearchCap, deps.refreshBudgetFraction ?? 0) : undefined;
-      return reserveDailyBudget(deps.db, deps.sourceUuid, reservation, deps.dailySearchCap, ceiling);
+      const result = await reserveRequestBudget(
+        deps.db,
+        deps.sourceUuid,
+        { lane, searchRequested: reservation.searchReserved, tokenReserved: reservation.tokenReserved },
+        { cap: deps.dailySearchCap, ...(laneCeiling !== undefined ? { laneCeiling } : {}) }
+      );
+      if (!result.granted) {
+        // Sin fila mensual el operador debe fijar la cuota (decisión 066): se dice en claro.
+        const hint =
+          result.reason === 'monthly-missing'
+            ? ' No hay cuota mensual utilizable: ejecuta `set-monthly-quota --total <n> --reserve <n>`.'
+            : '';
+        deps.io.log(`coverage-worker: reserva del carril "${lane}" denegada (${result.reason}).${hint}`);
+        return null;
+      }
+      // El recibo lleva el MES de la reserva: la reconciliación devuelve lo no gastado a ese mes
+      // aunque el tick cruce el cambio de mes. El driver crea un objeto de reserva nuevo por cada
+      // reserva, así que el propio objeto sirve de clave.
+      grants.set(reservation, result);
+      return { searchRequests: result.searchGranted, tokenRequests: result.tokenReserved };
     },
 
-    reconcileBudget(reserved: BudgetReservation, actual: BudgetSnapshotLike): Promise<void> {
-      return reconcileDailyBudget(deps.db, deps.sourceUuid, reserved, actual);
+    async reconcileBudget(reserved: BudgetReservation, actual: BudgetSnapshotLike): Promise<void> {
+      const grant = grants.get(reserved);
+      if (!grant) {
+        throw new Error('reconcileBudget: la reserva no se hizo con este puerto (no hay recibo mensual que reconciliar).');
+      }
+      grants.delete(reserved);
+      await reconcileRequestBudget(deps.db, deps.sourceUuid, grant, actual);
     },
 
     // ROADMAP 1.15 (security-hardening, decisión #263 D9) — purga
@@ -257,11 +320,15 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
     },
 
     async claimAndSweep(job: PollJob, area: AreaQuery, fingerprint: string): Promise<SweepTickResult> {
-      const claimed = await store.claimJob(job.zoneId, job.sourceId, fingerprint);
+      // ROADMAP 3.3 (decisión 253, D11): el worker solo recibe jobs a demanda, de refresco o PARCIALES DEL PRESWEEP
+      // PROMOVIDOS (zona con demanda reciente, `selectNextClaimableJob`). Reclamar uno promovido lo saca del carril
+      // batch: se limpia `presweep_requested_at`. En cualquier otro job la marca ya es NULL (no-op).
+      const claimed = await store.claimJob(job.zoneId, job.sourceId, job.operation, fingerprint, { presweep: 'clear' });
 
+      const acquisitionsBefore = tokenPort.acquisitions();
       const source = createIdealistaSource({
-        searchPort: deps.searchPort,
-        tokenPort: deps.tokenPort,
+        searchPort,
+        tokenPort,
         maxSearchRequestsPerSweep: deps.maxSearchRequestsPerSweep,
       });
       const normalizer = new IdealistaListingNormalizer();
@@ -274,6 +341,7 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
         job: claimed,
         sourceUuid: job.sourceId,
         fingerprint,
+        ...(deps.shouldStop ? { shouldStop: deps.shouldStop } : {}),
       });
 
       // Mismo formato que runSweepZone (R2): el informe es la evidencia de
@@ -291,7 +359,11 @@ export function createRealCoverageWorkerPorts(deps: CoverageWorkerRealDeps): Cov
       });
       deps.io.log(JSON.stringify(report, null, 2));
 
-      return { outcome: result.outcome, actual: source.diagnostics().budget };
+      // Token: las llamadas REALES de este barrido, no las que pidió la fuente (decisión 272).
+      return {
+        outcome: result.outcome,
+        actual: { search: source.diagnostics().budget.search, token: tokenSpentSince(acquisitionsBefore) },
+      };
     },
 
     async runDedup(): Promise<void> {

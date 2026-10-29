@@ -2,13 +2,23 @@
 // búsqueda: vista, zona dibujada, quitar zona y selección de zona.
 import { describe, expect, it } from 'vitest';
 
+import type { ClearKeepKey } from '../src/lib/search-href.js';
 import {
   buildClearAreaHref,
+  buildClearFiltersHref,
+  buildCurrentHref,
   buildDrawnAreaHref,
+  buildPageHref,
+  buildRemoveFilterHref,
+  buildSortHref,
   buildViewHref,
   buildZoneSelectionHref,
+  FILTER_BAR_CONTEXT_KEYS,
   canonicalizeFormSubmission,
+  pickFilterBarContext,
 } from '../src/lib/search-href.js';
+import { SORT_PRESETS, sortPresetById } from '../src/lib/sort-presets.js';
+import type { SortPreset } from '../src/lib/sort-presets.js';
 
 const RING = [
   { lat: 40.4, lon: -3.7 },
@@ -123,5 +133,262 @@ describe('canonicalizeFormSubmission (ROADMAP 3.1, decisión 123)', () => {
   it('la marca no se arrastra a los href que se construyen después', () => {
     const cleaned = canonicalizeFormSubmission({ form: 'criteria', operation: 'sale', minRooms: '' });
     expect(buildViewHref(cleaned, 'map')).toBe('/?operation=sale&view=map');
+  });
+});
+
+// D.6a (decisión 151) — quitar un filtro descarta su grupo de claves y `page`,
+// y conserva el resto (view, sort, dir, zoneQuery, claves desconocidas).
+describe('buildRemoveFilterHref — D.6a "Chip removes only its filter"', () => {
+  const BASE = { operation: 'sale', minRooms: '2', sort: 'price', dir: 'asc', page: '2' } as const;
+
+  it('quita solo minRooms y page, y conserva operation, sort y dir', () => {
+    const q = parse(buildRemoveFilterHref(BASE, 'minRooms'));
+    expect([...q.keys()].sort()).toEqual(['dir', 'operation', 'sort']);
+    expect(q.get('operation')).toBe('sale');
+  });
+
+  it.each([
+    ['operation', { operation: 'rent', propertyType: 'flat' }, ['propertyType']],
+    ['propertyType', { operation: 'rent', propertyType: 'flat' }, ['operation']],
+    ['minPrice', { minPrice: '1', maxPrice: '2' }, ['maxPrice']],
+    ['maxPrice', { minPrice: '1', maxPrice: '2' }, ['minPrice']],
+    ['minSurface', { minSurface: '1', maxSurface: '2' }, ['maxSurface']],
+    ['maxSurface', { minSurface: '1', maxSurface: '2' }, ['minSurface']],
+    ['minBathrooms', { minBathrooms: '1', minRooms: '2' }, ['minRooms']],
+    ['zone', { zone: '28079', zoneQuery: 'mad' }, ['zoneQuery']],
+    ['polygon', { polygon: '1,2;3,4;5,6', view: 'map' }, ['view']],
+  ] as const)('%s: quita su clave y conserva las demás', (filter, params, kept) => {
+    const q = parse(buildRemoveFilterHref(params, filter));
+    expect([...q.keys()]).toEqual(kept);
+  });
+
+  it('el filtro geográfico quita lat, lng y radius a la vez (todo o nada)', () => {
+    const q = parse(buildRemoveFilterHref({ lat: '1', lng: '2', radius: '500', operation: 'rent' }, 'geo'));
+    expect([...q.keys()]).toEqual(['operation']);
+  });
+
+  it('devuelve `/` cuando no queda ningún parámetro', () => {
+    expect(buildRemoveFilterHref({ minRooms: '2', page: '3' }, 'minRooms')).toBe('/');
+  });
+
+  it('conserva las claves repetidas desconocidas', () => {
+    expect(parse(buildRemoveFilterHref({ minRooms: '2', tag: ['a', 'b'] }, 'minRooms')).getAll('tag')).toEqual([
+      'a',
+      'b',
+    ]);
+  });
+});
+
+describe('buildClearFiltersHref — D.6a "Clear all"', () => {
+  it('conserva solo view, sort y dir', () => {
+    expect(
+      buildClearFiltersHref({
+        view: 'map',
+        sort: 'price',
+        dir: 'asc',
+        minRooms: '2',
+        zone: '28079',
+        zoneQuery: 'mad',
+        page: '4',
+      })
+    ).toBe('/?view=map&sort=price&dir=asc');
+  });
+
+  it('devuelve `/` cuando no hay nada que conservar', () => {
+    expect(buildClearFiltersHref({ operation: 'sale', page: '2' })).toBe('/');
+  });
+
+  // D.14 (N2) — «Quitar los demás filtros» del estado vacío conserva la zona sin aplicar o el
+  // polígono, para no deshacer la causa que explica el aviso de cobertura.
+  describe('opción `keep`', () => {
+    const params = {
+      view: 'map',
+      sort: 'price',
+      dir: 'asc',
+      minRooms: '2',
+      zone: '28079',
+      zoneQuery: 'mad',
+      polygon: '40,-3;40,-4;41,-4',
+      page: '4',
+    };
+
+    // D.18 (decisión 224): una zona con centroide y radio siempre se aplica, así que ya no hay zona
+    // «sin aplicar» que conservar. `ClearKeepKey` se reduce a `'polygon'` (lo comprueba tsc).
+    it('solo admite conservar el polígono: la zona y su consulta ya no son una clave válida', () => {
+      // @ts-expect-error — `zone` dejó de ser un `ClearKeepKey` (decisión 224)
+      const kept = buildClearFiltersHref(params, { keep: ['zone', 'zoneQuery'] });
+      // En ejecución la función sigue copiando lo que se le pida; el tipo es la barrera.
+      expect(kept).toBe('/?view=map&sort=price&dir=asc&zone=28079&zoneQuery=mad');
+      const keys: readonly ClearKeepKey[] = ['polygon'];
+      expect(keys).toEqual(['polygon']);
+    });
+
+    it('conserva el polígono codificado', () => {
+      expect(buildClearFiltersHref({ polygon: params.polygon, minRooms: '2' }, { keep: ['polygon'] })).toBe(
+        `/?${new URLSearchParams({ polygon: params.polygon }).toString()}`
+      );
+    });
+
+    it('ignora una clave que no está en los parámetros y sin opciones sigue igual', () => {
+      expect(buildClearFiltersHref({ operation: 'sale' }, { keep: ['polygon'] })).toBe('/');
+      expect(buildClearFiltersHref(params, {})).toBe('/?view=map&sort=price&dir=asc');
+    });
+  });
+});
+
+describe('buildPageHref y buildCurrentHref — movidos desde la página, misma salida', () => {
+  it('buildPageHref sustituye page y conserva claves repetidas', () => {
+    expect(buildPageHref({ operation: 'sale', page: '1', tag: ['a', 'b'] }, 3)).toBe(
+      '/?operation=sale&tag=a&tag=b&page=3'
+    );
+  });
+
+  it('buildCurrentHref conserva todo, incluido page, y omite los indefinidos', () => {
+    expect(buildCurrentHref({ operation: 'sale', page: '2', zone: undefined })).toBe('/?operation=sale&page=2');
+  });
+
+  // D.22: la acción «Comprobar de nuevo» del vacío sin filtros apunta a «/», no a «/?».
+  it('buildCurrentHref sin ningún parámetro devuelve «/» y no «/?»', () => {
+    expect(buildCurrentHref({})).toBe('/');
+    expect(buildCurrentHref({ zone: undefined })).toBe('/');
+  });
+});
+
+describe('pickFilterBarContext — D.6a "Hidden state kept, page dropped"', () => {
+  it('reenvía view y zone, y nunca page', () => {
+    const pairs = pickFilterBarContext({ view: 'map', zone: '28079', page: '3', operation: 'sale' });
+    expect(pairs).toEqual([
+      ['view', 'map'],
+      ['zone', '28079'],
+    ]);
+  });
+
+  it('solo reenvía valores escalares: un valor repetido no se reenvía', () => {
+    expect(pickFilterBarContext({ view: ['map', 'map'], zoneQuery: 'mad' })).toEqual([['zoneQuery', 'mad']]);
+  });
+
+  it('omite las claves rechazadas', () => {
+    expect(pickFilterBarContext({ view: 'map', polygon: '1,2;3,4;5,6', zone: '28079' }, new Set(['polygon']))).toEqual([
+      ['view', 'map'],
+      ['zone', '28079'],
+    ]);
+  });
+
+  it('si se rechaza cualquiera de lat, lng o radius se omiten las tres', () => {
+    const params = { lat: '1', lng: '2', radius: '500', view: 'map' };
+    expect(pickFilterBarContext(params, new Set(['radius']))).toEqual([['view', 'map']]);
+    expect(pickFilterBarContext(params)).toEqual([
+      ['view', 'map'],
+      ['lat', '1'],
+      ['lng', '2'],
+      ['radius', '500'],
+    ]);
+  });
+});
+
+// D.18 (decisión 227) — enlaces de ordenación: conservan los filtros, reinician `page` y dejan sort/dir
+// en la URL salvo en el predefinido (updated/desc), donde se omiten.
+describe('buildSortHref', () => {
+  const preset = (id: string): SortPreset => {
+    const found = sortPresetById(id);
+    if (found === undefined) throw new Error(id);
+    return found;
+  };
+
+  it('pone sort y dir, conserva los filtros y quita page', () => {
+    expect(buildSortHref({ operation: 'sale', page: '3', view: 'map' }, preset('price-asc'))).toBe(
+      '/?operation=sale&view=map&sort=price&dir=asc'
+    );
+  });
+
+  it('sustituye el sort/dir anterior en vez de duplicarlo', () => {
+    expect(buildSortHref({ sort: 'surface', dir: 'asc', minRooms: '2' }, preset('price-desc'))).toBe(
+      '/?minRooms=2&sort=price&dir=desc'
+    );
+  });
+
+  it('el predefinido omite sort y dir', () => {
+    expect(buildSortHref({ sort: 'price', dir: 'asc', operation: 'rent', page: '2' }, preset('recent'))).toBe(
+      '/?operation=rent'
+    );
+    expect(buildSortHref({ sort: 'price' }, preset('recent'))).toBe('/');
+  });
+
+  it('cada preset no predefinido produce su par', () => {
+    for (const p of SORT_PRESETS.filter((candidate) => candidate.id !== 'recent')) {
+      expect(parse(buildSortHref({}, p)).get('sort')).toBe(p.sort);
+      expect(parse(buildSortHref({}, p)).get('dir')).toBe(p.dir);
+    }
+  });
+});
+
+describe('contexto de la barra: sort y dir sobreviven al envío (XC3)', () => {
+  it('FILTER_BAR_CONTEXT_KEYS incluye sort y dir', () => {
+    expect(FILTER_BAR_CONTEXT_KEYS).toContain('sort');
+    expect(FILTER_BAR_CONTEXT_KEYS).toContain('dir');
+  });
+
+  it('pickFilterBarContext reenvía sort/dir escalares y omite los rechazados', () => {
+    const params = { sort: 'price', dir: 'asc', view: 'map' };
+    expect(pickFilterBarContext(params)).toEqual([
+      ['view', 'map'],
+      ['sort', 'price'],
+      ['dir', 'asc'],
+    ]);
+    expect(pickFilterBarContext(params, new Set(['sort']))).toEqual([
+      ['view', 'map'],
+      ['dir', 'asc'],
+    ]);
+  });
+});
+
+// D.18 (decisión 227) — el panel de `?q=` envía un único campo `order`; la canonicalización lo
+// convierte en sort/dir. Todo `order` no mapeable pasa en bruto a `sort` para que Zod lo rechace
+// con su nombre («Ordenar por»), igual que un `sort` inválido o repetido.
+describe('canonicalizeFormSubmission — campo order (D.18)', () => {
+  const marked = { form: 'criteria' };
+
+  it('un order conocido pasa a sort y dir y desaparece', () => {
+    expect(canonicalizeFormSubmission({ ...marked, order: 'price-asc', minRooms: '2' })).toEqual({
+      minRooms: '2',
+      sort: 'price',
+      dir: 'asc',
+    });
+    expect(canonicalizeFormSubmission({ ...marked, order: 'surface-desc' })).toEqual({
+      sort: 'surface',
+      dir: 'desc',
+    });
+  });
+
+  it('el predefinido quita sort y dir', () => {
+    expect(canonicalizeFormSubmission({ ...marked, order: 'recent', sort: 'price', dir: 'asc' })).toEqual({});
+  });
+
+  it('order manda sobre un sort/dir que lleguen a la vez', () => {
+    expect(canonicalizeFormSubmission({ ...marked, order: 'price-desc', sort: 'surface', dir: 'asc' })).toEqual({
+      sort: 'price',
+      dir: 'desc',
+    });
+  });
+
+  it('un order desconocido se entrega en bruto a sort para que Zod lo rechace con nombre', () => {
+    expect(canonicalizeFormSubmission({ ...marked, order: 'barato', dir: 'asc' })).toEqual({ sort: 'barato' });
+    expect(canonicalizeFormSubmission({ ...marked, order: 'toString' })).toEqual({ sort: 'toString' });
+  });
+
+  it('un order repetido se entrega como lista a sort (rechazo nombrado, no se ignora)', () => {
+    expect(canonicalizeFormSubmission({ ...marked, order: ['recent', 'price-asc'] })).toEqual({
+      sort: ['recent', 'price-asc'],
+    });
+    expect(canonicalizeFormSubmission({ ...marked, order: ['price-asc', ''] })).toEqual({
+      sort: 'price',
+      dir: 'asc',
+    });
+  });
+
+  it('un order en blanco se ignora; sin la marca no se toca nada', () => {
+    expect(canonicalizeFormSubmission({ ...marked, order: ' ', sort: 'price' })).toEqual({ sort: 'price' });
+    const raw = { order: 'price-asc' };
+    expect(canonicalizeFormSubmission(raw)).toBe(raw);
   });
 });

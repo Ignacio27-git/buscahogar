@@ -6,8 +6,28 @@
   "description": "Esquema de base de datos, cliente ORM y migraciones",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./deploy": {
+      "types": "./dist/deploy.d.ts",
+      "default": "./dist/deploy.js"
+    },
+    "./e2e": {
+      "types": "./dist/e2e/public.d.ts",
+      "default": "./dist/e2e/public.js"
+    },
+    "./test-database": {
+      "types": "./dist/test-database.d.ts",
+      "default": "./dist/test-database.js"
+    }
+  },
   "files": [
-    "dist"
+    "dist",
+    "migrations",
+    "sql"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -19,6 +39,7 @@
     "generate": "drizzle-kit generate",
     "migrate": "node --env-file=../../.env node_modules/drizzle-kit/bin.cjs migrate",
     "seed": "tsc -p tsconfig.build.json && node --env-file=../../.env dist/seed.js",
+    "seed:e2e": "tsc -p tsconfig.build.json && node dist/e2e/seed.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

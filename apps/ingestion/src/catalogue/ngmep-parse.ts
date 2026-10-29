@@ -27,7 +27,14 @@ import { z } from 'zod';
 
 import { parseCommaDecimal } from './numeric.js';
 
-export type NgmepFieldKey = 'entityCode' | 'name' | 'provinceCode' | 'superficieHectares' | 'latitude' | 'longitude';
+export type NgmepFieldKey =
+  | 'entityCode'
+  | 'name'
+  | 'provinceCode'
+  | 'population'
+  | 'superficieHectares'
+  | 'latitude'
+  | 'longitude';
 
 export type NgmepFieldMap = Readonly<Record<NgmepFieldKey, string>>;
 
@@ -38,6 +45,7 @@ export const NGMEP_FIELD_MAP: NgmepFieldMap = {
   entityCode: 'COD_INE',
   name: 'NOMBRE_ACTUAL',
   provinceCode: 'COD_PROV',
+  population: 'POBLACION_MUNI',
   superficieHectares: 'SUPERFICIE',
   longitude: 'LONGITUD_ETRS89_REGCAN95',
   latitude: 'LATITUD_ETRS89_REGCAN95',
@@ -47,6 +55,8 @@ export interface NgmepRow {
   readonly entityCode: string;
   readonly name: string;
   readonly provinceCode: string;
+  // Población municipal (3.3, decisión 249). `null` = desconocida, nunca 0.
+  readonly population: number | null;
   readonly superficieHectares: number;
   readonly latitude: number;
   readonly longitude: number;
@@ -87,10 +97,29 @@ export class MalformedNgmepRowError extends Error {
 // cual fuera de `.parse()`, sin que parseNgmepCsv la envuelva — mismo
 // comportamiento fail-loud que tenía antes de este refactor, ahora
 // verificado explícitamente por el test de este módulo.
+// ROADMAP 3.3 (decisión 249, diseño D14) — población municipal. Solo un
+// entero positivo en texto plano y dentro del rango de `integer` de
+// PostgreSQL es un dato; cualquier otra cosa (vacío, espacios, `0`,
+// decimales, signos, separadores de miles, texto) es "desconocida" y NO
+// aborta el parseo: la población solo ordena el top-N de la prebúsqueda y un
+// dato dudoso no debe tumbar el resto del catálogo. La deriva masiva de
+// formato la detecta la guarda del importador (< 90 % con población).
+const POPULATION_PATTERN = /^[1-9]\d*$/;
+const POSTGRES_INTEGER_MAX = 2_147_483_647;
+
+export function parsePopulation(raw: string): number | null {
+  if (!POPULATION_PATTERN.test(raw)) {
+    return null;
+  }
+  const value = Number(raw);
+  return value <= POSTGRES_INTEGER_MAX ? value : null;
+}
+
 const ngmepRowSchema = z.object({
   entityCode: z.string().trim().min(1, 'código de entidad (COD_INE) vacío'),
   name: z.string().trim().min(1, 'nombre de municipio (NOMBRE_ACTUAL) vacío'),
   provinceCode: z.string().trim().min(1, 'código de provincia (COD_PROV) vacío'),
+  population: z.string().transform((raw) => parsePopulation(raw)),
   superficieHectares: z.string().transform((raw) => parseCommaDecimal(raw)),
   latitude: z.string().transform((raw) => parseCommaDecimal(raw)),
   longitude: z.string().transform((raw) => parseCommaDecimal(raw)),
@@ -157,6 +186,7 @@ export function parseNgmepCsv(
       entityCode: cells[columnIndex.entityCode] ?? '',
       name: cells[columnIndex.name] ?? '',
       provinceCode: cells[columnIndex.provinceCode] ?? '',
+      population: cells[columnIndex.population] ?? '',
       superficieHectares: cells[columnIndex.superficieHectares] ?? '',
       latitude: cells[columnIndex.latitude] ?? '',
       longitude: cells[columnIndex.longitude] ?? '',

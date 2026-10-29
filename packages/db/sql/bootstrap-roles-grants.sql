@@ -36,7 +36,14 @@
 
 -- Conexión: ambos roles deben poder autenticarse contra `buscahogar` en
 -- absoluto, antes de que importe ningún otro privilegio.
-GRANT CONNECT ON DATABASE buscahogar TO web_readonly, web_coverage;
+-- Agnóstico de la base (decisión 245): usa `current_database()`, así que el mismo
+-- fichero sirve a la de desarrollo (`psql -d buscahogar`) y a la `_web_test`, que
+-- el `globalSetup` de `apps/web` aprovisiona ejecutándolo.
+DO $$
+BEGIN
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO web_readonly, web_coverage', current_database());
+END
+$$;
 
 -- Uso del esquema `public`: sin esto, ningún SELECT/INSERT posterior sobre
 -- una tabla de `public` es alcanzable, aunque el GRANT sobre la tabla en
@@ -70,6 +77,13 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE coverage_client_quota TO web_cover
 -- este fichero tras aplicar la migración 0013.
 GRANT INSERT ON TABLE zone_query_signals TO web_coverage;
 
+-- `web_coverage` (ROADMAP 3.4, decisión 255, que amplía la 064/076/102) — limitador de peticiones
+-- COMPARTIDO de `apps/web/src/proxy.ts`. La sentencia atómica del limitador (purga acotada + upsert
+-- con `RETURNING`) necesita SELECT (la subconsulta de la purga y el `RETURNING`), INSERT y UPDATE
+-- (el upsert) y DELETE (la purga de ventanas vencidas). Ningún otro privilegio ni otra tabla. El
+-- propietario debe volver a ejecutar este fichero tras aplicar la migración 0020.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE proxy_rate_limit TO web_coverage;
+
 -- Privilegio por defecto para tablas FUTURAS creadas por el propietario:
 -- sin esto, una tabla nueva de una migración posterior (por ejemplo,
 -- `daily_request_budget`) no sería legible por `web_readonly` hasta
@@ -83,4 +97,56 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO web_readonly
 -- (~550 ms) dominaba una consulta de ~50 ms. Acotado al rol y a esta base de
 -- datos: la ingesta y la deduplicación (propietario) conservan el JIT.
 -- Idempotente: `ALTER ROLE ... SET` sustituye el valor previo.
-ALTER ROLE web_readonly IN DATABASE buscahogar SET jit = off;
+-- Decisión 264 (enmienda la 101): un proveedor gestionado puede no permitir `ALTER ROLE ... SET` a
+-- quien ejecuta el bootstrap; en ese caso se avisa y el despliegue aplica el respaldo a nivel de base
+-- de datos y lo verifica (`SHOW jit` como `web_readonly`).
+DO $$
+BEGIN
+  EXECUTE format('ALTER ROLE web_readonly IN DATABASE %I SET jit = off', current_database());
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE NOTICE 'No se pudo fijar jit = off a nivel de rol (insufficient_privilege): requiere el respaldo a nivel de base de datos';
+END
+$$;
+
+-- Registro MENSUAL de cuota de peticiones (ROADMAP 3.3, decisión 248, NF2): es solo del
+-- propietario (`apps/ingestion`). Los `GRANT SELECT ON ALL TABLES` de arriba y los privilegios por
+-- defecto de la línea anterior le darían SELECT a `web_readonly`, así que este REVOKE va SIEMPRE
+-- DESPUÉS de ambos y hay que conservarlo ahí: moverlo antes lo anularía. Un REVOKE no es un GRANT
+-- nuevo. `monthly_request_budget` aparece con la migración 0019; si el bootstrap corre antes,
+-- no hay nada que revocar (la migración revoca al crearla).
+DO $$
+BEGIN
+  IF to_regclass('public.monthly_request_budget') IS NOT NULL THEN
+    REVOKE ALL ON TABLE monthly_request_budget FROM web_readonly, web_coverage;
+  END IF;
+END
+$$;
+
+-- Limitador de peticiones compartido (ROADMAP 3.4, decisión 255, D5b, R1.5): lo toca SOLO `web_coverage`
+-- (SELECT/INSERT/UPDATE/DELETE, concedidos arriba). Por la misma razón que el registro mensual, los
+-- `GRANT SELECT ON ALL TABLES` y los privilegios por defecto de más arriba le darían SELECT a
+-- `web_readonly`, así que este REVOKE va SIEMPRE DESPUÉS de ambos, junto al anterior, y es el último
+-- bloque del fichero. Solo se revoca a `web_readonly`: `web_coverage` conserva su S/I/U/D. La migración
+-- 0020 hace el mismo REVOKE al crear la tabla; si el bootstrap corre antes, no hay nada que revocar.
+DO $$
+BEGIN
+  IF to_regclass('public.proxy_rate_limit') IS NOT NULL THEN
+    REVOKE ALL ON TABLE proxy_rate_limit FROM web_readonly;
+  END IF;
+END
+$$;
+
+-- Deduplicación duradera de avisos operativos (ROADMAP 3.4, decisión 259, D17, R7.3): tabla SOLO del propietario
+-- (`apps/ingestion`). Mismo motivo que las dos anteriores: los `GRANT SELECT ON ALL TABLES` y los privilegios
+-- por defecto de más arriba le darían SELECT a `web_readonly`, así que este REVOKE va SIEMPRE DESPUÉS de
+-- ambos, junto a los anteriores, y es el último bloque del fichero. A diferencia del limitador, se revoca a
+-- AMBOS roles web. La migración 0022 hace el mismo REVOKE al crear la tabla; si el bootstrap corre antes, no hay
+-- nada que revocar.
+DO $$
+BEGIN
+  IF to_regclass('public.alert_dispatch_log') IS NOT NULL THEN
+    REVOKE ALL ON TABLE alert_dispatch_log FROM web_readonly, web_coverage;
+  END IF;
+END
+$$;

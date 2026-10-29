@@ -36,6 +36,10 @@ export const locations = pgTable(
     autonomousCommunity: text('autonomous_community').notNull(),
     centroid: geographyPoint('centroid'),
     sweepRadiusM: integer('sweep_radius_m'),
+    // ROADMAP 3.3 (decisión 249, migración 0017): población municipal del
+    // NGMEP. Nulable: NULL = desconocida (nunca 0). Ordena el top-N de la
+    // prebúsqueda.
+    population: integer('population'),
     searchName: text('search_name').notNull(),
     createdAt: createdAt(),
   },

@@ -8,15 +8,29 @@ import type { Database } from './db.js';
 import { coverageJobs, sources } from './tables.js';
 import { utcDayStart } from './time.js';
 
+// ROADMAP 3.3 (decisión 250): el job es POR OPERACIÓN; venta y alquiler de una
+// zona son jobs independientes y la clave única incluye la operación en los dos
+// índices (total y parcial pending/running).
+export type CoverageOperation = 'sale' | 'rent';
+
 // DD-16 (arbitraje CR-3): `ON CONFLICT DO NOTHING` SIN `target` — cualquier
 // conflicto de unicidad (el índice parcial pending/running heredado del
-// paso 1.7, o el nuevo índice único TOTAL de DD-16) se trata como éxito.
+// paso 1.7, o el índice único TOTAL de DD-16, ambos con la operación) se trata
+// como éxito.
 // `status`/`cursor` van explícitos aunque coincidan con el default de la
 // columna (coverage-jobs.ts:21,24): documenta la garantía de la spec
 // («status='pending', cursor=NULL») en el propio call site, no solo en el
 // esquema.
-export async function registerCoverageJob(db: Database, zoneId: string, sourceId: string): Promise<void> {
-  await db.insert(coverageJobs).values({ zoneId, sourceId, status: 'pending', cursor: null }).onConflictDoNothing();
+export async function registerCoverageJob(
+  db: Database,
+  zoneId: string,
+  sourceId: string,
+  operation: CoverageOperation
+): Promise<void> {
+  await db
+    .insert(coverageJobs)
+    .values({ zoneId, sourceId, operation, status: 'pending', cursor: null })
+    .onConflictDoNothing();
 }
 
 // DD-14 — el contador de "zonas nuevas hoy" deriva de
@@ -24,9 +38,13 @@ export async function registerCoverageJob(db: Database, zoneId: string, sourceId
 // importación masiva de Unit A es uniforme para ~8.100 filas). Cero
 // columnas nuevas, cero privilegio nuevo: el rol de solo lectura ya puede
 // leer `coverage_jobs` en su totalidad.
+//
+// ROADMAP 3.3 (decisión 251, PD9): una búsqueda sin operación registra DOS jobs
+// (venta y alquiler) para la misma zona; el tope cuenta ZONAS, así que se cuentan
+// `zone_id` distintos y no filas.
 export async function countZonesOpenedToday(db: Database): Promise<number> {
   const [row] = await db
-    .select({ count: sql<number>`count(*)`.mapWith(Number) })
+    .select({ count: sql<number>`count(distinct ${coverageJobs.zoneId})`.mapWith(Number) })
     .from(coverageJobs)
     .where(gte(coverageJobs.requestedAt, utcDayStart()));
   return row?.count ?? 0;
@@ -43,7 +61,8 @@ export interface CoverageJobState {
 export async function getCoverageJobState(
   db: Database,
   zoneId: string,
-  sourceId: string
+  sourceId: string,
+  operation: CoverageOperation
 ): Promise<CoverageJobState | null> {
   const [row] = await db
     .select({
@@ -54,8 +73,55 @@ export async function getCoverageJobState(
       error: coverageJobs.error,
     })
     .from(coverageJobs)
-    .where(and(eq(coverageJobs.zoneId, zoneId), eq(coverageJobs.sourceId, sourceId)));
+    .where(
+      and(
+        eq(coverageJobs.zoneId, zoneId),
+        eq(coverageJobs.sourceId, sourceId),
+        eq(coverageJobs.operation, operation)
+      )
+    );
   return row ?? null;
+}
+
+// ROADMAP 3.3 (decisión 251, PD9): estado de TODAS las operaciones de una zona en
+// una sola consulta. `lastCompletedAt` no nulo es la cobertura de esa operación
+// (decisión 250); su ausencia (o la ausencia de la fila) la deja sin cubrir.
+export interface CoverageOperationState extends CoverageJobState {
+  readonly operation: CoverageOperation;
+  readonly lastCompletedAt: Date | null;
+  // `requested_at` cae en el día UTC de hoy (reloj de Postgres): esa fila ya cuenta en
+  // `countZonesOpenedToday`, así que su zona no abre una plaza nueva del tope.
+  readonly requestedToday: boolean;
+}
+
+// `coverage_jobs.operation` es `text` con CHECK en ('sale', 'rent'): se estrecha
+// sin aserciones de tipo; otro valor sería una violación del esquema.
+function narrowOperation(value: string): CoverageOperation {
+  if (value === 'sale' || value === 'rent') {
+    return value;
+  }
+  throw new Error(`coverage_jobs.operation inesperada: "${value}" (el CHECK solo admite sale o rent).`);
+}
+
+export async function listCoverageJobStates(
+  db: Database,
+  zoneId: string,
+  sourceId: string
+): Promise<readonly CoverageOperationState[]> {
+  const rows = await db
+    .select({
+      operation: coverageJobs.operation,
+      status: coverageJobs.status,
+      attempts: coverageJobs.attempts,
+      requestedAt: coverageJobs.requestedAt,
+      startedAt: coverageJobs.startedAt,
+      error: coverageJobs.error,
+      lastCompletedAt: coverageJobs.lastCompletedAt,
+      requestedToday: sql<boolean>`${coverageJobs.requestedAt} >= ${utcDayStart()}`,
+    })
+    .from(coverageJobs)
+    .where(and(eq(coverageJobs.zoneId, zoneId), eq(coverageJobs.sourceId, sourceId)));
+  return rows.map((row) => ({ ...row, operation: narrowOperation(row.operation) }));
 }
 
 // Adición señalada, ausente del listado literal de interfaces del diseño

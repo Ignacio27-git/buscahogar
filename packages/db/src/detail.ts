@@ -17,10 +17,10 @@
 // retorno a propósito (PD-3): la frontera la impone el compilador, no la
 // disciplina de la interfaz — ningún cambio en la UI puede filtrarlos sin
 // editar este fichero primero.
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 
 import type { Database } from './db.js';
-import { listingVersions, listings, properties, propertyListings, sources } from './tables.js';
+import { listingVersions, listings, locations, properties, propertyListings, sources } from './tables.js';
 
 export interface PropertyDetailHeader {
   readonly id: string;
@@ -36,6 +36,11 @@ export interface PropertyDetailHeader {
   readonly title: string | null;
   readonly description: string | null;
   readonly address: string | null;
+  // D.11: coordenadas de `properties.location` (ST_Y/ST_X; ambas NULL si no hay
+  // ubicación) y municipio de `locations` (NULL sin `location_id`).
+  readonly lat: number | null;
+  readonly lon: number | null;
+  readonly municipality: string | null;
 }
 
 export interface PropertyDetailSource {
@@ -53,6 +58,18 @@ export interface PropertyDetailSource {
   readonly bathrooms: number | null;
   readonly floor: string | null;
   readonly address: string | null;
+}
+
+// D.10 — una observación de precio: una fila por versión de anuncio. Solo
+// estos cinco campos: ni `score`/`signals` ni el texto que el tombstone
+// redacta (decisión 107), de modo que un anuncio retirado o redactado sigue
+// aportando precio y fecha.
+export interface PropertyPriceObservation {
+  readonly sourceKey: string;
+  readonly listingId: string;
+  readonly status: string;
+  readonly priceCents: number;
+  readonly capturedAt: Date;
 }
 
 // Devuelve `undefined` cuando no hay ninguna fila `property_listings` para
@@ -79,9 +96,13 @@ export async function getPropertyDetailHeader(
       title: properties.title,
       description: properties.description,
       address: properties.address,
+      lat: sql<number | null>`ST_Y(${properties.location})`.mapWith(Number),
+      lon: sql<number | null>`ST_X(${properties.location})`.mapWith(Number),
+      municipality: locations.municipality,
     })
     .from(propertyListings)
     .innerJoin(properties, eq(properties.id, propertyListings.propertyId))
+    .leftJoin(locations, eq(locations.id, properties.locationId))
     .where(eq(propertyListings.listingId, listingId));
 
   return row;
@@ -116,5 +137,32 @@ export async function getPropertySources(db: Database, propertyId: string): Prom
       and(eq(listingVersions.listingId, listings.id), sql`${listingVersions.isCurrent}`)
     )
     .innerJoin(sources, eq(sources.id, listings.sourceId))
-    .where(eq(propertyListings.propertyId, propertyId));
+    .where(eq(propertyListings.propertyId, propertyId))
+    // Orden determinista (D.9): activos primero, luego precio y por último id,
+    // para que la lista y la galería de la ficha compartan un único orden.
+    .orderBy(sql`(${listings.status} = 'active') DESC`, asc(listingVersions.priceCents), asc(listings.id));
+}
+
+// D.10 — histórico de precios de la vivienda: TODAS las versiones de sus
+// anuncios (sin filtrar por `isCurrent` ni por `status`), en una única
+// sentencia. Orden determinista: `captured_at`, `version` e id del anuncio.
+// Sin LIMIT: pocas versiones por vivienda y sin consulta a fuentes externas.
+export async function getPropertyPriceHistory(
+  db: Database,
+  propertyId: string
+): Promise<readonly PropertyPriceObservation[]> {
+  return db
+    .select({
+      sourceKey: sources.key,
+      listingId: listings.id,
+      status: listings.status,
+      priceCents: listingVersions.priceCents,
+      capturedAt: listingVersions.capturedAt,
+    })
+    .from(propertyListings)
+    .innerJoin(listings, eq(listings.id, propertyListings.listingId))
+    .innerJoin(listingVersions, eq(listingVersions.listingId, listings.id))
+    .innerJoin(sources, eq(sources.id, listings.sourceId))
+    .where(eq(propertyListings.propertyId, propertyId))
+    .orderBy(asc(listingVersions.capturedAt), asc(listingVersions.version), asc(listings.id));
 }

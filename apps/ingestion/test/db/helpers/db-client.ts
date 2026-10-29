@@ -8,6 +8,7 @@
 // `Database` llegan aquí desde `@buscahogar/db` (paquete, no ruta relativa)
 // porque `apps/ingestion` ya lo declara como dependencia (tarea 2.1).
 import { createDb } from '@buscahogar/db';
+import { assertConnectedToTestDatabase } from '@buscahogar/db/test-database';
 import type { Database } from '@buscahogar/db';
 import type { Pool } from 'pg';
 
@@ -38,6 +39,10 @@ const TABLES_IN_FK_ORDER = [
   'listings',
   'properties',
   'dedup_runs',
+  // ROADMAP 3.3: registro mensual de cuota; referencia `sources` (va antes).
+  'monthly_request_budget',
+  // ROADMAP 3.4 (decisión 259): deduplicación duradera de avisos; sin claves foráneas.
+  'alert_dispatch_log',
   'zones',
   'sources',
   'locations',
@@ -47,6 +52,8 @@ const TABLES_IN_FK_ORDER = [
 // Vacía todas las tablas de aplicación entre tests y reinicia los
 // contadores de identidad. No toca las tablas propias de PostGIS.
 export async function truncateAll(pool: Pool): Promise<void> {
+  // Decisión 245: última barrera, la conexión REAL debe ser a una base `_test`.
+  await assertConnectedToTestDatabase(pool);
   const tableList = TABLES_IN_FK_ORDER.map((table) => `"${table}"`).join(', ');
   await pool.query(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE`);
 }

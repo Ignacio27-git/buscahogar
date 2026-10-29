@@ -1,2 +1,2704 @@
-/* Tailwind CSS v4: se importa como una sola regla @import, sin @tailwind base/components/utilities. */
+/*
+ * Tokens de diseño y estilos base. Tailwind CSS v4: un único @import, sin @tailwind.
+ *
+ * Los colores son variables semánticas que cambian con el tema; `@theme inline` las
+ * expone como utilidades (`bg-surface`, `text-ink`...) para que los componentes no
+ * necesiten variantes `dark:`. El resto de escalas va en `@theme static`, que emite
+ * siempre sus variables aunque ninguna utilidad las use.
+ *
+ * Los tres bloques de tema (`:root`, `.dark` y el de `prefers-color-scheme`) declaran
+ * los mismos nombres; `.dark` y el bloque de media repiten los valores y un test
+ * (`apps/web/test/design-tokens.test.ts`) comprueba que son idénticos, que cada par
+ * texto/fondo cumple WCAG en ambos temas y que no hay colores literales fuera de aquí.
+ */
 @import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light dark;
+
+  --surface: #faf8f3;
+  --surface-raised: #fefdfb;
+  --surface-sunken: oklch(95% 0.008 85);
+  --ink: #1e1c19;
+  --ink-muted: oklch(49% 0.014 70);
+  --rule: #e4e2dc;
+  --rule-control: oklch(60% 0.012 70);
+  --accent: #1f5fa8;
+  --ink-on-accent: #ffffff;
+  --focus: #1f5fa8;
+  --danger: oklch(52% 0.17 27);
+  --selection: oklch(90% 0.04 252);
+  --hatch: #b0662b;
+  --shadow-color: oklch(25% 0.012 70 / 0.14);
+  --vegetation: oklch(47% 0.09 150);
+  --vegetation-wash: oklch(95% 0.022 145);
+  --accent-wash: oklch(95% 0.018 252);
+  --danger-wash: oklch(95% 0.018 25);
+}
+
+.light {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --surface: oklch(20.5% 0.006 70);
+  --surface-raised: oklch(24.5% 0.007 70);
+  --surface-sunken: oklch(16.5% 0.005 70);
+  --ink: oklch(92% 0.012 85);
+  --ink-muted: oklch(71% 0.014 75);
+  --rule: oklch(32% 0.008 70);
+  --rule-control: oklch(57% 0.012 70);
+  --accent: oklch(72% 0.12 252);
+  --ink-on-accent: oklch(20.5% 0.006 70);
+  --focus: oklch(72% 0.12 252);
+  --danger: oklch(72% 0.14 25);
+  --selection: oklch(38% 0.08 252);
+  --hatch: oklch(70% 0.11 56);
+  --shadow-color: oklch(0% 0 0 / 0.55);
+  --vegetation: oklch(72% 0.1 150);
+  --vegetation-wash: oklch(27% 0.03 150);
+  --accent-wash: oklch(27% 0.035 252);
+  --danger-wash: oklch(27% 0.035 25);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --surface: oklch(20.5% 0.006 70);
+    --surface-raised: oklch(24.5% 0.007 70);
+    --surface-sunken: oklch(16.5% 0.005 70);
+    --ink: oklch(92% 0.012 85);
+    --ink-muted: oklch(71% 0.014 75);
+    --rule: oklch(32% 0.008 70);
+    --rule-control: oklch(57% 0.012 70);
+    --accent: oklch(72% 0.12 252);
+    --ink-on-accent: oklch(20.5% 0.006 70);
+    --focus: oklch(72% 0.12 252);
+    --danger: oklch(72% 0.14 25);
+    --selection: oklch(38% 0.08 252);
+    --hatch: oklch(70% 0.11 56);
+    --shadow-color: oklch(0% 0 0 / 0.55);
+    --vegetation: oklch(72% 0.1 150);
+    --vegetation-wash: oklch(27% 0.03 150);
+    --accent-wash: oklch(27% 0.035 252);
+    --danger-wash: oklch(27% 0.035 25);
+  }
+}
+
+/* Utilidades de color: solo los roles que sirven de texto, fondo o borde. `--hatch`,
+   `--selection`, `--shadow-color`, `--focus` y `--danger` se usan como variable (`var()`) y no
+   tienen utilidad (D.17: ningún componente usaba `text-danger`, `ring-focus` y similares). D.19: lo mismo
+   para `--vegetation`, `--vegetation-wash` y `--danger-wash`; `--accent-wash` sí es utilidad porque los chips
+   usan `bg-accent-wash`. */
+@theme inline {
+  --color-*: initial;
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-rule: var(--rule);
+  --color-rule-control: var(--rule-control);
+  --color-accent: var(--accent);
+  --color-ink-on-accent: var(--ink-on-accent);
+  --color-accent-wash: var(--accent-wash);
+}
+
+@theme static {
+  /* D.19 (decisión 230): Figtree primero, autoalojada (módulo `fonts/figtree.ts`). `--font-figtree` lo declara
+     la clase `figtree.variable` de `<html>`; el `system-ui` del `var()` cubre su ausencia. Va en
+     `static` (no `inline`) para que la variable se emita siempre y la lean `body` y el CSS del mapa. */
+  --font-sans:
+    var(--font-figtree, system-ui), system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans',
+    'Helvetica Neue', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+
+  /* Escala tipográfica cerrada: tamaño, interlineado y, en títulos, peso. */
+  --text-*: initial;
+  --text-small: 0.75rem;
+  --text-small--line-height: 1rem;
+  --text-dense: 0.875rem;
+  --text-dense--line-height: 1.25rem;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  --text-heading-3: 1.125rem;
+  --text-heading-3--line-height: 1.5rem;
+  --text-heading-3--font-weight: 600;
+  --text-heading-2: 1.375rem;
+  --text-heading-2--line-height: 1.75rem;
+  --text-heading-2--font-weight: 600;
+  --text-heading-1: 1.75rem;
+  --text-heading-1--line-height: 2.25rem;
+  --text-heading-1--font-weight: 700;
+  --text-heading-1--letter-spacing: -0.01em;
+
+  --radius-control: 0.375rem;
+  --radius-panel: 0.5rem;
+
+  /* Capas, de menor a mayor. Se usan con `z-(--z-toast)` o `var(--z-toast)`. */
+  --z-map-controls: 10;
+  --z-sticky-header: 20;
+  --z-toast: 40;
+
+  /* Margen que dejan los saltos a anclas para no quedar bajo contenido fijo. */
+  --scroll-offset: 1rem;
+
+  /* Ancho máximo de cabecera, contenido y pie (D.5, decisión 150): `max-w-page`. */
+  --container-page: 80rem;
+
+  --shadow-raised: 0 1px 2px 0 var(--shadow-color), 0 2px 6px -1px var(--shadow-color);
+  --shadow-overlay: 0 4px 8px -2px var(--shadow-color), 0 12px 24px -4px var(--shadow-color);
+
+  /* Movimiento (D.16, decisiones 205-208; D.21, decisión 240). Duraciones: respuesta a la pulsación,
+     cambio de color al pasar el puntero, aparición de los avisos, y entrada y salida de la bandeja
+     (la salida es más corta que la entrada). Curvas: salida suave para lo que entra o se suelta,
+     aceleración corta para lo que sale (M3 standard-accelerate). Los nombres evitan `--ease-in` y
+     `--ease-out`, que son de Tailwind. */
+  --duration-feedback: 100ms;
+  --duration-hover: 150ms;
+  --duration-appear: 200ms;
+  --duration-panel-enter: 250ms;
+  --duration-panel-exit: 200ms;
+  --ease-enter: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 1, 1);
+}
+
+/* Único interruptor de movimiento reducido (decisión 207): las cinco duraciones pasan a 0s y todo
+   consumidor queda instantáneo sin reglas por componente. Sin capa, para ganar al `@layer theme`
+   donde Tailwind emite los tokens de `@theme static`. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-feedback: 0s;
+    --duration-hover: 0s;
+    --duration-appear: 0s;
+    --duration-panel-enter: 0s;
+    --duration-panel-exit: 0s;
+  }
+}
+
+@layer base {
+  html {
+    scroll-padding-top: var(--scroll-offset);
+  }
+
+  *,
+  ::before,
+  ::after {
+    border-color: var(--rule);
+  }
+
+  body {
+    background-color: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+  }
+
+  h1 {
+    font-size: var(--text-heading-1);
+    line-height: var(--text-heading-1--line-height);
+    font-weight: var(--text-heading-1--font-weight);
+    letter-spacing: var(--text-heading-1--letter-spacing);
+  }
+
+  h2 {
+    font-size: var(--text-heading-2);
+    line-height: var(--text-heading-2--line-height);
+    font-weight: var(--text-heading-2--font-weight);
+  }
+
+  h3 {
+    font-size: var(--text-heading-3);
+    line-height: var(--text-heading-3--line-height);
+    font-weight: var(--text-heading-3--font-weight);
+  }
+
+  /* El acento por sí solo contrasta poco con el texto: los enlaces van subrayados. */
+  a {
+    color: var(--accent);
+    text-decoration-line: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  /* El color de los enlaces cambia en 150 ms al pasar el puntero (D.21, decisión 240). El subrayado
+     sigue a currentColor, así que no necesita lista propia. El enlace de salto aparece al instante. */
+  a:not(.skip-link) {
+    transition-property: color;
+    transition-duration: var(--duration-hover);
+    transition-timing-function: var(--ease-enter);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--selection);
+    color: var(--ink);
+  }
+
+  ::placeholder {
+    color: var(--ink-muted);
+    opacity: 1;
+  }
+
+  /* Superficies del navegador con la paleta (D.13b, decisión 185): cursor de texto y acento
+     nativo; la barra de desplazamiento solo donde el navegador la admite. */
+  :root {
+    caret-color: var(--accent);
+    accent-color: var(--accent);
+  }
+
+  @supports (scrollbar-color: auto) {
+    :root {
+      scrollbar-color: var(--rule-control) var(--surface);
+    }
+  }
+
+  /* Colores explícitos: con `color-scheme: light dark` los controles nativos heredarían
+     los del sistema y podrían quedar claro sobre claro. Radios, casillas, rangos y selectores
+     de color conservan su aspecto nativo; `accent-color` solo tiñe su acento con la paleta.
+     Un único relleno para todos los controles; el de la barra de dibujo es la excepción compacta. */
+  input:not([type='radio'], [type='checkbox'], [type='range'], [type='color']),
+  select,
+  textarea {
+    background-color: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+    padding: 0.5rem 0.75rem;
+  }
+
+  button {
+    background-color: var(--surface-raised);
+    color: var(--ink);
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+    padding: 0.5rem 0.75rem;
+  }
+
+  /* Pulsado en toda pantalla; el resalte al pasar el puntero solo con puntero fino, porque en
+     táctil el :hover se queda pegado. */
+  button:active {
+    background-color: var(--surface-sunken);
+    border-color: var(--ink);
+  }
+
+  /* Respuesta de pulsación (D.16, decisión 208): solo con puntero. `:not(:focus-visible)` evita que
+     una pulsación de teclado (Espacio, Intro) escale el botón, y `:not(.theme-selector button)`
+     deja fuera los tres botones del selector de tema, cuyo envío recarga la página. El estado base
+     declara la transición para que también la suelta tenga duración. D.21 (decisión 240) suma el
+     color y el borde, en 150 ms: las duraciones se emparejan por posición con la lista de propiedades
+     (pulsación, fondo, borde). El anillo de foco (outline) nunca se transiciona. */
+  button:not(.theme-selector button) {
+    transition-property: transform, background-color, border-color;
+    transition-duration: var(--duration-feedback), var(--duration-hover), var(--duration-hover);
+    transition-timing-function: var(--ease-enter);
+  }
+
+  button:not(.theme-selector button):active:not(:focus-visible) {
+    transform: scale(0.97);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    button:hover {
+      background-color: var(--surface-sunken);
+    }
+
+    /* Hover de enlaces y del paginador (D.21, decisión 11): el acento con un 12 % de tinta, la misma
+       receta que el botón primario. Mezclar hacia la tinta sube el contraste en los dos temas. Las
+       reglas de la capa de componentes (fila, preset vigente) ganan por capa. */
+    a:not(.skip-link):hover {
+      color: color-mix(in oklab, var(--accent), var(--ink) 12%);
+    }
+  }
+
+  .leaflet-container {
+    isolation: isolate;
+  }
+}
+
+/* Selector de tema (D.4). El estado actual se deduce de la clase de `<html>`: sin JS ni
+   `aria-pressed`. La señal no depende del color: peso 600 más borde grueso (caja interior
+   de 1px sobre el borde de 1px), sin desplazar el diseño. */
+@layer components {
+  /* Enlace de salto (D.5, decisión 147). Fuera de pantalla hasta recibir el foco; sin
+     transición (aparece al instante al recibir el foco, decisión 208) y sin capa nueva:
+     reutiliza --z-toast. */
+  .skip-link {
+    position: fixed;
+    top: calc(var(--spacing) * 2);
+    inset-inline-start: calc(var(--spacing) * 2);
+    z-index: var(--z-toast);
+    display: inline-flex;
+    align-items: center;
+    min-height: calc(var(--spacing) * 10);
+    padding-inline: calc(var(--spacing) * 4);
+    background-color: var(--surface-raised);
+    color: var(--ink);
+    border: 2px solid var(--ink);
+    border-radius: var(--radius-control);
+    box-shadow: var(--shadow-raised);
+    font-weight: 600;
+    transform: translateY(-200%);
+  }
+
+  .skip-link:focus {
+    transform: none;
+  }
+
+  /* Iconos dibujados (D.13b, componente Icon): miden 1em y heredan el color del texto. */
+  .icon {
+    display: inline-block;
+    inline-size: 1em;
+    block-size: 1em;
+    flex: none;
+    vertical-align: -0.125em;
+  }
+
+  /* Marca (D.22, decisión 266): 1.75rem sin encoger en la fila de la cabecera. La tinta de la lupa es
+     `currentColor` (hereda el texto del enlace) y la casa toma el acento del tema; ningún token nuevo. */
+  .brand-mark {
+    inline-size: 1.75rem;
+    block-size: 1.75rem;
+    flex: none;
+  }
+
+  .brand-mark__house {
+    fill: var(--accent);
+  }
+
+  /* Ilustraciones de los estados (D.22, decisión 269): 6rem x 4rem, decorativas. Los contornos toman
+     --rule-control, la figura hereda la tinta atenuada (currentColor) y la casa de la marca el acento, así
+     que siguen al tema sin tokens nuevos. El trazo de 1,5 no escala con el SVG. */
+  .state-illustration {
+    display: block;
+    inline-size: 6rem;
+    block-size: 4rem;
+    flex: none;
+    color: var(--ink-muted);
+  }
+
+  .state-illustration__ring {
+    stroke: var(--rule-control);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .state-illustration__figure {
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .state-illustration__house {
+    fill: var(--accent);
+  }
+
+  /* Acción principal de un estado (D.22, decisión 269): la receta del botón primario (relleno de acento,
+     texto --ink-on-accent) para un enlace o un botón. Una por estado. D.22 (decisión 270) la suma a la
+     pulsación (100 ms) y al color (150 ms) de los controles, con las duraciones emparejadas por posición
+     con la lista de propiedades. El texto sigue siendo --ink-on-accent al pasar el puntero: la regla de
+     enlaces de la capa base lo teñiría de acento sobre acento. */
+  .state-action {
+    display: inline-flex;
+    min-block-size: 2.5rem;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background-color: var(--accent);
+    color: var(--ink-on-accent);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-control);
+    font-weight: 600;
+    text-decoration-line: none;
+    transition-property: transform, background-color, border-color;
+    transition-duration: var(--duration-feedback), var(--duration-hover), var(--duration-hover);
+    transition-timing-function: var(--ease-enter);
+  }
+
+  .state-action:active {
+    background-color: color-mix(in oklab, var(--accent), var(--ink) 20%);
+    border-color: color-mix(in oklab, var(--accent), var(--ink) 20%);
+    color: var(--ink-on-accent);
+  }
+
+  .state-action:active:not(:focus-visible) {
+    transform: scale(0.97);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .state-action:hover {
+      background-color: color-mix(in oklab, var(--accent), var(--ink) 12%);
+      border-color: color-mix(in oklab, var(--accent), var(--ink) 12%);
+      color: var(--ink-on-accent);
+    }
+  }
+
+  .theme-selector fieldset {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    border: 0;
+    padding: 0;
+  }
+
+  /* Bandeja de filtros (D.6b, decisión 153): un <details> nativo, cerrado en móvil. El resumen
+     conserva `display: list-item` para que el marcador nativo indique el estado; objetivo
+     táctil de 2.5rem. Funciona sin JavaScript y con teclado. */
+  .filter-tray > summary {
+    display: list-item;
+    list-style-position: inside;
+    inline-size: fit-content;
+    min-block-size: 2.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--surface-raised);
+    color: var(--ink);
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+    font-weight: 600;
+    user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .filter-tray > summary:active {
+    background-color: var(--surface-sunken);
+    border-color: var(--ink);
+  }
+
+  /* Misma respuesta de pulsación y de color que los botones (D.16, decisión 208; D.21). */
+  .filter-tray > summary {
+    transition-property: transform, background-color, border-color;
+    transition-duration: var(--duration-feedback), var(--duration-hover), var(--duration-hover);
+    transition-timing-function: var(--ease-enter);
+  }
+
+  .filter-tray > summary:active:not(:focus-visible) {
+    transform: scale(0.97);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .filter-tray > summary:hover {
+      background-color: var(--surface-sunken);
+    }
+  }
+
+  /* Chip de filtro aplicado: mismo trato que el resto de controles (pulsado y hover fino). */
+  .applied-filters__chip:active {
+    background-color: var(--surface-sunken);
+  }
+
+  .applied-filters__chip {
+    transition-property: transform, background-color, border-color;
+    transition-duration: var(--duration-feedback), var(--duration-hover), var(--duration-hover);
+    transition-timing-function: var(--ease-enter);
+  }
+
+  .applied-filters__chip:active:not(:focus-visible) {
+    transform: scale(0.97);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .applied-filters__chip:hover {
+      border-color: var(--ink);
+    }
+  }
+
+  .filter-tray[open] > summary {
+    margin-block-end: 0.75rem;
+  }
+
+  .filter-tray__count {
+    display: inline-block;
+    min-inline-size: 1.25rem;
+    margin-inline-start: 0.25rem;
+    padding-inline: 0.375rem;
+    background-color: var(--accent);
+    color: var(--ink-on-accent);
+    border-radius: var(--radius-control);
+    font-size: var(--text-small);
+    line-height: var(--text-small--line-height);
+    text-align: center;
+  }
+
+  /* Desde 64rem el formulario queda siempre visible y el resumen se oculta, pero SOLO si el
+     navegador entiende `::details-content`: sin él, ocultar el resumen dejaría la bandeja
+     cerrada e inalcanzable. Fuera de este bloque la bandeja es siempre un desplegable. */
+  @supports selector(::details-content) {
+    /* D.16 (decisión 205): por debajo de 64rem el contenido se desvanece y baja 0,5rem al abrir. El
+       contenido solo se oculta (`content-visibility`, discreto) al terminar la salida, y
+       `allow-discrete` vive en la regla cerrada para valer en ambos sentidos. Las propiedades y
+       el `transition-behavior` de la regla abierta se heredan de la cerrada por cascada. Sin
+       `@starting-style`: una bandeja abierta desde el servidor no se desvanece al cargar. */
+    @media (width < 64rem) {
+      .filter-tray::details-content {
+        opacity: 0;
+        transform: translateY(-0.5rem);
+        transition-property: opacity, transform, content-visibility;
+        transition-duration: var(--duration-panel-exit);
+        transition-timing-function: var(--ease-exit);
+        transition-behavior: allow-discrete;
+      }
+
+      .filter-tray[open]::details-content {
+        opacity: 1;
+        transform: none;
+        transition-duration: var(--duration-panel-enter);
+        transition-timing-function: var(--ease-enter);
+      }
+    }
+
+    /* D.22 (decisión 268): la bandeja plegada de la portada anima igual a todos los anchos. Mismos
+       valores que arriba; va antes del bloque de escritorio, que no la toca. */
+    .filter-tray--disclosure::details-content {
+      opacity: 0;
+      transform: translateY(-0.5rem);
+      transition-property: opacity, transform, content-visibility;
+      transition-duration: var(--duration-panel-exit);
+      transition-timing-function: var(--ease-exit);
+      transition-behavior: allow-discrete;
+    }
+
+    .filter-tray--disclosure[open]::details-content {
+      opacity: 1;
+      transform: none;
+      transition-duration: var(--duration-panel-enter);
+      transition-timing-function: var(--ease-enter);
+    }
+
+    @media (width >= 64rem) {
+      .filter-tray:not(.filter-tray--disclosure) > summary {
+        display: none;
+      }
+
+      .filter-tray:not(.filter-tray--disclosure)::details-content {
+        display: block;
+        content-visibility: visible;
+      }
+    }
+  }
+
+  /* Barra de filtros de la home (D.6a). Los campos de criterio los comparte el panel de `?q=`
+     (D.7), cuyos grupos `.criteria-group` reutilizan estas reglas. Los controles usan --text-body (16px) para que iOS no haga zoom
+     al enfocar; los dos importes de un rango caben en 288px a 320px de ancho. */
+  .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem 1rem;
+  }
+
+  .filter-bar > p,
+  .filter-bar fieldset > p,
+  .criteria-group > p,
+  .criteria-group fieldset > p {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .filter-bar fieldset,
+  .criteria-group fieldset {
+    display: flex;
+    gap: 0.5rem;
+    min-inline-size: 0;
+    border: 0;
+    padding: 0;
+  }
+
+  /* P4 (pulido de D.21): los pares de campos del formulario de revisión (mínimo/máximo, y habitaciones
+     con baños) van en una rejilla de dos columnas iguales, con el mismo hueco los tres (F2). Antes cada número medía 7rem y a 320px
+     quedaba un hueco muerto a la derecha; ahora llenan su columna y la rejilla no pasa de 20rem en
+     ancho. La leyenda ocupa las dos columnas y se separa del campo. La barra de filtros no usa esta clase. */
+  .criteria-range {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: end;
+    gap: 0.5rem;
+    inline-size: 100%;
+    max-inline-size: 20rem;
+    min-inline-size: 0;
+    border: 0;
+    padding: 0;
+  }
+
+  .criteria-range > legend {
+    grid-column: 1 / -1;
+    margin-block-end: 0.375rem;
+  }
+
+  /* El texto oculto del prefijo («Precio ») lleva la mayúscula; la palabra visible la toma aquí. */
+  .criteria-range label::first-letter {
+    text-transform: uppercase;
+  }
+
+  .filter-bar label,
+  .filter-bar legend,
+  .criteria-group label,
+  .criteria-group legend {
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  .filter-bar input:not([type='hidden']),
+  .filter-bar select,
+  .filter-bar button,
+  .criteria-group input:not([type='radio']),
+  .criteria-group select {
+    min-block-size: 2.5rem;
+    font-size: var(--text-body);
+  }
+
+  /* D.17 (B2): alto fijo para que desplegables, números y botón compartan línea de base. Sin relleno
+     vertical, así el texto del control no se recorta aunque el espaciado de texto (1.4.12) crezca. */
+  .filter-bar input:not([type='hidden']),
+  .filter-bar select,
+  .filter-bar button,
+  .criteria-group input:not([type='radio']),
+  .criteria-group select {
+    block-size: 2.5rem;
+    padding-block: 0;
+  }
+
+  .filter-bar input[type='number'],
+  .criteria-group input[type='number'] {
+    inline-size: 7rem;
+  }
+
+  .criteria-range input[type='number'] {
+    inline-size: 100%;
+  }
+
+  /* Pista única «solo cifras» de los campos numéricos (D.15, decisión 204). En la barra ocupa una
+     línea propia encima de los campos; en el panel de `?q=` va dentro del grupo de precio. */
+  .field-hint {
+    color: var(--ink-muted);
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  .filter-bar > .field-hint,
+  .criteria-group > .field-hint {
+    flex-basis: 100%;
+  }
+
+  /* Lista de resultados de la home (D.6b, decisión 155). Filas densas separadas por un filete
+     de 1px, sin tarjetas ni sombras. La lista tiene una medida de 48rem alineada a la
+     izquierda: a 1280px el precio queda cerca de los datos y el lado derecho queda libre
+     para el mapa (D.8a). Una columna a todos los anchos. */
+  .result-list {
+    max-inline-size: 48rem;
+    margin-block: 1rem;
+    padding: 0;
+    border-block-start: 1px solid var(--rule);
+  }
+
+  .result-list > li {
+    border-block-end: 1px solid var(--rule);
+  }
+
+  /* 320px: miniatura de 6rem y texto a su derecha, con el precio en la primera línea.
+     Desde 48rem: miniatura de 10rem, datos y precio en una columna fija a la derecha.
+     `.result-row__body` es el contenedor en rejilla tanto del enlace como del <div> sin enlace. */
+  .result-row__body {
+    display: grid;
+    grid-template-columns: 6rem minmax(0, 1fr);
+    grid-template-areas:
+      'media price'
+      'media facts';
+    column-gap: 0.75rem;
+    align-items: start;
+    padding: 0.75rem 0.5rem;
+    color: var(--ink);
+  }
+
+  .result-row__media {
+    grid-area: media;
+    position: relative;
+    display: grid;
+    place-items: center;
+    align-self: start;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    /* D.17 (P3): un tinte de la tinta sobre la superficie, así el hueco sin foto es más claro que la
+       página en oscuro (con --surface-sunken quedaba más oscuro) y se ve igual de suave en claro. */
+    background-color: color-mix(in oklab, var(--surface), var(--ink) 5%);
+    border-radius: var(--radius-control);
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    line-height: var(--text-small--line-height);
+    text-align: center;
+  }
+
+  /* D.20 (decisión 236): «Sin foto» es una pauta cuadrada interior. Va en absoluto, así que no
+     toca el alto de la fila (la caja sigue siendo 4:3) ni el fondo de tinta de D.17. */
+  .result-row__media > span {
+    position: absolute;
+    inset: 0.375rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--rule);
+    font-weight: 600;
+  }
+
+  .result-row__img {
+    object-fit: cover;
+  }
+
+  /* D.20 (decisión 236): el precio pesa lo más de la fila por peso, no por tamaño: mantiene el
+     tamaño y el interlineado de D.6b (la fila no crece) y toma el peso del titular mayor. */
+  .result-row__price {
+    grid-area: price;
+    font-size: var(--text-heading-3);
+    line-height: var(--text-heading-3--line-height);
+    font-weight: var(--text-heading-1--font-weight);
+    letter-spacing: var(--text-heading-1--letter-spacing);
+  }
+
+  .result-row__price--missing {
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    font-weight: 400;
+    letter-spacing: normal;
+    color: var(--ink-muted);
+  }
+
+  /* D.20: la operación es la etiqueta neutra de la línea de tipo (sin tono, como el estado del
+     aviso de cobertura), en peso normal y con el filete fino para que no compita con el tipo ni con el
+     precio. La caja de 16px cabe en el interlineado de la línea: no añade alto. */
+  .result-row__operation {
+    display: inline-block;
+    padding-inline: 0.375rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-control);
+    font-size: var(--text-small);
+    line-height: var(--text-small--line-height);
+    font-weight: 400;
+    vertical-align: 0.125em;
+  }
+
+  .result-row__facts {
+    grid-area: facts;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-inline-size: 0;
+  }
+
+  .result-row__figures,
+  .result-row__address {
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  /* D.15 (F5, decisión 197): la dirección envuelve; con elipsis y una sola línea, el espaciado de
+     texto de 1.4.12 (o el zoom de solo texto) ocultaba parte de ella. */
+  .result-row__address {
+    color: var(--ink-muted);
+    overflow-wrap: anywhere;
+  }
+
+  /* D.17 (B4): «1 fuente» es una línea tenue sin caja; «Disponible en N fuentes» (N >= 2) es la
+     evidencia de la agregación y pesa más: caja, peso 600 y cifras tabulares. D.19 (decisión 231): la
+     caja lleva el verde de estado favorable (lavado y borde); la distinción no depende del color:
+     caja, peso y el texto «Disponible en N fuentes». */
+  .result-row__badge {
+    inline-size: fit-content;
+    max-inline-size: 100%;
+    margin-block-start: 0.25rem;
+    padding-inline: 0.375rem;
+    border-radius: var(--radius-control);
+    /* D.20 (A6): «1 fuente» lleva un filete hacia dentro con outline, que no ocupa espacio (un borde
+       añadiría 2px de alto a la fila). La insignia no recibe foco, así que no choca con el anillo. */
+    outline: 1px solid var(--rule);
+    outline-offset: -1px;
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    line-height: var(--text-small--line-height);
+  }
+
+  .result-row__badge--multi {
+    outline: 0;
+    border: 1px solid var(--vegetation);
+    background-color: var(--vegetation-wash);
+    color: var(--ink);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Un único enlace por fila. El foco visible es el global; el resalte solo se aplica con
+     puntero fino (en táctil el :hover se queda pegado) y :active da respuesta al toque. La fila no
+     se mueve (D.16, decisión 208): solo el fondo transiciona, en 150 ms (D.21, decisión 241). */
+  .result-row__link {
+    color: var(--ink);
+    text-decoration-line: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition-property: background-color;
+    transition-duration: var(--duration-hover);
+    transition-timing-function: var(--ease-enter);
+  }
+
+  .result-row__link:active {
+    background-color: var(--surface-sunken);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .result-row__link:hover {
+      background-color: var(--surface-sunken);
+    }
+
+    .result-row__link:hover .result-row__kind {
+      text-decoration-line: underline;
+      text-underline-offset: 0.2em;
+    }
+  }
+
+  /* Ampliación de la foto al pasar el puntero (D.21, decisión 241): como mucho 1,03 y recortada por
+     `overflow: hidden` de la caja, así que ninguna caja se mueve. Solo con puntero fino Y con movimiento
+     normal: con movimiento reducido la regla entera no existe (no es «0 s», es que no se amplía), y el
+     tinte de arriba sigue aplicándose al instante. Es la única otra `scale()` además de la pulsación. */
+  @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    .result-row__img {
+      transition-property: transform;
+      transition-duration: var(--duration-hover);
+      transition-timing-function: var(--ease-enter);
+    }
+
+    .result-row__link:hover .result-row__img {
+      transform: scale(1.03);
+    }
+  }
+
+  @media (width >= 48rem) {
+    .result-row__body {
+      grid-template-columns: 10rem minmax(0, 1fr) 10rem;
+      grid-template-areas: 'media facts price';
+      column-gap: 1rem;
+    }
+
+    .result-row__price {
+      font-size: var(--text-heading-2);
+      line-height: var(--text-heading-2--line-height);
+      font-weight: var(--text-heading-1--font-weight);
+      text-align: end;
+    }
+
+    .result-row__price--missing {
+      font-size: var(--text-dense);
+      line-height: var(--text-dense--line-height);
+      font-weight: 400;
+      letter-spacing: normal;
+    }
+  }
+
+  /* Paginador (D.6b, decisión 156). Por debajo de 48rem el indicador ocupa la primera fila y
+     «anterior»/«siguiente» la segunda, uno a cada lado; desde 48rem, los tres en una fila con
+     el indicador centrado. El extremo que no existe es texto, no un enlace, y conserva su sitio. */
+  .pagination {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      'indicator indicator'
+      'prev next';
+    gap: 0.5rem 1rem;
+    align-items: center;
+    max-inline-size: 48rem;
+    margin-block: 1rem;
+  }
+
+  .pagination__indicator {
+    grid-area: indicator;
+    text-align: center;
+  }
+
+  .pagination__prev {
+    grid-area: prev;
+    justify-self: start;
+  }
+
+  .pagination__next {
+    grid-area: next;
+    justify-self: end;
+  }
+
+  .pagination a,
+  .pagination__edge {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 2.5rem;
+    padding-inline: 0.75rem;
+  }
+
+  .pagination__edge {
+    color: var(--ink-muted);
+  }
+
+  @media (width >= 48rem) {
+    .pagination {
+      grid-template-columns: 1fr auto 1fr;
+      grid-template-areas: 'prev indicator next';
+    }
+  }
+
+  /* Pasos de la búsqueda (D.7, decisión 157). La señal del paso actual no depende del color:
+     peso 600 y el número relleno. */
+  .steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.25rem;
+    margin-block: 0.5rem 1rem;
+    padding: 0;
+    list-style: none;
+    color: var(--ink-muted);
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  .steps > li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .steps__number {
+    display: inline-grid;
+    place-items: center;
+    inline-size: 1.25rem;
+    block-size: 1.25rem;
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+    background-color: var(--surface-raised);
+  }
+
+  .steps > [aria-current='step'] {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .steps > [aria-current='step'] .steps__number {
+    background-color: var(--ink);
+    border-color: var(--ink);
+    color: var(--surface);
+  }
+
+  /* Caja de texto (D.7, decisión 158): etiqueta, ayuda y campo apilados a 320px; desde 48rem el
+     campo y el botón comparten fila bajo la etiqueta y la ayuda. Controles a --text-body (iOS). */
+  .search-text {
+    display: grid;
+    gap: 0.5rem;
+    max-inline-size: 48rem;
+    margin-block: 0.5rem 1rem;
+  }
+
+  .search-text__help {
+    color: var(--ink-muted);
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  .search-text input,
+  .search-text button {
+    min-block-size: 2.5rem;
+    font-size: var(--text-body);
+  }
+
+  .search-text button {
+    justify-self: start;
+  }
+
+  @media (width >= 48rem) {
+    .search-text {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .search-text > label,
+    .search-text__help {
+      grid-column: 1 / -1;
+    }
+  }
+
+  /* Caja de texto plegable (D.18, decisión 228, C-14): un <details> nativo dentro del landmark
+     <search>, plegable a TODOS los anchos y operable sin JavaScript. El resumen es el único texto
+     visible y mide 2.5rem (decisión 200); conserva `display: list-item` para que el marcador nativo
+     indique el estado. Sin transición ni escala al pulsar: no añade movimiento (205-208). */
+  .nl-search {
+    max-inline-size: 48rem;
+  }
+
+  .nl-disclosure > summary {
+    display: list-item;
+    list-style-position: inside;
+    inline-size: fit-content;
+    min-block-size: 2.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--surface-raised);
+    color: var(--ink);
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+    font-weight: 600;
+    user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Sin escala de pulsación (es un resumen de texto libre), pero el color del hover y del pulsado
+     transiciona como el resto de controles (D.21). */
+  .nl-disclosure > summary {
+    transition-property: background-color, border-color;
+    transition-duration: var(--duration-hover);
+    transition-timing-function: var(--ease-enter);
+  }
+
+  .nl-disclosure > summary:active {
+    background-color: var(--surface-sunken);
+    border-color: var(--ink);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .nl-disclosure > summary:hover {
+      background-color: var(--surface-sunken);
+    }
+  }
+
+  .nl-disclosure[open] > summary {
+    margin-block-end: 0.75rem;
+  }
+
+  .nl-disclosure .search-text {
+    margin-block: 0;
+  }
+
+  /* Barra de herramientas (D.18, decisión 229): la bandeja de filtros y la ordenación comparten fila
+     y envuelven. El orden del DOM es el visual (sin `order`). Con la bandeja abierta, y desde 64rem
+     con el formulario siempre desplegado, la bandeja ocupa toda la fila y la ordenación baja. */
+  .search-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem 1.5rem;
+  }
+
+  .search-toolbar > .filter-tray[open] {
+    flex-basis: 100%;
+  }
+
+  @media (width >= 64rem) {
+    .search-toolbar > .filter-tray:not(.filter-tray--disclosure) {
+      flex-basis: 100%;
+    }
+  }
+
+  /* Panel de revisión de `?q=` (D.7, decisiones 159-162): una columna de 48rem. La alerta lleva
+     borde completo, nunca una franja lateral. */
+  .nl-review {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-block-start: 1.5rem;
+    max-inline-size: 48rem;
+  }
+
+  .nl-review__status,
+  .nl-review__lead {
+    font-weight: 600;
+  }
+
+  /* Panel de aviso con borde de 1px: lo comparten la revisión de `?q=` (D.7), el aviso de
+     fuentes sin anuncios activos (D.12) y el aviso de cobertura (D.13). Solo la alerta cambia el
+     borde a --danger; ningún aviso lleva franja lateral (decisión 182). */
+  .nl-review__alert,
+  .nl-issues,
+  .source-list__warning,
+  .coverage-notice,
+  .empty-results {
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-panel);
+    /* D.20 (decisión 237): los avisos son superficies elevadas neutras; las alertas y las incidencias
+       cambian el fondo más abajo. El estado vacío ya no (P8 de D.21). */
+    background-color: var(--surface-raised);
+  }
+
+  .nl-review__alert,
+  .coverage-notice[role='alert'] {
+    border-color: var(--danger);
+    background-color: var(--danger-wash);
+  }
+
+  /* Aparición de los avisos (D.21, decisión 242): solo opacidad, 200 ms, al montarse. Los fotogramas
+     no llevan `to`: el final es el estilo del propio elemento, así que el aviso nunca se queda a 0 (y
+     con `animation-fill-mode: none` tampoco antes de empezar). Se anima el panel de cobertura o el
+     aviso suelto, nunca los dos (se multiplicarían), y jamás una alerta: lo urgente aparece al instante.
+     Cada carga o navegación completa lo repite; el refresco de fondo (`router.refresh`) no. Con
+     movimiento reducido la duración es 0 s. */
+  @keyframes notice-appear {
+    from {
+      opacity: 0;
+    }
+  }
+
+  .coverage-panel:not(:has(> .coverage-notice[role='alert'])),
+  .search-results__notices > .coverage-notice:not([role='alert']),
+  .nl-issues,
+  .source-list__warning,
+  .empty-results {
+    animation-name: notice-appear;
+    animation-duration: var(--duration-appear);
+    animation-timing-function: var(--ease-enter);
+    animation-fill-mode: none;
+  }
+
+  /* Entrada escalonada de la lista (D.22, decisión 270, MS-2): las seis primeras filas aparecen con
+     opacidad y un desplazamiento de 0,25rem, 200 ms, una vez por cada render de servidor de la lista.
+     Los fotogramas no llevan `to`: el final es el estilo de la propia fila, así que nunca se queda a 0.
+     `backwards` mantiene la fila oculta solo durante su retardo (la fila 1 no tiene retardo). El retardo
+     de la fila k es k-1 veces la quinta parte de --duration-feedback (0 a 100 ms): la última acaba a 300 ms
+     y las filas 7 en adelante aparecen sin animar. Duraciones y retardos salen de tokens: con movimiento
+     reducido valen 0 s y la fila está opaca desde la primera lectura. Un refresco de fondo conserva las
+     filas con clave y no repite la entrada; una fila que pase a las seis primeras sí la anima una vez. */
+  @keyframes row-enter {
+    from {
+      opacity: 0;
+      transform: translateY(0.25rem);
+    }
+  }
+
+  .result-list > li:nth-child(-n+6) {
+    animation-name: row-enter;
+    animation-duration: var(--duration-appear);
+    animation-timing-function: var(--ease-enter);
+    animation-fill-mode: backwards;
+  }
+
+  .result-list > li:nth-child(2) {
+    animation-delay: calc(var(--duration-feedback) / 5 * 1);
+  }
+
+  .result-list > li:nth-child(3) {
+    animation-delay: calc(var(--duration-feedback) / 5 * 2);
+  }
+
+  .result-list > li:nth-child(4) {
+    animation-delay: calc(var(--duration-feedback) / 5 * 3);
+  }
+
+  .result-list > li:nth-child(5) {
+    animation-delay: calc(var(--duration-feedback) / 5 * 4);
+  }
+
+  .result-list > li:nth-child(6) {
+    animation-delay: calc(var(--duration-feedback) / 5 * 5);
+  }
+
+  .nl-issues {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background-color: var(--surface-sunken);
+  }
+
+  .nl-issues ul {
+    margin-block-start: 0.25rem;
+    padding-inline-start: 1.25rem;
+    list-style: disc;
+  }
+
+  .nl-issues p,
+  .nl-review__hint,
+  .zone-field__note {
+    color: var(--ink-muted);
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  /* Campos agrupados por pregunta. Los importes de un rango caben en 288px (7rem cada uno). */
+  .criteria-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .criteria-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem 1rem;
+    padding-block-start: 1rem;
+    border-block-start: 1px solid var(--rule);
+  }
+
+  .criteria-group > h3 {
+    flex-basis: 100%;
+  }
+
+  .criteria-group > .zone-field {
+    flex-direction: column;
+    flex-basis: 100%;
+  }
+
+  /* D.17 (B8): las opciones de zona van agrupadas a la izquierda (antes, dos columnas de 16rem las
+     separaban ~390px) y envuelven en cuanto no caben. */
+  .zone-field__choices {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 1.5rem;
+  }
+
+  .zone-field__choices > p {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-block-size: 2.5rem;
+  }
+
+  /* D.18 (decisión 227): los cinco radios del orden van en filas que envuelven, como las opciones de
+     zona; en columna estrecha (320px) ninguna etiqueta se parte letra a letra ni desborda. */
+  .criteria-order {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    min-inline-size: 0;
+    column-gap: 1.5rem;
+  }
+
+  .criteria-order > p {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-block-size: 2.5rem;
+  }
+
+  /* D.17 (B8): el botón y el aviso de que la búsqueda aún no empieza, juntos. */
+  .criteria-form__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+  }
+
+  /* Botón principal: el de «Buscar» del panel de ?q= y el de «Aplicar filtros» de la barra (D.17,
+     B2). */
+  .criteria-form__submit,
+  .filter-bar__submit {
+    min-block-size: 2.5rem;
+    font-size: var(--text-body);
+    background-color: var(--accent);
+    color: var(--ink-on-accent);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* Primario: mezcla del acento con la tinta (sin token nuevo); pulsado un poco más oscuro. */
+  .criteria-form__submit:active,
+  .filter-bar__submit:active {
+    background-color: color-mix(in oklab, var(--accent), var(--ink) 20%);
+    border-color: color-mix(in oklab, var(--accent), var(--ink) 20%);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .criteria-form__submit:hover,
+    .filter-bar__submit:hover {
+      background-color: color-mix(in oklab, var(--accent), var(--ink) 12%);
+      border-color: color-mix(in oklab, var(--accent), var(--ink) 12%);
+    }
+  }
+
+  /* Cabecera de la búsqueda (D.13b): título, formularios, aviso de cobertura y chips son hermanos
+     directos; un único ritmo vertical en vez de márgenes sueltos que se pisan. */
+  .search-header {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .search-header > * {
+    margin-block: 0;
+  }
+
+  /* D.20 (decisión 235): el título pinta por encima del motivo sin `z-index` (Layer Ladder Rule): un
+     hermano posicionado posterior se pinta sobre uno anterior. */
+  .search-header > h1 {
+    position: relative;
+  }
+
+  /* Motivo de curvas de nivel (D.20, decisión 235): decorativo, fuera del flujo (no reserva espacio ni
+     mueve nada), sin puntero y con el trazo de la regla fina. Va a continuación del texto del título
+     (13.5rem) y, bajo ~34rem, se recorta por los lados con `slice` en vez de desbordar: la caja
+     termina en el borde de la cabecera. Son anillos anidados, como las curvas de nivel de un mapa. Sube 0.75rem sobre el título, dentro del relleno de `main`. */
+  .contour-motif {
+    position: absolute;
+    inset-block-start: -0.75rem;
+    inset-inline-start: 13.5rem;
+    inline-size: min(18.75rem, calc(100% - 13.5rem));
+    block-size: calc(var(--text-heading-1--line-height) + 1.5rem);
+    pointer-events: none;
+    fill: none;
+    stroke: var(--rule-control);
+    stroke-width: 1;
+    opacity: 0.35;
+  }
+
+  /* Equilibrio entre temas: en claro `--rule` casi no se distingue de la superficie y en oscuro se
+     ve de sobra, así que el claro usa `--rule-control` atenuado y el oscuro, `--rule` entero. Los
+     dos selectores repiten lo mismo, como los bloques de tema de arriba. */
+  .dark .contour-motif {
+    stroke: var(--rule);
+    opacity: 1;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not(.light, .dark) .contour-motif {
+      stroke: var(--rule);
+      opacity: 1;
+    }
+  }
+
+  .contour-motif path {
+    vector-effect: non-scaling-stroke;
+  }
+
+  .contour-motif .contour-motif__index {
+    stroke-width: 2;
+  }
+
+  /* Desvanecido de los bordes (D.21, decisión 243): la máscara vive en el svg exterior y es de alfa, así
+     que no necesita ningún color. El rect de la máscara hereda el trazo del motivo; sin esto se vería
+     como un marco. */
+  .contour-motif__mask {
+    mask-type: alpha;
+  }
+
+  .contour-motif__fade {
+    stroke: none;
+  }
+
+  /* Pulido tras la revisión (P1): bajo 400px la caja mide ~72px y `slice` recorta los dos anillos
+     exteriores por los lados, así que se leían como arcos sueltos. Se retiran; quedan los tres
+     interiores, con la curva índice. */
+  @media (width < 25rem) {
+    .contour-motif .contour-motif__outer {
+      display: none;
+    }
+
+    /* Segunda revisión (F3): sin los exteriores la curva gruesa (tercer anillo) quedaba como borde y sus
+       extremos se apagaban casi del todo (dos arcos). La gruesa pasa al segundo anillo, que cabe entero. */
+    .contour-motif .contour-motif__index {
+      stroke-width: 1;
+    }
+
+    .contour-motif .contour-motif__narrow-index {
+      stroke-width: 2;
+    }
+  }
+
+  /* Portada (D.22, decisión 268): franja sobre el lavado azul que ya existe, en la columna normal del
+     contenido (sin sangrar a los bordes). Una sola columna con el ritmo de 1rem de la cabecera; todo
+     hermano del motivo pinta por encima de él sin `z-index` (Layer Ladder Rule). `overflow: hidden`
+     recorta el motivo en el borde de la franja. */
+  .home-hero {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 2rem 1.5rem;
+    background-color: var(--accent-wash);
+    border-radius: var(--radius-panel);
+    overflow: hidden;
+  }
+
+  .home-hero > :not(.contour-motif) {
+    position: relative;
+    margin-block: 0;
+  }
+
+  .home-hero h1 {
+    max-inline-size: 32rem;
+    text-wrap: balance;
+  }
+
+  .home-hero__lead {
+    max-inline-size: 40rem;
+    color: var(--ink-muted);
+  }
+
+  /* El motivo de la franja ocupa la esquina superior derecha y ya no sigue al título: lo sustituye el
+     posicionamiento de `.contour-motif` de arriba. Bajo 48rem el titular ocupa todo el ancho y se oculta. */
+  .home-hero > .contour-motif {
+    inset-block-start: 0;
+    inset-inline-start: auto;
+    inset-inline-end: 0;
+    inline-size: min(24rem, calc(100% - 34rem));
+    block-size: 6rem;
+  }
+
+  /* Barrido del motivo de la portada (D.22, decisión 270, MS-3): el desvanecido que enmascara el motivo
+     crece de izquierda a derecha una vez, 250 ms, solo con transform. `fill-box` toma como caja el propio
+     rect de la máscara (sin él, el origen sería el del lienzo SVG); sin relleno de fotogramas el rect
+     queda a escala 1. Solo bajo `.home-hero`: el motivo de las demás páginas no se anima. Con movimiento
+     reducido la duración es 0 s y el motivo está dibujado entero. */
+  @keyframes contour-wipe {
+    from {
+      transform: scaleX(0);
+    }
+  }
+
+  .home-hero .contour-motif__fade {
+    transform-box: fill-box;
+    transform-origin: left center;
+    animation-name: contour-wipe;
+    animation-duration: var(--duration-panel-enter);
+    animation-timing-function: var(--ease-enter);
+    animation-fill-mode: none;
+  }
+
+  /* La caja de texto es el gesto principal de la portada: controles de 3rem. */
+  .home-hero .search-text input,
+  .home-hero .search-text button {
+    min-block-size: 3rem;
+  }
+
+  /* Búsquedas de ejemplo (D.22, HH-2): enlaces GET a la lista, de 44 px de alto como mínimo. El anillo
+     de foco es el global (:focus-visible); aquí no se toca el outline. */
+  .example-searches {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .example-searches__label {
+    color: var(--ink-muted);
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    font-weight: 600;
+  }
+
+  .example-searches__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .example-searches__link {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 2.75rem;
+    padding-inline: 1rem;
+    background-color: var(--surface-raised);
+    color: var(--ink);
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    text-decoration: none;
+    transition-property: transform, background-color, border-color;
+    transition-duration: var(--duration-feedback), var(--duration-hover), var(--duration-hover);
+    transition-timing-function: var(--ease-enter);
+  }
+
+  /* Respuesta de pulsación de la chip (D.22, decisión 270): la misma que la de los botones. */
+  .example-searches__link:active {
+    background-color: var(--surface-sunken);
+  }
+
+  .example-searches__link:active:not(:focus-visible) {
+    transform: scale(0.97);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .example-searches__link:hover {
+      border-color: var(--ink);
+    }
+  }
+
+  @media (width < 48rem) {
+    .home-hero > .contour-motif {
+      display: none;
+    }
+  }
+
+  /* Revisión del GATE-1 (D.22): a 320 px la franja llenaba la primera pantalla. Solo se ven los tres
+     primeros ejemplos (`display: none` los saca también del árbol de accesibilidad; el orden lo fija
+     `lib/example-searches.ts`) y los pasos de la franja van en una sola fila con menos hueco entre ellos,
+     sin encoger el texto. El indicador de la rama `?q=` no cambia. */
+  @media (width < 30rem) {
+    .home-hero {
+      padding: 1.25rem 1rem;
+    }
+
+    .example-searches__list > li:nth-child(n+4) {
+      display: none;
+    }
+
+    .home-hero .steps {
+      flex-wrap: nowrap;
+      column-gap: 0.75rem;
+    }
+  }
+
+  /* Avisos de la rejilla de resultados (P8, pulido de D.21). El aviso de cobertura, el del polígono y
+     el conmutador de vista abren `.search-results` en lugar de cerrar la cabecera: así, desde 64rem el
+     mapa puede empezar en la misma fila que el aviso y no queda una columna derecha vacía. El hueco
+     entre ellos lo da el `gap` del envoltorio (el aviso no lleva el margen propio de su uso suelto) y
+     la rejilla entera se separa 1rem de los chips de la cabecera: el margen va en la rejilla y no en el
+     envoltorio para que, desde 64rem, el mapa (que abarca la fila del aviso) y el aviso empiecen a la
+     misma altura. */
+  .search-results:has(> .search-results__notices) {
+    margin-block-start: 1rem;
+  }
+
+  .search-results__notices {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-inline-size: 0;
+  }
+
+  .search-results__notices > .coverage-notice {
+    margin: 0;
+  }
+
+
+  /* Lista y mapa (D.8a, decisión 164). Las dos secciones son hermanas dentro de
+     `.search-results[data-view]`. Bajo 64rem (768px incluido, porque la columna del mapa
+     quedaría por debajo de 20rem) `data-view` elige cuál se ve; las reglas que ocultan van
+     FUERA de la media query y la que las vuelve a mostrar, dentro y con la misma
+     especificidad (0,3,0), así que gana por orden. Desde 64rem se ven las dos y el
+     conmutador sobra. Visibilidad solo por CSS: el servidor no sabe el ancho. */
+  .search-results {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .search-results[data-view='map'] > .search-results__list {
+    display: none;
+  }
+
+  .search-results[data-view='list'] > .search-results__map {
+    display: none;
+  }
+
+  .search-results__list,
+  .search-results__map {
+    min-inline-size: 0;
+  }
+
+  .search-results__map {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  /* D.17 (B3): pie del mapa. Ayuda de teclado y avisos de recuento y de posiciones, juntos y en
+     texto pequeño; el aviso de las posiciones aproximadas es visible, no solo de lectores. */
+  .search-map__notes {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    line-height: var(--text-small--line-height);
+  }
+
+  /* Conmutador «Ver mapa» / «Ver lista» (D.15, WCAG 2.5.8): un enlace en línea medía 20 px de alto.
+     Caja de 40 px como el resto de enlaces de la app; el párrafo sigue oculto desde 64rem. */
+  .view-toggle a {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 2.5rem;
+  }
+
+  /* Marco del mapa (D.8a): un hairline de la hoja, sin sombra. El aviso de carga ocupa el
+     mismo marco que luego aloja el lienzo, así que montar el mapa no desplaza nada. Bajo
+     64rem la altura sigue al viewport sin pasarse de él. */
+  .search-map__frame {
+    position: relative;
+    block-size: clamp(20rem, 70dvh, 40rem);
+    border: 1px solid var(--rule-control);
+    background-color: var(--surface);
+  }
+
+  .search-map__canvas {
+    block-size: 100%;
+    inline-size: 100%;
+  }
+
+  .search-map__loading {
+    padding: 1rem;
+    color: var(--ink-muted);
+  }
+
+  /* Sin JavaScript no hay lienzo: el aviso de carga sobra y el `<noscript>` del marco
+     queda centrado en él. */
+  @media (scripting: none) {
+    .search-map__loading {
+      display: none;
+    }
+
+    .search-map__frame {
+      display: grid;
+      place-content: center;
+      padding: 1rem;
+    }
+  }
+
+  @media (width >= 64rem) {
+    /* Desde 64rem el conmutador está oculto: un envoltorio que solo lo lleva no ocupa fila. */
+    .search-results__notices:not(:has(> .coverage-panel, > .coverage-notice)) {
+      display: none;
+    }
+
+    .search-results:has(> .search-results__notices):not(:has(> .search-results__notices > :is(.coverage-panel, .coverage-notice))) {
+      margin-block-start: 0;
+    }
+
+    .search-results {
+      grid-template-columns: minmax(0, 48rem) minmax(20rem, 1fr);
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    /* P8: avisos y lista en la primera columna, mapa en la segunda; con un aviso de cobertura el mapa
+       abarca la fila del aviso y la de la lista, y empieza donde empieza el aviso. */
+    .search-results__notices {
+      grid-column: 1;
+    }
+
+    .search-results[data-view] > .search-results__list {
+      display: block;
+      grid-column: 1;
+    }
+
+    .search-results:has(> .search-results__notices > :is(.coverage-panel, .coverage-notice)) {
+      grid-template-rows: auto 1fr;
+    }
+
+    .search-results:has(> .search-results__notices > :is(.coverage-panel, .coverage-notice)) > .search-results__map {
+      grid-row: 1 / span 2;
+    }
+
+    .search-results[data-view] > .search-results__map {
+      display: flex;
+      grid-column: 2;
+      position: sticky;
+      top: var(--scroll-offset);
+      block-size: calc(100dvh - 2 * var(--scroll-offset));
+      max-block-size: 60rem;
+    }
+
+    .search-map__frame {
+      flex: 1;
+      min-block-size: 24rem;
+      block-size: auto;
+    }
+
+    /* D.17 (B3): sobre el mapa solo queda el recuento (una línea más el hueco de la columna); la lista
+       baja lo mismo, así que su primer filete y el borde superior del marco quedan a la misma altura. */
+    .search-results__list > .result-list {
+      margin-block-start: calc(var(--text-body--line-height) + 0.5rem);
+    }
+
+    .view-toggle {
+      display: none;
+    }
+  }
+
+  /* D.9 — ficha de la vivienda (decisión 173). El orden del DOM es el visual: enlace de vuelta,
+     título, precio (copia `lead`), galería, panel (copia `panel` del precio, datos clave y
+     anuncios de origen) y descripción. Desde 64rem hay dos columnas y el panel es sticky. */
+  .property-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    max-inline-size: 48rem;
+  }
+
+  .property-detail__back {
+    margin: 0;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  .property-detail__title {
+    margin: 0;
+    font-size: var(--text-heading-2);
+    line-height: var(--text-heading-2--line-height);
+    font-weight: var(--text-heading-2--font-weight);
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+  }
+
+  .property-summary {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  /* D.20 (decisión 237): por debajo de 64rem el precio de la ficha es un panel elevado neutro. */
+  .property-summary--lead {
+    display: flex;
+    padding: 0.75rem 1rem;
+    background-color: var(--surface-raised);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-panel);
+  }
+
+  .property-summary--panel {
+    display: none;
+  }
+
+  .property-summary__price {
+    margin: 0;
+    font-size: var(--text-heading-1);
+    line-height: var(--text-heading-1--line-height);
+    font-weight: var(--text-heading-1--font-weight);
+    letter-spacing: var(--text-heading-1--letter-spacing);
+  }
+
+  .property-summary__price--missing {
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    font-weight: 400;
+    letter-spacing: normal;
+    color: var(--ink-muted);
+  }
+
+  .property-summary__count {
+    margin: 0;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
+  .property-detail__panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    min-inline-size: 0;
+  }
+
+  .property-header {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .property-facts__list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem 1rem;
+    margin: 0;
+  }
+
+  .property-facts__item--wide {
+    grid-column: 1 / -1;
+  }
+
+  .property-facts__item dt {
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
+  .property-facts__item dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .property-facts__note {
+    margin: 0.75rem 0 0;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
+  .source-list h2,
+  .price-history h2,
+  .property-location h2,
+  .property-description h2 {
+    margin: 0 0 0.5rem;
+    font-size: var(--text-heading-3);
+    line-height: var(--text-heading-3--line-height);
+    font-weight: var(--text-heading-3--font-weight);
+  }
+
+  .source-list ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .source-list__note,
+  .source-list__warning {
+    margin: 0 0 0.75rem;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
+  /* El aviso de «sin anuncios activos» pesa más que la nota: texto en tinta dentro del panel de
+     1px de D.7 (borde y relleno en la regla compartida), sin color de acento. */
+  .source-list__warning {
+    color: var(--ink);
+  }
+
+  /* D.13: aviso de cobertura en el mismo panel de 1px de D.7; solo el fallo (role="alert") cambia
+     el borde a --danger. El título pesa más que el detalle. */
+  .coverage-notice {
+    max-inline-size: 48rem;
+    margin: 0 0 0.75rem;
+    color: var(--ink);
+  }
+
+  .coverage-notice__title {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  /* Fila de filtros aplicados (P5, pulido de D.21): no pasa de 48rem, la columna de la lista, para que
+     «Quitar todos» no flote sobre la columna del mapa; el recuento mide 2rem como un chip y así alinea con
+     la primera fila de chips (no con el centro del bloque). */
+  .applied-filters {
+    max-inline-size: 48rem;
+  }
+
+  .applied-filters__count {
+    min-block-size: 2rem;
+    line-height: 2rem;
+  }
+
+  /* Pulido tras la revisión (P7): la fecha de inicio es una sola unidad; a 320px se partía entre el día
+     y el mes («14 / sept 2026, 11:05»). */
+  .coverage-notice__date {
+    white-space: nowrap;
+  }
+
+  .coverage-notice__detail {
+    margin: 0.25rem 0 0;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
+  /* D.17 (B5): etiqueta del estado de un job. El borde de color no es la única señal. D.21 (decisión
+     243, M9) añade un cuadrado relleno antes del texto: es una señal de forma que la distingue de la
+     etiqueta de operación de la fila (sin marcador) sin depender del color ni del grosor del borde.
+     Pulido tras la revisión (P2): el texto pasa del tamaño pequeño al denso (14px) y el marcador de 6 a
+     8px; junto al título de 16px en negrita la etiqueta y su cuadrado se leían demasiado pequeños. */
+  .coverage-notice__state {
+    display: inline-block;
+    padding-inline: 0.375rem;
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    font-weight: 400;
+    vertical-align: 0.125em;
+  }
+
+  .coverage-notice__state::before {
+    content: '';
+    display: inline-block;
+    inline-size: 0.5rem;
+    block-size: 0.5rem;
+    margin-inline-end: 0.25rem;
+    background-color: currentColor;
+    vertical-align: 0.0625em;
+  }
+
+  /* D.17 (B5): panel único de la actualización de la zona. Aviso (región viva), frase de refresco y,
+     al final, el enlace de recarga. El aviso pierde su caja dentro del panel (nunca paneles anidados) y
+     el panel toma su borde de peligro cuando el aviso es una alerta. */
+  .coverage-panel {
+    max-inline-size: 48rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-panel);
+    background-color: var(--surface-raised);
+    color: var(--ink);
+  }
+
+  .coverage-panel:has(> .coverage-notice[role='alert']) {
+    border-color: var(--danger);
+    background-color: var(--danger-wash);
+  }
+
+  .coverage-panel > .coverage-notice {
+    max-inline-size: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .coverage-panel > p {
+    margin: 0.25rem 0 0;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
+  .coverage-panel > .coverage-panel__reload {
+    margin-block-start: 0.5rem;
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    color: var(--ink);
+  }
+
+  .coverage-panel__reload a {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 2rem;
+  }
+
+  /* D.14: estado vacío de la lista en el mismo panel de 1px. Título y detalle como el aviso de
+     cobertura; la acción es un enlace real. */
+  /* P8 (pulido de D.21): el estado vacío comparte la superficie elevada del aviso de cobertura (la regla
+     compartida de arriba); antes se rebajaba a `surface-sunken` y los dos paneles apilados se veían de
+     distinto papel. */
+  .empty-results {
+    max-inline-size: 48rem;
+    margin: 0 0 0.75rem;
+    color: var(--ink);
+  }
+
+  /* Segunda revisión (F1): sin «Ver mapa» (0 resultados) la última fila de chips tocaba el panel vacío.
+     Sin aviso de cobertura delante, el estado vacío lleva su propia separación de 1rem; con aviso ya la
+     da el hueco de la rejilla y no se duplica. */
+  .search-results:not(:has(> .search-results__notices > :is(.coverage-panel, .coverage-notice)))
+    > .search-results__list
+    > .empty-results {
+    margin-block-start: 1rem;
+  }
+
+  .empty-results > .state-illustration {
+    margin-block-end: 0.75rem;
+  }
+
+  .empty-results__title {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .empty-results__detail {
+    margin: 0.25rem 0 0;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
+  /* D.18 (decisión 227): ordenación como enlaces. Objetivos de 40px (decisión 200); el vigente no
+     depende del color: peso 600 y barra de 2px bajo el texto. Sin transición (decisiones 205-208). */
+  .sort-presets {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 0.75rem;
+  }
+
+  .sort-presets > p {
+    margin: 0;
+    color: var(--ink-muted);
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  .sort-presets__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .sort-presets__link {
+    display: inline-flex;
+    min-block-size: 2.5rem;
+    align-items: center;
+    padding-inline: 0;
+    border-block-end: 2px solid transparent;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    transition-property: color, border-color;
+    transition-duration: var(--duration-hover);
+    transition-timing-function: var(--ease-enter);
+  }
+
+  .sort-presets__link[aria-current='true'] {
+    border-block-end-color: var(--ink);
+    color: var(--ink);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  /* Vista previa suave al pasar el puntero sobre un preset no vigente (D.21, decisión 13): el borde
+     toma --rule-control, nunca la tinta del vigente, para que los dos estados se distingan. El vigente
+     no cambia con el puntero. */
+  @media (hover: hover) and (pointer: fine) {
+    .sort-presets__link:not([aria-current='true']):hover {
+      border-block-end-color: var(--rule-control);
+    }
+  }
+
+  /* D.18 (decisión 225): una sola acción, en su propio párrafo. D.22 (decisión 269): es el enlace primario
+     (.state-action), que ya mide los 40px de toda la app, con algo más de aire sobre él. */
+  .empty-results__action {
+    margin: 0.75rem 0 0;
+  }
+
+  .empty-results__action a {
+    overflow-wrap: anywhere;
+  }
+
+  .source-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-block: 0.75rem;
+    border-block-start: 1px solid var(--rule);
+  }
+
+  .source-row__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.5rem;
+  }
+
+  .source-row__link {
+    overflow-wrap: anywhere;
+  }
+
+  /* D.19 (decisión 231): solo «Más económico» (--active) lleva el verde de estado favorable;
+     «Último precio más bajo» es un precio histórico y no. Pulido tras la revisión (P7): con el borde de
+     tinta y el peso 600 la segunda pesaba mucho más que la primera; las dos comparten ahora el trazo
+     discreto de las demás etiquetas (borde --rule-control, peso normal) y solo cambia el borde y el
+     fondo verdes de la activa, que además lleva icono y texto propio (el color no es la única señal). */
+  .source-row__highlight {
+    display: inline-block;
+    padding-inline: 0.375rem;
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+    color: var(--ink);
+    font-size: var(--text-small);
+    line-height: var(--text-small--line-height);
+    font-weight: 400;
+  }
+
+  .source-row__highlight--active {
+    border-color: var(--vegetation);
+    background-color: var(--vegetation-wash);
+  }
+
+  /* El estado «Disponible» en verde; el texto sigue diciendo «Disponible», así que el color no es la
+     única señal. */
+  .source-row__status--available {
+    color: var(--vegetation);
+  }
+
+  .source-row__facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 0.75rem;
+    margin: 0;
+  }
+
+  .source-row__facts dt {
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
+  .source-row__facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .source-row__price {
+    font-weight: 600;
+  }
+
+  .price-history__badge {
+    display: inline-block;
+    padding-inline: 0.375rem;
+    border: 1px solid var(--rule-control);
+    border-radius: var(--radius-control);
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    line-height: var(--text-small--line-height);
+  }
+
+  /* D.10 (decisión 178) — histórico de precios. Trazos y colores por clase (la CSP no admite
+     `style`); solo --ink y --ink-muted, y la forma del trazo y del marcador distingue las series. */
+  .price-history {
+    min-inline-size: 0;
+  }
+
+  .price-history__note {
+    margin: 0 0 0.75rem;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
+  /* D.18 (decisión 222) — varios SVG del mismo modelo, cada uno a 1:1 cuando la columna mide lo mismo
+     que él (el texto de 12px no se encoge). Pulido tras la revisión (P3): con solo dos diseños el
+     gráfico se quedaba en ~70 % de la columna, así que son cuatro (288 × 160, 416 × 176 = 26rem,
+     544 × 192 = 34rem y 768 × 208 = 48rem) y cada uno se estira al 100 % de la columna: entre dos
+     diseños el texto crece como mucho ~1,4×, nunca se encoge. Se ve el compacto de partida y, según el
+     ancho del contenedor, el que corresponde; los demás son `display:none`, que los saca del árbol de
+     accesibilidad: solo hay un gráfico con nombre a la vez. La figura no pasa de 48rem, la columna de
+     la ficha. */
+  .price-chart {
+    max-inline-size: 48rem;
+    margin: 0 0 1rem;
+    container-type: inline-size;
+  }
+
+  .price-chart__plot {
+    display: none;
+    inline-size: 100%;
+    block-size: auto;
+  }
+
+  .price-chart__plot--compact {
+    display: block;
+  }
+
+  @container (inline-size >= 26rem) {
+    .price-chart__plot--compact {
+      display: none;
+    }
+
+    .price-chart__plot--medium {
+      display: block;
+    }
+  }
+
+  @container (inline-size >= 34rem) {
+    .price-chart__plot--medium {
+      display: none;
+    }
+
+    .price-chart__plot--wide {
+      display: block;
+    }
+  }
+
+  /* Segunda revisión (F4): 704 (44rem) es la columna con un viewport de 768; así el texto de ese ancho
+     se ve a 1:1 como a 320 y a 1280 (con el de 544 se ampliaba a ~1,3×). */
+  @container (inline-size >= 44rem) {
+    .price-chart__plot--wide {
+      display: none;
+    }
+
+    .price-chart__plot--large {
+      display: block;
+    }
+  }
+
+  @container (inline-size >= 48rem) {
+    .price-chart__plot--large {
+      display: none;
+    }
+
+    .price-chart__plot--full {
+      display: block;
+    }
+  }
+
+  .price-chart__grid {
+    stroke: var(--rule);
+    stroke-width: 1;
+  }
+
+  .price-chart__label {
+    fill: var(--ink-muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .price-chart__line {
+    fill: none;
+    stroke-width: 2;
+  }
+
+  .price-chart__series--0,
+  .price-chart__series--2 {
+    stroke: var(--ink);
+    fill: var(--ink);
+  }
+
+  .price-chart__series--1,
+  .price-chart__series--3 {
+    stroke: var(--ink-muted);
+    fill: var(--ink-muted);
+  }
+
+  .price-chart__series--1 .price-chart__line {
+    stroke-dasharray: 6 4;
+  }
+
+  .price-chart__series--2 .price-chart__line {
+    stroke-dasharray: 2 3;
+  }
+
+  .price-chart__series--3 .price-chart__line {
+    stroke-dasharray: 8 3 2 3;
+  }
+
+  .price-chart__marker {
+    stroke: none;
+  }
+
+  .price-chart__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.25rem;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  .price-chart__legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .price-chart__swatch {
+    inline-size: 1.5rem;
+    block-size: 0.75rem;
+    flex: none;
+  }
+
+  .price-history__scroll {
+    overflow-x: auto;
+  }
+
+  /* Pulido tras la revisión (P6): con `table-layout: fixed` las columnas miden lo mismo en todas las
+     fichas (antes cada tabla repartía el ancho según su contenido y «Precio» o «Variación» cambiaban de
+     sitio de una ficha a otra). El ancho de cada una sale de la cabecera. Bajo 30rem la tabla se apila
+     como bloque y esto no aplica. */
+  .price-history__table {
+    inline-size: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  .price-history__table caption {
+    padding-block-end: 0.5rem;
+    text-align: start;
+    color: var(--ink-muted);
+  }
+
+  .price-history__table th,
+  .price-history__table td {
+    padding: 0.5rem 0.375rem 0.5rem 0;
+    border-block-start: 1px solid var(--rule);
+    text-align: start;
+    vertical-align: baseline;
+  }
+
+  .price-history__table th:last-child,
+  .price-history__table td:last-child {
+    padding-inline-end: 0;
+  }
+
+  .price-history__table th:nth-child(1) {
+    inline-size: 30%;
+  }
+
+  .price-history__table th:nth-child(2) {
+    inline-size: 24%;
+  }
+
+  .price-history__table th:nth-child(3) {
+    inline-size: 20%;
+  }
+
+  .price-history__table th:nth-child(4) {
+    inline-size: 26%;
+  }
+
+  .price-history__table .price-history__badge {
+    padding-inline: 0.25rem;
+  }
+
+  /* Solo el precio no se parte; fuente, variación y cabeceras ceden el ancho en los espacios, así
+     que la tabla cabe a 320px sin desplazamiento. La fecha no tiene espacios y alinea sus cifras. */
+  .price-history__table .price-history__price {
+    white-space: nowrap;
+  }
+
+  .price-history__table .price-history__date {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .price-history__table th {
+    font-weight: 600;
+  }
+
+  .price-history__table .price-history__num {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Bajo 30rem la tabla de cuatro columnas no cabe en 288px ni envolviendo las celdas (P7 desbordaba
+     8px): cada observación pasa a una tarjeta sin caja con la etiqueta de la columna delante.
+     Los roles ARIA del marcado conservan la semántica de tabla; la cabecera visual se recorta
+     sin `display: none` para que los lectores de pantalla sigan oyendo las columnas. */
+  @media (width < 30rem) {
+    .price-history__table,
+    .price-history__table tbody,
+    .price-history__table caption {
+      display: block;
+    }
+
+    .price-history__table thead {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+
+    .price-history__table tr {
+      display: block;
+      padding-block: 0.5rem;
+      border-block-start: 1px solid var(--rule);
+    }
+
+    .price-history__table td {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      padding: 0.125rem 0;
+      border: 0;
+      text-align: end;
+    }
+
+    .price-history__table td::before {
+      content: attr(data-label);
+      flex: none;
+      margin-inline-end: auto;
+      color: var(--ink-muted);
+      text-align: start;
+    }
+  }
+
+  .property-description {
+    max-inline-size: 65ch;
+  }
+
+  .property-description p {
+    margin: 0 0 0.75rem;
+  }
+
+  /* D.11 (decisión 179) — ubicación aproximada. Mosaico de 2×2 teselas (512×512 px de origen) con un
+     SVG encima. Sin `style`: la geometría va en atributos SVG y los colores por clase. Las teselas son
+     claras en los dos temas (140), así que cada raya y el borde del círculo llevan un filete del color
+     de superficie, que da el contraste de 3:1 en el tema oscuro. */
+  .property-location {
+    min-inline-size: 0;
+  }
+
+  .property-location__municipality {
+    margin: 0 0 0.75rem;
+  }
+
+  .location-map {
+    margin: 0;
+  }
+
+  .location-map__frame {
+    position: relative;
+    aspect-ratio: 1;
+    inline-size: 100%;
+    max-inline-size: 32rem;
+    overflow: hidden;
+    border: 1px solid var(--rule);
+    background-color: var(--surface-sunken);
+  }
+
+  .location-map__tiles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .location-map__tiles img {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+  }
+
+  .location-map__overlay {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  .location-map__hatch-casing {
+    fill: var(--surface);
+  }
+
+  .location-map__hatch-stripe {
+    fill: var(--hatch);
+  }
+
+  .location-map__area-casing {
+    fill: none;
+    stroke: var(--surface);
+    stroke-width: 4;
+  }
+
+  .location-map__area {
+    stroke: var(--hatch);
+    stroke-width: 2;
+  }
+
+  .location-map__caption {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 1rem;
+    margin-block-start: 0.5rem;
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+    color: var(--ink-muted);
+  }
+
+  .location-map__swatch {
+    flex: none;
+    margin-inline-end: -0.5rem;
+  }
+
+  .property-description p:last-child {
+    margin-block-end: 0;
+  }
+
+  @media (width >= 64rem) {
+    .property-detail {
+      display: grid;
+      grid-template-columns: minmax(0, 48rem) minmax(20rem, 1fr);
+      grid-template-areas:
+        'back back'
+        'title panel'
+        'gallery panel'
+        'history panel'
+        'location panel'
+        'description panel';
+      grid-template-rows: auto auto auto auto auto 1fr;
+      column-gap: 2rem;
+      row-gap: 0;
+      align-items: start;
+      max-inline-size: none;
+    }
+
+    .property-detail__back {
+      grid-area: back;
+      margin-block-end: 1.25rem;
+    }
+
+    .property-detail__title {
+      grid-area: title;
+    }
+
+    .property-detail > .property-gallery {
+      grid-area: gallery;
+      margin-block-start: 1.5rem;
+    }
+
+    .property-detail > .price-history {
+      grid-area: history;
+      margin-block-start: 1.5rem;
+    }
+
+    .property-detail > .property-location {
+      grid-area: location;
+      margin-block-start: 1.5rem;
+    }
+
+    .property-detail > .property-description {
+      grid-area: description;
+      margin-block-start: 1.5rem;
+    }
+
+    .property-summary--lead {
+      display: none;
+    }
+
+    .property-summary--panel {
+      display: flex;
+    }
+
+    /* D.13b (decisión 183, enmienda la 133): el panel ya no es una caja con scroll propio. Se
+       estira a toda la altura de la rejilla (así el precio sticky tiene recorrido) y sus datos y
+       fuentes fluyen con la página. El contenedor del encabezado se disuelve para que el resumen sea hijo
+       directo del panel. */
+    .property-detail__panel {
+      grid-area: panel;
+      align-self: stretch;
+    }
+
+    .property-header {
+      display: contents;
+    }
+
+    /* Solo el precio queda fijo: superficie opaca y filete. El margen negativo y el relleno
+       superior iguales a --scroll-offset lo pegan al borde sin mover su posición en reposo. Mide
+       5.5rem + 1px, y esa cifra fija la reserva de foco de abajo. La superficie sangra 1rem a cada lado
+       y el relleno lateral devuelve el texto al borde de la columna (el de la rejilla de datos): el
+       sangrado cae en el hueco de 2rem de la rejilla y en el relleno de `main`, nunca en el borde. */
+    .property-summary--panel {
+      position: sticky;
+      top: 0;
+      z-index: var(--z-sticky-header);
+      margin-block-start: calc(-1 * var(--scroll-offset));
+      padding-block: var(--scroll-offset) calc(0.75rem + 1px);
+      margin-inline: -1rem;
+      padding-inline: 1rem;
+      background-color: var(--surface-raised);
+      border-block-end: 0;
+    }
+
+    /* El filete de la banda (D.21, decisión 12): antes era el borde de la caja, que sangra 1rem a cada
+       lado y sobresalía de la columna. Ahora es un pseudoelemento del ancho de la columna (el sangrado
+       menos el relleno), alineado con los filetes de la lista de fuentes, igual en los dos temas. El
+       1px del borde pasa al relleno inferior para que la banda mida lo mismo (5.5rem + 1px). */
+    .property-summary--panel::after {
+      content: '';
+      position: absolute;
+      inset-inline: 1rem;
+      inset-block-end: 0;
+      border-block-end: 1px solid var(--rule);
+    }
+
+    /* WCAG 2.4.11 (C43): el foco por teclado no queda oculto bajo el precio fijo. Solo aquí, donde
+       es sticky; por debajo de 64rem rige el desplazamiento base. */
+    html:has(.property-detail) {
+      scroll-padding-top: calc(var(--scroll-offset) + 5.5rem + 1px);
+    }
+  }
+
+  /* D.18 (decisión 223, enmienda la 195 y la 215): el botón es un icono, que no tiene peso ni
+     subrayado. La señal del activo no es solo color: borde grueso (2px de ink: el borde de 1px más
+     una sombra interior de 1px) y una barra de 2px bajo el icono. */
+  .light .theme-selector [value='light'],
+  .dark .theme-selector [value='dark'],
+  :root:not(.light, .dark) .theme-selector [value='system'] {
+    border-color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--ink);
+  }
+
+  .light .theme-selector [value='light']::before,
+  .dark .theme-selector [value='dark']::before,
+  :root:not(.light, .dark) .theme-selector [value='system']::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0.5rem;
+    inset-block-end: 0.25rem;
+    block-size: 2px;
+    background-color: var(--ink);
+  }
+
+  /* D.15 (F3, decisión 195) movido al span del nombre por D.18: el estado activo llega a la
+     tecnología de apoyo sin hacer dinámica la cabecera (147). Texto alternativo tras «/»: no se
+     pinta (contenido vacío) y se añade al nombre accesible como «Oscuro, activo». Va dentro del
+     mismo span que la palabra para que no haya un espacio colgante entre ambas; la coma sobrevive
+     al recorte de espacios del nombre. */
+  .light .theme-selector [value='light'] .theme-selector__name::after,
+  .dark .theme-selector [value='dark'] .theme-selector__name::after,
+  :root:not(.light, .dark) .theme-selector [value='system'] .theme-selector__name::after {
+    content: '' / ', activo';
+  }
+
+  /* ROADMAP 3.4 (decisión 263) — páginas legales. Texto de lectura sobre el papel, con la medida de 65ch
+     de la descripción de la ficha. Más espacio sobre un título que bajo él; los hechos (titular, cookie) van
+     en filas separadas por filetes de 1px, sin tarjetas (DESIGN.md). Solo tokens: sin colores propios. */
+  .legal-page {
+    max-inline-size: 65ch;
+  }
+
+  .legal-page h1 {
+    margin: 0 0 0.75rem;
+  }
+
+  .legal-page__lead {
+    color: var(--ink-muted);
+  }
+
+  .legal-page h2 {
+    margin: 2rem 0 0.5rem;
+  }
+
+  .legal-page h3 {
+    margin: 1.25rem 0 0.25rem;
+  }
+
+  .legal-page p,
+  .legal-page ul,
+  .legal-facts {
+    margin: 0 0 0.75rem;
+  }
+
+  .legal-page ul {
+    padding-inline-start: 1.25rem;
+    list-style: disc;
+  }
+
+  .legal-page li + li {
+    margin-block-start: 0.375rem;
+  }
+
+  /* Una sola familia (DESIGN.md): el nombre de la cookie se distingue por el peso, no por una monoespaciada. */
+  .legal-page code {
+    font-family: inherit;
+    font-weight: 600;
+  }
+
+  .legal-facts {
+    border-block-end: 1px solid var(--rule);
+  }
+
+  .legal-facts__row {
+    padding-block: 0.5rem;
+    border-block-start: 1px solid var(--rule);
+  }
+
+  .legal-facts dt {
+    color: var(--ink-muted);
+    font-size: var(--text-dense);
+    line-height: var(--text-dense--line-height);
+  }
+
+  .legal-facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .legal-pending {
+    font-weight: 600;
+  }
+
+  @media (min-width: 40rem) {
+    .legal-facts__row {
+      display: grid;
+      grid-template-columns: 11rem 1fr;
+      column-gap: 1rem;
+    }
+  }
+}

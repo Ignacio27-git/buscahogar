@@ -9,6 +9,7 @@ import { randomInt } from 'node:crypto';
 import { normalizeSearchName } from '@buscahogar/core';
 import { locations, sources, zones } from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
+import { sql } from 'drizzle-orm';
 
 // `key` por defecto es 'idealista': es la única fuente que este cambio
 // necesita seedear (diseño D8). Un test que necesite otra clave la pasa por
@@ -77,4 +78,41 @@ export async function insertLocationWithZone(
   const locationId = await insertLocation(db, overrides);
   const zoneId = await insertZone(db, locationId);
   return { locationId, zoneId };
+}
+
+// ROADMAP 3.3 (decisión 248) — registro mensual de cuota del mes UTC en curso para una fuente.
+// Sin esta fila el worker, el barrido manual y el presweep NO gastan nada (fail-closed): los
+// tests que ejercitan gasto real la siembran de forma explícita. Los contadores arrancan en 0;
+// el gasto previo se indica por carril.
+export async function seedMonthlyQuota(
+  db: Database,
+  sourceId: string,
+  quota: {
+    readonly totalCap?: number;
+    readonly reserve?: number;
+    readonly batch?: number;
+    readonly onDemand?: number;
+    readonly refresh?: number;
+  } = {}
+): Promise<void> {
+  const batch = quota.batch ?? 0;
+  const onDemand = quota.onDemand ?? 0;
+  const refresh = quota.refresh ?? 0;
+  await db.execute(sql`
+    insert into monthly_request_budget
+      (month, source_id, total_cap, reserve, search_requests, batch_requests, on_demand_requests, refresh_requests)
+    values (
+      date_trunc('month', now() at time zone 'utc')::date, ${sourceId},
+      ${quota.totalCap ?? 100_000}, ${quota.reserve ?? 1_000},
+      ${batch + onDemand + refresh}, ${batch}, ${onDemand}, ${refresh}
+    )
+  `);
+}
+
+// Fuente 'idealista' + cuota mensual holgada del mes en curso: la forma habitual de una suite
+// que ejercita gasto real del worker con la fuente falsa, donde el techo mensual no es el tema.
+export async function insertSourceWithQuota(db: Database): Promise<string> {
+  const sourceId = await insertSource(db);
+  await seedMonthlyQuota(db, sourceId);
+  return sourceId;
 }

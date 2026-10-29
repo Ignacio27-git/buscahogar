@@ -13,19 +13,52 @@
 // SÍ crea una ruta nueva, así que no hereda el atajo D9 de 1.11 de reusar
 // `/` — lo que sí mantiene es la mitad que de verdad hace typecheckear en
 // limpio, la interfaz de props local).
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import type { ReactElement } from 'react';
 
 import { propertyDetailParamsSchema } from '@buscahogar/core';
-import { getPropertyDetailHeader, getPropertySources } from '@buscahogar/db';
+import { getPropertyPriceHistory, getPropertySources } from '@buscahogar/db';
 
-import { PropertyHeader } from '@/components/property-header';
+import { PropertyDescription } from '@/components/property-description';
+import { PropertyLocation } from '@/components/property-location';
+import { PriceHistory } from '@/components/price-history';
+import { PropertyHeader, PropertySummary, resolvePropertyTitle } from '@/components/property-header';
 import { SourceGallery } from '@/components/source-gallery';
 import { SourceList } from '@/components/source-list';
+import { countActiveSources } from '@/lib/count-active-sources';
+import type { RawSearchParams } from '@/lib/search-href';
+import { resolveSearchReturnLink } from '@/lib/search-return';
 import { getDb } from '@/server/db';
+import { readTileConfig } from '@/server/env';
+import { loadPropertyHeader } from '@/server/property-header';
 
 interface PropertyDetailPageProps {
   readonly params: Promise<{ listingId: string }>;
+  // D.9: opcional porque `generateMetadata` comparte esta interfaz y los tests la invocan sin ella.
+  readonly searchParams?: Promise<RawSearchParams>;
+}
+
+// D.5 (decisión 148) y D.14 (decisión 187): la cabecera la carga `loadPropertyHeader`, el mismo
+// cargador memoizado que usa el layout, de modo que layout, página y metadatos son UNA consulta.
+
+// El título es el del anuncio, recortado; sin título (nulo, vacío o en blanco) se usa
+// un texto fijo, nunca «No consolidado». La plantilla del layout añade « · Buscahogar».
+export async function generateMetadata(props: PropertyDetailPageProps): Promise<Metadata> {
+  const rawParams = await props.params;
+  const parsed = propertyDetailParamsSchema.safeParse(rawParams);
+
+  if (!parsed.success) {
+    notFound();
+  }
+
+  const header = await loadPropertyHeader(parsed.data.listingId);
+
+  if (header === undefined) {
+    notFound();
+  }
+
+  return { title: resolvePropertyTitle(header.title) };
 }
 
 // Server Component async (D1): `await props.params` es una Dynamic API que
@@ -44,8 +77,7 @@ export default async function PropertyDetailPage(props: PropertyDetailPageProps)
     notFound();
   }
 
-  const db = getDb();
-  const header = await getPropertyDetailHeader(db, parsed.data.listingId);
+  const header = await loadPropertyHeader(parsed.data.listingId);
 
   // `header === undefined` cubre, sin distinguirlos (AR-2, diseño Q1 walk),
   // los dos casos "bien formado pero sin `property_listings`": el listing
@@ -61,13 +93,37 @@ export default async function PropertyDetailPage(props: PropertyDetailPageProps)
   // resolver por ese motivo — `getPropertySources` no filtra por `status`,
   // solo lo proyecta para que `SourceList` marque esa fuente como no
   // disponible.
-  const sources = await getPropertySources(db, header.id);
+  // D.10 (decisión 178): el histórico de precios se pide a la vez, con el mismo id de vivienda.
+  const db = getDb();
+  const [sources, priceHistory] = await Promise.all([
+    getPropertySources(db, header.id),
+    getPropertyPriceHistory(db, header.id),
+  ]);
+  // D.9 (decisión 176): fuentes distintas con algún anuncio activo, para las dos copias del resumen.
+  const activeSourceCount = countActiveSources(sources);
 
+  // D.9 (decisión 171): enlace de vuelta, revalidado con los esquemas de búsqueda.
+  const searchParamsRaw = (await props.searchParams) ?? {};
+  const returnLink = resolveSearchReturnLink(searchParamsRaw);
+
+  // D.11 (decisión 179): «Ubicación» va entre el histórico y la descripción.
+  // D.9 (decisión 173): el orden del DOM es el visual. El resumen se pinta dos veces (la `lead`
+  // bajo 64rem, la del panel desde 64rem); el CSS oculta la copia que no toca.
   return (
-    <main>
-      <PropertyHeader property={header} />
+    <div className="property-detail">
+      <p className="property-detail__back">
+        <a href={returnLink.href}>{returnLink.label}</a>
+      </p>
+      <h1 className="property-detail__title">{resolvePropertyTitle(header.title)}</h1>
+      <PropertySummary property={header} activeSourceCount={activeSourceCount} placement="lead" />
       <SourceGallery sources={sources} />
-      <SourceList sources={sources} />
-    </main>
+      <div className="property-detail__panel">
+        <PropertyHeader property={header} activeSourceCount={activeSourceCount} />
+        <SourceList sources={sources} />
+      </div>
+      <PriceHistory observations={priceHistory} />
+      <PropertyLocation property={header} tiles={readTileConfig()} />
+      <PropertyDescription description={header.description} />
+    </div>
   );
 }

@@ -11,8 +11,9 @@
 // import en tiempo de ejecución del barril de `@buscahogar/core`
 // arrastraría `listingSchema` (Zod) consigo, aunque este fichero nunca use
 // esa exportación en concreto (mismo razonamiento que `hydration.ts`).
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import type { SimilarityBand } from '@buscahogar/core';
+import { chunkByBindParameters } from './bind-parameters.js';
 import type { Database } from './db.js';
 import type { SignalBreakdown } from './types.js';
 import {
@@ -36,6 +37,12 @@ const SELF_GROUP_SIGNALS: SignalBreakdown = {
     detail: 'vivienda sin duplicado detectado: grupo de un solo anuncio',
   },
 };
+
+// Decisión 247: coste en parámetros ligados de una fila de cada tabla que se
+// inserta en bloque, como cota superior (todas sus columnas). Se deriva del
+// esquema, no se fija a mano, para que una columna nueva no rompa el cálculo.
+const PAIR_EVIDENCE_COLUMNS = Object.keys(getTableColumns(dedupPairEvidence)).length;
+const PROPERTY_LISTINGS_COLUMNS = Object.keys(getTableColumns(propertyListings)).length;
 
 export class WriteConsolidationError extends Error {}
 
@@ -279,24 +286,27 @@ export async function writeConsolidation(
     }
 
     // Paso 2: evidencia COMPLETA de cada par, accept/undecided/reject por
-    // igual (EVID-1, Q7) — tampoco se borra nunca.
-    if (input.pairs.length > 0) {
-      await tx.insert(dedupPairEvidence).values(
-        input.pairs.map((pair) => ({
-          runId: run.id,
-          listingAId: pair.listingAId,
-          listingBId: pair.listingBId,
-          score: pair.score,
-          signals: pair.signals,
-          band: pair.band,
-          ...(pair.scoredListingVersionIdA !== undefined
-            ? { scoredListingVersionIdA: pair.scoredListingVersionIdA }
-            : {}),
-          ...(pair.scoredListingVersionIdB !== undefined
-            ? { scoredListingVersionIdB: pair.scoredListingVersionIdB }
-            : {}),
-        }))
-      );
+    // igual (EVID-1, Q7) — tampoco se borra nunca. Por lotes (decisión 247):
+    // un único INSERT con todos los pares supera los 65 535 parámetros que
+    // admite una sentencia en cuanto el corpus crece (Granada: ~12 500 pares
+    // × 8 = 99 880 → 08P01). Todos los lotes van en ESTA transacción, así
+    // que la escritura sigue siendo todo o nada (D8), en el mismo orden.
+    const evidenceRows = input.pairs.map((pair) => ({
+      runId: run.id,
+      listingAId: pair.listingAId,
+      listingBId: pair.listingBId,
+      score: pair.score,
+      signals: pair.signals,
+      band: pair.band,
+      ...(pair.scoredListingVersionIdA !== undefined
+        ? { scoredListingVersionIdA: pair.scoredListingVersionIdA }
+        : {}),
+      ...(pair.scoredListingVersionIdB !== undefined
+        ? { scoredListingVersionIdB: pair.scoredListingVersionIdB }
+        : {}),
+    }));
+    for (const batch of chunkByBindParameters(evidenceRows, PAIR_EVIDENCE_COLUMNS)) {
+      await tx.insert(dedupPairEvidence).values(batch);
     }
 
     // Pasos 3-4: se borra la caché ENTERA (Q6) — nunca la evidencia. Los
@@ -340,8 +350,12 @@ export async function writeConsolidation(
       }
       propertiesCreated += 1;
 
+      // Mismo reparto por lotes (decisión 247): un grupo no tiene tamaño
+      // máximo estructural, aunque en la práctica sea pequeño.
       const memberRows = buildPropertyListingsRows(group, winner.currentVersionId, propertyRow.id);
-      await tx.insert(propertyListings).values(memberRows);
+      for (const batch of chunkByBindParameters(memberRows, PROPERTY_LISTINGS_COLUMNS)) {
+        await tx.insert(propertyListings).values(batch);
+      }
     }
 
     // Paso 7 (ROADMAP 2.5, decisión 109): caché de visibilidad. La caché entera

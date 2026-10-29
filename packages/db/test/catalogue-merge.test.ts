@@ -91,6 +91,29 @@ describe('mergeCatalogues (DD-2, CR-15) — Granada conserva su cita Y gana el c
     expect(merged.find((entry) => entry.ineCode === '07040')).toEqual(importedOnly);
   });
 
+  // ROADMAP 3.3 (decisión 249) — la población solo viene del importado: la
+  // entrada hand-cited no la trae. Desconocida se queda desconocida (sin
+  // clave), nunca 0.
+  it('3.3: la población del importado se rellena en la entrada hand-cited que no la trae', () => {
+    const merged = mergeCatalogues([handCitedGranada()], [importedGranada({ population: 232462 })]);
+
+    expect(merged[0]?.population).toBe(232462);
+  });
+
+  it('3.3: una población ya presente en la entrada hand-cited no se sobrescribe', () => {
+    const merged = mergeCatalogues([handCitedGranada({ population: 5 })], [importedGranada({ population: 232462 })]);
+
+    expect(merged[0]?.population).toBe(5);
+  });
+
+  it('3.3: si ninguna de las dos trae población, el resultado no la inventa (desconocida, nunca 0)', () => {
+    const merged = mergeCatalogues([handCitedGranada()], [importedGranada()]);
+
+    expect(merged[0]).toBeDefined();
+    expect(merged[0]?.population).toBeUndefined();
+    expect('population' in (merged[0] ?? {})).toBe(false);
+  });
+
   it('un catálogo importado vacío es una fusión SIN efecto — el hand-cited pasa intacto (estado real del placeholder R7)', () => {
     const merged = mergeCatalogues(MUNICIPALITY_CATALOGUE, []);
     expect(merged).toEqual(MUNICIPALITY_CATALOGUE);

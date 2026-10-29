@@ -28,11 +28,15 @@ export { MissingDatabaseUrlError } from './env';
 // (CLAUDE.md): Next en desarrollo reevalúa módulos en cada HMR, y
 // `createDb` construye un `pg.Pool` nuevo en cada llamada — sin este caché,
 // cada guardado en caliente abriría un pool nuevo sin cerrar el anterior.
+// Decisión 256 (ROADMAP 3.4): detrás del pooler de conexiones (Neon `-pooler`) cada instancia serverless
+// necesita un pool pequeño; 5 cubre la concurrencia de una página (búsqueda + mapa + cabecera).
+const READ_POOL_MAX = 5;
+
 const globalForDb = globalThis as unknown as { buscahogarDb?: ReturnType<typeof createDb> };
 
 export function getDb(): Database {
   if (globalForDb.buscahogarDb === undefined) {
-    globalForDb.buscahogarDb = createDb(readDatabaseUrl());
+    globalForDb.buscahogarDb = createDb(readDatabaseUrl(), { max: READ_POOL_MAX });
   }
   return globalForDb.buscahogarDb.db;
 }

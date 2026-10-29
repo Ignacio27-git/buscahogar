@@ -2,7 +2,7 @@
 // las teselas de OpenStreetMap; el resto de directivas no cambia.
 // ROADMAP 1.15 (security-hardening, spec #261 "runtime-config-validation" /
 // diseño decisión 080, hueco de investigación #258) — ninguna imagen pasa
-// por fuera de `next/image`: nada de `<img>` nativo, nada de `unoptimized`
+// por fuera de `next/image`: nada de etiqueta nativa de imagen, nada de `unoptimized`
 // (que desactivaría la optimización y serviría la imagen remota
 // directamente), y la propia CSP nunca declara un host remoto en
 // `img-src`. Mismo patrón de recorrido manual que `no-client-directive.
@@ -24,6 +24,16 @@ interface HeaderRule {
 }
 
 const SRC_DIR = fileURLToPath(new URL('../src/', import.meta.url));
+// D.11 (decisión 179): único fichero con la etiqueta nativa de imagen, solo para teselas OSM.
+const STATIC_MAP = 'components/property-location.tsx';
+
+// Los patrones de la etiqueta nativa se construyen desde el carácter de apertura para que ESTE fichero no
+// contenga marcado de imagen en bruto (el detector de diseño lo lee como una imagen sin texto alternativo).
+// Mismas aserciones: la etiqueta con espacio o cierre, y su atributo `src` con `osmTileUrl(`.
+const TAG_OPEN = String.fromCharCode(0x3c);
+const NATIVE_IMAGE_TAG = new RegExp(`${TAG_OPEN}img[\\s>]`);
+const NATIVE_IMAGE_TAG_EVERY = new RegExp(NATIVE_IMAGE_TAG.source, 'g');
+const NATIVE_IMAGE_WITH_TILE_SRC = new RegExp(`${TAG_OPEN}img\\b[^>]*\\bsrc=\\{osmTileUrl\\(`, 's');
 
 function collectSourceFiles(dir: string): string[] {
   const files: string[] = [];
@@ -54,13 +64,29 @@ describe('Política de imágenes (spec #261 csp-image-policy, diseño decisión 
     vi.unstubAllEnvs();
   });
 
-  it('ningún fichero usa la etiqueta <img> nativa (siempre next/image)', () => {
+  it('solo el mapa estático usa la etiqueta nativa, con una sola aparición y src de osmTileUrl (decisión 179)', () => {
     const files = collectSourceFiles(SRC_DIR);
     expect(files.length).toBeGreaterThan(0);
+    const staticMap = `${SRC_DIR}${STATIC_MAP}`;
     for (const file of files) {
       const source = readFileSync(file, 'utf8');
-      expect(source).not.toMatch(/<img[\s>]/);
+      if (file === staticMap) {
+        continue;
+      }
+      expect(source, file).not.toMatch(NATIVE_IMAGE_TAG);
     }
+    const source = readFileSync(staticMap, 'utf8');
+    expect(source.match(NATIVE_IMAGE_TAG_EVERY)).toHaveLength(1);
+    expect(source).toMatch(NATIVE_IMAGE_WITH_TILE_SRC);
+    expect(source).not.toMatch(/next\/image/);
+  });
+
+  it('la excepción de ESLint no-img-element aparece una sola vez en src/, en el mapa estático', () => {
+    const hits = collectSourceFiles(SRC_DIR).filter((file) =>
+      readFileSync(file, 'utf8').includes('@next/next/no-img-element')
+    );
+    expect(hits).toEqual([`${SRC_DIR}${STATIC_MAP}`]);
+    expect(readFileSync(hits[0] ?? '', 'utf8').match(/@next\/next\/no-img-element/g)).toHaveLength(1);
   });
 
   it('ningún uso de next/image desactiva la optimización con `unoptimized`', () => {
@@ -114,7 +140,43 @@ describe('Política de imágenes (spec #261 csp-image-policy, diseño decisión 
       expect(csp.some((part) => part.startsWith('connect-src'))).toBe(false);
       const hosts = csp.join(' ').match(/https?:\/\/[^\s;]+/g) ?? [];
       expect(hosts).toEqual(['https://tile.openstreetmap.org']);
-      expect(csp.join(' ')).not.toMatch(/\*|https:(?!\/\/)/);
+      expect(csp.join(' ')).not.toMatch(/\*|\bhttps:(?!\/\/)/);
     }
+  });
+});
+
+// ROADMAP 3.4 (decisión 261, enmienda la 112; R9.1, R9.2): el host de `img-src` sale de la misma
+// configuración que la plantilla de teselas. Un proveedor propio sustituye al de OpenStreetMap: sigue
+// habiendo UN solo host de teselas, la cadena de consulta (clave publicable) nunca llega a la CSP y
+// una plantilla inválida hace fallar `headers()` (arranque con error).
+describe('Política de imágenes con proveedor de teselas configurado (decisión 261)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('img-src lista únicamente el host configurado, sin la consulta y sin el host de OpenStreetMap', async () => {
+    vi.stubEnv('TILE_URL_TEMPLATE', 'https://tiles.example.com/v3/{z}/{x}/{y}.png?key=PUBLISHABLE-123');
+    vi.stubEnv('TILE_ATTRIBUTION', '© Example Maps');
+    const imgSrcDirective = (await readCsp()).find((part) => part.startsWith('img-src'));
+    expect(imgSrcDirective).toBe("img-src 'self' blob: data: https://tiles.example.com");
+  });
+
+  it('el resto de la CSP no cambia y no aparece ningún otro host (ni la clave)', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('TILE_URL_TEMPLATE', 'https://tiles.example.com:8443/{z}/{x}/{y}.png?key=PUBLISHABLE-123');
+    vi.stubEnv('TILE_ATTRIBUTION', '© Example Maps');
+    const csp = await readCsp();
+    const hosts = csp.join(' ').match(/https?:\/\/[^\s;]+/g) ?? [];
+    expect(hosts).toEqual(['https://tiles.example.com:8443']);
+    expect(csp.join(' ')).not.toContain('PUBLISHABLE');
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp.some((part) => part.startsWith('connect-src'))).toBe(false);
+  });
+
+  it('una plantilla inválida (http) hace fallar headers(): el arranque no continúa', async () => {
+    vi.stubEnv('TILE_URL_TEMPLATE', 'http://tiles.example.com/{z}/{x}/{y}.png');
+    vi.stubEnv('TILE_ATTRIBUTION', '© Example Maps');
+    await expect(readCsp()).rejects.toThrow(/TILE_URL_TEMPLATE/);
   });
 });

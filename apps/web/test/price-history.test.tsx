@@ -1,0 +1,195 @@
+// D.10 (decisión 178) — sección «Histórico de precios»: tabla como fuente de verdad,
+// gráfico SVG escalonado solo si algún precio cambió, y texto de «sin cambios» si no.
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it } from 'vitest';
+
+import type { PropertyPriceObservation } from '@buscahogar/db';
+
+import { PriceHistory } from '../src/components/price-history.js';
+import { chartAriaLabel } from '../src/lib/price-chart.js';
+import { formatPriceCents } from '../src/lib/format-price.js';
+
+function obs(
+  listingId: string,
+  sourceKey: string,
+  priceCents: number,
+  capturedAt: string,
+  status = 'active'
+): PropertyPriceObservation {
+  return { listingId, sourceKey, status, priceCents, capturedAt: new Date(capturedAt) };
+}
+
+function render(observations: readonly PropertyPriceObservation[]): string {
+  return renderToStaticMarkup(<PriceHistory observations={observations} />);
+}
+
+const TWO_LISTINGS = [
+  obs('a', 'idealista', 90000, '2026-07-01T10:00:00Z'),
+  obs('b', 'kyero', 88000, '2026-08-10T10:00:00Z'),
+  obs('a', 'idealista', 85000, '2026-09-15T10:00:00Z'),
+  obs('b', 'kyero', 87000, '2026-09-15T10:00:00Z'),
+];
+
+describe('PriceHistory', () => {
+  it('sin observaciones no pinta nada', () => {
+    expect(render([])).toBe('');
+  });
+
+  it('sin cambios: texto con la fecha UTC y tabla, sin <svg', () => {
+    const html = render([
+      obs('a', 'idealista', 30000, '2026-03-04T23:30:00Z'),
+      obs('a', 'idealista', 30000, '2026-04-04T10:00:00Z'),
+    ]);
+
+    expect(html).toContain('Primer precio observado el 04/03/2026; aún sin cambios');
+    expect(html).toContain('<table');
+    expect(html).not.toContain('<svg');
+  });
+
+  it('con cambios: un svg role=img con nombre accesible y una leyenda por serie', () => {
+    const html = render(TWO_LISTINGS);
+
+    // D.18 (decisión 222) y P3: cuatro SVG del mismo modelo (compacto, medio, ancho y completo); el CSS
+    // enseña uno.
+    expect(html.match(/<svg[^>]*role="img"/g)).toHaveLength(5);
+    expect(html.match(/<svg[^>]*price-chart__plot--compact[^>]*viewBox="0 0 288 160"/g)).toHaveLength(1);
+    expect(html.match(/<svg[^>]*price-chart__plot--medium[^>]*viewBox="0 0 416 176"/g)).toHaveLength(1);
+    expect(html.match(/<svg[^>]*price-chart__plot--wide[^>]*viewBox="0 0 544 192"/g)).toHaveLength(1);
+    expect(html.match(/<svg[^>]*price-chart__plot--large[^>]*viewBox="0 0 704 200"/g)).toHaveLength(1);
+    expect(html.match(/<svg[^>]*price-chart__plot--full[^>]*viewBox="0 0 768 208"/g)).toHaveLength(1);
+    expect(html).toContain(`aria-label="${chartAriaLabel(2)}"`);
+    expect(html).toContain('price-chart__series--0');
+    expect(html).toContain('price-chart__series--1');
+    expect(html).toContain('<figcaption');
+    expect(html).toMatch(/price-chart__legend[\s\S]*Idealista[\s\S]*Kyero/);
+  });
+
+  it('cabeceras en orden Fuente, Fecha, Precio, Variación, todas scope=col', () => {
+    const html = render(TWO_LISTINGS);
+    const headers = [...html.matchAll(/<th scope="col"[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
+
+    expect(headers).toEqual(['Fuente', 'Fecha', 'Precio', 'Variación']);
+  });
+
+  it('la tabla lleva roles explícitos y cada celda su etiqueta, para apilarse a 320 px sin perder la semántica', () => {
+    const html = render(TWO_LISTINGS);
+
+    expect(html).toContain('<table class="price-history__table" role="table">');
+    expect(html).toContain('<thead role="rowgroup">');
+    expect(html).toContain('<tbody role="rowgroup">');
+    const cells = [...html.matchAll(/<td role="cell"[^>]*data-label="([^"]+)"/g)].map((m) => m[1]);
+    // Cuatro puntos × cuatro columnas, en el orden de las cabeceras.
+    expect(cells).toHaveLength(16);
+    expect(cells.slice(0, 4)).toEqual(['Fuente', 'Fecha', 'Precio', 'Variación']);
+    expect(new Set(cells)).toEqual(new Set(['Fuente', 'Fecha', 'Precio', 'Variación']));
+  });
+
+  it('el pie de tabla (caption) dice que son fechas de nuestro barrido', () => {
+    const html = render(TWO_LISTINGS);
+
+    expect(html).toMatch(/<caption[^>]*>[^<]*barrido[^<]*no son fechas de publicación/);
+  });
+
+  it('filas agrupadas por anuncio (activo primero, precio actual asc) y por fecha', () => {
+    const html = render(TWO_LISTINGS);
+    const rows = [...html.matchAll(/<tr role="row">([\s\S]*?)<\/tr>/g)].map((m) => m[1] ?? '');
+    const body = rows.filter((row) => row.includes('<td'));
+    const dates = body.map((row) => /(\d{2}\/\d{2}\/\d{4})/.exec(row)?.[1]);
+
+    expect(dates).toEqual(['01/07/2026', '15/09/2026', '10/08/2026', '15/09/2026']);
+    expect(body[0]).toContain('Idealista');
+    expect(body[2]).toContain('Kyero');
+  });
+
+  it('variación: «—» en la primera observación y el cambio formateado en las demás', () => {
+    const html = render(TWO_LISTINGS);
+
+    expect(html).toContain('Primer precio observado');
+    expect(html).toContain(`−${formatPriceCents(5000)} (−5,6 %)`);
+    expect(html).toContain(`−${formatPriceCents(1000)} (−1,1 %)`);
+  });
+
+  // D.17 (P3): las cabeceras numéricas se alinean como sus celdas (a la derecha).
+  it('«Precio» y «Variación» llevan la clase numérica; «Fuente» y «Fecha», no', () => {
+    const html = render(TWO_LISTINGS);
+
+    for (const name of ['Precio', 'Variación']) {
+      expect(html).toMatch(new RegExp(`<th[^>]*class="price-history__num"[^>]*>${name}</th>`));
+    }
+    for (const name of ['Fuente', 'Fecha']) {
+      expect(html).toMatch(new RegExp(`<th(?![^>]*price-history__num)[^>]*>${name}</th>`));
+    }
+  });
+
+  it('«No disponible» solo en anuncios no activos', () => {
+    const html = render([
+      obs('a', 'idealista', 90000, '2026-07-01T10:00:00Z', 'removed'),
+      obs('a', 'idealista', 85000, '2026-08-01T10:00:00Z', 'removed'),
+      obs('b', 'kyero', 88000, '2026-08-10T10:00:00Z'),
+      obs('b', 'kyero', 87000, '2026-09-10T10:00:00Z'),
+    ]);
+
+    expect(html.match(/>No disponible</g)?.length).toBeGreaterThanOrEqual(1);
+    expect(html).not.toContain('(no disponible)');
+    const kyeroRows = [...html.matchAll(/<tr role="row">([\s\S]*?)<\/tr>/g)]
+      .map((m) => m[1] ?? '')
+      .filter((row) => row.includes('Kyero'));
+    expect(kyeroRows.length).toBeGreaterThan(0);
+    for (const row of kyeroRows) {
+      expect(row).not.toContain('No disponible');
+    }
+  });
+
+  it('clave de fuente desconocida: «Otra fuente» y nunca la clave', () => {
+    const html = render([
+      obs('a', 'foo', 90000, '2026-07-01T10:00:00Z'),
+      obs('a', 'foo', 85000, '2026-08-01T10:00:00Z'),
+    ]);
+
+    expect(html).toContain('Otra fuente');
+    expect(html).not.toContain('foo');
+  });
+
+  it('un anuncio de una sola observación aparece en la tabla con un marcador sin línea', () => {
+    const html = render([
+      obs('a', 'idealista', 90000, '2026-07-01T10:00:00Z'),
+      obs('b', 'kyero', 88000, '2026-08-10T10:00:00Z'),
+      obs('b', 'kyero', 87000, '2026-09-10T10:00:00Z'),
+    ]);
+
+    // Solo la serie «b» tiene línea; se dibuja una vez en cada uno de los cuatro SVG (D.18, P3).
+    expect(html.match(/<path[^>]*class="price-chart__line/g)).toHaveLength(5);
+    expect(html).toContain('Idealista');
+  });
+
+  it('la tabla va en una región con nombre y foco por teclado, por si desborda a 320 px', () => {
+    const html = render(TWO_LISTINGS);
+
+    expect(html).toMatch(
+      /<div class="price-history__scroll" role="region" aria-label="Tabla del histórico de precios" tabindex="0"><table/
+    );
+  });
+
+  // P3: con cinco anuncios el quinto repite el estilo continuo (0); se dibuja con el primero, debajo de
+  // los discontinuos, para que dos series que coinciden en una vertical se distingan.
+  it('en cada SVG las series continuas se dibujan antes que las discontinuas', () => {
+    const html = render(
+      ['a', 'b', 'c', 'd', 'e'].flatMap((id, index) => [
+        obs(id, 'idealista', 90000 + index * 1000, '2026-07-01T10:00:00Z'),
+        obs(id, 'idealista', 80000 + index * 1000, '2026-08-01T10:00:00Z'),
+      ])
+    );
+
+    const plots = [...html.matchAll(/<svg[^>]*role="img"[^>]*>([\s\S]*?)<\/svg>/g)].map((match) => match[1] ?? '');
+    expect(plots).toHaveLength(5);
+    for (const plot of plots) {
+      const styles = [...plot.matchAll(/price-chart__series price-chart__series--(\d)/g)].map((match) => match[1]);
+      expect(styles).toEqual(['0', '0', '1', '2', '3']);
+    }
+  });
+
+  it('no emite atributos style (CSP)', () => {
+    expect(render(TWO_LISTINGS)).not.toContain('style=');
+    expect(render([obs('a', 'idealista', 1, '2026-01-01T00:00:00Z')])).not.toContain('style=');
+  });
+});

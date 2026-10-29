@@ -43,8 +43,8 @@ services:
   # docs/ARCHITECTURE.md, pero durante el desarrollo NO se levantan con Docker: se
   # ejecutan en local con `pnpm dev:web` y `pnpm dev:ingestion`, y solo la base de datos
   # corre en contenedor. Por eso quedan fuera del perfil por defecto: `docker compose
-  # up -d` levanta solo db. Todavía no existe ningún Dockerfile; se construirán con
-  # `docker compose --profile app up` cuando existan.
+  # up -d` levanta solo db. `ingestion` ya tiene Dockerfile (apps/ingestion/Dockerfile, paso 3.4 S5a);
+  # `web` se construirá con `docker compose --profile app up` cuando exista el suyo.
   web:
     profiles: ['app']
     build:
@@ -95,11 +95,80 @@ services:
     build:
       context: .
       dockerfile: apps/ingestion/Dockerfile
+    # Paso 3.4 (decisión 258) — worker en modo producción: JavaScript compilado, usuario no root. SIN política
+    # de reinicio a propósito: la política (y el cierre ordenado) pertenece al host y se fija en el paso 3.5; el
+    # worker ya se supervisa a sí mismo (backoff, salida 1 tras 10 caídas seguidas, 2 config, 3 base inaccesible).
+    # `init` recoge huérfanos y reenvía SIGTERM; `stop_grace_period` debe superar WORKER_STOP_GRACE_MS (8 s por
+    # defecto): primero el worker cierra el barrido en el límite de página (o sale 1 al vencer su plazo) y solo
+    # después Docker enviaría SIGKILL.
+    init: true
+    stop_grace_period: 20s
     # Las credenciales de escritura y las de las fuentes viven solo aquí.
     # `web` (arriba) recibe una `environment:` propia y acotada, nunca este
     # `env_file` completo (docs/DECISIONS.md, decisión 056).
     env_file:
       - .env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Paso 3.4 (decisión 257) — despliegue de UN SOLO USO: migraciones, roles, privilegios, semillas y
+  # comprobaciones contra la URL DIRECTA del propietario. Perfil propio (`docker compose --profile deploy
+  # run --rm deploy`), sin política de reinicio y esperando a que la base esté sana: no es un servicio que
+  # se quede levantado. Reutiliza la imagen de `ingestion` (el Dockerfile llega con el worker, S5a, y debe
+  # dejar el JS compilado en `dist-runtime/`). Nunca `env_file`: solo las variables del despliegue; sin `:?`
+  # por el mismo motivo que `web` (aborta la interpolación del fichero entero) — el fallo ruidoso vive en
+  # `apps/ingestion/src/deploy/deploy-env.ts` (exit 2). La URL apunta al host `db` de la red de Compose.
+  deploy:
+    profiles: ['deploy']
+    build:
+      context: .
+      dockerfile: apps/ingestion/Dockerfile
+    working_dir: /app/apps/ingestion
+    command: ['node', 'dist-runtime/scripts/deploy.js']
+    restart: 'no'
+    environment:
+      DIRECT_DATABASE_URL: '${DEPLOY_DIRECT_DATABASE_URL:-}'
+      WEB_READONLY_PASSWORD: '${WEB_READONLY_PASSWORD:-}'
+      WEB_COVERAGE_PASSWORD: '${WEB_COVERAGE_PASSWORD:-}'
+      WEB_READONLY_ROLE: '${WEB_READONLY_ROLE:-}'
+      WEB_COVERAGE_ROLE: '${WEB_COVERAGE_ROLE:-}'
+      SEED_MONTHLY_QUOTA_TOTAL: '${SEED_MONTHLY_QUOTA_TOTAL:-}'
+      SEED_MONTHLY_QUOTA_RESERVE: '${SEED_MONTHLY_QUOTA_RESERVE:-}'
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Paso D.1a (decisión 136) — runner autoritativo del e2e visual y de
+  # accesibilidad. Perfil propio: `docker compose up -d` sigue levantando solo
+  # `db`. Se lanza con `pnpm e2e` / `pnpm e2e:update` (package.json raíz).
+  e2e:
+    profiles: ['e2e']
+    build:
+      context: .
+      dockerfile: Dockerfile.e2e
+    # `init`: Playwright lanza Chromium y Next como procesos hijos; sin un init
+    # que recoja huérfanos quedan zombis. `ipc: host`: Chromium usa memoria
+    # compartida y falla sin ella (recomendación oficial de la imagen).
+    init: true
+    ipc: host
+    # Nunca `env_file` (decisión 135, igual que `web`): solo estas variables, y
+    # sin `:?` por el mismo motivo que en `web` — un `:?` abortaría la
+    # interpolación del fichero ENTERO también para `docker compose up -d`. El
+    # fallo ruidoso vive en el guard del seed (`packages/db/src/e2e/guard.ts`).
+    # Ninguna es `NEXT_PUBLIC_*`. La credencial de propietario solo la lee el
+    # seed: el entrypoint la elimina antes de lanzar Playwright.
+    environment:
+      # Propietario de `buscahogar_e2e` (host `db`, red de Compose).
+      E2E_DATABASE_URL: '${E2E_DATABASE_URL:-}'
+      # `web_readonly` sobre la misma base: la única URL que ve el servidor Next.
+      E2E_WEB_DATABASE_URL: '${E2E_WEB_DATABASE_URL:-}'
+      # Nombre de la base de desarrollo, para que el guard la rechace por nombre.
+      E2E_DEV_DATABASE_NAME: '${POSTGRES_DB:-}'
+    volumes:
+      # Solo lo que se versiona o se inspecciona. El código NO se monta.
+      - ./apps/web/e2e/baselines:/app/apps/web/e2e/baselines
+      - ./apps/web/test-results:/app/apps/web/test-results
     depends_on:
       db:
         condition: service_healthy

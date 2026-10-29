@@ -6,6 +6,7 @@
 // ficheros distintos.
 import type { Pool } from 'pg';
 import { createDb } from '../../src/db.js';
+import { assertConnectedToTestDatabase } from '../../src/test-database.js';
 import type { Database } from '../../src/db.js';
 
 export function connectTestDb(): { db: Database; pool: Pool } {
@@ -44,7 +45,13 @@ const TABLES_IN_FK_ORDER = [
   'properties',
   'dedup_runs',
   'daily_request_budget',
+  // ROADMAP 3.3: registro mensual de cuota; referencia `sources` (va antes).
+  'monthly_request_budget',
   'coverage_client_quota',
+  // ROADMAP 3.4: contadores del limitador compartido; sin claves foráneas.
+  'proxy_rate_limit',
+  // ROADMAP 3.4 (decisión 259): deduplicación duradera de avisos; sin claves foráneas.
+  'alert_dispatch_log',
   // ROADMAP 2.5 (S1): referencia `zones` (ON DELETE CASCADE) — va antes.
   'zone_query_signals',
   'zones',
@@ -57,6 +64,8 @@ const TABLES_IN_FK_ORDER = [
 // contadores de identidad. No toca las tablas propias de PostGIS
 // (`geometry_columns`, `geography_columns`, `spatial_ref_sys`).
 export async function truncateAll(pool: Pool): Promise<void> {
+  // Decisión 245: última barrera, la conexión REAL debe ser a una base `_test`.
+  await assertConnectedToTestDatabase(pool);
   const tableList = TABLES_IN_FK_ORDER.map((table) => `"${table}"`).join(', ');
   await pool.query(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE`);
 }

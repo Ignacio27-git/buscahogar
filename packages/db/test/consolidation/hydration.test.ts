@@ -2,6 +2,7 @@
 // existe todavía. Respaldada por PostgreSQL real, con su propia config
 // fail-loud (vitest.consolidation.config.ts, D10): sin `DATABASE_URL` esta
 // suite LANZA, no se omite en silencio.
+import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '../../src/db.js';
@@ -157,5 +158,22 @@ describe('hydrateListingsForDedup (D7)', () => {
     const { listingId } = await insertListingWithVersion(db, sourceId, { priceCents: 100_000_00 });
 
     await expect(hydrateListingsForDedup(db, [listingId])).rejects.toThrow(/propertyType/i);
+  });
+
+  // Paso 3.2 (seguimiento): el reproceso hidrata el corpus COMPLETO, y
+  // `inArray` liga un parámetro por id. Por encima de 65 535 ids la consulta
+  // desbordaría el tope del protocolo de PostgreSQL (08P01).
+  it('hidrata más de 65 535 ids sin desbordar el tope de parámetros por sentencia', async () => {
+    const sourceId = await insertSourceWithKey(db, 'idealista');
+    const { listingId } = await insertListingWithVersion(db, sourceId, {
+      priceCents: 100_000_00,
+      propertyType: 'flat',
+    });
+    const absentIds = Array.from({ length: 70_000 }, () => randomUUID());
+
+    const hydrated = await hydrateListingsForDedup(db, [...absentIds, listingId]);
+
+    expect(hydrated.size).toBe(1);
+    expect(hydrated.get(listingId)?.priceCents).toBe(100_000_00);
   });
 });

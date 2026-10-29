@@ -4,6 +4,7 @@ node_modules/
 
 # Build outputs
 dist/
+dist-runtime/
 .next/
 out/
 build/
@@ -56,3 +57,10 @@ docs/BD_Municipios-Entidades/
 docs/BD_Municipios-Entidades.zip
 docs/diccionario26.xlsx
 /docs/api_idealista
+
+# e2e visual y de accesibilidad (paso D.1a): resultados locales de Playwright.
+# Los baselines (apps/web/e2e/baselines) SÍ se versionan.
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

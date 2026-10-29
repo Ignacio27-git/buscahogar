@@ -14,10 +14,12 @@
 // prefijo de `locations.search_name`.
 import { z } from 'zod';
 
+import { REPEATED_VALUE } from './param-messages.js';
+
 const INE_CODE_PATTERN = /^\d{5}$/;
 
 export const zoneSelectionSchema = z
-  .string()
-  .regex(INE_CODE_PATTERN, 'zone: se esperaba un código INE de 5 dígitos');
+  .string({ error: REPEATED_VALUE })
+  .regex(INE_CODE_PATTERN, 'el municipio del enlace no es válido; escribe su nombre en el buscador.');
 
 export const zoneQuerySchema = z.string().trim().min(2).max(64);

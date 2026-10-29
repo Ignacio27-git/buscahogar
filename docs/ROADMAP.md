@@ -1180,6 +1180,11 @@ defecto, que excluye las suites fail-loud), `pnpm --filter @buscahogar/web test`
 > - La base de datos de desarrollo tiene 2 viviendas, restos de los tests. El corpus real se
 >   borró durante el ciclo 1.10 y repoblarlo gasta cuota de Idealista.
 
+**Cambio posterior (2026-10-06, paso D.9, decisión 177):** el recuento de fuentes de A-1 solo cuenta
+las fuentes con algún anuncio `active` (`AND src_l."status" = 'active'` en la subconsulta), para
+coincidir con la ficha (decisión 176). «En cuántas fuentes aparece» pasa a ser «en cuántas está
+disponible».
+
 ## [x] 1.12 · Detalle y redirección a las fuentes
 
 ```text
@@ -2004,6 +2009,327 @@ quedan: `ho-10`, `dev-15` («entre 2 y 3 habitaciones», fijado como no reconoci
 
 ---
 
+## [x] 3.2 · Corrección: búsqueda vacía en una zona cubierta y suites que vaciaban la base de desarrollo
+
+Paso no previsto en la hoja de ruta, nacido de un fallo reportado por el responsable
+(`/?operation=rent&propertyType=flat&maxPrice=600&minRooms=3&zone=18009` devolvía una lista vacía). Ciclo SDD
+`fix-search-empty-results`, tres commits en `feature-fase3`.
+
+**Notas:**
+
+**Estado: hecho (2026-10-20).** Decisiones 245 y 246. Sin migración.
+
+**Causa.** El código de búsqueda era correcto. Las suites con base de datos vaciaban la base de desarrollo
+(decisión 046) y la única ubicación que quedaba era una fila de prueba `18009 Granada`
+(`apps/web/test/db/coverage-registration.test.ts`; el código INE real de Granada es 18087), sin anuncios.
+
+| Commit | Contenido | Hash |
+|---|---|---|
+| 1 | bases `_test` derivadas, `globalSetup`, guardián de `truncateAll`, `GRANT` agnóstico a la base (decisión 245) | `cdd4de0` |
+| 2 | aviso de zona cubierta sin resultados, 6 capturas nuevas, caso e2e y axe (decisión 246) | `fdd1d71` |
+| 3 | documentación | este commit |
+
+**Datos reales (operativa, 2026-10-20).** Se purgaron los residuos (fila de `coverage_client_quota`, zona y
+ubicación 18009; con guarda de `listings`/`properties` vacías), `pnpm db:migrate` y `pnpm db:seed` (8132
+ubicaciones; 18087 presente, 18009 ausente). Barrido `--zone 18087 --operation rent --max-requests 2`:
+2 peticiones, 100 anuncios creados, `resumeCursor homes:3`, aviso «studio» sin mapeo. Reprocesado con los
+umbrales de la suite (`--radius 300 --price-band 2500000 --surface-tolerance 10`, elegidos por el responsable;
+`BLOCKING_*` no existe en `.env`, ver abajo): 39 pares candidatos (2 aceptados, 5 indecisos, 32 rechazados), 98
+viviendas, 2 grupos multi-miembro; 100 filas de `property_listings`, todas con desglose. Granada, alquiler:
+98 visibles, 83 pisos, 3 pisos ≤600 €, 51 con ≥3 habitaciones, **0 con ambos**: los filtros exactos del
+responsable son legítimamente vacíos (el más barato cuesta 450 €). La zona 18087 sigue `uncovered` (barrido
+parcial por CLI).
+
+**Seguimiento (2026-10-20, tras el cierre).**
+
+- Resuelto: el responsable repuntó `BENCH_DATABASE_URL` a `buscahogar_test_bench`; `test:db` de `apps/ingestion`
+  pasa entero (11 ficheros, 108 tests).
+- Resuelto: se borró la base antigua `buscahogar_test` (17 tablas, 0 filas, sin conexiones), sin uso desde la
+  decisión 245.
+- OPS-0 comprobado sin leer valores (solo presencia): en `.env` faltan `OPERATION`, `DAILY_SEARCH_CAP` y los tres
+  `BLOCKING_*`. El worker de cobertura (`scripts/coverage-worker.ts`) se niega a arrancar sin ellos, así que **la
+  cobertura bajo demanda no funciona hoy en desarrollo**: los `coverage_jobs` que registre la web no se procesan.
+  Resuelto después por el responsable: `OPERATION=rent` (no rechaza el cursor de alquiler de 18087, D6),
+  `BLOCKING_*` iguales a los del reprocesado (300, 2500000, 10) y `DAILY_SEARCH_CAP` entero positivo.
+  `readEnv` del worker acepta la configuración. No se arrancó el bucle real, porque refresco y verificación
+  de presencia pueden gastar cuota.
+- Pendiente: `.env.example` sin actualizar (acceso denegado a los agentes); el README ya documenta las bases
+  derivadas y las variables del worker.
+- Fallo destapado al arrancar el worker: completó el barrido de Granada (36 peticiones, 1 751 anuncios, zona
+  `covered`) y cayó en el reprocesado. `writeConsolidation` insertaba toda la evidencia por pares en un único
+  INSERT (~99 880 parámetros, por encima del tope de 65 535 del protocolo: error 08P01). La transacción se
+  revirtió sin dejar nada a medias. Corregido en `936ad7b` (decisión 247): inserciones e `inArray` del corpus
+  por lotes de como mucho 30 000 parámetros, en la misma transacción. Tests nuevos con 12 720 pares y con
+  70 000 ids. Reprocesado relanzado sobre la base de desarrollo (300 / 2500000 / 10, sin cuota): 1751 anuncios,
+  12 485 pares (90 aceptados, 1101 indecisos, 11 294 rechazados), 1697 viviendas y 1751 filas de
+  `property_listings`, todas con desglose. Granada en alquiler: 1697 visibles, 939 pisos, 19 pisos de 600 € o
+  menos, 670 con 3 o más habitaciones y 0 con ambas cosas. La búsqueda original, con `zone=18087`, ya muestra el
+  aviso de la decisión 246 con datos reales.
+- `DAILY_SEARCH_CAP` del `.env` vale 1000, muy por encima de la cuota mensual estimada (unas 100 peticiones,
+  cifra no oficial de la decisión 033). Recomendación al responsable: bajarlo antes del 3.3.
+
+**Riesgos abiertos.** El mapeo de `studio` en el normalizador de Idealista sigue sin existir (los estudios
+no entran en el corpus).
+
+---
+
+## [x] 3.3 · Datos reales más allá de Granada: pre-barrido de las ciudades más pobladas
+
+Decisión de producto del responsable (2026-10-20): los datos reales deben cubrir más que Granada.
+
+```text
+Pre-barre las ciudades más pobladas (venta y alquiler) con un tope explícito de peticiones fijado por el
+responsable a partir de la cuota mensual restante, y deja reserva para la cobertura bajo demanda de los
+municipios pequeños (coverage_jobs con prioridad de zone_query_signals).
+```
+
+**Notas:**
+
+**Estado: hecho en código (2026-10-20); el pre-barrido real queda en manos del responsable.** Ciclo SDD
+`prescan-top-cities` (ritmo automático, almacén Engram), cinco commits de trabajo en `feature-fase3`, entregados
+como una sola PR con `size:exception`. Migraciones 0017-0019. Decisiones 248-253. El adaptador de Kyero sigue
+sin feed real (decisión 071), así que la única fuente del pre-barrido es Idealista.
+
+| Lote | Contenido | Decisión | Commit |
+|---|---|---|---|
+| PR1 | población municipal en el catálogo (columna nulable, parseo estricto, guarda de deriva), migración 0017 | 249 | `5c7da44` |
+| PR2 | `coverage_jobs` por operación (relleno con `rent`, claves únicas con la operación) y un único worker para venta y alquiler, migración 0018 | 250, 252 | `02ebf24` |
+| PR3 | la web registra cobertura por operación; el worker prioriza el carril a demanda por días con señal | 251 | `5313540` |
+| PR4a | registro mensual de cuota con reserva por carril, CLI `set-monthly-quota`, `REVOKE` a los roles de `web`, migración 0019 | 248 | `16ca832` |
+| PR4b | CLI `presweep` (pre-barrido de las N ciudades más pobladas) y promoción de parciales con demanda | 253 | `62be3c8` |
+| — | documentación | — | este commit |
+
+**Decisiones de producto del responsable (PD1-PD12, tres rondas).**
+
+- El tope de peticiones del pre-barrido es obligatorio y no tiene valor por defecto; también el tope por barrido
+  (`--max-requests`, `--max-requests-per-sweep`, `--top`).
+- Registro mensual persistido con reserva (`set-monthly-quota --total N --reserve M`); el total y la reserva no son
+  flags del pre-barrido, salen solo del registro.
+- Las ciudades se eligen por población (top-N, empate por código INE); población desconocida no entra.
+- `operation` en `coverage_jobs`, con estado de cobertura por (zona, operación). Un único worker atiende ambas
+  operaciones; `OPERATION` se rechaza al arrancar.
+- Prioridad del carril a demanda por número de días con señal en los últimos 30 días.
+- Una búsqueda sin operación cuenta como cubierta solo si lo están venta y alquiler.
+- Un mes sin cuota registrada hereda la del anterior; sin ninguna previa no se gasta nada (fallo cerrado).
+- Los parciales del lote que tienen demanda se promueven al carril a demanda (PD11).
+- El refresco comparte con el lote el saldo `total − reserva`; la reserva queda para la cobertura a demanda.
+
+**Verificación.** `sdd-verify`: **PASS WITH WARNINGS**, 0 críticos, 20/20 requisitos y 49/49 escenarios. Lint y
+typecheck limpios. Recuentos: `core` 964; `db` 442 + bloqueo 18 + consolidación 22 + detalle 24; `ingestion` 938 +
+`test:db` 172; `web` 1633; e2e en Docker 1026 superados y 0 fallos. Los avisos: documentación pendiente (este
+commit), `OPERATION` en `.env`/`.env.example` y el tamaño de la PR.
+
+**Coste de referencia.** El barrido completo de Granada en alquiler costó unas 36 peticiones (paso 3.2). Cada
+ciudad son dos unidades (venta y alquiler), y el tope de la ejecución las cuenta por separado.
+
+**Pendiente del responsable.**
+
+- Hecho el 2026-10-20: el responsable quitó `OPERATION` de `.env`; `.env.example` se confirmó el 2026-10-21 (ver
+  abajo).
+- Hecho el 2026-10-20: migraciones 0017-0019 aplicadas en la base de desarrollo (20/20) y `pnpm db:seed`, con
+  población en los 8 132 municipios. El job de Granada quedó como `rent`, `done`, con `last_completed_at`; ni
+  `web_readonly` ni `web_coverage` tienen privilegios sobre `monthly_request_budget`. El bootstrap de roles no hace
+  falta relanzarlo.
+- Hecho el 2026-10-20: cuota de octubre registrada con `set-monthly-quota --total 62 --reserve 31`, es decir, la
+  cifra no oficial de 100 al mes menos las 38 búsquedas ya gastadas en octubre (2 del CLI y 36 del worker, Granada)
+  y la reserva del 50 % de lo restante que fijó el responsable. Ninguno de los dos PDF de `docs/api_idealista`
+  documenta una cuota mensual; la cifra real solo está en el panel de socio. **En noviembre hay que fijar de nuevo
+  la cuota completa**: por la decisión 248 se heredaría 62/31.
+- Hecho el 2026-10-20: simulación `presweep --top 3 --max-requests 31 --max-requests-per-sweep 31 --dry-run`, con
+  6 unidades (Madrid, Barcelona y Valencia, en venta y alquiler) y 0 peticiones gastadas.
+- Hecho el 2026-10-21: barrido real de Madrid (28079) en venta y alquiler con
+  `presweep --top 1 --max-requests 31 --max-requests-per-sweep 15`. Consumió 30 búsquedas (15 por operación, motivo
+  `per-sweep-cap`) y creó 750 + 750 anuncios, 0 rechazados. Las dos operaciones quedan pendientes, marcadas como
+  pre-barrido y reanudables en `homes:16`. El registro mensual cuadra: 30 en el carril del lote y 2 de token, así
+  que queda 1 búsqueda para el lote y la reserva de 31 intacta para la cobertura bajo demanda.
+- Hecho el 2026-10-21: reprocesado de la deduplicación con los umbrales de Granada
+  (`reprocess --radius 300 --price-band 2500000 --surface-tolerance 10`). Quedan 3 251 anuncios en 3 180 viviendas
+  (2 437 de alquiler y 743 de venta), con 53 grupos de varios miembros y el desglose por señal en todas las filas de
+  `property_listings`. Ninguna vivienda mezcla anuncios de venta y alquiler.
+- Hecho el 2026-10-21, confirmado por el responsable y sin verificar desde la herramienta, que no puede leer
+  `.env*`: `DAILY_SEARCH_CAP` bajado en `.env` y `OPERATION` ausente también de `.env.example`.
+- Confirmado por el responsable el 2026-10-21: la cuota de Idealista se reinicia por mes natural UTC, así que la
+  suposición del registro mensual (decisión 248) queda validada. El responsable fijará de nuevo la cuota completa
+  en noviembre.
+- Hecho el 2026-10-26 en la base de desarrollo: migraciones 0020-0022 aplicadas (23/23). Faltaba
+  `coverage_jobs.lease_renewed_at` y por eso fallaba con 500 cualquier búsqueda con zona sin cubrir. Cuota de noviembre
+  registrada con `set-monthly-quota --total 100 --reserve 50 --month 2026-11` (techo del lote: 50).
+- Decidido por el responsable el 2026-10-26: en noviembre se prima la anchura, con 12 ciudades y 2 páginas por ciudad y
+  operación (unos 100 anuncios de cada). La simulación
+  `presweep --top 12 --max-requests 48 --max-requests-per-sweep 2 --dry-run` planifica 24 unidades sin gastar nada:
+  Madrid, Barcelona, Valencia, Zaragoza, Sevilla, Málaga, Murcia, Palma, Las Palmas, Alicante, Bilbao y Córdoba. Madrid
+  se reanuda desde su cursor.
+- Hecho el 2026-10-26, a petición del responsable, para no perder la cuota de octubre que caducaba: reserva de octubre
+  liberada (`set-monthly-quota --total 62 --reserve 0 --month 2026-10`) y pre-barrido real
+  `presweep --top 12 --max-requests 24 --max-requests-per-sweep 1`. Gastó 24 búsquedas (1 por ciudad y operación, motivo
+  `run-cap`) y no hubo rechazos. Se pasó de 3 251 a 4 413 anuncios, que tras `reprocess` con los umbrales de Granada quedan en
+  4 328 viviendas. Registro de octubre: 54 de 62 búsquedas y 26 peticiones de token.
+- **Hallazgo (2026-10-26):** el pre-barrido pidió un token OAuth nuevo por unidad (24 tokens para 24 búsquedas) en vez de
+  reutilizarlo. El registro cuenta los tokens aparte del tope de búsquedas. Si Idealista los computa en su cuota, el gasto real
+  es mayor del que refleja el tope. **Corregido el 2026-10-26** (commit `7039b15`, decisión 272): el token se reutiliza en toda la
+  ejecución mientras no caduca (`expires_in` menos 5 min), un 401 lo invalida y el registro anota solo las adquisiciones reales.
+  El worker tenía el mismo patrón (un token por barrido y por verificación de presencia) y se corrigió igual. `sweep-zone` no estaba
+  afectado: hace un solo barrido por proceso.
+- **Pendiente del responsable desde el 2026-11-01 (UTC):** lanzar `presweep --top 12 --max-requests 48 --max-requests-per-sweep 2`
+  (cada unidad sigue desde su cursor) y, después,
+  `reprocess` con los umbrales de Granada. En la misma fecha hay que arrancar el worker para el job bajo demanda de
+  Barcelona (alquiler), que va contra la reserva. Si la producción tiene su propia base, hay que repetir allí
+  `set-monthly-quota` y el pre-barrido.
+
+**Estado del paso: cerrado.** No queda nada pendiente del responsable. Madrid queda a medias en venta y alquiler y se
+reanuda desde su cursor cuando haya cuota.
+
+**Riesgos abiertos.** Las ciudades grandes superan el radio máximo de búsqueda de 15 km, así que un único barrido
+por ciudad puede no cubrir todo el término municipal. El mapeo de `studio` sigue sin existir (paso 3.2).
+
+---
+
+## [x] 3.4 · Puesta en producción
+
+Decisión de producto del responsable (2026-10-21): Buscahogar es un TFM y también una web real que se desplegará y
+usarán personas reales, así que tiene que funcionar a nivel profesional. La cuota de Idealista se puede ampliar
+según la demanda.
+
+```text
+Deja la aplicación desplegable y operable en producción: imágenes de web y del worker de cobertura (siempre activo,
+con reinicio automático), destino de despliegue con HTTPS y dominio, secretos fuera del repositorio, migraciones y
+bootstrap de roles como parte del despliegue, avisos ante caída del worker, trabajos fallidos o cuota agotada,
+copias de seguridad de PostgreSQL y gestión de la cuota de cada mes sin intervención manual.
+```
+
+**Notas:**
+
+**Estado: hecho en código (2026-10-23); el despliegue real queda en el paso 3.5, tras la aprobación del TFM.** Ciclo SDD
+`production-deployment` (ritmo automático, almacén Engram, Strict TDD), 12 commits de trabajo en `feature-fase3`,
+entregados como una sola PR con `size:exception` (~21 000 líneas autoradas frente a las ~5 600 previstas). Migraciones 0020-0022.
+Decisiones 254-265. Decisión del responsable (2026-10-21): el despliegue real no ocurre hasta que el TFM esté aprobado, así que este paso
+entrega **código listo para desplegar y comprobado en local** (Docker, MinIO y dobles; ninguna cuenta, ningún gasto). Arquitectura A (decisión
+254): `apps/web` en Vercel (Pro), PostgreSQL 17 con PostGIS en Neon (Frankfurt) y el worker en un host aparte.
+
+| Lote | Contenido | Decisión | Commit |
+|---|---|---|---|
+| S1 | limitador de peticiones compartido en PostgreSQL (fallo abierto, 200 ms), pools acotados para el pooler, migración 0020 y `REVOKE` a `web_readonly` | 255, 256 | `35a8b57` |
+| S2 | `GET /api/health`, teselas configurables (plantilla, host de la CSP, atribución), interruptor de indexación | 261, 262, 263 A | `e34a8aa` |
+| S3 | páginas legales (privacidad, cookies, aviso legal), pie de página, identidad del titular desde la configuración, lista permitida de cookies | 263 B | `5f2565d` |
+| corrección | credencial acotada del limitador para el servidor e2e «limitado» (regresión de S1 vista en el e2e de S3) | 265 | `bd456f5` |
+| S4a | roles, privilegios y comprobaciones del despliegue (SCRAM, migrador, aprovisionamiento, huella de ACL, `jit`) | 257, 264 | `7277549` |
+| S4b | `deploy` de extremo a extremo, semillas idempotentes, servicio de Compose | 257 | `b7e8919` |
+| S5a | worker en modo producción: JavaScript compilado, imagen propia, supervisor, parada ordenada, registro JSON, latido | 258 | `6eb0ef8` |
+| S5b | arrendamiento de jobs (migración 0021) y recuperación de `running` abandonados | 258 (parte 2) | `04fb276` |
+| S6 | avisos por Telegram con deduplicación duradera (migración 0022) y tope de salidas por tick | 259 | `2b70b82` |
+| S7 | copias cifradas con `age`, retención 7/4/3, simulacro de restauración con matriz de privilegios | 260 | `f408bfe` |
+| S8 | clasificador de entorno, `env:check`, `check:public-env`, CI, `docs/DEPLOYMENT.md`, README | 254, 263 C | `d53bb4d` |
+| — | documentación de cierre (decisiones, ARCHITECTURE, ROADMAP, PROMPTS, AI-NOTES) y nuevo paso 3.5 | — | este commit |
+
+**Qué queda comprobado y cómo.**
+
+- **Suites** (tras S8): core 995, db 556 (más bloqueo 18, consolidación 22, detalle 24), ingestion 1287 + 214 con base de datos,
+  web 1880; `pnpm lint` y `pnpm typecheck` limpios en los cuatro paquetes. e2e visual y de accesibilidad: 1117 pasadas, 0 fallos, 1007 omitidas.
+- **Despliegue idempotente**: contra un PostGIS desechable, la primera ejecución aplica 23 migraciones, crea los roles y siembra el catálogo;
+  la segunda informa `0 migrations, roles unchanged, privileges unchanged, seeds skipped` (la CI lo exige).
+- **Worker**: imagen `node:22.23.4-bookworm-slim` con usuario no root, sin `tsx` ni fuentes; con el entorno vacío sale con 2 y nombra lo que
+  falta. Recuperación de `running` abandonados y su SQL manual verificados contra la base (`docs/DEPLOYMENT.md`, «Jobs `running` atascados»).
+- **Copias de seguridad**: `bash ops/backup/test/e2e.sh` contra MinIO y dos PostGIS (78 comprobaciones), y `retention.test.sh` (16). No queda
+  texto plano en disco ni tras un fallo forzado.
+- **CI**: GitHub Actions no se puede ejecutar desde aquí. Se comprobó de forma estática (`ci-workflow.test.ts`) y se reprodujeron en local los
+  tres jobs: `checks` en una copia limpia sin ningún `.env*`, `db` contra un PostGIS desechable (despliegue doble y las seis suites con base de
+  datos) y `backup` (el e2e de copias). La primera ejecución real ocurre al subir la rama.
+
+**Qué NO se hizo (y pasa al 3.5).** Crear las cuentas (Vercel, Neon, host del worker, almacenamiento, Telegram, monitor de latido), el
+dominio y los secretos, el primer despliegue real, las comprobaciones que solo se pueden hacer contra Neon (verificador SCRAM, `jit` por rol,
+`attachDatabasePool`, latencia del proxy, agregación de IPv6), el proveedor de teselas con acuerdo, las condiciones de Idealista antes de indexar
+y la revisión de los textos legales. Tampoco hay imagen de la web (va a Vercel). La gestión de la cuota de cada mes sigue en manos del
+responsable (`set-monthly-quota`; la cuota se hereda mes a mes, decisión 248) con el aviso por Telegram al 80 % y al 100 %.
+
+**Pendientes del responsable.** `.env.example` no se pudo revisar (ninguna herramienta lo puede leer ni editar): hay que comprobar que
+recoge las variables nuevas, que están en `docs/DEPLOYMENT.md`. `OPERATION` ya no figura en él (confirmado el 2026-10-21). El servicio `web` de `docker-compose.yml` apunta a un
+`apps/web/Dockerfile` que no existe.
+
+**Riesgos abiertos.** Los precios y límites de los proveedores son la instantánea del 2026-10-21 y hay que repetirlos en el 3.5. Neon puede no
+aceptar verificadores SCRAM ya calculados ni `ALTER ROLE … SET jit`: ambos casos fallan en voz alta (salida 4) y están en la lista del 3.5. Con un
+único worker (decisión 252), un job reclamado a un dueño lento pero vivo podría terminarse dos veces; es benigno.
+
+---
+
+## [ ] 3.4b · Despliegue de demostración para la defensa del TFM
+
+Petición del responsable (2026-10-27): una URL pública y gratuita para la presentación del TFM, sin adelantar el paso 3.5.
+
+```text
+¿La aplicación podemos desplegarla sin pagar? Únicamente para pasar una URL a la que acceder para la presentación del TFM.
+```
+
+**Notas:**
+
+**Estado: guía escrita (2026-10-29); el aprovisionamiento queda en manos del responsable.** Procedimiento en `docs/DEMO-DEPLOYMENT.md`,
+decisión 273: Vercel Hobby, Neon Free en Frankfurt y ningún worker. Los datos son una foto fija de la base de desarrollo restaurada con
+`pg_restore --no-owner --no-privileges` y aprovisionada con `deploy`, la misma ruta que el simulacro de restauración.
+
+- Medido el 2026-10-29: la base de desarrollo ocupa 129 MB (`dedup_pair_evidence` 57 MB, `properties` 22 MB, `listing_versions` 19 MB),
+  con 4 413 anuncios y 4 328 viviendas. Cabe en el límite de 0,5 GB de Neon Free sin recortar nada.
+- Hallazgo: `packages/core` y `packages/db` exportan `dist/`, que no está versionado. En Vercel, `next build` por sí solo fallaría. El
+  Build Command es `pnpm --filter "@buscahogar/web..." build`, que compila primero las dependencias del espacio de trabajo. Se comprobó
+  en local con salida correcta.
+- Recomendación: volcar la foto después del pre-barrido de noviembre y de su `reprocess` (paso 3.3).
+- Hecho el 2026-10-29 (Neon: proyecto en Frankfurt, PostgreSQL 17.11 y PostGIS 3.5.7): volcado restaurado sin errores. Los recuentos
+  coinciden con la base local (4 413 anuncios, 4 328 viviendas, 38 438 pares de evidencia, 23 migraciones) y la base ocupa 104 MB.
+- **Hallazgo (2026-10-29): Neon no acepta el verificador SCRAM ya calculado.** `deploy` falla en el paso `roles` con
+  `Neon only supports being given plaintext passwords` y salida 1, no 4 como decía `docs/DEPLOYMENT.md` (véase AI-NOTES). Antes de fallar
+  no había cambiado nada: 0 migraciones y ningún rol. En la demo, los dos roles se crearon a mano con contraseña en texto plano y los
+  mismos atributos que usa `deploy`. Después, `deploy` dos veces: `0 migrations, roles unchanged, privileges changed, seeds skipped` y
+  luego `… privileges unchanged …`, las dos con salida 0. **`jit off` por rol sí funciona en Neon.**
+- Comprobado el 2026-10-29: la web compilada y arrancada en local contra el pooler de Neon, con los roles de la web, responde bien en
+  `/api/health`, en una búsqueda en Granada (24 resultados) y en el detalle de una vivienda. El limitador falló abierto (`store-unavailable`)
+  porque conectar desde España al pooler de Frankfurt cuesta unos 300 ms, frente a los 150 ms que da su pool. La consulta tarda unos 50 ms
+  y los permisos están bien. Queda por confirmar desde Vercel `fra1`.
+- Las URL del pooler para Vercel y los secretos están en ficheros fuera del repositorio, en el perfil del responsable.
+
+**Pendiente del responsable:** crear el proyecto en Vercel (pasos 4 y 5 de la guía) y anotar aquí la URL y si el limitador escribe en
+`proxy_rate_limit` desde `fra1`.
+
+**Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
+proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
+
+---
+
+## [ ] 3.5 · Aprovisionamiento y puesta en marcha
+
+Decisión de producto del responsable (2026-10-21): la puesta en marcha real no ocurre hasta que el TFM esté aprobado. Este paso agrupa todo lo
+que el 3.4 dejó fuera por requerir cuentas, dinero o decisiones del propietario. El procedimiento y los comandos están en
+`docs/DEPLOYMENT.md`.
+
+```text
+Pon en marcha Buscahogar en producción con la arquitectura de la decisión 254: crea las cuentas y los servicios, configura el dominio y los
+secretos, ejecuta el primer despliegue y comprueba cada supuesto que el paso 3.4 solo pudo dejar preparado (Neon, Vercel, teselas, latido,
+copias). Antes de abrir la web al público, revisa los textos legales y las condiciones de las fuentes.
+```
+
+**Lista de traspaso** (detalle en `docs/DEPLOYMENT.md`, «Paso 3.5: lista de traspaso»):
+
+- [ ] Repetir los precios y límites de los proveedores (instantánea del 2026-10-21) y confirmar el presupuesto.
+- [ ] Cuentas: Vercel (Pro), Neon (Frankfurt, PostgreSQL 17 con PostGIS), host del worker, almacenamiento S3-compatible, bot de Telegram.
+- [ ] Dominio y DNS; `SITE_URL` definitiva.
+- [ ] Secretos en los gestores de cada proveedor (nunca en el repositorio); `CLIENT_IP_HEADER=x-forwarded-for` y las variables del limitador.
+- [ ] Par de claves `age` generado fuera del servidor; `AGE_RECIPIENT` en el host de copias; la privada custodiada fuera de línea.
+- [ ] Primer `deploy` contra Neon, dos veces; cuota mensual real; `env:check --target production` sin avisos.
+- [ ] Monitor de latido (dead-man's-switch) con su `HEARTBEAT_URL`; alerta de prueba por Telegram.
+- [ ] Verificar en Neon: verificador SCRAM aceptado y `jit` apagado por rol (o el respaldo a nivel de base de datos). **Adelantado en el
+      3.4b:** Neon rechaza el verificador (hay que añadir a `deploy` un modo de texto plano) y `jit` por rol funciona.
+- [ ] Verificar `attachDatabasePool` y la latencia del proxy frente a Neon dentro de los 200 ms del limitador (fallo abierto).
+- [ ] Decidir si hace falta agregar las direcciones IPv6 por `/64` en la clave del limitador.
+- [ ] Primera copia real, simulacro de restauración completo y programación diaria de la copia.
+- [ ] Proveedor de teselas con acuerdo (clave publicable restringida por dominio) y su atribución.
+- [ ] Condiciones de Idealista revisadas **antes** de activar `SITE_INDEXING=true`.
+- [ ] Rellenar `LEGAL_OWNER_*`, revisar los textos legales y nombrar a los encargados del tratamiento en la política de privacidad.
+- [ ] Comprobar que `.env.example` recoge las variables nuevas y decidir qué hacer con el servicio `web` de `docker-compose.yml`.
+- [ ] Ejecutar `pnpm e2e` sobre el candidato a producción.
+
+**Notas:**
+
+**Estado: pendiente (no empezar antes de la aprobación del TFM).**
+
+---
+
 # Registro de desviaciones
 
 Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
@@ -2084,3 +2410,22 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-01 | 3.1 | El volumen superó el presupuesto de sesión (~3160 líneas autoradas frente a las 2400-3200 previstas, con U2 y U3 por encima de su tramo) y se aceptó `size:exception`; se partió en un commit por unidad (U1-U5) más una unidad extra de corrección, U2b | La previsión de `sdd-tasks` ya advertía de que el volumen era alto. U2b no estaba planificada: surgió al medir el corpus de desarrollo (decisión 124) y se hizo en un commit propio para mantener cada unidad con una finalidad. Precedente: pasos 2.2 y 2.3. |
 | 2026-10-01 | 3.1 | Las URL existentes con `minPrice`/`maxPrice` pasan a interpretarse en euros; antes el valor se pasaba sin convertir y se trataba como céntimos | Error latente: el formulario y las frases de lenguaje natural hablan euros, y dejar céntimos en la URL daba dos significados al mismo parámetro. Corregido dentro del 3.1 (U1, decisión 121). |
 | 2026-10-01 | 3.1 | La tarea 4.2 `buildInterpretHref` no se construyó | Ningún consumidor: la elección del lugar es un grupo de radios dentro del panel, así que no hace falta un enlace de vuelta a una interpretación. |
+| 2026-10-20 | 3.2 | Paso no previsto en la hoja de ruta, abierto por un fallo reportado (búsqueda vacía en una zona «cubierta») | La causa no estaba en la búsqueda sino en las suites que vaciaban la base de desarrollo (decisión 046, ahora cerrada por la 245). |
+| 2026-10-20 | 3.2 | El diseño descartó `initdb.d` y el script `\gexec` de Compose en favor de un `globalSetup` que crea y migra la base `_test`; la spec se enmendó (revisión 2) | `initdb.d` solo corre sobre un volumen vacío y obligaría a recrearlo; el `globalSetup` funciona sobre cualquier volumen y falla alto si Docker está parado. |
+| 2026-10-20 | 3.2 | `search-bench.db.test.ts` se modificó, fuera del alcance previsto | El nuevo guardián destapó que su `afterAll` con `truncateAll` habría vaciado `buscahogar_bench` (1M de filas); ahora usa `truncateBenchTables` local, condicionado a que el test haya generado los datos. |
+| 2026-10-20 | 3.2 | El texto del aviso difiere del diseño: añade el nexo causal y quita la repetición de «Los filtros aplicados» | Resultado de `impeccable clarify`; decisión 246. |
+| 2026-10-20 | 3.2 | `.env.example` no se actualizó; el nombre de las bases `_test` se documenta solo en el README | Ningún agente puede leer ni escribir ese fichero (permisos). Como no hay variable de test nueva, no hay nada que añadir salvo la nota sobre `BENCH_DATABASE_URL`, pendiente del responsable. |
+| 2026-10-20 | 3.2 | Los datos reales de Granada (alquiler) se cargaron en operativa, tras el commit 1, con un barrido de 2 peticiones y umbrales de reprocesado elegidos por el responsable | La base de desarrollo estaba vacía de anuncios; los umbrales `BLOCKING_*` solo viven en `.env`. Nuevo paso 3.3 para ampliar la cobertura real. |
+| 2026-10-20 | 3.2 | Tras el cierre se corrigió un fallo del reprocesado que solo aparece con volumen real (decisión 247) | El primer barrido completo del worker (1 751 anuncios) desbordó el tope de 65 535 parámetros de un INSERT. |
+| 2026-10-20 | 3.3 | Partido en cinco commits de trabajo (PR1-PR4b) entregados como una sola PR con `size:exception`, aceptada por el responsable | ~7.5k líneas escritas frente a las ~2.98k previstas. Mismo patrón de subestimación de `sdd-tasks` que en los pasos 1.6 y 1.7; el grueso son tests. |
+| 2026-10-20 | 3.3 | El diseño necesitó una re-ejecución correctiva tras el validador de contexto limpio, y aparecieron tres decisiones de producto nuevas (PD10-PD12) que la propuesta no cubría | El validador detectó el índice único parcial sin `operation`, los privilegios por defecto que exponían la tabla mensual a `web_readonly`, una asignación por barrido que ignoraba el techo mensual y migraciones solo hacia delante que contradecían la spec. Detalle en `AI-NOTES.md`. |
+| 2026-10-20 | 3.3 | `.env.example` sin actualizar: sigue declarando `OPERATION`, que el worker ya rechaza | Los permisos de la herramienta denegaron la edición. Queda como paso manual del responsable, junto con quitarla de `.env`. |
+| 2026-10-23 | 3.4 | El paso se redefine de «desplegar» a «dejar el código listo para desplegar y comprobado en local»; el aprovisionamiento y el despliegue real pasan al nuevo paso 3.5, tras la aprobación del TFM | Decisión del responsable (2026-10-21): el despliegue no ocurre hasta aprobar el TFM. No se creó ninguna cuenta ni se gastó dinero. La arquitectura A (Vercel + Neon + worker aparte) se fijó en la decisión 254. |
+| 2026-10-23 | 3.4 | S4 se partió en S4a (roles, privilegios, `jit`, migrador) y S4b (`deploy` de extremo a extremo, semillas, Compose); S5 en S5a (worker en producción) y S5b (arrendamiento y recuperación de jobs) | Cada mitad superaba por sí sola el presupuesto de revisión; el migrador pasó a S4a porque las pruebas de S4a lo necesitan. S5b surgió del hallazgo de que un worker matado con SIGKILL deja su job en `running` para siempre (decisión 258, parte 2); no estaba en el diseño original. |
+| 2026-10-23 | 3.4 | Commit correctivo de la regresión de S1 en el e2e (rol `web_limiter_e2e`, decisión 265) | S1 hizo que el limitador cuente en PostgreSQL y falle abierto; el servidor e2e «limitado» tenía la URL vacía (decisión 135) y siete pruebas dejaron de ver el 429. No se ejecutó `pnpm e2e` tras S1; lo detectó el e2e de S3. Desde entonces se ejecuta tras cualquier rebanada que toque `apps/web`. Detalle en `AI-NOTES.md`. |
+| 2026-10-23 | 3.4 | Las copias de seguridad tienen su propio `ops/backup/compose.yml` en lugar de un perfil en `docker-compose.yml` (S7) | El volumen del compose principal tiene nombre fijo (`buscahogar_postgres_data`): un `down -v` desde cualquier proyecto lo borraría. El fichero aparte usa proyecto propio y solo `tmpfs`. |
+| 2026-10-23 | 3.4 | La imagen de MinIO pasa a ser `cgr.dev/chainguard/minio`, fijada por digest (S7) | `minio/minio` ya no se puede descargar de Docker Hub (acceso denegado). |
+| 2026-10-23 | 3.4 | Los tramos de retención de las copias son disjuntos, así que el escenario de la especificación «20 copias diarias → 7 + 4 + 3» no es alcanzable literalmente: 20 días conservan 9 y 120 días, 14 (S7) | Con tramos que se solaparan, la cuenta sería ambigua. Con tramos disjuntos se llega a 7 + 4 + 3 con unos cuatro meses de historia. Documentado en `docs/DEPLOYMENT.md` y en la decisión 260. |
+| 2026-10-23 | 3.4 | No hay imagen de `apps/web` (la tarea pedía «imágenes de web y del worker») y `.env.example` no se actualizó | La web va a Vercel (decisión 254), que construye la suya; el servicio `web` de Compose queda sin Dockerfile (pendiente del 3.5). `.env.example` no se puede leer ni editar con las herramientas: las variables nuevas están en `docs/DEPLOYMENT.md` y es tarea del responsable. |
+| 2026-10-23 | 3.4 | El e2e visual de Playwright no forma parte de la CI (S8) | Exige una imagen de Docker de varios GB por ejecución; se ejecuta a mano antes de fusionar cambios de interfaz (se ejecutó al cerrar S8: 1117 pasadas, 0 fallos, 1007 omitidas). |
+| 2026-10-29 | 3.4b | Paso nuevo, no previsto: despliegue de demostración gratuito (Vercel Hobby, Neon Free, sin worker y con datos de foto fija) antes del 3.5 | El responsable necesita una URL para la defensa del TFM y el 3.5 no empieza hasta que el TFM esté aprobado. La demo no sustituye al 3.5: usa otras cuentas y otros planes y no ingiere datos. Decisión 273. |

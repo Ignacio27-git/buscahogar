@@ -50,7 +50,7 @@ async function seedZoneAndSource(
   }
   const [job] = await db
     .insert(coverageJobs)
-    .values({ zoneId: zone.id, sourceId: source.id, status: 'pending', cursor: null })
+    .values({ zoneId: zone.id, sourceId: source.id, operation: 'rent', status: 'pending', cursor: null })
     .returning({ id: coverageJobs.id });
   if (!job) {
     throw new Error('No se pudo sembrar coverage_jobs de prueba');
@@ -87,7 +87,7 @@ describeWithCoverageDb('rol INSERT-only de coverage_jobs — rechazo negativo re
     // `seedZoneAndSource` deja un job 'pending' para este mismo par
     // (zone_id, source_id) porque los casos NEGATIVOS necesitan un `jobId`
     // al que apuntar. Aquí estorba: el índice único parcial
-    // `coverage_jobs_zone_source_pending_idx` (DD-16/CR-3) rechazaría el
+    // `coverage_jobs_zone_source_op_pending_idx` (DD-16/CR-3) rechazaría el
     // insert con 23505 antes de que el permiso llegue siquiera a evaluarse,
     // y el caso positivo nunca podría pasar. Se borra con la conexión
     // PROPIETARIA — el rol de cobertura no tiene DELETE, que es justo lo
@@ -96,10 +96,30 @@ describeWithCoverageDb('rol INSERT-only de coverage_jobs — rechazo negativo re
 
     await expect(
       coveragePool.query(
-        'insert into coverage_jobs (zone_id, source_id, status, cursor) values ($1, $2, $3, null)',
-        [zoneId, sourceId, 'pending']
+        'insert into coverage_jobs (zone_id, source_id, operation, status, cursor) values ($1, $2, $3, $4, null)',
+        [zoneId, sourceId, 'rent', 'pending']
       )
     ).resolves.toBeDefined();
+  });
+
+  // ROADMAP 3.3 (decisión 251, PD9; NF2): registrar el job de la otra operación necesita solo el INSERT
+  // de siempre (el GRANT es a nivel de tabla y cubre las columnas nuevas): ningún GRANT nuevo.
+  it('PD9: con un job rent pendiente, el rol INSERT-only registra el de sale con ON CONFLICT DO NOTHING (sin GRANT nuevo)', async () => {
+    const { zoneId, sourceId } = await seedZoneAndSource(ownerDb);
+
+    await expect(
+      coveragePool.query(
+        `insert into coverage_jobs (zone_id, source_id, operation, status, cursor) values ($1, $2, 'sale', 'pending', null)
+         on conflict do nothing`,
+        [zoneId, sourceId]
+      )
+    ).resolves.toBeDefined();
+
+    const { rows } = await ownerPool.query<{ operation: string }>(
+      'select operation from coverage_jobs where zone_id = $1 order by operation',
+      [zoneId]
+    );
+    expect(rows).toEqual([{ operation: 'rent' }, { operation: 'sale' }]);
   });
 
   it('UPDATE en coverage_jobs está RECHAZADO', async () => {

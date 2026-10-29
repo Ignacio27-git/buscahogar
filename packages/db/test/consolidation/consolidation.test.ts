@@ -600,4 +600,128 @@ describe('writeConsolidation (D5, D6, D8)', () => {
       expect(property?.minPriceCents).toBe(200_000_00);
     });
   });
+
+  // Paso 3.2 (seguimiento): el worker de cobertura cayó al consolidar tras
+  // barrer Granada (1 751 anuncios): un único INSERT de ~12 485 pares de
+  // evidencia superó los 65 535 parámetros ligados del protocolo (08P01).
+  // 160 anuncios → 12 720 pares, el mismo orden de magnitud que el caso real.
+  describe('evidencia por encima del tope de 65 535 parámetros por sentencia', () => {
+    const LISTING_COUNT = 160;
+
+    async function insertManyListings(): Promise<{ listingIds: string[]; pairs: ConsolidationInput['pairs'] }> {
+      const sourceId = await insertSourceWithKey(db, 'idealista');
+      const listingRows = await db
+        .insert(listings)
+        .values(
+          Array.from({ length: LISTING_COUNT }, (_, index) => ({
+            sourceId,
+            externalId: `ext-overflow-${String(index)}`,
+            url: 'https://example.test/anuncio',
+          }))
+        )
+        .returning({ id: listings.id });
+      const versionRows = await db
+        .insert(listingVersions)
+        .values(
+          listingRows.map((row, index) => ({
+            listingId: row.id,
+            version: 1,
+            isCurrent: true,
+            priceCents: 100_000_00 + index,
+            operation: 'sale',
+            propertyType: 'flat',
+          }))
+        )
+        .returning({ id: listingVersions.id, listingId: listingVersions.listingId });
+      const versionByListing = new Map(versionRows.map((row) => [row.listingId, row.id]));
+
+      const listingIds = listingRows.map((row) => row.id).sort();
+      const pairs: ConsolidationInput['pairs'][number][] = [];
+      for (let i = 0; i < listingIds.length; i += 1) {
+        for (let j = i + 1; j < listingIds.length; j += 1) {
+          const listingAId = listingIds[i] as string;
+          const listingBId = listingIds[j] as string;
+          const versionA = versionByListing.get(listingAId);
+          const versionB = versionByListing.get(listingBId);
+          pairs.push({
+            listingAId,
+            listingBId,
+            band: 'reject',
+            score: (i * LISTING_COUNT + j) / (LISTING_COUNT * LISTING_COUNT),
+            signals: { priceProximity: { value: i / LISTING_COUNT, weight: 0.3, detail: `par ${String(i)}-${String(j)}` } },
+            ...(versionA !== undefined ? { scoredListingVersionIdA: versionA } : {}),
+            ...(versionB !== undefined ? { scoredListingVersionIdB: versionB } : {}),
+          });
+        }
+      }
+      return { listingIds, pairs };
+    }
+
+    it('escribe toda la evidencia (puntuación y desglose por señal) y la caché sin desbordar el protocolo', async () => {
+      const { listingIds, pairs } = await insertManyListings();
+      expect(pairs.length * 8).toBeGreaterThan(65_535);
+
+      const outcome = await writeConsolidation(
+        db,
+        baseInput({
+          listingsConsidered: listingIds.length,
+          pairs,
+          groups: listingIds.map((listingId) => ({ listingIds: [listingId], winnerId: listingId })),
+        })
+      );
+
+      const { rows: countRows } = await pool.query<{ count: string }>(
+        'SELECT count(*) FROM dedup_pair_evidence WHERE run_id = $1',
+        [outcome.runId]
+      );
+      expect(Number(countRows[0]?.count)).toBe(pairs.length);
+
+      const lastPair = pairs[pairs.length - 1];
+      const { rows: lastRows } = await pool.query<{ score: string; signals: SignalBreakdown; band: string }>(
+        'SELECT score, signals, band FROM dedup_pair_evidence WHERE run_id = $1 AND listing_a_id = $2 AND listing_b_id = $3',
+        [outcome.runId, lastPair?.listingAId, lastPair?.listingBId]
+      );
+      expect(lastRows).toHaveLength(1);
+      expect(Number(lastRows[0]?.score)).toBeCloseTo(lastPair?.score ?? Number.NaN);
+      expect(lastRows[0]?.signals).toEqual(lastPair?.signals);
+      expect(lastRows[0]?.band).toBe('reject');
+
+      expect(outcome.propertiesCreated).toBe(LISTING_COUNT);
+      expect(await db.select().from(propertyListings)).toHaveLength(LISTING_COUNT);
+    });
+
+    it('un fallo en el último lote revierte también los lotes ya insertados (D8)', async () => {
+      const { listingIds, pairs } = await insertManyListings();
+      const lastPair = pairs[pairs.length - 1];
+      if (!lastPair) {
+        throw new Error('el escenario necesita al menos un par');
+      }
+      // Viola el CHECK `listing_a_id < listing_b_id` solo en el último par:
+      // los lotes anteriores ya se habrán insertado cuando este falle.
+      const brokenPairs = [
+        ...pairs.slice(0, -1),
+        { ...lastPair, listingAId: lastPair.listingBId, listingBId: lastPair.listingAId },
+      ];
+
+      await expect(
+        writeConsolidation(
+          db,
+          baseInput({
+            listingsConsidered: listingIds.length,
+            pairs: brokenPairs,
+            groups: listingIds.map((listingId) => ({ listingIds: [listingId], winnerId: listingId })),
+          })
+        )
+      ).rejects.toMatchObject({
+        // Drizzle envuelve el error de pg ("Failed query: …"); la restricción
+        // violada viaja en `cause`.
+        cause: { constraint: 'dedup_pair_evidence_listing_order_check' },
+      });
+
+      const { rows: evidenceRows } = await pool.query<{ count: string }>('SELECT count(*) FROM dedup_pair_evidence');
+      const { rows: runRows } = await pool.query<{ count: string }>('SELECT count(*) FROM dedup_runs');
+      expect(Number(evidenceRows[0]?.count)).toBe(0);
+      expect(Number(runRows[0]?.count)).toBe(0);
+    });
+  });
 });

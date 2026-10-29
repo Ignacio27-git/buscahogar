@@ -6,16 +6,21 @@
 // suite de detalle es nueva y no puede demostrar nada con un verde vacío,
 // mismo criterio que `vitest.consolidation.config.ts` (ROADMAP 1.10).
 import { randomUUID } from 'node:crypto';
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { Pool } from 'pg';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { compareSourceListings } from '@buscahogar/core';
 
 import type { ConsolidationInput } from '../../src/consolidation.js';
 import { writeConsolidation } from '../../src/consolidation.js';
 import type { Database } from '../../src/db.js';
-import { getPropertyDetailHeader, getPropertySources } from '../../src/detail.js';
-import { listingVersions, listings, properties, propertyListings, sources } from '../../src/tables.js';
+import { getPropertyDetailHeader, getPropertyPriceHistory, getPropertySources } from '../../src/detail.js';
+import { buildE2eFixture } from '../../src/e2e/fixture-data.js';
+import { insertE2eFixture } from '../../src/e2e/seed.js';
+import { listingVersions, listings, locations, properties, propertyListings, sources } from '../../src/tables.js';
 import { connectTestDb, truncateAll } from '../helpers/db-client.js';
+import { insertLocation } from '../helpers/fixtures.js';
 
 async function insertSourceKeyed(db: Database, key: string): Promise<string> {
   const [row] = await db.insert(sources).values({ key, name: key, kind: 'api' }).returning({ id: sources.id });
@@ -26,6 +31,7 @@ async function insertSourceKeyed(db: Database, key: string): Promise<string> {
 }
 
 interface ListingOverrides {
+  readonly id?: string;
   readonly url?: string;
   readonly status?: string;
   readonly thumbnailUrl?: string;
@@ -36,6 +42,7 @@ async function insertListingRow(db: Database, sourceId: string, overrides: Listi
   const [row] = await db
     .insert(listings)
     .values({
+      ...(overrides.id !== undefined ? { id: overrides.id } : {}),
       sourceId,
       externalId: `ext-${randomUUID()}`,
       url: overrides.url ?? 'https://example.test/anuncio',
@@ -280,6 +287,41 @@ describe('detail.ts — Q1/Q2 contra Postgres real (diseño D3)', () => {
     expect(sourceRows.every((row) => row.status === 'inactive')).toBe(true);
   });
 
+  // Paso D.9 (spec property-detail-query): un único orden determinista para la
+  // lista y la galería de fuentes: activos primero, luego precio, luego id.
+  it('D.9: un anuncio activo va antes que uno retirado aunque este sea más barato', async () => {
+    const sourceId = await insertSourceKeyed(db, 'idealista');
+    const removed = await insertListingRow(db, sourceId, { status: 'removed' });
+    const active = await insertListingRow(db, sourceId, { status: 'active' });
+    await insertCurrentVersion(db, removed, { priceCents: 200_000_00 });
+    await insertCurrentVersion(db, active, { priceCents: 300_000_00 });
+    const propertyId = await insertPropertyRow(db, { minPriceCents: 200_000_00, listingCount: 2 });
+    await linkPropertyListing(db, propertyId, removed);
+    await linkPropertyListing(db, propertyId, active);
+
+    const rows = await getPropertySources(db, propertyId);
+    expect(rows.map((row) => row.listingId)).toEqual([active, removed]);
+  });
+
+  it('D.9: con precio igual desempata por id ascendente, en cada llamada', async () => {
+    const sourceId = await insertSourceKeyed(db, 'idealista');
+    const lowId = '00000000-0000-4000-8000-000000000005';
+    const highId = '00000000-0000-4000-8000-000000000007';
+    // Se insertan y enlazan en orden inverso para que el orden físico no ayude.
+    await insertListingRow(db, sourceId, { id: highId });
+    await insertListingRow(db, sourceId, { id: lowId });
+    await insertCurrentVersion(db, highId, { priceCents: 250_000_00 });
+    await insertCurrentVersion(db, lowId, { priceCents: 250_000_00 });
+    const propertyId = await insertPropertyRow(db, { minPriceCents: 250_000_00, listingCount: 2 });
+    await linkPropertyListing(db, propertyId, highId);
+    await linkPropertyListing(db, propertyId, lowId);
+
+    for (let call = 0; call < 3; call += 1) {
+      const rows = await getPropertySources(db, propertyId);
+      expect(rows.map((row) => row.listingId)).toEqual([lowId, highId]);
+    }
+  });
+
   it('404: uuid bien formado pero sin fila property_listings coincidente (listing inexistente por completo)', async () => {
     const header = await getPropertyDetailHeader(db, randomUUID());
     expect(header).toBeUndefined();
@@ -294,6 +336,52 @@ describe('detail.ts — Q1/Q2 contra Postgres real (diseño D3)', () => {
 
     const header = await getPropertyDetailHeader(db, listingId);
     expect(header).toBeUndefined();
+  });
+
+  it('D.11: lat y lon salen de properties.location (x = lon, y = lat) con precisión de 1e-9', async () => {
+    const sourceId = await insertSourceKeyed(db, 'idealista');
+    const listingId = await insertListingRow(db, sourceId);
+    await insertCurrentVersion(db, listingId);
+    const propertyId = await insertPropertyRow(db, { location: { x: -3.7324, y: 40.3063 } });
+    await linkPropertyListing(db, propertyId, listingId);
+
+    const header = await getPropertyDetailHeader(db, listingId);
+
+    expect(header?.lat).toBeCloseTo(40.3063, 9);
+    expect(header?.lon).toBeCloseTo(-3.7324, 9);
+  });
+
+  it('D.11: location NULL -> lat y lon NULL y la fila no se pierde', async () => {
+    const sourceId = await insertSourceKeyed(db, 'idealista');
+    const listingId = await insertListingRow(db, sourceId);
+    await insertCurrentVersion(db, listingId);
+    const propertyId = await insertPropertyRow(db);
+    await linkPropertyListing(db, propertyId, listingId);
+
+    const header = await getPropertyDetailHeader(db, listingId);
+
+    expect(header).toBeDefined();
+    expect(header?.lat).toBeNull();
+    expect(header?.lon).toBeNull();
+  });
+
+  it('D.11: location_id resuelve el municipio; con location_id NULL el municipio es NULL y la fila se conserva', async () => {
+    const sourceId = await insertSourceKeyed(db, 'idealista');
+    const withId = await insertListingRow(db, sourceId);
+    const withoutId = await insertListingRow(db, sourceId);
+    await insertCurrentVersion(db, withId);
+    await insertCurrentVersion(db, withoutId);
+    const locationId = await insertLocation(db);
+    await db.update(locations).set({ municipality: 'Getafe' }).where(eq(locations.id, locationId));
+    const located = await insertPropertyRow(db, { locationId });
+    const unlocated = await insertPropertyRow(db);
+    await linkPropertyListing(db, located, withId);
+    await linkPropertyListing(db, unlocated, withoutId);
+
+    expect((await getPropertyDetailHeader(db, withId))?.municipality).toBe('Getafe');
+    const orphan = await getPropertyDetailHeader(db, withoutId);
+    expect(orphan).toBeDefined();
+    expect(orphan?.municipality).toBeNull();
   });
 
   it('score y signals están ausentes de las claves del objeto devuelto (PD-3)', async () => {
@@ -325,5 +413,211 @@ describe('detail.ts — Q1/Q2 contra Postgres real (diseño D3)', () => {
     // tipo (uuid inválido).
     const stillQueryable = await db.select().from(properties).limit(1);
     expect(Array.isArray(stillQueryable)).toBe(true);
+  });
+});
+
+// D.10 — histórico de precios: todas las versiones, sin filtrar por
+// `isCurrent` ni por `status`, en una única sentencia.
+interface HistoryVersion {
+  readonly version: number;
+  readonly priceCents: number;
+  readonly capturedAt: string;
+  readonly isCurrent?: boolean;
+  readonly redacted?: boolean;
+}
+
+async function insertHistoryVersions(
+  db: Database,
+  listingId: string,
+  versions: readonly HistoryVersion[]
+): Promise<void> {
+  for (const v of versions) {
+    await db.insert(listingVersions).values({
+      listingId,
+      version: v.version,
+      isCurrent: v.isCurrent ?? false,
+      priceCents: v.priceCents,
+      operation: 'sale',
+      description: v.redacted === true ? null : 'texto',
+      raw: v.redacted === true ? null : { a: 1 },
+      capturedAt: new Date(v.capturedAt),
+    });
+  }
+}
+
+describe('getPropertyPriceHistory — contra Postgres real (D.10)', () => {
+  let db: Database;
+  let pool: Pool;
+
+  beforeAll(() => {
+    ({ db, pool } = connectTestDb());
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  beforeEach(async () => {
+    await truncateAll(pool);
+  });
+
+  async function propertyWithListing(
+    sourceKey: string,
+    status?: string
+  ): Promise<{ readonly propertyId: string; readonly listingId: string }> {
+    const sourceId = await insertSourceKeyed(db, sourceKey);
+    const listingId = await insertListingRow(db, sourceId, status !== undefined ? { status } : {});
+    const propertyId = await insertPropertyRow(db, { listingCount: 1 });
+    await linkPropertyListing(db, propertyId, listingId);
+    return { propertyId, listingId };
+  }
+
+  it('devuelve todas las versiones de un anuncio, también las no vigentes', async () => {
+    const { propertyId, listingId } = await propertyWithListing('idealista');
+    await insertHistoryVersions(db, listingId, [
+      { version: 1, priceCents: 300_000, capturedAt: '2026-01-01T10:00:00Z' },
+      { version: 2, priceCents: 290_000, capturedAt: '2026-02-01T10:00:00Z' },
+      { version: 3, priceCents: 280_000, capturedAt: '2026-03-01T10:00:00Z', isCurrent: true },
+    ]);
+
+    const rows = await getPropertyPriceHistory(db, propertyId);
+
+    expect(rows.map((r) => r.priceCents)).toEqual([300_000, 290_000, 280_000]);
+    expect(rows.every((r) => r.listingId === listingId && r.sourceKey === 'idealista')).toBe(true);
+    expect(rows[0]?.capturedAt).toBeInstanceOf(Date);
+  });
+
+  it('una vivienda desconocida devuelve un array vacío', async () => {
+    const rows = await getPropertyPriceHistory(db, randomUUID());
+    expect(rows).toEqual([]);
+  });
+
+  it('un anuncio retirado conserva sus versiones con su estado', async () => {
+    const { propertyId, listingId } = await propertyWithListing('kyero', 'removed');
+    await insertHistoryVersions(db, listingId, [
+      { version: 1, priceCents: 100_000, capturedAt: '2026-01-01T10:00:00Z' },
+      { version: 2, priceCents: 95_000, capturedAt: '2026-02-01T10:00:00Z', isCurrent: true },
+    ]);
+
+    const rows = await getPropertyPriceHistory(db, propertyId);
+
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.status === 'removed')).toBe(true);
+  });
+
+  it('un anuncio con descripción y raw redactados (107) mantiene precio y fecha', async () => {
+    const { propertyId, listingId } = await propertyWithListing('idealista', 'removed');
+    await insertHistoryVersions(db, listingId, [
+      { version: 1, priceCents: 100_000, capturedAt: '2026-01-01T10:00:00Z', redacted: true },
+      { version: 2, priceCents: 100_000, capturedAt: '2026-02-01T10:00:00Z', isCurrent: true, redacted: true },
+    ]);
+
+    const rows = await getPropertyPriceHistory(db, propertyId);
+
+    expect(rows.map((r) => [r.priceCents, r.capturedAt.toISOString()])).toEqual([
+      [100_000, '2026-01-01T10:00:00.000Z'],
+      [100_000, '2026-02-01T10:00:00.000Z'],
+    ]);
+  });
+
+  it('desempata por capturedAt, luego versión y luego id de anuncio, igual en cada llamada', async () => {
+    const sourceId = await insertSourceKeyed(db, 'idealista');
+    const a = await insertListingRow(db, sourceId, { id: '00000000-0000-4000-8000-000000000002' });
+    const b = await insertListingRow(db, sourceId, { id: '00000000-0000-4000-8000-000000000001' });
+    const propertyId = await insertPropertyRow(db, { listingCount: 2 });
+    await linkPropertyListing(db, propertyId, a);
+    await linkPropertyListing(db, propertyId, b);
+    const same = '2026-01-01T10:00:00Z';
+    await insertHistoryVersions(db, a, [
+      { version: 1, priceCents: 1, capturedAt: same },
+      { version: 2, priceCents: 2, capturedAt: same, isCurrent: true },
+    ]);
+    await insertHistoryVersions(db, b, [
+      { version: 1, priceCents: 3, capturedAt: same },
+      { version: 2, priceCents: 4, capturedAt: same, isCurrent: true },
+    ]);
+
+    const first = await getPropertyPriceHistory(db, propertyId);
+    const second = await getPropertyPriceHistory(db, propertyId);
+
+    // Versión ascendente primero; dentro de la misma versión, id de anuncio ascendente (b < a).
+    expect(first.map((r) => r.priceCents)).toEqual([3, 1, 4, 2]);
+    expect(second).toEqual(first);
+  });
+
+  it('proyecta exactamente cinco campos', async () => {
+    const { propertyId, listingId } = await propertyWithListing('idealista');
+    await insertHistoryVersions(db, listingId, [
+      { version: 1, priceCents: 1, capturedAt: '2026-01-01T10:00:00Z', isCurrent: true },
+    ]);
+
+    const [row] = await getPropertyPriceHistory(db, propertyId);
+
+    expect(Object.keys(row ?? {}).sort()).toEqual(['capturedAt', 'listingId', 'priceCents', 'sourceKey', 'status']);
+  });
+
+  it('emite una única sentencia SQL para varios anuncios y versiones (sin N+1)', async () => {
+    const sourceId = await insertSourceKeyed(db, 'idealista');
+    const propertyId = await insertPropertyRow(db, { listingCount: 3 });
+    for (let i = 0; i < 3; i += 1) {
+      const listingId = await insertListingRow(db, sourceId);
+      await linkPropertyListing(db, propertyId, listingId);
+      await insertHistoryVersions(db, listingId, [
+        { version: 1, priceCents: 100 + i, capturedAt: '2026-01-01T10:00:00Z' },
+        { version: 2, priceCents: 200 + i, capturedAt: '2026-02-01T10:00:00Z' },
+        { version: 3, priceCents: 300 + i, capturedAt: '2026-03-01T10:00:00Z', isCurrent: true },
+      ]);
+    }
+
+    const spy = vi.spyOn(pool, 'query');
+    try {
+      const rows = await getPropertyPriceHistory(db, propertyId);
+      expect(rows).toHaveLength(9);
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+describe('D.12 — compareSourceListings coincide con la cabecera (decisión 109)', () => {
+  let db: Database;
+  let pool: Pool;
+
+  beforeAll(() => {
+    ({ db, pool } = connectTestDb());
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  beforeEach(async () => {
+    await truncateAll(pool);
+  });
+
+  it('en el dataset e2e el precio calculado es properties.min_price_cents y la primera fila es destacada', async () => {
+    const fixture = buildE2eFixture();
+    await insertE2eFixture(db, fixture);
+
+    const modes = new Set<string>();
+    for (const property of fixture.properties) {
+      const link = fixture.propertyListings.find((row) => row.propertyId === property.id);
+      expect(link).toBeDefined();
+      const header = await getPropertyDetailHeader(db, link?.listingId ?? '');
+      const rows = await getPropertySources(db, property.id ?? '');
+      const comparison = compareSourceListings(rows);
+
+      expect(comparison.mode).not.toBe('empty');
+      if (comparison.mode === 'empty') {
+        continue;
+      }
+      modes.add(comparison.mode);
+      expect(comparison.priceCents).toBe(header?.minPriceCents);
+      expect(comparison.highlightedIds).toContain(rows[0]?.listingId);
+    }
+
+    // El dataset cubre ambos modos: viviendas con anuncios activos y viviendas sin ninguno.
+    expect([...modes].sort()).toEqual(['active', 'none-active']);
   });
 });

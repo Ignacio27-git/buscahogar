@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 1,
+  "tags": [
+    "wcag21a",
+    "wcag21aa",
+    "wcag22aa",
+    "wcag2a",
+    "wcag2aa"
+  ],
+  "entries": {
+    "coverage-cap": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "coverage-done": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "coverage-failed": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "coverage-not-sweepable": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "coverage-pending": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "coverage-running": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "detail": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "detail-gallery": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "detail-history": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "detail-single": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "home": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "home-filtered": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "legal-cookies": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "legal-notice": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "legal-privacy": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "map": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "nl-query": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "not-found-property": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "not-found-route": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    },
+    "zone-covered-empty": {
+      "w1280-dark": [],
+      "w1280-light": [],
+      "w320-dark": [],
+      "w320-light": [],
+      "w768-dark": [],
+      "w768-light": []
+    }
+  }
+}

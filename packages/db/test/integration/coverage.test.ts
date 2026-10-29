@@ -45,7 +45,7 @@ describeWithDb('coverage_jobs y zones: estado de barrido', () => {
     // porte bien.
     await expect(
       pool.query(
-        `INSERT INTO coverage_jobs (zone_id, source_id, status) VALUES ($1, $2, 'queued')`,
+        `INSERT INTO coverage_jobs (zone_id, source_id, operation, status) VALUES ($1, $2, 'rent', 'queued')`,
         [zone.id, source.id]
       )
     ).rejects.toMatchObject({ code: '22P02' });

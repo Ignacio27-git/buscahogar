@@ -40,6 +40,220 @@ particularidades de la API de la fuente).
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-15 — Cuatro fallos del proceso de D.19 (paleta cálida y Figtree)
+
+**Contexto:** propuesta, especificación, investigación y capturas del paso D.19.
+
+**Categoría:** contradicción con una regla del proyecto / código correcto en apariencia pero incorrecto / suposición sin comprobar.
+
+**Qué ocurrió:**
+
+1. La propuesta mapeó la enmienda de la tipografía a la decisión 217 (Liberation Sans en las capturas) cuando la que fija la pila del sistema es la
+   132. La 217 solo se acota (234).
+2. La especificación decía que las líneas base se regeneran después de la puerta de aprobación. Contradice la mecánica: las 12 capturas de la
+   puerta son las propias líneas base, así que hay que regenerarlas antes.
+3. `--update-snapshots=changed` no regeneró las seis capturas `rate-limit.png`: el cambio de fondo `#ffffff` → `#faf8f3` en una página casi vacía
+   queda por debajo del umbral de 0,2 de `toHaveScreenshot` y Playwright las daba por iguales. Se borraron y se escribieron con una ejecución dirigida.
+4. La fase de investigación volvió «parcial»: no pudo comprobar la característica `tnum` del `woff2`. El orquestador la cerró con fontTools.
+
+**Cómo se detectó:** 1 y 2 al conciliar las tareas con el diseño; 3 al contar 114 de 120 PNG modificados tras `e2e:update`; 4 al leer el resultado de la investigación.
+
+**Coste:** unos 30 minutos entre todos.
+
+**Observación:** `changed` solo vale para diferencias por encima del umbral; un cambio de paleta en una página casi vacía exige comprobar el
+recuento de PNG modificados. Una afirmación sobre un fichero binario (`tnum` en un `woff2`) se comprueba en el fichero.
+
+### 2026-10-13 — Contrato de Leaflet sobre un campo inexistente y regex `\b` rota otra vez (paso D.16)
+
+**Contexto:** diseño y aplicación del movimiento (D.16): test de contrato del parche de teclado de Leaflet y guardas de `map-guards.test.ts`.
+
+**Categoría:** suposición sobre una herramienta sin comprobar / código que compilaba pero no hacía lo correcto.
+
+**Qué ocurrió:**
+
+1. El diseño pedía comprobar las cadenas de la API privada de Leaflet en el fichero de `require.resolve('leaflet')` y también en el
+   campo `module` del paquete «lo que envía el empaquetador». Leaflet 1.9.4 no declara `module` en su `package.json`; el test habría
+   leído un campo `undefined`. Se corrigió al conciliar las tareas (R1): se lee el fichero que devuelve
+   `require.resolve('leaflet')` (`dist/leaflet-src.js`) y, con ruta explícita, `dist/leaflet-src.esm.js`.
+2. Un `heredoc` y un `sed` del shell convirtieron `\b` en tres expresiones regulares de `map-guards.test.ts` en retrocesos (carácter de control),
+   el mismo fallo ya anotado en D.15. Las dos guardas nuevas fallaban con «expected … to match» aunque el código era correcto.
+3. El spec e2e comparaba los tokens como `100ms`, `250ms` y `200ms`; el build de Next minimiza los tiempos de las propiedades
+   personalizadas a `.1s`, `.25s` y `.2s` y la primera ejecución completa en Docker falló en esa aserción.
+4. La estimación del diseño (~730 líneas) quedó en 1.089 de código y tests: se subestimaron los tests de tokens y del parche.
+
+**Cómo se detectó:** 1 al leer el `package.json` instalado al escribir las tareas; 2 al ver el fallo de una guarda recién puesta en
+verde (se imprimió la línea con `cat -A` y aparecía `^H`); 3 en la ejecución del espec dentro de Docker; 4 midiendo el diff antes de
+continuar.
+
+**Coste:** unos 20 minutos entre todos, más una parada para pedir el `size:exception`.
+
+**Observación:** una expresión regular con `\b` no se escribe nunca por un script de shell, sino con la herramienta de edición. Un
+contrato sobre un paquete de terceros se comprueba contra el `package.json` instalado, no contra lo que se recuerda de él. Un valor que
+pasa por el build (CSS minimizado) se compara en la forma que llega al navegador.
+
+### 2026-10-06 — «Disponible en N fuentes» contaba anuncios, también los no activos (paso D.9)
+
+**Contexto:** resumen de la ficha (`PropertySummary`), diseñado en D.0 y aplicado en D.9.
+
+**Categoría:** código que compilaba pero no hacía lo correcto.
+
+**Qué ocurrió:** el texto usaba `property.listingCount`, que cuenta todos los anuncios del grupo. Contaba los retirados e
+inactivos y contaba anuncios, no fuentes. P7, con sus dos anuncios inactivos, decía «Disponible en 2 fuentes» junto a dos filas
+«(no disponible)». Se arrastró de D.0 a D.9 sin que lo cuestionara ninguna revisión ni ningún test, porque las fixtures unitarias
+solo tenían anuncios activos.
+
+**Cómo se detectó:** al revisar las capturas de `detail-gallery` del seguimiento de D.9; se anotó como observación y el
+responsable pidió corregirlo (decisión 176).
+
+**Coste:** una corrección pequeña y una regeneración de capturas (~10 min de Docker).
+
+**Observación:** un recuento que se pinta junto a una lista con estados tiene que probarse con elementos en cada estado.
+
+### 2026-10-06 — Ventana «baja» que no lo era en el e2e del foco de la ficha (paso D.9, seguimiento)
+
+**Contexto:** e2e de WCAG 2.4.11 en `apps/web/e2e/property-detail.spec.ts`, caso del panel `sticky` con desplazamiento interno.
+
+**Categoría:** test que valida el comportamiento equivocado (suposición no comprobada).
+
+**Qué ocurrió:** se escribió el caso a 1280×600 dando por hecho que el panel tendría que desplazarse por dentro. El panel de la
+ficha de prueba mide unos 555 px y su tope es la ventana menos 2rem (568 px): cabía entero, y el recorrido con Tab habría pasado
+sin ejercitar el desplazamiento interno.
+
+**Cómo se detectó:** el propio test exige `scrollHeight > clientHeight` antes de recorrer; falló en la primera ejecución en
+Docker. Se pasó a 1280×480 y se añadió la comprobación de que algún foco obliga al panel a desplazarse (`scrollTop > 0`).
+
+**Coste:** una ejecución de Docker (~5 min).
+
+**Observación:** un test de «no tapado» pasa en vacío si el escenario no se da; hay que afirmar la precondición. Además se
+comprobó que el recorrido detecta un panel que tapa (estilo inyectado a mano en una ejecución aparte, que falló como debía).
+
+### 2026-10-06 — Tres errores de la especificación y el diseño de D.7 cazados por la validación (paso D.7)
+
+**Contexto:** fases de especificación y diseño de `nl-search-confirmation-d7`, antes de escribir código.
+
+**Categoría:** contradicción con una regla ya fijada y suposición no comprobada.
+
+**Qué ocurrió:** (1) La especificación conservaba «No he entendido:» y a la vez la reescribía por la decisión 134; el test
+`home-page-nl` lo afirmaba literalmente, así que hubo que autorizar solo esos dos literales. (2) El texto de la zona decía
+«varios municipios» también cuando `?q=` solo tenía un candidato por prefijo (madrid → Madridejos): falso. (3) El diseño decidía
+el «inicio» con los parámetros canonicalizados, de modo que un envío del formulario de criterios en blanco habría mostrado los
+pasos.
+
+**Cómo se detectó:** validación de la especificación y del diseño contra los tests existentes y el código real, antes de
+aplicar.
+
+**Coste:** una revisión de especificación y diseño (obs rev 3), sin código descartado.
+
+**Observación:** los textos de estado deben derivarse de los tipos reales que devuelve el código (`classifyPlaceMatches`), no
+de lo que se imagina que devuelve.
+
+### 2026-10-06 — Fichero de e2e truncado por un heredoc y `tsc --noEmit` que no ve `e2e/` (paso D.6b)
+
+**Contexto:** `apps/web/e2e/filter-tray.spec.ts`, escrito en la fase de aplicación con un heredoc de Bash.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** el heredoc que creaba el spec terminó antes de tiempo (Bash avisó de que el documento aquí terminaba por
+fin de entrada) y el fichero quedó cortado a media expresión (`getByRole('link'`). Ni `tsc --noEmit` ni `eslint e2e` dieron
+error en ese momento: el `tsconfig` de `apps/web` no incluye `e2e/`, y el aviso de Bash se confundió con una salida limpia.
+El primer `pnpm e2e` en Docker falló al arrancar el servidor («Failed to type check»); la causa solo se vio ejecutando
+`next build` en local, que sí comprueba los tipos de `e2e/` (`TS1005: ')' expected`).
+
+**Cómo se detectó:** `next build`, dentro del `webServer` de Playwright y después a mano.
+
+**Coste:** una ejecución en Docker (~1,5 min) y unos minutos de diagnóstico.
+
+**Observación:** los ficheros largos con comillas y plantillas conviene escribirlos con la herramienta de ficheros y no con
+heredocs de la shell; y `tsc --noEmit` de `apps/web` no sustituye a `next build` para los ficheros de `e2e/` (misma
+conclusión que en D.4 para las rutas de importación).
+
+### 2026-10-05 — Texto `sr-only` dentro de una lista con desplazamiento y mensaje de `enum` sin nombre (paso D.6a)
+
+**Contexto:** `apps/web/src/components/applied-filters.tsx` y la rama de parámetros inválidos de `page.tsx`.
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** (1) Cada chip lleva un `<span class="sr-only">Quitar filtro: </span>`. `sr-only` es `position:
+absolute`; dentro de una lista con `overflow-x: auto` pero sin `position: relative`, el bloque contenedor no es la lista,
+el span escapa del recorte y se coloca donde caería en el contenido desplazado: el documento medía 1408 px a 320 px.
+(2) El diseño daba por hecho que la alerta de parámetros inválidos ya nombraba cada parámetro («texto sin cambios»), pero
+el mensaje por defecto de Zod para un `enum` («Invalid option: expected one of…») no lo nombra, así que `operation=foo`
+no se identificaba.
+
+**Cómo se detectó:** (1) el e2e `sin desbordamiento horizontal` de la ruta nueva `home-filtered` a 320 px; los tests
+unitarios no pueden verlo. (2) Al ejecutar el esquema con `operation=foo` para escribir el test de la página.
+
+**Coste:** unos 15 minutos entre ambos (una ejecución adicional del e2e en Docker).
+
+**Observación:** un test unitario de marcado no sustituye a la comprobación de desbordamiento en navegador; (1) se arregla
+con `relative` en la lista. En (2) la página antepone el nombre cuando el mensaje no lo contiene (decisión 151).
+
+### 2026-10-05 — Barra invertida simple en el matcher del proxy (paso D.5)
+
+**Contexto:** `apps/web/src/proxy.ts`, exclusión de los iconos en el `matcher` (decisión 149).
+
+**Categoría:** código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** al editar el fichero con un script de Python, el patrón quedó con una sola barra invertida dentro de
+una cadena de TypeScript (`icon(?:\.svg)?$`). En una cadena de TypeScript, `\.` pierde el escape y llega a la expresión
+regular como un `.` que casa con cualquier carácter, así que el matcher habría excluido también `/iconXsvg`. Con la
+doble barra correcta (`\\.`) el patrón hace lo previsto.
+
+**Cómo se detectó:** al revisar el fichero escrito y por los controles negativos de `proxy-config.test.ts`, antes de
+confirmar.
+
+**Coste:** unos 5 minutos.
+
+**Observación:** el escape de una expresión regular dentro de una cadena de TypeScript lleva doble barra; al generar
+ficheros desde un script conviene releer el resultado en disco. Es el mismo tipo de fallo que el punto 6 de la entrada
+de D.4 (barras invertidas deformadas al escribir con heredocs).
+
+### 2026-10-01 — Dos errores de Playwright en la autoprueba del guard de red (paso D.1a)
+
+**Contexto:** `apps/web/e2e/network-guard.spec.ts`, la prueba de humo y la autoprueba del guard de red
+(cambio SDD `visual-a11y-verification`).
+
+**Categoría:** API o método inexistente · código correcto en apariencia pero incorrecto.
+
+**Qué ocurrió:** (1) Se escribió `test.skip(({}, testInfo) => testInfo.project.name !== 'w1280-light', ...)`,
+una firma que no existe: el callback de `test.skip` recibe solo las fixtures, no `testInfo`. (2) El diseño
+y la primera versión de la autoprueba hacían el `fetch` externo desde la propia aplicación. La CSP de la
+aplicación (`default-src 'self'`, sin `connect-src`) bloquea esa petición antes de que llegue a la capa de
+red, así que el guard nunca la habría visto: el test habría pasado por la razón equivocada.
+
+**Cómo se detectó:** (1) `tsc --noEmit` (error TS2769). (2) Razonando sobre la CSP antes de ejecutar; la
+autoprueba se movió a `about:blank` (sin CSP) y se comprobó en Docker que, sin `test.fail()`, el test falla
+exactamente con el mensaje del cierre de la fixture, es decir, que `test.fail()` no enmascara otro fallo.
+
+**Coste:** unos 10 minutos.
+
+**Observación:** una autoprueba que debe fallar necesita una segunda comprobación de que falla POR EL
+MOTIVO que se quiere probar; `test.fail()` solo no lo demuestra.
+
+### 2026-10-01 — La opción «Mapa estático sin JS» se presentó como compatible con las reglas sin serlo
+
+**Contexto:** paso D.0 del plan de diseño (cambio SDD `design-direction-d0`), preguntas al
+responsable sobre la ficha.
+
+**Categoría:** contradicción con una regla del proyecto.
+
+**Qué ocurrió:** la descripción de la opción afirmaba que cumplía R5 y la CSP, pero omitía que R2
+prohíbe el `<img>` nativo (lo vigila `csp-image-policy.test.ts`) y que servir las teselas con
+`next/image` haría que el servidor las descargara, contra R8. En el diseño apareció otro choque: la
+112 y `map-guards.test.ts` (SMV-9) solo admiten el host de teselas en `search-map-canvas.tsx`.
+Además, la premisa «hoy tuteo» del prompt de D.0, escrita al planificar la hoja de ruta, era
+inexacta: el texto mezcla tuteo, primera persona e impersonal.
+
+**Cómo se detectó:** la fase de propuesta contrastó la opción con R2 y con los tests, y se volvió a
+preguntar al responsable, que mantuvo el mapa estático con una excepción acotada a R2 que registra
+D.11 (decisión 133). El límite de SMV-9 lo detectó la fase de diseño al leer el test. La premisa del
+tuteo, la exploración al inventariar el texto.
+
+**Coste:** una ronda de preguntas adicional.
+
+**Observación:** una opción que se presenta como compatible con las reglas se contrasta antes con
+R1-R12 y con los tests de guarda, no solo con la CSP.
+
 ### 2026-10-01 — La investigación del plan de diseño dio por bloqueado un script que la CSP ya admite
 
 **Contexto:** investigación del cambio SDD `web-ux-ui-design-roadmap` (plan de diseño de `apps/web`).
@@ -3282,3 +3496,912 @@ en la tabla de desviaciones por el tamaño.
 entre los documentos del paso, pero no las afirmaciones de la documentación sobre el esquema
 existente. Una frase de una decisión que describe el estado del repositorio es una afirmación
 técnica verificable, igual que el código, y conviene contrastarla con él antes de cerrar.
+
+### 2026-10-05 — La sonda de tokens del diseño de D.2 no distinguía la variante `dark:`
+
+**Contexto:** diseño del cambio SDD `dark-theme-spikes-d2` (paso D.2), detectado al aplicarlo.
+
+**Categoría:** código que habría compilado pero no habría comprobado lo que decía.
+
+**Qué se generó mal:** la tercera muestra de la sonda de color era `bg-spike-ink dark:bg-spike-surface`. En
+claro `--spike-ink` vale `rgb(28 28 26)`; con `.dark`, `--spike-surface` vale también `rgb(28 28 26)`. Las dos
+ramas daban el mismo color, así que la prueba no podía detectar si la variante `dark:` se había activado.
+
+**Cómo se detectó:** al escribir los valores esperados de la matriz de 6 estados en el spec, antes de ejecutarla.
+
+**Cómo se resolvió:** se sustituyó por `bg-white dark:bg-black` (colores distintos y fijos). La matriz posterior
+mostró que la variante `dark:` sigue solo a la clase, que era justo el dato que la muestra debía revelar.
+
+**Observación:** al diseñar una comprobación de «A cambia cuando B cambia», verificar que los valores de ambos
+estados difieren; con tokens que comparten valor entre temas no se distingue el mecanismo.
+
+### 2026-10-05 — Tres salidas intermedias de D.3 que la puerta de fase y el test cazaron
+
+**Contexto:** cambio SDD `design-tokens-d3` (paso D.3), fase de diseño y de especificación, y su aplicación.
+
+**Categoría:** código correcto en apariencia pero incorrecto · deriva de la arquitectura entre sesiones.
+
+**Qué se generó mal:**
+
+1. **Tolerancia de gamut de 1e-4.** El primer diseño del helper de color exigía que cada canal lineal cayera en
+   [-1e-4, 1 + 1e-4]. El vector de sanidad `oklch(62.8% 0.2577 29.23)` (el rojo `#ff0000` con 3-4 cifras
+   significativas) da un canal lineal R de ~1,000211, así que el propio test de sanidad se habría rechazado a sí
+   mismo. Se subió a 1e-3, que sigue por debajo de medio escalón de 8 bits en el extremo alto y aun así rechaza
+   `oklch(70% 0.3 145)`.
+2. **Razones de contraste calculadas «a mano».** El diseño citaba acento sobre blanco como 6,05:1; el validador
+   (OKLCH → sRGB de 8 bits → luminancia WCAG) da 6,44:1. Ninguna cifra a mano del diseño se copió a la documentación:
+   la tabla de `docs/DESIGN-ROADMAP.md` sale del snapshot que genera el test.
+3. **Nombres de token que divergían en silencio de la especificación.** La especificación hablaba de roles
+   `text` y `border`; el diseño usaba `ink` y `rule` sin decirlo. Habría producido utilidades ambiguas
+   (`text-text`, `border-border`) y un test que buscaba nombres que no existían. Se fijó la tabla rol → variable →
+   utilidad (decisión 141) y la especificación se enmendó.
+
+**Cómo se detectó:** el punto 1 al comprobar el vector de sanidad contra el algoritmo antes de aplicar; el 2 por la
+puerta de contrato de fase al contrastar el diseño con el validador; el 3 por esa misma puerta al cruzar nombres
+de especificación y de diseño.
+
+**Coste:** una ronda correctiva del diseño (~15 min).
+
+**Observación:** una cifra calculada a mano (ratios, tolerancias numéricas) es una afirmación técnica verificable y
+conviene sustituirla por la salida de la herramienta antes de citarla.
+
+### 2026-10-05 — El test de tokens de D.3 fallaba al recopilar y ocultaba sus propias comprobaciones
+
+**Contexto:** aplicación de `design-tokens-d3`, fase RED del TDD estricto.
+
+**Categoría:** test que valida el comportamiento equivocado.
+
+**Qué se generó mal:** varios `describe` leían `globals.css` al recopilar (`themeBlocks()` en el cuerpo del
+`describe`). Con el CSS aún sin tokens, el fichero entero fallaba en la recopilación y las comprobaciones del helper,
+que no dependen del CSS, tampoco se ejecutaban: el RED era total pero no informaba de nada. Además, una comprobación
+de selectores buscaba `:not([type=radio],[type=checkbox]` sin espacio tras la coma, cuando el normalizador del
+propio test inserta `, `; y una edición en bloque dejó una variable sin usar que rompió `tsc`.
+
+**Cómo se detectó:** al ejecutar el RED, el recuento de tests (ninguno) y, después, el único test en rojo tras el
+verde; `pnpm typecheck` para la variable.
+
+**Cómo se resolvió:** lecturas perezosas dentro de cada `it` (así el RED muestra 43 fallos y 15 comprobaciones en verde, las que no dependen del CSS) y
+el patrón corregido.
+
+**Observación:** en un test que lee un fichero aún por escribir, las lecturas van dentro de cada `it`; un fallo de
+recopilación oculta qué comprobaciones eran independientes del cambio.
+
+### 2026-10-05 — Seis fallos intermedios de D.4: redirección abierta, importación, origen del `Referer` y otros
+
+**Contexto:** diseño y aplicación de `theme-selector-d4`.
+
+**Categoría:** código que compilaba pero no hacía lo correcto; afirmación técnica falsa; patrón incompatible con la
+herramienta.
+
+**Qué se generó mal:**
+
+1. La propuesta validaba `returnTo` solo sobre la cadena cruda. `/..//evil.example` y `/%2e%2e//evil.example` se
+   normalizan con `new URL()` a una ruta protocolo-relativa `//evil.example`: una redirección abierta. Se detectó en el
+   diseño y se corrigió con una segunda comprobación tras normalizar.
+2. El orquestador afirmó que `pnpm e2e:update` no existía: solo miró `apps/web/package.json`, y está en el
+   `package.json` raíz.
+3. La unidad 2 importó `'../server/theme-preference.js'`: pasa vitest y `tsc`, pero `next build` con Turbopack falla
+   con «Module not found». Se cambió a `@/server/theme-preference`.
+4. La unidad 1 comparaba el `Referer` con `new URL(request.url).origin`. Next construye `request.url` con `localhost`
+   y el cliente usa `127.0.0.1`, de modo que todo `Referer` del mismo origen se descartaba y el usuario acababa en `/`.
+   Los tests unitarios pasaban porque construían la `Request` con un origen coincidente; solo lo expuso el e2e. Se
+   corrigió tomando el origen de la cabecera `Host` (decisión 145).
+5. La unidad 2 insertó `ThemeSelector` entre un comentario explicativo y la función que describía; se movió después
+   de ese comentario en un commit de refactor.
+6. Al escribir ficheros TypeScript con heredocs de Bash en la fase de aplicación se deformaron las barras invertidas y
+   las secuencias `\uXXXX`; se corrigió antes de confirmar.
+
+**Cómo se detectó:** el punto 1 al revisar el diseño; el 2 al intentar ejecutar el comando; el 3 con `next build`; el 4
+con el e2e; el 5 al releer el diff; el 6 al revisar los ficheros escritos.
+
+**Cómo se resolvió:** correcciones puntuales, con el caso 1 cubierto por vectores en los tests.
+
+**Observación:** un test unitario que construye su propia `Request` no prueba el origen que Next entrega de verdad; las
+suposiciones sobre cabeceras y URL del entorno se comprueban en el e2e. Y `tsc`/vitest no sustituyen a `next build`
+para las rutas de importación.
+
+### 2026-10-06 — Siete fallos intermedios de D.8a: `alt` en un `divIcon`, 25 por página, recuento por vista y otros
+
+**Contexto:** especificación, diseño, tareas y aplicación de `search-map-d8a` (lista y mapa, marcadores, popup y barra de
+dibujo con tokens).
+
+**Categoría:** API o método inexistente / código correcto en apariencia pero incorrecto / deriva entre artefactos.
+
+**Qué se generó mal:**
+
+1. La especificación exigía que cada marcador llevara `alt` además de `title`. Leaflet solo aplica `alt` a iconos de
+   imagen; los marcadores son `divIcon`, así que el requisito no se podía cumplir ni comprobar. El nombre accesible sale
+   del texto visible más el `title` (decisión 166).
+2. La especificación decía 25 resultados por página; `PAGE_SIZE` vale 24 (comprobado en los tests de `packages/db`).
+3. El primer diseño ponía un recuento dependiente de la vista en la fila de resumen, lo que contradecía la matriz de
+   avisos de la propia especificación (el recuento de la lista va siempre en el resumen y el del mapa solo en la sección
+   del mapa).
+4. El artefacto de tareas escribió una expresión regular entre acentos graves; el despachador nativo de SDD la leyó como
+   una ruta de edición fuera del repositorio y bloqueó la aplicación. Se reescribió como prosa.
+5. El diseño del reencuadre del mapa montado oculto (decisión 167) suponía que Leaflet emite `resize` al primer tamaño
+   distinto de cero. Leaflet solo escucha el `resize` de la ventana; pasar de `view=list` a `view=map` es una
+   navegación del cliente sin evento de ventana, así que el mapa habría quedado sin teselas. Se sustituyó por un
+   `ResizeObserver` sobre el contenedor.
+6. Al escribir el test de guardas con un script de Python y un heredoc, `\b` se convirtió en el carácter de retroceso
+   (0x08) dentro de dos expresiones regulares: el fichero compilaba y las guardas parecían razonables, pero no
+   comprobaban lo que decían.
+7. Un comentario de la hoja del mapa nombraba `!important` y la propia guarda «sin `!important`» falló contra él.
+
+**Cómo se detectó:** el 1, 2 y 3 en la validación de la especificación y el diseño (antes de las tareas); el 4 como
+bloqueo del despachador; el 5 al revisar qué eventos emite Leaflet al preparar el reencuadre; el 6 al inspeccionar la
+línea con `od -c` tras ver las expresiones sin `\b` en la salida; el 7 al ejecutar el verde.
+
+**Cómo se resolvió:** correcciones puntuales en el artefacto o el fichero afectado; el 6 con una sustitución de bytes
+y el 5 enmendando el texto de la decisión 167.
+
+**Observación:** un requisito sobre una API de terceros se comprueba contra el código de la librería antes de
+escribirlo en la especificación (1 y 5). Y al generar ficheros con secuencias de escape desde un script, se verifica el
+byte resultante: una expresión regular sin `\b` sigue siendo una expresión regular válida. El mismo defecto ya existía en
+`csp-image-policy.test.ts` (línea 117, un `\b` convertido en retroceso, introducido en el paso 2.6): se corrigió en un
+commit aparte tras cerrar D.8a. Hasta entonces la alternativa `\bhttps:(?!\/\/)` no podía coincidir nunca, así que el
+test no detectaba un origen `https:` sin host en la CSP.
+
+### 2026-10-06 — Dos fallos intermedios de D.8b: `Map.isPopupOpen` y `pathOptions.className`
+
+**Contexto:** diseño, aplicación y e2e de `search-map-d8b` (dibujo de zona por teclado con mira central).
+
+**Categoría:** API o método inexistente / código correcto en apariencia pero incorrecto.
+
+**Qué se generó mal:**
+
+1. El diseño (fila B5) y las tareas suponían que Leaflet ofrece un estado de ventana emergente consultable en el mapa
+   para decidir si Escape debía cerrar la ventana o cancelar el dibujo. `isPopupOpen` existe solo en `Layer`, no en `Map`.
+   En la aplicación se sustituyó por los eventos `popupopen` y `popupclose` del mapa, guardados en una referencia.
+2. Las clases `map-area`, `map-draw-path` y `map-draw-vertex` se pasaban con `pathOptions={{ className }}` desde D.8a (y el
+   trazo desde el paso 2.6). La hoja CSS de D.8a daba por hecho que «se enganchan por `pathOptions.className`», pero
+   react-leaflet aplica `pathOptions` con `setStyle` tras crear la capa y el renderizador SVG de Leaflet 1.9.4 solo lee
+   `className` al crearla: el `<path>` salía solo con `leaflet-interactive` y el azul por defecto. Compilaba, pasaban
+   los tests estáticos y las capturas de D.8a no incluían ninguna zona dibujada, así que nadie lo vio.
+3. Menor: una prueba e2e escrita para hacer clic en el centro exacto de la mira falló en 4 de 6 proyectos porque la mira
+   estaba fuera de la ventana de 720 px (`elementFromPoint` devuelve `null` fuera del viewport) y, en parte, porque un marcador
+   podía quedar justo bajo el centro. Se pasó a desplazar la mira a la vista y a buscar un punto libre.
+
+**Cómo se detectó:** el 1 al escribir el control (WU-2, al buscar la API en las definiciones de tipos de Leaflet); el 2 en la
+primera ejecución del e2e en Docker: el estado decía «Vértice añadido» pero `path.map-draw-vertex` tenía 0 elementos, y un
+volcado del panel de superposición mostró el `<path>` sin la clase; el 3 en la segunda ejecución.
+
+**Cómo se resolvió:** el 1 con eventos del mapa; el 2 pasando `className` como prop del componente (entra en las
+opciones del constructor), con una guarda nueva en `map-guards.test.ts` (rojo antes del arreglo) y la enmienda a la
+decisión 165 dentro de la 170; el 3 reescribiendo la prueba.
+
+**Observación:** el comportamiento de una librería de terceros que se ve en el DOM real (el atributo `class` de un SVG) no
+se da por hecho por la documentación de un wrapper. Una regla CSS sin efecto visible tampoco la detecta un test de código
+fuente: hizo falta una captura con una zona dibujada.
+
+### 2026-10-06 — Dos fallos de registro del flujo SDD en D.8b
+
+**Contexto:** cierre (verificación y archivo) de `search-map-d8b`.
+
+**Categoría:** artefacto generado que no cumplía su propio contrato.
+
+**Qué se generó mal:**
+
+1. La spec (rev 2, escrita en la sesión anterior) titulaba los requisitos `### Requirement SMV-23: …` en lugar del formato
+   canónico `### Requirement: …` de la skill `sdd-spec`. El dispatcher nativo contó 0 requisitos y bloqueó el archivo con
+   un informe de verificación «obsoleto» (6 frente a 0).
+2. El agente de aplicación de la tercera unidad de trabajo sobrescribió el progreso de aplicación en lugar de fusionarlo, y
+   se perdieron las tablas TDD (rojo, verde) de las dos primeras. La verificación lo marcó como crítico.
+
+**Cómo se detectó:** el 1 por el bloqueo del dispatcher antes del archivo; el 2 por la verificación con TDD estricto.
+
+**Cómo se resolvió:** el 1 normalizando solo los encabezados (rev 3, sin cambiar el texto de requisitos ni escenarios);
+el 2 restaurando la tabla a partir de los informes literales de cada unidad, que el registro de intentos confirma por
+separado (223, 273 y 521 líneas). La verificación repetida dio PASS WITH WARNINGS.
+
+**Observación:** un artefacto que solo lee un modelo admite variaciones de formato; uno que también lee una herramienta,
+no. Y «fusiona, no sobrescribas» hay que repetirlo en cada lote, no solo en el primero.
+
+### 2026-10-06 — Siete fallos intermedios en el diseño, la aplicación y la verificación de D.9
+
+**Contexto:** diseño, especificación, aplicación y verificación de `property-detail-d9`.
+
+**Categoría:** contradicción con una decisión previa / premisa falsa / artefacto que no cumplía su contrato / instrucción
+contraria a una regla del responsable.
+
+**Qué se generó mal:**
+
+1. El diseño usaba «No disponible» para la insignia de un anuncio retirado, y no el literal «(no disponible)» que exige la
+   decisión 133.4 (y que `source-list.test.tsx` ya comprobaba). La puerta de revisión lo detectó.
+2. El diseño descartó componer en el cliente el enlace de los popups del mapa, con la premisa de que `baseParams` no llegaba
+   al cliente. Era falsa: `SearchMapProps.baseParams` ya se envía. Además subestimaba la carga: repetir el sufijo con el
+   polígono codificado (más de 1100 caracteres) en hasta 500 puntos inflaba el payload RSC. Se corrigió a componer el
+   sufijo una vez en `MapClusterLayer` (decisión 171, que matiza la 119).
+3. El diseño repetía «No consolidado» en texto `sr-only` por cada campo, justo la repetición que D.9 quiere eliminar. Se
+   sustituyó por «—» más «Sin dato» y una única nota (decisión 174).
+4. La especificación traducía la planta `en` como «Entreplanta», mientras que la ingestión la documenta como «entresuelo»
+   (`raw-element.schema.ts`). Se corrigió a «Entresuelo».
+5. El orquestador indicó a `sdd-apply` que añadiera un trailer `Co-Authored-By` a los commits, contra la regla global del
+   responsable (nunca atribución de IA). Se reescribieron tres commits sin publicar para quitarlo.
+6. Durante la aplicación, los heredocs y `sed` del shell se tragaron barras invertidas en las expresiones regulares de los
+   tests, de modo que las aserciones comprobaban otra cosa. Lo detectó la ejecución de los tests, no la lectura.
+7. Al rehacer el informe de verificación con el sobre `gentle-ai.verify-result/v1`, el agente de verificación rellenó
+   `evidence_revision` con el hash del commit completado con ceros hasta 64 caracteres. El validador lo aceptó porque solo
+   comprueba el formato, pero no era un digest de nada. Se sustituyó por el sha256 real del diff del paso
+   (`git diff 58106c9..HEAD`, el mismo con el que se cerró el intento de verificación) y se volvió a validar.
+
+**Cómo se detectó:** 1 a 4 por la revisión del diseño y la especificación antes de aplicar; 5 por el orquestador al
+revisar los commits del primer lote; 6 al ejecutar los tests; 7 al leer el informe del propio agente, que lo declaraba.
+
+**Observación:** una premisa sobre el código que no se ha leído («esto no llega al cliente») es el fallo más caro del
+diseño. Y una expresión regular escrita por el shell se comprueba ejecutándola, no leyéndola. Un validador de formato no
+distingue una prueba real de un valor con la forma correcta.
+
+### 2026-10-07 — Fallos intermedios en el diseño y la aplicación de D.10
+
+**Contexto:** diseño, puerta de diseño y aplicación de `price-history-d10`.
+
+**Categoría:** contradicción con la especificación / premisa falsa / test que valida lo equivocado.
+
+**Qué se generó mal:**
+
+1. El diseño intercalaba las filas de la tabla por fecha entre anuncios, contra la especificación, que las ordena por anuncio y
+   luego por fecha. Con filas intercaladas, la variación de Kyero queda junto a una fila de Idealista. La puerta de diseño lo
+   cazó y el diseño pasó a agrupar por anuncio (revisión 2).
+2. El diseño ocultaba el SVG con `aria-hidden`, contra la especificación, que exige un nombre accesible (`role="img"` con
+   `aria-label`). Corregido en la misma revisión: nombre breve que remite a la tabla.
+3. La especificación y las tareas daban por hecho que `detail` era la ficha de P1. En la siembra es P2 (y `detail-gallery`, P7), así
+   que ninguna captura ni axe cubría el gráfico. Se vio al abrir la captura regenerada, que mostraba P2 sin gráfico; se añadió la
+   ruta `detail-history`.
+4. Primer CSS de la tabla con `overflow-wrap: anywhere`: la captura a 320 px partía «15/09/2026» y «1180 €» por la mitad. Se
+   sustituyó por `nowrap` en fecha, precio y cabeceras. Aun así P7 desbordaba 10 px (el test de landmarks lo marcó), y hubo que
+   añadir la región con foco que el diseño reservaba. El SVG, además, escalaba los rótulos hasta unos 30 px a 1280 y se le puso un ancho máximo.
+5. Un test mío esperaba «−5 € (−5,6 %)» para 90000 a 85000 céntimos: confundí euros y céntimos (son 50 €). Lo detectó la ejecución.
+6. El test del componente se ejecutaba contra el `dist` desactualizado de `@buscahogar/core` (`derivePriceHistory is not a function`):
+   `apps/web` consume los paquetes compilados y hay que reconstruirlos antes de probar.
+
+**Cómo se detectó:** 1 y 2 por la puerta de diseño; 3 y 4 al revisar las capturas y por el test de desbordamiento; 5 y 6 al ejecutar los tests.
+
+**Observación:** una captura que existe no prueba que cubra lo nuevo: hay que abrirla y comprobar qué ficha enseña. Y una premisa de
+la especificación sobre qué dataset alimenta qué ruta se comprueba contra la siembra, no contra el nombre de la ruta.
+
+### 2026-10-07 — Fallos intermedios en el diseño y la aplicación de D.11
+
+**Contexto:** diseño, puerta de diseño y aplicación de `location-map-d11`.
+
+**Categoría:** valor calculado a mano / función ausente / precedente inventado / límite sin normalizar.
+
+**Qué se generó mal:**
+
+1. El diseño daba para P1 un círculo en cx 289,3 y la puerta de diseño lo recalculó en 290,4 (cy 359,0, r 68,6): el valor a mano estaba mal. Los tests priorizan invariantes y fijan el valor solo como ancla recomputada.
+2. El diseño no tenía `latLonToTile`, que la especificación exige (0,0 en z1 → tesela (1,1), desplazamiento (0,0)). Se añadió en la revisión 2.
+3. La longitud 180 se proyectaba a `worldSize` (tesela 2^z, fuera de rango). Se normaliza a [-180, 180): 180 pasa a -180 y x = 0.
+4. Zoom 0 con ventana 2×1 repetía la tesela (0,0); ahora `columns` o `rows` mayores que 2^zoom lanzan `RangeError`.
+5. El diseño citaba como precedente de un `eslint-disable` de `@next/next` un `search-map.ts` que no existe; el real es `site-header.tsx:32`.
+6. En la aplicación, mi test de polos usaba latitud ±85 como «tope», pero 85° está en la fila 26 de zoom 14, no en la 0: el tope es 85,05112878 (se usó ±90, que se recorta). Y el barrido de invariantes esperaba el centro en [128, 384) y el redondeo a 0,1 de 383,97 daba 384,0.
+7. Las expresiones regulares con la clase de límite de palabra (barra y b) escritas por el shell (`python` con cadena normal) acabaron con el carácter de retroceso en lugar de la barra y la `b`, y el test no encontraba nada. Se corrigió sustituyendo `chr(8)`.
+8. `apps/web` consume `packages/*` compilados: `typecheck` no vio `lat`, `lon` ni `planStaticMap` hasta reconstruir `core` y `db`. Además, las cabeceras de prueba sin `lat`/`lon` (`undefined`, no `null`) llegaban a `planStaticMap`: hubo que completarlas.
+
+**Cómo se detectó:** 1 a 5 por la puerta de diseño; 6 a 8 al ejecutar los tests y el `typecheck`.
+
+**Observación:** un valor calculado a mano se recalcula con código antes de fijarlo en un test, y una cita de un precedente se abre antes de escribirla. Un límite (180, ±90, zoom 0) es un caso de test por sí mismo.
+
+### 2026-10-08 — Fallos intermedios en la preparación y la aplicación de D.13
+
+**Contexto:** exploración, especificación, diseño y aplicación de `coverage-notices-d13`.
+
+**Categoría:** cita de decisión errónea / recuento erróneo / valor visible que no es texto / formato ajeno.
+
+**Qué se generó mal:**
+
+1. El traspaso de la exploración citaba la decisión 122 como la que fija que el e2e es de solo lectura. La que lo fija es la 135 (la
+   122 es la búsqueda en lenguaje natural, que sí aparece en `playwright.config.ts` para `?q=`). El comentario del `webServer`
+   atribuía a la 122 las dos cosas y se ha corregido: 135 para el solo lectura, 122 solo para `?q=`.
+2. El orquestador contó «11 variantes» de aviso. Hay 10 (V1-V10); no existe una undécima. El recuento falso llegó a la propuesta y
+   se corrigió en la revisión 2 de la especificación.
+3. El primer test de «sin ISO» del aviso comprobaba el HTML entero y falló: el atributo `dateTime` de `<time>` lleva la fecha ISO a
+   propósito (para máquinas). La comprobación pasó a mirar solo el texto visible, sin etiquetas ni atributos.
+4. Ejecuté `prettier --write` sobre ficheros que ya estaban fuera de formato (`page.tsx`, el test de degradación): 498 líneas de
+   diferencia sin relación con el paso. Se restauraron los originales y se reaplicaron solo las ediciones; los ficheros nuevos y los
+   ya limpios sí se formatean.
+5. Heredocs de shell con `'''` y acentos rompieron dos veces el script de edición (el shell se quedó esperando una comilla); se pasó
+   a ediciones directas del fichero.
+
+**Cómo se detectó:** 1 y 2 en la puerta de especificación y de diseño; 3 al ejecutar el test; 4 al ver el `git diff --stat`; 5 por el
+error del propio shell.
+
+**Observación:** una cita de decisión se abre antes de escribirla y un recuento se hace sobre la tabla, no de memoria. Antes de
+formatear un fichero existente, comprobar con `prettier --check` que ya estaba limpio: si no, formatear es ruido en el diff.
+
+### 2026-10-08 — El suelo de oficio sin cargar en D.5-D.13 y el recuadro anidado de la decisión 182 (hallazgos de D.13b)
+
+**Contexto:** auditoría previa a D.13b y aplicación del paso.
+
+**Categoría:** contradicción con una regla del proyecto y código que compilaba pero no hacía lo correcto.
+
+**Qué se generó mal:** (1) De D.5 a D.13 ninguna fase cargó `reference/craft-floor.md`; solo D.3 lo hizo, y de ahí salieron los 14
+hallazgos del paso. (2) La corrección de la decisión 182 dejó el aviso de «sin anuncios activos» como un recuadro de 1px dentro del
+panel fijo de la ficha (un recuadro anidado, que el mismo suelo prohíbe). (3) Durante la aplicación: se creó `packages/core/src/coverage/`
+y `.gitignore` ignora cualquier carpeta `coverage/`, así que el módulo no entraba en el commit (se detectó al revisar el estado y se
+renombró a `coverage-jobs`); y la hipótesis de que quitar `nowrap` bastaba para que la tabla del histórico cupiera a 320 px falló en
+el e2e (8 px de desbordamiento en P7) y hubo que aplicar la alternativa de filas apiladas.
+
+**Cómo se detectó:** la auditoría a mano, el estado de git y el e2e en Docker. (4) La aplicación omitió el e2e del svg del zoom y del
+cierre del popup que exigía el diseño (la fila E2E de la tabla de pruebas) y lo dejó en guardas estáticas; lo detectó el validador de la
+aplicación. Además, la primera versión del histórico apilado dejaba el valor de «Fuente» a mitad de fila (`space-between` con texto e
+insignia como dos elementos): se corrigió con el margen automático de la etiqueta.
+
+**Observación:** un paso que reutiliza un patrón también carga el suelo antes de editar; una hipótesis de maqueta se mide en el
+navegador antes de darla por buena; y un directorio nuevo se comprueba con `git check-ignore`.
+
+### 2026-10-08 — Regla lateral prohibida por impeccable en los avisos de D.12 y D.13
+
+**Contexto:** CSS de los avisos en `apps/web/src/app/globals.css`: «sin anuncios activos» de la ficha (D.12) y aviso de cobertura
+(D.13).
+
+**Categoría:** contradicción con una regla del proyecto (el suelo de oficio de la skill de diseño obligatoria).
+
+**Qué se generó mal:** D.12 introdujo en `.source-list__warning` una regla lateral `border-inline-start: 3px solid`, y D.13 la copió a
+propósito en `.coverage-notice` («misma regla de 3px que el aviso de fuentes»), con `--danger` para `role="alert"`. El suelo de
+oficio de impeccable (`reference/craft-floor.md`) prohíbe un borde lateral de color de más de 1px en avisos, elementos de lista y
+alertas, y el proyecto ya tenía el patrón aceptado: el panel de 1px de D.7 (`.nl-review__alert`, cuyo comentario dice «nunca una
+franja lateral»). Se corrigió pasando los dos avisos a ese panel con una regla compartida (decisión 182), sin `ignore`.
+
+**Causa:** las fases de diseño y aplicación cargaron `SKILL.md` de impeccable y `reference/clarify.md`, pero no
+`reference/craft-floor.md`, que `SKILL.md` exige leer justo antes de cualquier edición de interfaz. La segunda vez el fallo se
+propagó por copiar un precedente propio sin revisarlo contra el suelo.
+
+**Cómo se detectó:** después del hecho, por el hook del detector de impeccable (`side-tab`) al editar `globals.css`; ni los tests,
+ni axe, ni la revisión a ojo de las capturas lo señalaron (la nota de D.13 llegó a describir la «regla roja de 3 px» como correcta).
+
+**Observación:** el suelo de oficio se lee antes de cada edición de interfaz, también en un paso que reutiliza un estilo existente:
+un precedente propio no lo valida.
+
+### 2026-10-09 — Fallos intermedios en la preparación y la aplicación de D.14
+
+**Contexto:** exploración, investigación, propuesta, diseño y aplicación de `global-states-d14`.
+
+**Categoría:** comportamiento del framework mal supuesto / mecanismo de una biblioteca descrito al revés / copy que contradice el
+contexto de uso.
+
+**Qué se generó mal:**
+
+1. La investigación no vio que un `loading.tsx` raíz envuelve a los layouts anidados: con él, la comprobación de existencia en el
+   layout de la ficha transmitiría ya con 200 y el 404 no sería un 404. Obligó a mover la home al grupo de rutas `(search)`.
+2. El diseño propuso `loading.tsx` en la home y en la ficha sin considerar el streaming sin JavaScript: sin JS el contenido real queda
+   en un `<div hidden id="S:n">` mientras suspende. El mitigante con `<noscript><style>` ocultaba el esqueleto pero no revelaba el
+   contenido (esqueleto 20/20 en la home y 19/20 en la ficha, seis pruebas e2e sin JS fallidas). Se descartó `loading.tsx` entero
+   (decisión 191, rechazada).
+3. La especificación atribuyó mal el mecanismo de Zod: el `error` de nivel de esquema lo heredan las comprobaciones que no llevan
+   mensaje propio (no es que «falte» el mensaje), y un `z.number()` encadenado devuelve su inglés por defecto ante un desbordamiento a
+   `Infinity` salvo que lleve un `error` explícito. Los mensajes quedaron mal repartidos hasta corregirlo con una tabla de pruebas
+   por clave.
+4. El copy de `error.tsx` suponía que había filtros aplicados («prueba con otros filtros») y usaba «dirección» para el enlace, que se
+   lee como dirección postal; además el identificador `dir` es una clave de la tabla de pruebas. Se reescribió («Algo ha fallado al
+   prepararla. Vuelve a intentarlo en un momento o regresa a la búsqueda.») y los mensajes de core dicen «enlace».
+
+**Cómo se detectó:** 1 en la propuesta; 2 en la puerta de diseño y el spike de la fase 0, que midió el comportamiento antes de
+construir; 3 al escribir la tabla de pruebas de la unidad 5 (73 pruebas en rojo); 4 en la puerta de la aplicación, al leer el texto en
+contexto.
+
+**Observación:** el comportamiento de streaming y de cascada de límites de Next se mide con un spike antes de diseñar sobre él; un
+mecanismo de biblioteca se comprueba con una prueba mínima antes de ponerlo en la especificación; y el copy se lee en el estado donde
+aparece, no solo en el caso feliz.
+
+---
+
+### 2026-10-09 — F12 clasificado «comprobar a mano» y la falta de foco en `error.tsx` no se vio (D.15)
+
+**Contexto:** la pasada manual de D.15 con el Narrador encontró que, al aparecer la página de error, no se anunciaba nada y el foco no
+estaba en ningún sitio (punto 11).
+
+**Categoría:** omisión de la auditoría / suposición sin comprobar.
+
+**Qué se generó mal:** el diseño y la exploración clasificaron F12 como «comprobar a mano» y la auditoría estática no abrió
+`error.tsx` para ver que no tenía ninguna gestión del foco, algo que se leía en el propio código. axe sobre el marcado de la página
+de error pasaba, así que la evidencia automática daba una falsa seguridad. Se corrigió con foco al título al montarse (decisión 203).
+Además, las imágenes de la galería solo existen dentro de la imagen de Docker de e2e: el responsable no pudo probar la galería en una
+pasada local (puntos 6 y 10) y hubo que dejar copias temporales de los PNG fuera de git.
+
+**Observación:** «comprobar a mano» no exime de leer el código que se puede leer; y un criterio que dependa de datos de prueba que solo
+viven en el contenedor hay que anunciarlo antes de pedir una pasada manual.
+
+---
+
+### 2026-10-09 — Fallos intermedios en el diseño y la aplicación de D.15
+
+**Contexto:** diseño y aplicación de `a11y-wcag22-d15` (accesibilidad WCAG 2.2 AA) en `apps/web`.
+
+**Categoría:** código correcto en apariencia pero incorrecto / suposición sobre una herramienta sin comprobar / test que valida lo
+equivocado.
+
+**Qué se generó mal:**
+
+1. Un script de Python con `heredoc` sin comillas convirtió la `\b` de una expresión regular de `e2e/theme.spec.ts` en un retroceso
+   (carácter de control). Se confirmó en `5f8301b` y solo lo detectó Docker; se corrigió en `c7c023e`.
+2. Los ficheros de documentación y de código quedaron con finales de línea mezclados (CRLF y LF) tras ediciones por script, con
+   `autocrlf=true`.
+3. Se supuso que Playwright podía importar `error.tsx` y `global-error.tsx` y pintarlos con `react-dom/server`. Playwright impone su
+   propio runtime JSX (`jsxImportSource`): los componentes devuelven nodos `__pw_type` y `renderToStaticMarkup` lanzaba «Objects are
+   not valid as a React child». Hizo falta un puente de prueba (`toReactNode`) que convierte esos nodos en elementos de React.
+4. El diseño y la especificación daban por cumplido 2.5.8 para «Ver mapa» y «Ver lista» porque axe pasaba. La prueba de caja los midió
+   en 20 px de alto a 320 y 768 px: axe no marca un enlace en línea de ese tamaño. Se corrigió con `min-block-size: 2.5rem`
+   (decisión 202).
+5. La diferencia de 81 px en `draw-frame` a 320 px se tomó al principio por un cambio de producto (un subrayado nuevo). Era el puntero
+   parado sobre el enlace de atribución de OSM, que el corrimiento de maquetación del conmutador dejó bajo el ratón (`:hover`). Se
+   resolvió con `page.mouse.move(0, 0)` antes de la captura y la captura coincide con la original.
+6. El diseño previó tres desactivaciones de `jsx-a11y` en `price-history.tsx`; la puerta de lint real exigió siete (región, `thead`,
+   `tbody` y cuatro `td role="cell"`).
+7. Una segunda ejecución de `pnpm e2e run` borra `apps/web/test-results` (`outputDir`) y se perdieron los artefactos de diferencias de
+   la primera.
+
+**Cómo se detectó:** 1 en Docker, con el e2e de tema; 2 al revisar los ficheros tocados; 3 con el primer test del espec de estados; 4 con la prueba
+de caja escrita en rojo antes del arreglo; 5 al abrir las diferencias de la captura; 6 al correr `pnpm --filter web lint`; 7 al volver a
+buscar las diferencias.
+
+**Observación:** que axe pase no prueba un criterio de tamaño, y el número de excepciones de una regla se mide con el lint real, no se
+estima en el diseño. Una diferencia de captura se explica (puntero, desplazamiento) antes de atribuirla al producto.
+
+---
+
+### 2026-10-13 — Fallos intermedios en la preparación y la aplicación de D.17
+
+**Contexto:** crítica, pulido, cobertura e2e de las páginas autónomas y `DESIGN.md` de `apps/web` (`design-polish-d17`).
+
+**Categoría:** contradicción con una regla del proyecto / verificación incompleta o afirmada sin comprobar / suposición sobre una
+herramienta sin comprobar / referencias cruzadas inconsistentes / incumplimiento del idioma.
+
+**Qué se generó mal:**
+
+1. El lote B7 redujo los objetivos de la cabecera a 32 px bajo 30rem, contra la decisión 200 (40 px en toda la cabecera). Lo detectó el
+   orquestador en la puerta y se revirtió (`79630db`): solo se compactan el relleno y el hueco entre filas.
+2. La revisión captura a captura se dio dos veces por completa cuando no lo era: primero 56 de 108 y luego por límites de medios. Hubo que
+   rehacerla con seis revisores aislados, cada uno con su familia de capturas.
+3. Un validador afirmó que las 18 capturas autónomas «no cambian», y era falso: `error-boundary` se pinta dentro del layout, con la
+   cabecera, y cambió con el lote. La comprobación real fue una diferencia de píxeles por familia, no la lectura del diff.
+4. El texto de la tarea decía `pnpm --filter … vitest run`, que no existe: el orden correcto es `pnpm --filter … exec vitest run`.
+5. En el código se citó «decisión 209» para tres temas distintos (inyección de rutas e2e, estados de anuncio y tokens retirados) antes de
+   que `docs/DECISIONS.md` se escribiera. Se renumeró cada referencia al cerrar el paso (209 inyección, 210 capturas autónomas, 211
+   estados, 212 tokens).
+6. El informe de la crítica de `impeccable` y sus preguntas se entregaron al responsable por primera vez en inglés, contra la regla de
+   documentación y respuesta en español del proyecto.
+7. La corrección final de `home-filtered` salió de la revisión captura a captura: la frase del mapa vacío entre el recuento y el marco
+   bajaba el mapa 32 px respecto a la lista, contra la regla «sobre el mapa solo el recuento». Ni los tests de estructura ni axe lo veían.
+8. Prettier convierte las comillas dobles del frontmatter YAML de `DESIGN.md` en simples. El análisis plano del test solo admitía
+   comillas dobles y 24 casos fallaron al formatear; se corrigió el análisis para aceptar las dos.
+
+**Cómo se detectó:** 1 en la puerta del orquestador con un test de ancho; 2 al contar las capturas revisadas contra las 108 cambiadas; 3 con
+la diferencia de píxeles; 4 al ejecutar el comando; 5 al buscar `decisión 2` en el código antes de numerar; 6 al releer el informe; 7 al
+abrir la captura esperada, la obtenida y la diferencia de cada fallo; 8 al ejecutar el test tras formatear.
+
+**Observación:** un criterio ya decidido (40 px) y una regla de idioma tienen que viajar con la tarea. Una revisión visual «una a una» se
+mide por el recuento de capturas abiertas, no por lo que afirma el revisor. Las referencias a decisiones se numeran contra el registro,
+no de memoria.
+
+### 2026-10-15 — Fallos intermedios en el diseño y la aplicación de D.18
+
+**Contexto:** los 16 seguimientos de diseño de D.17 (`design-followups-d18`).
+
+**Categoría:** contradicción con una regla de una herramienta / omisión en un artefacto / suposición sin comprobar / efecto lateral de CSS /
+fallo de proceso.
+
+**Qué se generó mal:**
+
+1. El orquestador fijó por defecto la marca como una línea sobre el título (seguimiento 6), y la regla de impeccable prohíbe la «ceja». Lo
+   detectó el agente de aplicación y se rehízo como franja de cabecera (decisión 219).
+2. La franja rehecha estrechó el bloque centrado: el relleno cuenta dentro del ancho (`border-box`). Se corrigió con `max-width: 37rem`.
+3. La revisión 2 del diseño omitió el texto confirmado de C-11 y el validador la dio por fallida.
+4. La revisión del artefacto de estado perdió la lista de decisiones («véase la revisión 3») y el diseño usó etiquetas de ordenación provisionales
+   hasta recuperarlas.
+5. El pulido 2 de G-D puso primero el margen bajo el conmutador de vista en anchos estrechos (+16 px a 320 y 768); se limitó a 64rem o más.
+6. El vacío mostraba «Quitar todos» duplicado junto a la fila de chips; el responsable decidió la acción única condicional (decisión 225).
+7. El orquestador dejó una vez un `python -` sin entrada y el proceso quedó esperando stdin.
+8. Un test de base de datos falló una vez sin causa y no se repitió (flaky observada una sola vez).
+
+**Cómo se detectó:** 1 y 2 al aplicar y en la puerta G-C; 3 por el validador del diseño; 4 al escribir las etiquetas; 5 y 6 en la puerta G-D al
+abrir cada captura; 7 por el tiempo de espera; 8 al repetir la suite.
+
+**Observación:** una regla de la herramienta (la «ceja») y las decisiones confirmadas tienen que viajar completas en cada revisión del artefacto.
+Los márgenes que dependen del ancho se prueban en 320 y 768 antes de generalizarlos.
+
+### 2026-10-19 — Fallos intermedios en el diseño y la aplicación de D.20
+
+**Contexto:** componentes con la dirección cálida (`design-components-d20`).
+
+**Categoría:** contradicción con una regla de una herramienta / efecto lateral de CSS / fallo de proceso / omisión en un artefacto.
+
+**Qué se generó mal:**
+
+1. Las fases de exploración y de tareas no cargaron la skill de `impeccable` que el proyecto exige para el trabajo de interfaz; la
+   tarea dejó escrito que la fase de aplicación debía cargarla.
+2. El primer dibujo del motivo (líneas onduladas paralelas) se leía como un matasellos y no como curvas de nivel, y pesaba distinto en claro
+   y en oscuro. Se rehízo como anillos cerrados alrededor de una cima, con un trazo por tema (contraste medido 1,49:1 y 1,41:1).
+3. La primera versión del diseño hacía crecer la fila a 320 en unos 6px (interlineado de heading-2 más un borde de 1px) sin cuantificarlo; lo
+   detectó el validador en contexto limpio, junto con escenarios sin cubrir, y el diseño se corrigió (peso en lugar de tamaño, `outline` en lugar
+   de borde).
+4. El agente del lote 3a sobrescribió en Engram la observación detallada de `apply-progress` con un resumen, y se perdió la evidencia previa.
+5. `--update-snapshots=changed` no regeneró las capturas con cambios bajo el umbral (pie y motivo), así que hubo que borrar los 102 PNG y
+   escribirlos de nuevo (decisión 239).
+6. El spec se escribió con requisitos numerados («R1.1…») en lugar de bloques `### Requirement:` / `#### Scenario:`, y el informe de
+   verificación se guardó en Engram sin el sobre `gentle-ai.verify-result/v1`. El estado nativo contaba 0 requisitos y bloqueaba el archivo;
+   se reestructuró el spec (27 requisitos, 25 escenarios, mismo texto) y se guardó el informe validado.
+
+**Cómo se detectó:** 1 al revisar el proceso del paso; 2 en la revisión visual de las capturas; 3 por el validador del diseño; 4 al
+leer la observación en el lote siguiente; 5 al contrastar los PNG cambiados con los esperados; 6 por el bloqueo de `gentle-ai sdd-status`
+antes de archivar.
+
+**Observación:** una restricción numérica («la fila no crece») hay que cuantificarla en el diseño y fijarla con una prueba antes de tocar CSS. Una
+observación de progreso se actualiza con `find`/`replace` o se anexa, no se sobrescribe con un resumen.
+
+### 2026-10-20 — Fallos intermedios en el diseño y la aplicación de D.21
+
+**Contexto:** movimiento sutil y cierre de la fase (`design-motion-d21`).
+
+**Categoría:** afirmación sin verificar / contradicción con el spec / efecto lateral de CSS / test que no cubría lo que decía / herramienta.
+
+**Qué se generó mal:**
+
+1. El diseño afirmaba «verificado en código» que `router.push` del dibujo de polígono remonta el subárbol de la página y por tanto repite el
+   fundido de los avisos. Una lectura e2e lo refutó: no remonta. La decisión 242 y los escenarios se corrigieron.
+2. El primer borrador de la barrera de movimiento permitía las transiciones de color en cualquier selector, y el diseño cambiaba también la
+   banda del tema oscuro sin que se hubiera pedido. El validador en contexto limpio lo paró; el responsable acotó la barrera a una lista de
+   selectores y fijó la banda en ambos temas. En la segunda validación, el borde del enlace de ordenación al pasar el puntero (`--rule`)
+   contradecía el spec; pasó a `--rule-control`.
+3. La corrección P8 (mover los avisos a la rejilla de resultados) dejó los chips pegados al panel de vacío (0px) a 768 y 1280. Dos revisores
+   lo vieron en la segunda pasada; no lo detectó ningún test. Antes, en el mismo cambio, un margen en el envoltorio dejó el mapa 16px por encima
+   del aviso y una rejilla sin filas explícitas estiró el aviso a un hueco de 260px (visto en captura).
+4. El test de F2 solo comprobaba el ancho de las columnas de los pares de rango y dejó pasar que el par de habitaciones y baños tuviera un
+   hueco de 12px frente a 8px: `.criteria-group fieldset` (0,1,1) ganaba por especificidad a `.criteria-range` (0,1,0).
+5. Fallos de herramienta: la expresión `<line` coincidía con `<linearGradient` en el test del motivo; un `\d` dentro de una plantilla de texto
+   pasaba a `d` en `new RegExp`; los ayudantes de selectores del test de CSS partían por comas dentro de `:has()` y `:is()` y trataban las
+   reglas de `@container` como incondicionales; los heredocs de Bash con muchas comillas y un `sed` con escapes corrompieron `globals.css`
+   (reparado antes de confirmar) y se pasó a escribir scripts con la herramienta de ficheros; y `mem_save` con un `topic_key` existente
+   sobrescribe la observación.
+
+**Cómo se detectó:** 1 por la lectura e2e; 2 por el validador del diseño; 3 en la revisión visual; 4 por los revisores de la segunda pasada;
+5 al ejecutar los tests (rojo inesperado) y al revisar el diff.
+
+**Observación:** «verificado en código» sin una prueba ejecutada no es evidencia. Un test de geometría debe comparar el valor que importa (la
+separación) y no un proxy (el ancho), y una regla nueva hay que compararla en especificidad con las existentes sobre el mismo elemento.
+
+### 2026-10-20 — Fallos intermedios en la exploración, la propuesta y el diseño de 3.2
+
+**Contexto:** búsqueda vacía en una zona cubierta y aislamiento de las bases de test (`fix-search-empty-results`).
+
+**Categoría:** afirmación sin verificar / contradicción entre artefactos.
+
+**Qué se generó mal:**
+
+1. La exploración dio `18009` por «provincia INE 18 + municipio 009» sin comprobarlo. Era una fila de prueba de
+   `apps/web/test/db/coverage-registration.test.ts`; el código INE real de Granada es 18087. De ahí salió la hipótesis equivocada de un
+   problema de datos reales.
+2. La propuesta afirmaba que la decisión 046 había «destruido datos reales tres veces», sin evidencia: solo hay una pérdida documentada.
+3. La spec (revisión 1) y el diseño se contradijeron en el aprovisionamiento de las bases de test: la spec exigía `initdb.d` de Compose y el
+   diseño lo descartó por un `globalSetup`. Se enmendó la spec (revisión 2).
+4. El guardián nuevo destapó un fallo que nadie había previsto: el `afterAll` de `search-bench.db.test.ts` habría vaciado `buscahogar_bench`
+   (1M de filas).
+5. El diseño y el runbook dieron por hecho que los umbrales `BLOCKING_*` y `OPERATION` estaban en el `.env` («con los valores del `.env`»).
+   Al comprobar solo su presencia, después del cierre, ninguno existía. Esa suposición ocultó que el worker de cobertura no puede arrancar
+   en desarrollo.
+
+**Cómo se detectó:** 1 al buscar el código en el repositorio y en la base; 2 al contrastar la propuesta con la decisión 046 y el ROADMAP;
+3 al leer ambos artefactos antes de las tareas; 4 al ejecutar la suite con el guardián activo; 5 al comprobar la presencia de las variables
+con `node --env-file` sin imprimir valores.
+
+**Observación:** un identificador con aspecto de código oficial hay que cotejarlo con el catálogo y con las fixtures antes de darlo por real, y
+un recuento de incidentes se cita con su fuente o no se cita. Lo mismo con la configuración: «el valor está en el `.env`» es una afirmación
+que se verifica, aunque el fichero no se pueda leer.
+
+---
+
+### 2026-10-20 — INSERT sin lotes en la consolidación (pasos 1.10 y 3.2)
+
+**Contexto:** el worker de cobertura cayó al consolidar tras barrer Granada (1 751 anuncios); arreglo de la decisión 247.
+
+**Categoría:** código que compilaba y pasaba los tests pero no hacía lo correcto a escala.
+
+**Qué se generó mal:**
+
+1. `writeConsolidation` (paso 1.10) insertaba toda la evidencia por pares en un único INSERT multi-fila, y `hydrateListingsForDedup` filtraba
+   el corpus completo con un único `inArray`. Ambos ligan un parámetro por columna o por id, sin cota. Los tests usaban pocos anuncios y
+   nunca se acercaron al tope de 65 535 del protocolo. El paso 2.5 añadió a esa misma función `refreshPropertyVisibility`, cuyo comentario ya
+   cita ese tope, pero nadie lo aplicó a las inserciones de al lado.
+2. En el arreglo, el test de atomicidad esperaba `toThrow(/dedup_pair_evidence_listing_order_check/)`. Drizzle envuelve el error de `pg` en
+   «Failed query: …» y la restricción viaja en `cause.constraint`; el test falló por la aserción, no por el código.
+
+**Cómo se detectó:** 1 con el primer barrido real completo (08P01, recuento desbordado a 34 344); 2 al ejecutar la suite en verde.
+
+**Observación:** toda escritura o filtro cuyo número de parámetros crece con el corpus necesita un lote explícito y un test por encima del
+tope, igual que la paginación de Idealista necesita un corte explícito.
+
+---
+
+### 2026-10-20 — Fallos del orquestador y del primer diseño en 3.3
+
+**Contexto:** pre-barrido de las ciudades más pobladas (`prescan-top-cities`), fases de diseño y de instrucción de los lotes.
+
+**Categoría:** contradicción con el diseño / hueco de diseño que habría fallado en silencio / privilegio expuesto.
+
+**Qué se generó mal:**
+
+1. El orquestador escribió en la instrucción del lote PR3 una ventana de señal `day >= hoy − 30`, que abarca 31 días y contradice el diseño
+   (30 días, `day > hoy − 30`). El subagente siguió el diseño y los tests de frontera (hoy − 29 dentro, hoy − 30 fuera) lo fijan.
+2. El primer diseño no rehízo el índice único parcial `coverage_jobs_zone_source_pending_idx` para incluir `operation`. Con el
+   `ON CONFLICT DO NOTHING` sin destino del registro de cobertura, el segundo job pendiente de la misma zona (venta tras alquiler, o al revés)
+   se habría descartado en silencio, sin error ni test en rojo.
+3. El mismo diseño no vio que `ALTER DEFAULT PRIVILEGES` y `GRANT SELECT ON ALL TABLES` del bootstrap de roles darían lectura de la tabla
+   mensual nueva a `web_readonly`. Hizo falta un `REVOKE` en la migración 0019 y en el bootstrap (decisión 248).
+4. El diseño repartía el tope por barrido sin tener en cuenta el techo mensual del carril, y proponía migraciones solo hacia delante cuando
+   la spec pedía otra cosa.
+
+**Cómo se detectó:** 1 al leer el resultado del subagente frente al diseño; 2-4 por el validador de contexto limpio, que obligó a una
+re-ejecución correctiva del diseño.
+
+**Observación:** una restricción `UNIQUE` que se amplía con una columna nueva arrastra a todo `ON CONFLICT` que dependa de ella, y una tabla
+nueva hereda los privilegios por defecto: ambas cosas hay que revisarlas en el diseño, no esperar a que un test las encuentre. El orquestador
+no debe reescribir en la instrucción una fórmula que ya fija el diseño; basta con citarlo.
+
+### 2026-10-20 — Fallos intermedios en la aplicación de 3.3
+
+**Contexto:** `prescan-top-cities`, lotes PR1-PR4b.
+
+**Categoría:** código que compilaba pero no hacía lo correcto / test que no probaba lo que decía / entorno de test desactualizado.
+
+**Qué se generó mal:**
+
+1. La guarda de deriva de la población (PR1) comparaba con `rows.length * 0.9`, en coma flotante, justo en el umbral que decide si se aborta
+   la regeneración del catálogo. Se pasó a una división (`conPoblación / total < 0.9`), que redondea correctamente, y se triangularon los
+   casos 9/10 (pasa), 8/10 y 0/10 (abortan).
+2. El test S12.1 (PR2) usaba `requestedAt` fijo en 2026-01-01; con la retención, esa fecha dejaba la zona inactiva y la purgaba antes de
+   comprobar lo que el test decía comprobar.
+3. Los tests de `apps/ingestion` corrieron contra un `dist` obsoleto de `@buscahogar/db`, anterior a los cambios del lote, y fallaron por el
+   entorno, no por el código. Hubo que recompilar el paquete antes de ejecutarlos.
+4. El SQL del ciclo de vida de las zonas tomaba el `requested_at` de cada job por separado, así que con dos operaciones podía planificar a la
+   vez la purga y el refresco de la misma zona.
+5. Insertar `operation: 'rent'` en bloque en los ayudantes de test cambió en silencio la semántica de los tests de venta, que pasaron a
+   probar alquiler.
+6. El primer diseño del tope diario de zonas nuevas (PR3) bloqueaba la segunda operación de una zona que ya se había contado ese día. Pasó a
+   contar zonas distintas y a eximir la zona ya contada.
+7. Un test de privilegios (PR4a) pasaba la cadena `'current_user'` a `has_table_privilege` como nombre de rol («role "current_user" does not
+   exist»); debía ser la función `current_user`.
+8. La migración 0019 se editó después de haberse aplicado en las bases de test. Drizzle no reaplica una migración ya registrada, así que las
+   bases seguían con la versión vieja; se borraron y recrearon.
+9. Un test de base de datos del pre-barrido (PR4b) esperaba 4 peticiones con `--top 1 --max-requests-per-sweep 4`, olvidando que una ciudad
+   son dos unidades (venta y alquiler): se hicieron 8. Se corrigió la aritmética del test, no el código.
+
+**Cómo se detectó:** al ejecutar las suites (rojo inesperado o un recuento que no cuadraba con la cifra esperada) y al revisar el diff de los
+ayudantes de test.
+
+**Observación:** con la operación como dimensión nueva, todo lo que antes era «una zona» pasa a ser «una zona por operación», y eso afecta
+a recuentos, topes, ciclos de vida y aritmética de los tests por igual. Una migración aplicada no se edita: se añade otra o se recrea la base.
+
+### 2026-10-20 — Heredocs y comillas en la shell corrompieron ediciones (3.3, recurrente)
+
+**Contexto:** `prescan-top-cities`, ediciones de documentación y de tests desde Bash en los lotes PR2, PR3, PR4a y PR4b.
+
+**Categoría:** herramienta.
+
+**Qué se generó mal:** los heredocs de Bash con apóstrofos (abundantes en español) abortaron con «unexpected EOF» o truncaron la edición, y un
+`node -e` con plantillas entre comillas invertidas y comillas anidadas produjo un test roto. Ya había pasado en D.21.
+
+**Cómo se detectó:** al ejecutar el comando (error de la shell) o al revisar el diff antes de confirmar.
+
+**Observación:** el texto con comillas va con las herramientas de ficheros (Write/Edit), que además conservan los finales de línea CRLF de
+`docs/*.md`. Un script, si hace falta, se escribe primero en un fichero y no se pasa en línea.
+
+### 2026-10-23 — Fallos de fondo en la aplicación del paso 3.4 (puesta en producción, S1-S8)
+
+**Contexto:** ciclo SDD `production-deployment` (Strict TDD, ritmo automático, ocho rebanadas: limitador compartido, salud y teselas, páginas
+legales, despliegue, worker en producción, avisos, copias de seguridad, CI y documentación). Solo se anotan los fallos que enseñan algo; los
+tropiezos de sintaxis y de herramientas van en la entrada siguiente.
+
+**Categoría:** código correcto en apariencia pero incorrecto / test que valida el comportamiento equivocado / suposición no comprobada /
+pérdida de contexto del orquestador.
+
+**Qué ocurrió:**
+
+1. **S1 dejó siete pruebas e2e rojas sin que nadie lo viera hasta S3.** El limitador pasó a contar en PostgreSQL con la credencial
+   `web_coverage` y a fallar abierto si no puede conectar. El servidor e2e «limitado» tenía esa URL vacía por la decisión 135, así que nunca
+   emitía el 429 (recibía 404). Las suites de unidad y de base de datos estaban verdes, y el orquestador no ejecutó `pnpm e2e` tras una
+   rebanada que tocaba `apps/web`. Lo encontró la ejecución e2e de S3 (1110 pasadas, 7 fallos). Se corrigió con un rol e2e acotado
+   (decisión 265) y desde entonces la regla es ejecutar `pnpm e2e` tras cualquier rebanada que toque `apps/web`.
+2. **S5a: un temporizador de parada que sobrevivía a la salida por configuración inválida.** `runWorkerProcess` volvía del camino de
+   configuración inválida sin liberar el plazo de parada, así que un SIGTERM durante la espera de 30 s terminaba con salida 1 a los 8 s en vez de
+   salida 2 de inmediato. Los 13 tests de proceso con reloj falso pasaban; solo lo reveló ejecutar la imagen real con el entorno vacío. Se corrigió
+   con un único `try/finally` y una prueba de regresión («SIGTERM durante la espera deja el temporizador liberado»).
+3. **S5a: reutilizar `shouldContinue` para la parada a mitad de tick rompió el requisito R11.** Un test existente cuenta las llamadas a
+   `shouldContinue`; las llamadas extra lo pusieron en rojo (28 → 1 fallo). La parada en el límite de página pasó a una opción propia,
+   `shouldStop`, que no altera el contrato previo.
+4. **S7: el aislamiento de Docker dio un falso verde.** `tmpfs` se monta `noexec` por defecto, así que los envoltorios (`shims`) del e2e de copias
+   en `/tmp` nunca se ejecutaban y los escenarios de fallo «pasaban» haciendo copias reales. Se vio al revisar por qué los escenarios de fallo
+   ejecutaban copias reales; el montaje pasó a `/tmp:exec`. Cerca de lo mismo: una comprobación de «no hay texto plano» encontraba el propio
+   fichero del envoltorio con la marca, y una expresión estática de «pg_dump no se redirige» casaba con la redirección legítima de `age`.
+5. **S7: se asumió que `minio/minio` se podía descargar.** Docker Hub ya no la sirve (acceso denegado); se pasó a la imagen de Chainguard fijada
+   por digest. También se asumió que `rclone mkdir` con `no_check_bucket=true` creaba el cubo: no creaba nada, en silencio.
+6. **S6: un test con una expresión sin escapar falló por el motivo equivocado.** La prueba de orden del bootstrap usaba
+   `to_regclass('public.alert_dispatch_log')` dentro de una expresión regular, con paréntesis y punto sin escapar; falló en la ejecución completa
+   por la expresión y no por el código. Otra prueba usó el `fetch` global, que la suite deshabilita a propósito (REQ-NONET), y hubo que pasar a un
+   cliente HTTP de `node:http` contra el bucle local en lugar de saltarse la regla.
+7. **S4: la matriz de privilegios marcó como fallo un permiso que no es nuestro.** PostGIS concede `SELECT` sobre `spatial_ref_sys` a `PUBLIC`, así
+   que `web_coverage` aparecía con un permiso que nadie había concedido; se excluyó de la matriz con una nota. Otro caso: un `||` entre `text` y
+   `"char"` en la huella de privilegios no existe en Postgres (hubo que convertir con `::text`).
+8. **S4: `pnpm deploy` falla en pnpm 11 sin `--legacy`** (`ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE`), y la primera imagen copió el directorio
+   completo del despliegue (fuentes y tests) a la etapa final; lo detectó un `ls` dentro de la imagen y ahora hay una lista explícita de `COPY` con
+   su test.
+9. **S6 y S5b: pruebas sin su RED observado.** En S6 el código de 6.1-6.5 ya existía (trabajo en curso de la sesión interrumpida por la cuota) y
+   los tests se escribieron con él; en S5b, y en parte de S7 y S5a, la prueba de proceso o de integración se escribió después de la
+   implementación. No se afirma un ROJO que no se vio: las tablas de evidencia de cada rebanada lo dicen.
+10. **S8: dos ejecuciones simultáneas de la misma suite contra un único PostGIS.** Lancé la réplica local del job `db` con `&` dentro de una
+    llamada y luego de nuevo en segundo plano; la primera no murió con la llamada, así que dos ejecuciones compartieron las bases `_test` y
+    produjeron 17 + 3 + 4 fallos espurios en `db`. Se mataron ambas y se repitió una sola vez, en limpio.
+11. **S8: el test estático de la CI miraba los comentarios.** La aserción negativa «no hay `continue-on-error`» encontró la frase que lo
+    explicaba en el encabezado del propio `ci.yml`. Las comprobaciones negativas pasaron a mirar solo las líneas que no son comentario.
+
+**Cómo se detectó:** 1 al ejecutar el e2e; 2, 4 y 8 al ejecutar el artefacto real (imagen, contenedor) y no solo las pruebas; 3, 6 y 11 en la
+primera ejecución de las suites; 5 y 7 al correr el escenario; 9 al redactar las tablas de evidencia; 10 por un recuento que no cuadraba.
+
+**Coste:** alto en 1 (una rebanada después y un commit correctivo con su decisión) y en 4 (un escenario falso verde durante varias ejecuciones);
+bajo en el resto.
+
+**Observación:** lo que más veces falló no fue el código sino la **prueba del artefacto real**: el temporizador de la imagen, el montaje `noexec`,
+la descarga de una imagen y el e2e tras tocar la web. Dos reglas salen de aquí: (a) cada rebanada se cierra ejecutando el artefacto en su
+entorno (la imagen, el e2e) y no solo sus pruebas de unidad; (b) un escenario de fallo que «pasa» debe demostrar que el fallo ocurrió
+(registro de llamadas, código de salida), porque un doble que no se ejecuta da el mismo verde que uno que sí.
+
+### 2026-10-23 — Heredocs, sustituciones y finales de línea, otra vez (3.4, recurrente)
+
+**Contexto:** todo el paso 3.4, ediciones desde Bash de código, tests y documentación.
+
+**Categoría:** herramienta.
+
+**Qué se generó mal:**
+
+1. Los heredocs con apóstrofos (abundantes en español) abortaron con «unexpected EOF» o dejaron los ficheros sin escribir (S5a, S5b y una vez
+   en S8). Un `node -e` con comillas invertidas dentro de comillas dobles ejecutó el texto como órdenes y dejó una sección sin sus
+   identificadores (S4); otro insertó un salto de línea real dentro de una cadena `'\n'` (S5b y S8).
+2. Las sustituciones con `python` o `node` perdieron barras invertidas (`\b` convertido en un retroceso, `\S` en `S`) en pruebas con
+   expresiones regulares (S1, S2, S4, S5a), y `String.replace` con `$'` en el texto nuevo pegó el resto del fichero (S3).
+3. Sobre ficheros con finales de línea CRLF, una sustitución de varias líneas no encontraba el ancla y no avisaba (S1, S4, S5a, S5b);
+   `python` ni siquiera está instalado en este entorno (S3).
+4. El formateador (`prettier`, ancho 100) reescribió líneas ajenas al cambio en un test (S3); y un `git stash` para medir una línea base obligó a comprobar después que todo el trabajo sin confirmar seguía intacto (S5b, sin
+   consecuencias).
+
+**Cómo se detectó:** al ejecutar el comando (error de la shell), al fallar un test por una expresión alterada, o al revisar el diff.
+
+**Observación:** es la misma entrada que el 3.3 y D.21, y sigue ocurriendo. La regla práctica que funcionó en S8: el texto con comillas va con
+las herramientas de ficheros (Write, Edit); si hace falta un script, se escribe primero en un fichero y un sustituidor propio que
+normaliza los finales de línea (aquí, uno que tolera CRLF y LF mezclados y falla si el ancla no es única) hace el cambio.
+
+### 2026-10-26 — Afirmación sobre `.env.example` sin poder leerlo (3.4, S8)
+
+**Contexto:** cierre documental del paso 3.4 (S8, tarea 8.7) y resumen al responsable.
+
+**Categoría:** afirmación no verificada.
+
+**Qué se generó mal:** el agente de S8, que no tiene permiso para leer los `.env*`, escribió en `docs/DEPLOYMENT.md` y `docs/ROADMAP.md` que
+`.env.example` «sigue declarando `OPERATION`», y el orquestador lo repitió al responsable sin comprobarlo. El propio ROADMAP ya recogía
+que el 2026-10-21 se había confirmado su ausencia.
+
+**Cómo se detectó:** lo corrigió el responsable. Contrastado después con las notas del ROADMAP del paso 3.3.
+
+**Observación:** sobre un fichero que la herramienta no puede leer solo cabe decir que no se ha podido revisar; el estado conocido sale de
+lo ya registrado, no de una suposición. Se reescribieron las dos menciones como comprobación pendiente del responsable.
+
+### 2026-10-26 — Fallos intermedios en la aplicación de D.22 (identidad y alegría)
+
+**Contexto:** unidades 1-5 del cambio `design-identity-d22` (marca, portada, estados, movimiento y documentación). Todos se detectaron antes
+de cada commit, por una prueba, el typecheck o la lectura del diff.
+
+**Categoría:** código correcto en apariencia pero incorrecto · test que valida el comportamiento equivocado.
+
+**Qué se generó mal:**
+
+1. Un comentario CSS con comillas invertidas dentro de la plantilla `STANDALONE_PAGE_CSS`: la comilla invertida cerraba la plantilla y
+   rompía el análisis del TypeScript.
+2. Expresiones regulares construidas en una plantilla de cadena simple (`\s`, `\{` se degradan a `s` y `{`): un ayudante devolvía `''` y la
+   prueba comparaba `'' === ''`, un falso verde. El ayudante antiguo `lightToken` tenía el mismo defecto latente. Se corrigió con
+   `String.raw` y una guarda de no vacío.
+3. Una prueba de pureza que buscaba `<svg` y `server-only` encontraba cadenas y comentarios; se redujo a «sin líneas `import`». Otra que
+   buscaba `'use client'` coincidía con el propio comentario de cabecera; se limitó a la directiva al inicio de línea.
+4. Un identificador declarado dos veces y un ternario sin sentido en el código nuevo, que el typecheck y la lectura descubrieron.
+5. Una regla base `a:hover` pintaba el acento sobre un botón que ya era acento (texto sobre fondo del mismo color); se excluyó el botón.
+6. `findBlock` devuelve el primer bloque con ese prólogo: con dos `@media (width < 30rem)` el primero no era el esperado. Se escribió un
+   ayudante `inMedia`.
+7. Fijaciones de pruebas antiguas (`class="filter-tray"`, `<h1>Buscar vivienda</h1>` en `/`, el motivo en la portada) que el cambio
+   semántico de la portada rompió: seis fallos que no se habían previsto al planificar la unidad 2.
+8. Una expresión `/focus/` de una prueba coincidió con mis selectores nuevos `:not(:focus-visible)` (falso positivo); y un primer caso
+   sintético de la auditoría de movimiento usaba una propiedad frente a tres duraciones y la propia auditoría lo marcó.
+9. Heredocs de shell y de Python con comillas y `\n`: un `\n` escapado produjo un salto de línea real dentro de una cadena TypeScript, y una
+   comilla simple de `Don't` dentro de un heredoc rompió otra (en esta unidad, otra vez). Ya constaba en 3.3 y 3.4.
+
+**Cómo se detectó:** por las propias pruebas o por el typecheck, salvo el 3 y el 8, que salieron al revisar por qué una prueba pasaba o fallaba
+sin motivo.
+
+**Observación:** el patrón dominante es la prueba que pasa sin comprobar nada (comparar vacío con vacío, regex que coincide con su propio
+comentario). Una guarda de «no vacío» y un caso negativo sintético por cada barrera habrían cazado 2, 3 y 8 al escribirlas. El texto con
+comillas va con las herramientas de ficheros, no con heredocs.
+
+### 2026-10-26 — Specs e2e de D.22 escritos sin ejecutarse en Docker
+
+**Contexto:** unidades 1-3 del cambio `design-identity-d22`; los e2e se ejecutaron por primera vez en la unidad 6.
+
+**Categoría:** test que valida el comportamiento equivocado · código correcto en apariencia pero incorrecto.
+
+**Qué se generó mal:** los specs de las unidades 1-3 se escribieron sin correrlos en Docker y la primera ejecución completa dio 157 fallos.
+Entre ellos un fallo real de producto (la cabecera se partía en dos filas a 320 px con la marca; corregido con `max-[30rem]:gap-x-3` en
+`site-header.tsx`), el puente JSX de los estados que no aceptaba componentes de función, «Quitar todos» presente dos veces por diseño
+(decisión 269), suposiciones de «primer hijo» en `standalone-visual` y una medición de desplazamiento al pasar el puntero en `motion.spec`
+que dependía del tamaño de la ventana. Las 144 líneas base se regeneraron (decisión 239).
+
+**Cómo se detectó:** al ejecutar `pnpm e2e` en la unidad 6.
+
+**Observación:** los tests unitarios y el typecheck verdes no cubren la interacción real con el navegador. Hay que correr el subconjunto e2e
+afectado en cada unidad y no solo al final: el fallo de la cabecera a 320 px habría salido en la unidad 1.
+
+### 2026-10-26 — Dos fallos propios del orquestador en D.22
+
+**Contexto:** coordinación del cambio `design-identity-d22`, antes y durante la aplicación.
+
+**Categoría:** pérdida de contexto en tareas largas · deriva entre artefactos.
+
+**Qué se generó mal:**
+
+1. El estado en su revisión 3 parafraseó la investigación como «sin entrada escalonada en las páginas de resultados», lo que contradecía la
+   elección de movimiento del responsable (la entrada escalonada sí entraba). Lo detectó la puerta de la especificación y se corrigió en la
+   revisión 4.
+2. El artefacto de tareas se guardó sin casillas de verificación en Markdown, así que `sdd-status` nativo bloqueaba la aplicación al no
+   poder contar tareas. Se volvió a guardar con `- [ ]`.
+
+**Cómo se detectó:** (1) por la comparación de la especificación con la elección del responsable; (2) por el bloqueo del estado nativo.
+
+**Observación:** un resumen de una investigación en el estado no es una fuente: ante un conflicto manda lo que el responsable dijo. Y los
+artefactos que lee una herramienta deben ajustarse al formato que esa herramienta espera, no al que parece natural al escribirlos.
+
+### 2026-10-26 — Diagnóstico incompleto del 500 en una búsqueda con zona
+
+**Contexto:** búsqueda local con `zone=08019` (Barcelona) que devolvía 500. Pasos de verificación propuestos al responsable.
+
+**Categoría:** diagnóstico incompleto · instrucción que no hacía lo que se decía.
+
+**Qué se generó mal:**
+
+1. Se atribuyó el 500 solo a dos variables ausentes en `apps/web/.env.local` (`NEW_ZONES_DAILY_CAP`, `WEB_COVERAGE_DATABASE_URL`).
+   Tras añadirlas, el 500 seguía: la base de datos local tenía 20 de 23 migraciones y faltaba `coverage_jobs.lease_renewed_at` (0021),
+   así que fallaba el `INSERT` del job de cobertura. Se resolvió con `pnpm db:migrate`.
+2. Se indicó `pnpm env:check` para comprobar `.env.local`, pero el script solo inspecciona `process.env` y no carga ningún fichero: en local
+   siempre falla. La forma correcta es `node --env-file=.env.local --import tsx scripts/env-check.ts` desde `apps/web`.
+3. El aviso «Encountered a script tag» no era un fallo propio de `layout.tsx`: aparecía solo cuando el 500 hacía que React volviera a
+   pintar el layout en el navegador. Desapareció al corregir el 500.
+
+**Cómo se detectó:** al reproducir la búsqueda con el navegador después del cambio de variables.
+
+**Observación:** un primer error en la pila puede tapar otros. Hay que reproducir la petición completa después de cada corrección, y leer qué
+hace un script de verificación antes de recomendarlo.
+
+### 2026-10-26 — El pre-barrido pedía un token OAuth por unidad
+
+**Contexto:** pre-barrido de las ciudades más pobladas (`apps/ingestion`, paso 3.3), generado con asistencia. Primera ejecución real.
+
+**Categoría:** código correcto en apariencia pero incorrecto · test que valida el comportamiento equivocado.
+
+**Qué se generó mal:** cada unidad creaba su propia fuente de Idealista, y cada fuente pedía su propio token. 24 unidades de una búsqueda
+dejaron 24 tokens en el registro mensual. El worker tenía el mismo patrón por barrido y por verificación de presencia. El test de base de
+datos lo daba por bueno: esperaba «dos barridos = 2 tokens», y el token falso no traía `expires_in`, así que nada contaba los tokens entre
+unidades como un gasto evitable.
+
+**Cómo se detectó:** solo al leer el registro tras la ejecución real (26 tokens para 54 búsquedas en octubre), no en los tests.
+
+**Observación:** los dobles deben imitar la respuesta grabada (aquí, `expires_in` de 12 h), y los tests de gasto deben fijar cuántas llamadas
+de red salen en toda la ejecución, no por unidad. Corregido con la decisión 272.
+
+### 2026-10-29 — Modo de fallo mal previsto para el verificador SCRAM en Neon
+
+**Contexto:** primer `deploy` real contra Neon, en el despliegue de demostración (paso 3.4b). La documentación del paso 3.4 y la guía de la
+demo, las dos generadas con asistencia, describían qué pasaría si Neon no aceptaba el verificador SCRAM ya calculado.
+
+**Categoría:** suposición sin verificar presentada como comportamiento conocido.
+
+**Qué se generó mal:** `docs/DEPLOYMENT.md` («Neon») y la primera versión de `docs/DEMO-DEPLOYMENT.md` decían que el despliegue saldría con
+**4** y el mensaje «¿verificador SCRAM no aceptado?». Ese camino solo existe cuando el rol se crea y luego no puede iniciar sesión. Neon
+rechaza el propio `CREATE ROLE` (error 400 de su plano de control: «only supports being given plaintext passwords»), así que el despliegue
+falla antes, en el paso `roles`, con salida **1** y el mensaje del proveedor. La guía también daba por hecho que la primera ejecución diría
+`roles created`.
+
+**Cómo se detectó:** al ejecutar `deploy` contra Neon. No se rompió nada: el fallo llegó antes de crear ningún rol.
+
+**Observación:** el resultado fue el previsto (no se aceptaba), pero el **cómo** era otro. Cuando un supuesto sobre un proveedor no se puede
+comprobar sin cuenta, la documentación debe describir el síntoma como posible, no como seguro. Corregidos `docs/DEPLOYMENT.md` y la guía.

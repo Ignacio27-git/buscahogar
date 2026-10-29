@@ -6,7 +6,7 @@
 // llamadas: cero DB, cero red, cero process.env.
 import { describe, expect, it } from 'vitest';
 
-import type { ZoneLifecycleSnapshot } from '@buscahogar/core';
+import type { RefreshTarget, ZoneLifecycleSnapshot } from '@buscahogar/core';
 import type { BudgetReservation, LedgerState, ZoneGeometry } from '@buscahogar/db';
 
 import { runCoverageWorker } from '../src/sweep/coverage-worker.js';
@@ -29,10 +29,15 @@ const GEOMETRY: ZoneGeometry = {
   sweepRadiusM: 4500,
 };
 
-const JOB: PollJob = { jobId: 'job-1', zoneId: 'zone-1', sourceId: 'source-1', lane: 'on-demand' };
+const JOB: PollJob = {
+  jobId: 'job-1',
+  zoneId: 'zone-1',
+  sourceId: 'source-1',
+  operation: 'sale',
+  lane: 'on-demand',
+};
 
 const BASE_OPTIONS: CoverageWorkerOptions = {
-  operation: 'sale',
   pollIntervalMs: 10,
   maxSearchRequestsPerSweep: 10,
   dailySearchCap: 500,
@@ -43,18 +48,21 @@ const BASE_OPTIONS: CoverageWorkerOptions = {
 
 const PURGEABLE_ZONE: ZoneLifecycleSnapshot = {
   zoneId: 'old-zone',
+  operation: 'sale',
   daysSinceLastDemand: 180,
   secondsSinceLastSweep: 400 * DAY_SECONDS,
   refreshEligible: true,
 };
 const JUST_BEFORE_PURGE_ZONE: ZoneLifecycleSnapshot = {
   zoneId: 'held-zone',
+  operation: 'sale',
   daysSinceLastDemand: 179,
   secondsSinceLastSweep: 400 * DAY_SECONDS,
   refreshEligible: true,
 };
 const DUE_ZONE: ZoneLifecycleSnapshot = {
   zoneId: 'due-zone',
+  operation: 'sale',
   daysSinceLastDemand: 3,
   secondsSinceLastSweep: 8 * DAY_SECONDS,
   refreshEligible: true,
@@ -73,14 +81,14 @@ interface FakePorts extends CoverageWorkerPorts {
   readonly calls: string[];
   readonly logged: string[];
   readonly purgedBatches: (readonly string[])[];
-  readonly refreshedBatches: (readonly string[])[];
+  readonly refreshedBatches: (readonly RefreshTarget[])[];
 }
 
 function createFakePorts(overrides: FakeOverrides = {}): FakePorts {
   const calls: string[] = [];
   const logged: string[] = [];
   const purgedBatches: (readonly string[])[] = [];
-  const refreshedBatches: (readonly string[])[] = [];
+  const refreshedBatches: (readonly RefreshTarget[])[] = [];
   const job = overrides.job === undefined ? JOB : overrides.job;
 
   const maintenance: ZoneMaintenancePorts = {
@@ -97,10 +105,10 @@ function createFakePorts(overrides: FakeOverrides = {}): FakePorts {
       purgedBatches.push(zoneIds);
       return overrides.purgeZones ? overrides.purgeZones() : Promise.resolve(zoneIds.length);
     },
-    scheduleRefresh(zoneIds: readonly string[]): Promise<number> {
+    scheduleRefresh(targets: readonly RefreshTarget[]): Promise<number> {
       calls.push('scheduleRefresh');
-      refreshedBatches.push(zoneIds);
-      return Promise.resolve(zoneIds.length);
+      refreshedBatches.push(targets);
+      return Promise.resolve(targets.length);
     },
     tombstoneExpiredListings(): Promise<number> {
       calls.push('tombstoneExpiredListings');
@@ -176,7 +184,7 @@ describe('runCoverageWorker — purgas en el mantenimiento (S-CWT-1, decisión 1
     await runCoverageWorker(ports, BASE_OPTIONS);
 
     expect(ports.purgedBatches).toEqual([['old-zone']]);
-    expect(ports.refreshedBatches).toEqual([['due-zone']]);
+    expect(ports.refreshedBatches).toEqual([[{ zoneId: 'due-zone', operation: 'sale' }]]);
   });
 
   it('sin zonas purgables, purgeZones no se invoca', async () => {

@@ -10,6 +10,13 @@
 // exactamente a la tarjeta de hoy — nunca un `<a>` con `href` vacío o roto.
 // `<a href>` normal, nunca `next/link` (D1: `typedRoutes` sigue sin activar
 // en `next.config.ts`).
+//
+// D.6b (decisiones 152 y 155) — fila densa en lugar de tarjeta: miniatura 4:3 a
+// la izquierda, precio y datos en el centro y, desde 48rem, precio en una
+// columna fija a la derecha. La imagen usa `fill` + `sizes` dentro de una caja
+// de proporción fija (`.result-row__media`), de modo que no hay salto de
+// maquetación. Tipo y operación salen de los rótulos de decisión 134; la
+// política de `alt` vive en `resolveThumbnailAlt`.
 import Image from 'next/image';
 import type { ReactElement } from 'react';
 
@@ -17,46 +24,92 @@ import type { PropertySearchResult } from '@buscahogar/db';
 
 import { formatPriceCents } from '@/lib/format-price';
 import { buildPropertyDetailHref } from '@/lib/property-href';
+import { operationLabel, propertyTypeLabel } from '@/lib/search-labels';
+import type { SearchReturnParams } from '@/lib/search-return-params';
 
-import { resolveThumbnailSource } from './thumbnail-source';
+import { resolveThumbnailAlt, resolveThumbnailSource } from './thumbnail-source';
 
 export interface ResultCardProps {
   readonly result: PropertySearchResult;
+  // D.9: parámetros de la búsqueda que el enlace lleva a la ficha (vuelta a los resultados).
+  readonly returnParams?: SearchReturnParams;
 }
 
-export function ResultCard({ result }: ResultCardProps): ReactElement {
+// Debe coincidir con el ancho de la columna de miniatura de `.result-row` en
+// globals.css: 10rem desde 48rem y 6rem por debajo.
+const THUMBNAIL_SIZES = '(min-width: 48rem) 10rem, 6rem';
+
+function formatBathrooms(count: number): string {
+  return `${String(count)} ${count === 1 ? 'baño' : 'baños'}`;
+}
+
+export function ResultCard({ result, returnParams = [] }: ResultCardProps): ReactElement {
   const thumbnail = resolveThumbnailSource(result.thumbnailUrl);
+  const priceMissing = result.minPriceCents === null;
+  const sourceCount = result.distinctSourceCount;
+  // D.15 (F6, decisión 198): una sola cadena para la línea visible y para el encabezado.
+  const typeText = propertyTypeLabel(result.propertyType) ?? 'Tipo no disponible';
+  const operationText = operationLabel(result.operation);
+  const kind = `${typeText} · ${operationText ?? 'Operación no disponible'}`;
 
   const content = (
     <>
-      {thumbnail.kind === 'thumbnail' ? (
-        <Image src={thumbnail.url} alt="" width={480} height={360} />
-      ) : (
-        <div aria-hidden="true">Sin imagen disponible</div>
-      )}
-      <h2>{formatPriceCents(result.minPriceCents)}</h2>
-      <p>
-        {result.propertyType ?? 'Tipo no disponible'} · {result.operation ?? 'Operación no disponible'}
-      </p>
-      <p>
-        {result.surfaceM2 !== null ? `${String(result.surfaceM2)} m²` : 'Superficie no disponible'}
-        {result.rooms !== null ? ` · ${String(result.rooms)} hab.` : ''}
-        {result.bathrooms !== null ? ` · ${String(result.bathrooms)} baños` : ''}
-      </p>
-      {result.address !== null ? <p>{result.address}</p> : null}
-      <p>
-        Disponible en {result.distinctSourceCount} {result.distinctSourceCount === 1 ? 'fuente' : 'fuentes'}
-      </p>
+      <div className="result-row__media">
+        {thumbnail.kind === 'thumbnail' ? (
+          <Image
+            src={thumbnail.url}
+            alt={resolveThumbnailAlt(result)}
+            fill
+            sizes={THUMBNAIL_SIZES}
+            className="result-row__img"
+          />
+        ) : (
+          <span aria-hidden="true">Sin foto</span>
+        )}
+      </div>
+      <h2 className={priceMissing ? 'result-row__price result-row__price--missing' : 'result-row__price tabular-nums'}>
+        {formatPriceCents(result.minPriceCents)}
+        <span className="sr-only">{`, ${kind}`}</span>
+      </h2>
+      <div className="result-row__facts">
+        {/* D.20 (decisión 236): la operación es una etiqueta con caja; el texto visible no cambia. */}
+        <p className="result-row__kind">
+          {operationText === null ? (
+            kind
+          ) : (
+            <>
+              {`${typeText} · `}
+              <span className="result-row__operation">{operationText}</span>
+            </>
+          )}
+        </p>
+        <p className="result-row__figures tabular-nums">
+          {result.surfaceM2 !== null ? `${String(result.surfaceM2)} m²` : 'Superficie no disponible'}
+          {result.rooms !== null ? ` · ${String(result.rooms)} hab.` : ''}
+          {result.bathrooms !== null ? ` · ${formatBathrooms(result.bathrooms)}` : ''}
+        </p>
+        {result.address !== null ? <p className="result-row__address">{result.address}</p> : null}
+        {/* D.17 (B4): con dos o más fuentes la insignia pesa más: es la evidencia de la agregación. */}
+        <p className={sourceCount > 1 ? 'result-row__badge result-row__badge--multi' : 'result-row__badge'}>
+          {`Disponible en ${String(sourceCount)} ${sourceCount === 1 ? 'fuente' : 'fuentes'}`}
+        </p>
+      </div>
     </>
   );
 
   if (result.anchorListingId === null) {
-    return <article>{content}</article>;
+    return (
+      <article className="result-row">
+        <div className="result-row__body">{content}</div>
+      </article>
+    );
   }
 
   return (
-    <article>
-      <a href={buildPropertyDetailHref(result.anchorListingId)}>{content}</a>
+    <article className="result-row">
+      <a href={buildPropertyDetailHref(result.anchorListingId, returnParams)} className="result-row__body result-row__link">
+        {content}
+      </a>
     </article>
   );
 }

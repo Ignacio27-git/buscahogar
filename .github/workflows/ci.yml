@@ -1,0 +1,136 @@
+# Integración continua (ROADMAP 3.4, decisión 263 parte C; R11.1-R11.3). SOLO comprueba: no despliega, no
+# publica y no usa ninguna credencial de nube, de las fuentes ni de Telegram (el e2e de copias usa MinIO local y
+# claves generadas dentro del contenedor). Las credenciales de la base de datos de abajo son literales de prueba
+# de un PostGIS efímero del propio job. Si un paso falla, falla el flujo: no hay `continue-on-error`.
+#
+# Las acciones se fijan por SHA completo (la etiqueta va en el comentario); subirlas es un commit revisable.
+# Node y pnpm son los del proyecto (imagen del worker y `packageManager`); `apps/ingestion/test/ci-workflow.test.ts`
+# lo vigila. La caché del almacén de pnpm se liga a `pnpm-lock.yaml`.
+#
+# Fuera de este flujo a propósito: el e2e visual de Playwright (`pnpm e2e`, imagen de Docker de unos GB; se
+# ejecuta a mano antes de fusionar cambios de interfaz). Detalle: docs/DEPLOYMENT.md, «CI».
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Código
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: pnpm (la versión de packageManager)
+        run: npm install --global pnpm@11.25.0
+      - name: Node (la versión de la imagen del worker) y caché de pnpm
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.4
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Dependencias
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Tests
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+      - name: Ninguna credencial como NEXT_PUBLIC_*
+        run: pnpm check:public-env
+
+  db:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-postgres-password
+          POSTGRES_DB: buscahogar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d buscahogar"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      # Despliegue (URL directa del propietario y secretos de los dos roles web).
+      DIRECT_DATABASE_URL: postgresql://postgres:ci-postgres-password@localhost:5432/buscahogar
+      WEB_READONLY_PASSWORD: ci-web-readonly-password
+      WEB_COVERAGE_PASSWORD: ci-web-coverage-password
+      # Suites con base de datos: cada paquete deriva de DATABASE_URL su propia base `_test` (decisión 245) y las
+      # suites de `apps/web` usan los roles que acaba de aprovisionar el despliegue.
+      DATABASE_URL: postgresql://postgres:ci-postgres-password@localhost:5432/buscahogar
+      WEB_DATABASE_URL: postgresql://web_readonly:ci-web-readonly-password@localhost:5432/buscahogar
+      WEB_COVERAGE_DATABASE_URL: postgresql://web_coverage:ci-web-coverage-password@localhost:5432/buscahogar
+    steps:
+      - name: Código
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: pnpm (la versión de packageManager)
+        run: npm install --global pnpm@11.25.0
+      - name: Node (la versión de la imagen del worker) y caché de pnpm
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.4
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Dependencias
+        run: pnpm install --frozen-lockfile
+      - name: JavaScript de producción del despliegue
+        run: pnpm --filter @buscahogar/ingestion run build:runtime
+      - name: Primer despliegue (base vacía)
+        run: pnpm --filter @buscahogar/ingestion run deploy:runtime
+      - name: Segundo despliegue (idempotente, sin cambios)
+        run: |
+          pnpm --filter @buscahogar/ingestion run deploy:runtime | tee second-run.log
+          grep -q '0 migrations, roles unchanged, privileges unchanged, seeds skipped' second-run.log
+      - name: Suites de packages/db
+        run: pnpm --filter @buscahogar/db test
+      - name: Suite de bloqueo
+        run: pnpm --filter @buscahogar/db test:blocking
+      - name: Suite de consolidación
+        run: pnpm --filter @buscahogar/db test:consolidation
+      - name: Suite de detalle
+        run: pnpm --filter @buscahogar/db test:detail
+      - name: Suites con base de datos de apps/ingestion
+        run: pnpm --filter @buscahogar/ingestion test:db
+      - name: Suites de apps/web (incluidas las de roles)
+        run: pnpm --filter @buscahogar/web test
+
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Código
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Copias de seguridad de extremo a extremo (MinIO y dos PostGIS efímeros)
+        run: bash ops/backup/test/e2e.sh

@@ -1,13 +1,14 @@
 // ROADMAP 1.13 (diseño DD-16, arbitraje CR-3) — el índice único PARCIAL de
-// `coverage_jobs` (`coverage_jobs_zone_source_pending_idx`, WHERE status IN
+// `coverage_jobs` (`coverage_jobs_zone_source_op_pending_idx`, WHERE status IN
 // ('pending','running')) no cubre `status = 'failed'`. Un barrido fallido
 // deja `zones.state = 'uncovered'`, así que una nueva petición para la misma
 // zona no encuentra conflicto contra ese índice parcial y crea una SEGUNDA
 // fila para el mismo (zone_id, source_id) — `claimJob` selecciona sin
 // `ORDER BY`/`LIMIT`, así que cuál de las dos reclama es no determinista.
-// `coverage_jobs_zone_source_idx` (índice único TOTAL, sin WHERE) cierra ese
+// `coverage_jobs_zone_source_op_idx` (índice único TOTAL, sin WHERE) cierra ese
 // hueco a nivel de base de datos, sea cual sea el estado de la fila
-// existente.
+// existente. Desde 3.3 (decisión 250) la clave incluye la operación; los tests de
+// `coverage-jobs-operation.test.ts` cubren el par sale+rent.
 import type { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { zones } from '../../src/tables.js';
@@ -44,13 +45,13 @@ describeWithDb('coverage_jobs_zone_source_idx — índice único total (DD-16, C
       throw new Error('No se pudieron insertar los datos de partida');
     }
 
-    await pool.query(`INSERT INTO coverage_jobs (zone_id, source_id, status) VALUES ($1, $2, 'failed')`, [
+    await pool.query(`INSERT INTO coverage_jobs (zone_id, source_id, operation, status) VALUES ($1, $2, 'rent', 'failed')`, [
       zone.id,
       source.id,
     ]);
 
     await expect(
-      pool.query(`INSERT INTO coverage_jobs (zone_id, source_id, status) VALUES ($1, $2, 'pending')`, [
+      pool.query(`INSERT INTO coverage_jobs (zone_id, source_id, operation, status) VALUES ($1, $2, 'rent', 'pending')`, [
         zone.id,
         source.id,
       ])
@@ -69,13 +70,13 @@ describeWithDb('coverage_jobs_zone_source_idx — índice único total (DD-16, C
       throw new Error('No se pudieron insertar los datos de partida');
     }
 
-    await pool.query(`INSERT INTO coverage_jobs (zone_id, source_id, status) VALUES ($1, $2, 'pending')`, [
+    await pool.query(`INSERT INTO coverage_jobs (zone_id, source_id, operation, status) VALUES ($1, $2, 'rent', 'pending')`, [
       zone.id,
       source.id,
     ]);
 
     await expect(
-      pool.query(`INSERT INTO coverage_jobs (zone_id, source_id, status) VALUES ($1, $2, 'pending')`, [
+      pool.query(`INSERT INTO coverage_jobs (zone_id, source_id, operation, status) VALUES ($1, $2, 'rent', 'pending')`, [
         zone.id,
         source.id,
       ])

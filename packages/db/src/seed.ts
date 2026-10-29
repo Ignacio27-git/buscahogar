@@ -10,7 +10,7 @@
 // `apps/web` ni `apps/ingestion` (por eso no se exporta desde `src/index.ts`).
 import { fileURLToPath } from 'node:url';
 
-import { inArray } from 'drizzle-orm';
+import { count, eq, inArray, sql } from 'drizzle-orm';
 
 import { mergeCatalogues } from './catalogue-merge.js';
 import { createDb } from './db.js';
@@ -96,6 +96,7 @@ export async function seedReferenceData(
       // `mergeCatalogues`, no de esta cláusula.
       centroid: entry.centroid ? geographyPointWkt(entry.centroid) : null,
       sweepRadiusM: entry.sweepRadiusM ?? null,
+      population: entry.population ?? null,
       searchName: entry.searchName,
     }));
 
@@ -103,7 +104,16 @@ export async function seedReferenceData(
       await tx
         .insert(locations)
         .values(filas.slice(i, i + BATCH_SIZE))
-        .onConflictDoNothing({ target: locations.ineCode });
+        // ROADMAP 3.3 (decisión 249): las filas que ya existían antes de la
+        // migración 0017 ganan su población en el re-seed SIN cambiar de id
+        // (las zonas y los jobs cuelgan de él). Es lo ÚNICO que se
+        // actualiza: el resto sigue siendo "no tocar". `coalesce` evita que
+        // un catálogo sin población (p. ej. solo hand-cited) borre una ya
+        // guardada.
+        .onConflictDoUpdate({
+          target: locations.ineCode,
+          set: { population: sql`coalesce(excluded.population, ${locations.population})` },
+        });
     }
 
     // Los ids se resuelven en bloque: una fila por `ine_code` del catálogo,
@@ -132,6 +142,38 @@ export async function seedReferenceData(
         .onConflictDoNothing({ target: zones.locationId });
     }
   });
+}
+
+// ROADMAP 3.4 (decisión 257; R5.1, R5.2) — variante del despliegue: no escribe nada si el catálogo ya está
+// completo (la fuente `idealista` y TODAS las entradas con su localización y su zona), para que la segunda
+// ejecución informe «seeds skipped». Si falta algo (catálogo ampliado, zona borrada), siembra con
+// `seedReferenceData`, que es idempotente y no duplica. La validación del catálogo es la misma y ocurre antes.
+export async function seedReferenceDataIfNeeded(
+  db: Database,
+  catalogue: readonly MunicipalitySeed[] = DEFAULT_CATALOGUE
+): Promise<'seeded' | 'skipped'> {
+  catalogue.forEach(assertValidMunicipality);
+
+  const [source] = await db.select({ id: sources.id }).from(sources).where(eq(sources.key, 'idealista'));
+  let complete = source !== undefined;
+  const BATCH_SIZE = 500;
+  let found = 0;
+  for (let i = 0; complete && i < catalogue.length; i += BATCH_SIZE) {
+    const codes = catalogue.slice(i, i + BATCH_SIZE).map((entry) => entry.ineCode);
+    const [row] = await db
+      .select({ total: count() })
+      .from(locations)
+      .innerJoin(zones, eq(zones.locationId, locations.id))
+      .where(inArray(locations.ineCode, codes));
+    found += row?.total ?? 0;
+  }
+  complete = complete && found === catalogue.length;
+
+  if (complete) {
+    return 'skipped';
+  }
+  await seedReferenceData(db, catalogue);
+  return 'seeded';
 }
 
 export async function seed(): Promise<void> {

@@ -13,8 +13,20 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { redirectToTestDatabase } from '@buscahogar/db/test-database';
+
 const rootEnvPath = fileURLToPath(new URL('../../../.env', import.meta.url));
 
 if (existsSync(rootEnvPath)) {
   process.loadEnvFile(rootEnvPath);
 }
+
+// Decisión 245: ninguna suite alcanza la base de desarrollo. Tras cargar el `.env`, las
+// tres URLs de conexión se reescriben en este proceso hacia `<dev>_web_test` (la que
+// `global-setup.ts` ya creó, migró y a la que concedió los GRANT de los roles acotados);
+// los helpers y el código de la app siguen leyendo las mismas variables.
+redirectToTestDatabase(process.env, 'web', [
+  'DATABASE_URL',
+  'WEB_DATABASE_URL',
+  'WEB_COVERAGE_DATABASE_URL',
+]);

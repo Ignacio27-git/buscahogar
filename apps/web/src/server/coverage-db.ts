@@ -37,13 +37,17 @@ import { readCoverageDatabaseUrl } from './env';
 
 export { MissingCoverageDatabaseUrlError } from './env';
 
+// Decisión 256 (ROADMAP 3.4): el registro de cobertura es una escritura puntual por petición de usuario;
+// 2 conexiones por instancia bastan y dejan margen al pooler.
+const COVERAGE_POOL_MAX = 2;
+
 const globalForCoverageDb = globalThis as unknown as {
   buscahogarCoverageDb?: ReturnType<typeof createDb>;
 };
 
 export function getCoverageDb(): Database {
   if (globalForCoverageDb.buscahogarCoverageDb === undefined) {
-    globalForCoverageDb.buscahogarCoverageDb = createDb(readCoverageDatabaseUrl());
+    globalForCoverageDb.buscahogarCoverageDb = createDb(readCoverageDatabaseUrl(), { max: COVERAGE_POOL_MAX });
   }
   return globalForCoverageDb.buscahogarCoverageDb.db;
 }

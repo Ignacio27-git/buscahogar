@@ -78,12 +78,12 @@ describeWithDb('purgeZones — reinicio de cobertura por zona (S-RP-1..11, decis
   async function seedJob(
     zoneId: string,
     jobSourceId: string,
-    options: { requestedDaysAgo?: number; status?: string } = {}
+    options: { requestedDaysAgo?: number; status?: string; operation?: 'sale' | 'rent' } = {}
   ): Promise<string> {
     const { rows } = await pool.query<{ id: string }>(
-      `insert into coverage_jobs (zone_id, source_id, status, requested_at)
-       values ($1, $2, $3, now() - ($4::integer * interval '1 day')) returning id`,
-      [zoneId, jobSourceId, options.status ?? 'done', options.requestedDaysAgo ?? 200]
+      `insert into coverage_jobs (zone_id, source_id, operation, status, requested_at)
+       values ($1, $2, $3, $4, now() - ($5::integer * interval '1 day')) returning id`,
+      [zoneId, jobSourceId, options.operation ?? 'rent', options.status ?? 'done', options.requestedDaysAgo ?? 200]
     );
     const id = rows[0]?.id;
     if (!id) {
@@ -328,6 +328,42 @@ describeWithDb('purgeZones — reinicio de cobertura por zona (S-RP-1..11, decis
     expect(remaining.rows).toEqual([{ source_id: otherSource }]);
     expect(await count('zone_query_signals')).toBe(1);
     expect((await readZone(z.zoneId))?.state).toBe('covered');
+  });
+
+  // ROADMAP 3.3 (decisión 250): una zona tiene un job por operación. La purga es
+  // de la ZONA: borra todos los jobs de la fuente o ninguno.
+  it('una zona con jobs de sale y rent se purga entera: se borran los dos jobs y la zona vuelve a uncovered', async () => {
+    const z = await seedZone(0);
+    await seedJob(z.zoneId, sourceId, { operation: 'sale' });
+    const a = await seedListing(pointNear(0.001));
+
+    const result = await purge([z.zoneId]);
+
+    expect(result.purged).toEqual([z.zoneId]);
+    expect(await count('coverage_jobs')).toBe(0);
+    expect((await readListing(a)).reason).toBe('zone_purged');
+    expect(await readZone(z.zoneId)).toEqual({ state: 'uncovered', lastSweptAt: null });
+  });
+
+  it('si UNO de los dos jobs de la zona está running, no se purga nada', async () => {
+    const z = await seedZone(0);
+    await seedJob(z.zoneId, sourceId, { operation: 'sale', status: 'running' });
+
+    const result = await purge([z.zoneId]);
+
+    expect(result.skipped).toEqual([z.zoneId]);
+    expect(await count('coverage_jobs')).toBe(2);
+    expect((await readZone(z.zoneId))?.state).toBe('covered');
+  });
+
+  it('sin señales, la demanda de la zona es el requested_at MÁS RECIENTE de sus jobs: un job de sale nuevo impide la purga', async () => {
+    const z = await seedZone(0);
+    await seedJob(z.zoneId, sourceId, { operation: 'sale', requestedDaysAgo: 5, status: 'pending' });
+
+    const result = await purge([z.zoneId]);
+
+    expect(result.skipped).toEqual([z.zoneId]);
+    expect(await count('coverage_jobs')).toBe(2);
   });
 
   it('S-RP-11: tras la purga, la zona admite un job nuevo (cobertura a demanda) sin tocar el catálogo', async () => {

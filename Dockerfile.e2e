@@ -1,0 +1,57 @@
+# Runner autoritativo del e2e visual y de accesibilidad (paso D.1a, decisión 136).
+#
+# Los baselines de capturas dependen del sistema operativo y de las fuentes, así
+# que solo se generan y comprueban DENTRO de esta imagen (Linux, versión de
+# Playwright fijada). Una ejecución en Windows no es autoritativa.
+#
+# El código se COPIA (no se monta): los node_modules del host son binarios de
+# win32 y no sirven aquí. Solo se montan, desde docker-compose.yml, los
+# baselines (resultado que se versiona) y los resultados del test.
+FROM mcr.microsoft.com/playwright:v1.63.0-noble
+
+# Misma versión que `packageManager` del package.json raíz.
+RUN npm install --global pnpm@11.25.0
+
+ENV CI=true \
+    NEXT_TELEMETRY_DISABLED=1
+
+WORKDIR /app
+
+# `pnpm fetch` solo necesita el lockfile: esta capa se reutiliza mientras no cambien las dependencias.
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm fetch
+
+COPY . .
+# El `prepare` raíz compila los packages (core, db, config): por eso va después del COPY.
+RUN pnpm install --frozen-lockfile --offline
+
+# D.9 (decisión 175): las fotos de la ficha del dataset e2e (P7) se sirven desde
+# nuestro propio origen y pasan por el optimizador local de `next/image`. Se copian
+# a `public/` SOLO en esta imagen: la build de producción no las publica.
+RUN mkdir -p apps/web/public/e2e-fixtures \
+    && cp apps/web/e2e/assets/gallery-1.png apps/web/e2e/assets/gallery-2.png apps/web/public/e2e-fixtures/
+
+# D.17 (decisión 209): páginas de prueba que lanzan (`error.tsx`, `global-error.tsx`) y la
+# plantilla raíz que activa la segunda. Viven en `apps/web/e2e/inject/app` y se copian a
+# `src/app` SOLO en esta imagen, antes de `next build`. El `test ! -e` falla la build si el
+# árbol versionado ya contiene alguno de ellos (la guardia contraria está en
+# `apps/web/test/e2e-injection-boundary.test.ts`).
+RUN test ! -e apps/web/src/app/template.tsx \
+    && test ! -e apps/web/src/app/e2e-only \
+    && cp -r apps/web/e2e/inject/app/. apps/web/src/app/
+
+# D.18 (decisión 217): fontconfig determinista. `sans-serif`, `sans` y `system-ui` se resuelven a
+# Liberation Sans (que sí tiene negrita) en vez de WenQuanYi Zen Hei. El `RUN` falla la build si la
+# resolución no es la esperada: el peso 600 sale como Bold, y un `fc-match` distinto invalidaría
+# todas las líneas base sin avisar.
+COPY apps/web/e2e/fontconfig/50-buscahogar-e2e-sans.conf /etc/fonts/conf.d/50-buscahogar-e2e-sans.conf
+RUN fc-cache -f \
+    && test "$(fc-match -f '%{family[0]}' sans-serif)" = 'Liberation Sans' \
+    && test "$(fc-match -f '%{family[0]}' system-ui)" = 'Liberation Sans' \
+    && test "$(fc-match -f '%{family[0]}' sans)" = 'Liberation Sans' \
+    && test "$(fc-match -f '%{style[0]}' 'sans-serif:weight=demibold')" = 'Bold' \
+    && test "$(fc-match -f '%{style[0]}' 'sans-serif:bold')" = 'Bold'
+
+# Se invoca con `sh` para no depender del bit de ejecución del fichero (Windows).
+ENTRYPOINT ["sh", "/app/apps/web/e2e/docker-entrypoint.sh"]
+CMD ["run"]

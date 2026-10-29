@@ -26,7 +26,14 @@ const SRC_DIR = fileURLToPath(new URL('../src/', import.meta.url));
 // el wrapper del mapa. Los módulos de Leaflet (canvas, capa de clústeres,
 // control de dibujo) no llevan la directiva: son código de cliente por el
 // grafo de imports (lo fija `map-guards.test.ts`).
-const CLIENT_COMPONENT_ALLOWLIST = ['components/coverage-status.tsx', 'components/search-map.tsx'] as const;
+// D.14 (decisión 186, enmienda la 113): crece en otras DOS entradas, las fronteras de error de
+// Next. `error.tsx` y `global-error.tsx` DEBEN ser componentes de cliente (reciben `retry`).
+const CLIENT_COMPONENT_ALLOWLIST = [
+  'components/coverage-status.tsx',
+  'components/search-map.tsx',
+  'app/error.tsx',
+  'app/global-error.tsx',
+] as const;
 
 function collectSourceFiles(dir: string): string[] {
   const files: string[] = [];
@@ -60,8 +67,8 @@ describe('apps/web/src — "use client" solo en el allowlist explícito (D10, DD
     }
   });
 
-  it('el allowlist tiene exactamente 2 entradas (decisión 113)', () => {
-    expect(CLIENT_COMPONENT_ALLOWLIST).toHaveLength(2);
+  it('el allowlist tiene exactamente 4 entradas (decisiones 113 y 186)', () => {
+    expect(CLIENT_COMPONENT_ALLOWLIST).toHaveLength(4);
   });
 
   it('cada entrada del allowlist existe de verdad en disco — una entrada obsoleta falla en voz alta', () => {

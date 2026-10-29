@@ -32,6 +32,12 @@ export const SIGNAL_PURGE_MAX_ROWS_PER_TICK = 5_000;
 export const LISTING_TOMBSTONE_AFTER_INACTIVE_DAYS = 180;
 export const LISTING_TOMBSTONE_BATCH_SIZE = 500;
 
+// ROADMAP 3.3 (decisión 251, R13) — ventana de la prioridad por demanda del carril a demanda: los días
+// con señal en los últimos 30 días UTC naturales, el día de hoy incluido, es decir `day >= hoy - 29`.
+// Una señal de hace 30 días (`hoy - 30`) ya queda fuera. Es una constante propia y no
+// `WEEKLY_MAX_DEMAND_AGE_DAYS`: aquella mide la EDAD de la última demanda (`d <= 30`); esta cuenta días.
+export const PRIORITY_SIGNAL_WINDOW_DAYS = 30;
+
 // Intervalos mínimos entre barridos completos.
 export const WEEKLY_REFRESH_INTERVAL_DAYS = 7;
 export const MONTHLY_REFRESH_INTERVAL_DAYS = 30;

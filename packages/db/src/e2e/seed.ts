@@ -1,0 +1,202 @@
+// Paso D.1a (spec e2e-test-database R1-R3; diseño «Seed», decisión 135) — reset
+// DESTRUCTIVO y siembra determinista de la base de datos e2e (`*_e2e`). Es el
+// único punto de entrada que hace `DROP DATABASE`, así que TODA validación del
+// destino ocurre antes de crear cualquier conexión (guard.ts, puro).
+//
+// Tercera excepción documentada a la regla de que `packages/db` nunca lee
+// `process.env` (tras `seed.ts` y `drizzle.config.ts`): es un punto de entrada
+// de línea de comandos del e2e. NO se exporta desde `src/index.ts` ni desde el
+// subpath `./e2e`: `apps/web` nunca puede alcanzarlo.
+import { fileURLToPath } from 'node:url';
+
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import pg from 'pg';
+
+import { createDb } from '../db.js';
+import type { Database } from '../db.js';
+import {
+  coverageJobs,
+  listingVersions,
+  listings,
+  locations,
+  properties,
+  propertyListings,
+  sources,
+  zones,
+} from '../tables.js';
+import { buildE2eFixture } from './fixture-data.js';
+import type { E2eFixture } from './fixture-data.js';
+import {
+  E2E_LIMITER_PASSWORD,
+  E2E_LIMITER_ROLE,
+  assertE2eOwnerDatabaseUrl,
+  assertE2eWebDatabaseUrl,
+  maintenanceUrl,
+} from './guard.js';
+
+// Rol de solo lectura que ya existe en el servidor (decisión 056): el seed
+// NUNCA lo crea, solo le concede acceso a la base e2e (spec R2, S2.2).
+const WEB_ROLE = 'web_readonly';
+
+// `packages/db/migrations`, resuelta desde este módulo: `src/e2e` y
+// `dist/e2e` están a la misma profundidad, así que vale para ambos.
+const MIGRATIONS_FOLDER = fileURLToPath(new URL('../../migrations', import.meta.url));
+
+export interface E2eSeedTarget {
+  readonly ownerUrl: string;
+  readonly databaseName: string;
+}
+
+// Guards (A3) ANTES de cualquier Pool o Client. Devuelve el destino ya validado.
+export function resolveE2eSeedTarget(env: NodeJS.ProcessEnv): E2eSeedTarget {
+  const ownerUrl = env.E2E_DATABASE_URL;
+  assertE2eOwnerDatabaseUrl(ownerUrl, env.E2E_DEV_DATABASE_NAME, [
+    env.DATABASE_URL,
+    env.WEB_DATABASE_URL,
+  ]);
+  assertE2eWebDatabaseUrl(env.E2E_WEB_DATABASE_URL, ownerUrl);
+  return {
+    ownerUrl,
+    databaseName: decodeURIComponent(new URL(ownerUrl).pathname.replace(/^\//, '')),
+  };
+}
+
+// El nombre ya pasó la expresión `^[a-z0-9_]+_e2e$` del guard, así que es un
+// identificador seguro para interpolar (DROP/CREATE DATABASE no admiten parámetros).
+async function recreateDatabase(target: E2eSeedTarget): Promise<void> {
+  const client = new pg.Client({ connectionString: maintenanceUrl(target.ownerUrl) });
+  await client.connect();
+  try {
+    await client.query(`DROP DATABASE IF EXISTS "${target.databaseName}" WITH (FORCE)`);
+    await client.query(`CREATE DATABASE "${target.databaseName}"`);
+  } finally {
+    await client.end();
+  }
+}
+
+// Preflight del rol, concesiones por base y comprobación posterior (S2.1/S2.2).
+async function grantReadOnlyAccess(pool: pg.Pool, databaseName: string): Promise<void> {
+  const role = await pool.query<{ rolsuper: boolean }>(
+    'SELECT rolsuper FROM pg_roles WHERE rolname = $1',
+    [WEB_ROLE]
+  );
+  if (role.rows[0] === undefined) {
+    throw new Error(
+      `El rol ${WEB_ROLE} no existe en el servidor: el seed e2e no crea roles (spec S2.2).`
+    );
+  }
+  if (role.rows[0].rolsuper) {
+    throw new Error(
+      `El rol ${WEB_ROLE} es superusuario: el servidor web e2e debe usar un rol de solo lectura.`
+    );
+  }
+
+  await pool.query(`GRANT CONNECT ON DATABASE "${databaseName}" TO ${WEB_ROLE}`);
+  await pool.query(`GRANT USAGE ON SCHEMA public TO ${WEB_ROLE}`);
+  await pool.query(`GRANT SELECT ON ALL TABLES IN SCHEMA public TO ${WEB_ROLE}`);
+  // Sin JIT: con la caché fría, el JIT de PostgreSQL añade segundos a la primera consulta espacial.
+  await pool.query(`ALTER ROLE ${WEB_ROLE} IN DATABASE "${databaseName}" SET jit = off`);
+
+  const check = await pool.query<{ can_select: boolean; can_insert: boolean }>(
+    `SELECT has_table_privilege($1, 'listings', 'SELECT') AS can_select,
+            has_table_privilege($1, 'listings', 'INSERT') AS can_insert`,
+    [WEB_ROLE]
+  );
+  if (check.rows[0]?.can_select !== true || check.rows[0].can_insert) {
+    throw new Error(`Los privilegios de ${WEB_ROLE} no son los esperados (SELECT sí, INSERT no).`);
+  }
+}
+
+// ROADMAP 3.4 (decisión 265, enmienda la 135): rol e2e-only del limitador del proxy. Los roles son del
+// servidor, no de la base, así que el seed lo crea si falta y SIEMPRE fija su contraseña de prueba
+// (idempotente entre ejecuciones). Privilegios exactos: CONNECT a la base e2e, USAGE del esquema y
+// SELECT/INSERT/UPDATE/DELETE sobre `proxy_rate_limit`, igual que `web_coverage` en producción sobre esa
+// tabla. Sin nada sobre ninguna otra tabla. La contraseña es una constante de prueba (ver guard.ts).
+async function grantLimiterAccess(pool: pg.Pool, databaseName: string): Promise<void> {
+  // CREATE/ALTER ROLE no admiten parámetros: ambos valores son constantes del módulo guard (sin comillas).
+  await pool.query(`DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${E2E_LIMITER_ROLE}') THEN
+    CREATE ROLE ${E2E_LIMITER_ROLE} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
+  END IF;
+END
+$$`);
+  await pool.query(
+    `ALTER ROLE ${E2E_LIMITER_ROLE} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '${E2E_LIMITER_PASSWORD}'`
+  );
+  await pool.query(`GRANT CONNECT ON DATABASE "${databaseName}" TO ${E2E_LIMITER_ROLE}`);
+  await pool.query(`GRANT USAGE ON SCHEMA public TO ${E2E_LIMITER_ROLE}`);
+  await pool.query(
+    `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE proxy_rate_limit TO ${E2E_LIMITER_ROLE}`
+  );
+  // Paridad con producción: la migración 0020 revoca a `web_readonly` todo sobre esta tabla, pero el
+  // `GRANT SELECT ON ALL TABLES` de arriba lo volvería a conceder.
+  await pool.query(`REVOKE ALL ON TABLE proxy_rate_limit FROM ${WEB_ROLE}`);
+  // Contadores desde cero en cada siembra (la base se recrea, pero se deja explícito y determinista).
+  await pool.query('TRUNCATE TABLE proxy_rate_limit');
+
+  const check = await pool.query<{ can_limit: boolean; can_other: boolean; web_select: boolean }>(
+    // `has_table_privilege` con una lista devuelve true si tiene ALGUNO: se comprueba cada uno.
+    `SELECT (has_table_privilege($1, 'proxy_rate_limit', 'SELECT')
+              AND has_table_privilege($1, 'proxy_rate_limit', 'INSERT')
+              AND has_table_privilege($1, 'proxy_rate_limit', 'UPDATE')
+              AND has_table_privilege($1, 'proxy_rate_limit', 'DELETE')) AS can_limit,
+            (has_table_privilege($1, 'listings', 'SELECT')
+              OR has_table_privilege($1, 'coverage_jobs', 'INSERT')
+              OR has_table_privilege($1, 'coverage_client_quota', 'SELECT')
+              OR has_table_privilege($1, 'zone_query_signals', 'INSERT')) AS can_other,
+            has_table_privilege($2, 'proxy_rate_limit', 'SELECT') AS web_select`,
+    [E2E_LIMITER_ROLE, WEB_ROLE]
+  );
+  const row = check.rows[0];
+  if (row?.can_limit !== true || row.can_other || row.web_select) {
+    throw new Error(
+      `Los privilegios de ${E2E_LIMITER_ROLE} no son los esperados (solo proxy_rate_limit, S/I/U/D).`
+    );
+  }
+}
+
+// Todo o nada: un fallo a mitad no deja un dataset parcial. Exportada (D.12) para que
+// el test de consistencia de la ficha inserte exactamente los mismos datos que el seed,
+// sin duplicar las siete inserciones; importar este módulo no ejecuta nada (el
+// entrypoint de abajo se protege con `process.argv[1]`).
+export async function insertE2eFixture(
+  db: Database,
+  fixture: E2eFixture = buildE2eFixture()
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.insert(sources).values(fixture.sources);
+    await tx.insert(locations).values(fixture.locations);
+    await tx.insert(zones).values(fixture.zones);
+    await tx.insert(properties).values(fixture.properties);
+    await tx.insert(listings).values(fixture.listings);
+    await tx.insert(listingVersions).values(fixture.versions);
+    await tx.insert(propertyListings).values(fixture.propertyListings);
+    await tx.insert(coverageJobs).values(fixture.coverageJobs);
+  });
+}
+
+export async function seedE2eDatabase(env: NodeJS.ProcessEnv = process.env): Promise<void> {
+  const target = resolveE2eSeedTarget(env);
+  await recreateDatabase(target);
+
+  const { db, pool } = createDb(target.ownerUrl);
+  try {
+    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+    await grantReadOnlyAccess(pool, target.databaseName);
+    await grantLimiterAccess(pool, target.databaseName);
+    // D.13 (decisión 181, enmienda la 135): fecha de siembra real; solo el job pendiente depende de
+    // ella (el tope global cuenta los jobs solicitados «hoy»).
+    await insertE2eFixture(db, buildE2eFixture(new Date()));
+  } finally {
+    await pool.end();
+  }
+}
+
+// Solo como entrypoint (`pnpm --filter @buscahogar/db seed:e2e`), nunca al importarlo.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  seedE2eDatabase().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
+}

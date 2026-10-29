@@ -76,6 +76,17 @@ export type { PropertySource } from './contracts/property-source.js';
 // `../src/strategies/rule-based/...`, igual que el resto de tests de este
 // paquete (contracts.test.ts:3-9).
 export { haversineDistanceMeters } from './geo/distance.js';
+// Geometría Web Mercator del mapa estático de la ficha (D.11, decisión 179).
+export type { PixelPoint, StaticMapPlan, StaticMapTile, TileCoordinate } from './geo/tile-geometry.js';
+export {
+  APPROXIMATE_LOCATION_RADIUS_M,
+  latLonToTile,
+  metresPerPixel,
+  planStaticMap,
+  projectToWorldPixel,
+  TILE_SIZE_PX,
+  WEB_MERCATOR_MAX_LATITUDE,
+} from './geo/tile-geometry.js';
 // Códec puro del polígono (ROADMAP 2.6, decisión 115): lo usan el esquema de
 // search params y el control de dibujo del navegador.
 export type {
@@ -191,11 +202,12 @@ export { IMAGE_HAMMING_THRESHOLD } from './strategies/image/parameters.js';
 // PR2) y por la resolución de identidad de cliente del registro de
 // cobertura (PR2). Cero DB, cero red — mismo criterio de "solo lo que
 // cruza la frontera" que el resto de este barril.
-export { evaluateFixedWindow } from './rate-limit/fixed-window.js';
+export { evaluateFixedWindow, fixedWindowVerdict } from './rate-limit/fixed-window.js';
 export type {
   FixedWindowParams,
   FixedWindowResult,
   FixedWindowState,
+  FixedWindowVerdict,
 } from './rate-limit/fixed-window.js';
 export { parseTrustedClientIp, UNKNOWN_CLIENT_IDENTITY } from './rate-limit/client-ip.js';
 
@@ -212,6 +224,7 @@ export {
   PRESENCE_BATCH_SIZE,
   PRESENCE_MAX_CHECK_ATTEMPTS,
   PRESENCE_RETRY_BACKOFF_DAYS,
+  PRIORITY_SIGNAL_WINDOW_DAYS,
   PURGE_DEMAND_AGE_DAYS,
   SIGNAL_PURGE_MAX_ROWS_PER_TICK,
   SIGNAL_RETENTION_DAYS,
@@ -220,7 +233,7 @@ export {
 } from './retention/policy.js';
 export type { ZoneCadence } from './retention/policy.js';
 export { MAX_ZONE_PURGES_PER_PASS, planZoneMaintenance } from './retention/zone-maintenance.js';
-export type { ZoneLifecycleSnapshot, ZoneMaintenancePlan } from './retention/zone-maintenance.js';
+export type { RefreshTarget, ZoneLifecycleSnapshot, ZoneMaintenancePlan } from './retention/zone-maintenance.js';
 // Verificación de presencia por `adIds` (S3, decisión 105): capacidad separada
 // de `PropertySource` y planificación pura de lotes.
 export type {
@@ -230,5 +243,60 @@ export type {
 } from './contracts/listing-presence-verifier.js';
 export { partitionPresenceVerdicts, planPresenceBatches } from './retention/presence-batches.js';
 export type { PartitionedPresence, PresenceCandidate } from './retention/presence-batches.js';
+// Cuota mensual de peticiones (ROADMAP 3.3, decisión 248): techo por carril. Puro.
+export { laneCeiling, laneRemaining, monthlyGrant } from './quota/monthly-allowance.js';
+export type { MonthlyLedgerState, QuotaLane } from './quota/monthly-allowance.js';
+// Presweep de las ciudades más pobladas (ROADMAP 3.3, decisión 253): planificador y concesión por barrido. Puro.
+export { planPresweep } from './presweep/plan.js';
+export type {
+  PresweepCityCandidate,
+  PresweepPlan,
+  PresweepSkippedUnit,
+  PresweepUnit,
+  PresweepUnitState,
+} from './presweep/plan.js';
+export { stopsRun, sweepAllowance, unitStopReason } from './presweep/allowance.js';
+export type {
+  AllowanceBinding,
+  SweepAllowance,
+  SweepAllowanceInput,
+  SweepRunOutcome,
+  SweepStopReason,
+} from './presweep/allowance.js';
+// Histórico de precios de la ficha (D.10, decisión 178): derivación pura.
+export { derivePriceHistory, priceChangePercentTenths } from './price-history/derive-price-history.js';
+export type {
+  PriceHistory,
+  PriceObservation,
+  PricePoint,
+  PriceSeries,
+} from './price-history/derive-price-history.js';
+
+// Comparación de los anuncios de origen de la ficha (D.12, decisión 180).
+export { compareSourceListings } from './source-comparison/compare-source-listings.js';
+export type {
+  SourceComparison,
+  SourceListingSnapshot,
+} from './source-comparison/compare-source-listings.js';
+
+// Tope de reintentos de un coverage_job, compartido entre ingesta y web (D.13b, decisión 184).
+export { COVERAGE_JOB_MAX_ATTEMPTS, hasRetriesLeft } from './coverage-jobs/job-retry.js';
+
+// Avisos operativos por Telegram (ROADMAP 3.4, decisión 259): comprobaciones y selección puras.
+export {
+  DAILY_ALERT_COOLDOWN_MS,
+  evaluateAlertChecks,
+  MONTHLY_ALERT_COOLDOWN_MS,
+  WORKER_STARTED_COOLDOWN_MS,
+} from './alerts/checks.js';
+export type {
+  AlertCandidate,
+  AlertCheckConfig,
+  AlertQuotaState,
+  AlertSeverity,
+  AlertSnapshot,
+} from './alerts/checks.js';
+export { selectAlertsToSend } from './alerts/throttle.js';
+export type { AlertMessage, AlertSelection, AlertSelectionOptions } from './alerts/throttle.js';
 
 export const CORE_VERSION = '0.0.1';

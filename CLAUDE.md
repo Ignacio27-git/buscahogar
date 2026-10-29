@@ -1,4 +1,4 @@
-# Agregador inmobiliario — contexto del proyecto
+# Buscahogar — contexto del proyecto
 
 TFM. Plataforma que agrega ofertas inmobiliarias de varias fuentes, las normaliza,
 detecta anuncios que corresponden a la misma vivienda y ofrece una búsqueda unificada.
@@ -12,9 +12,10 @@ Consúltalos antes de proponer cambios estructurales.
 contra nuestra base de datos. Las fuentes se consultan solo desde `apps/ingestion`, de
 forma programada o mediante un `coverage_job`. Si una propuesta implica que el servidor de
 `apps/web` llame a una API o fuente de datos externa, es incorrecta. Única excepción del lado
-del navegador: las teselas del mapa, que el navegador pide directamente a OpenStreetMap (decisión
-112). No son una fuente de anuncios, no pasan por nuestro servidor y la CSP solo admite ese host en
-`img-src`.
+del navegador: las teselas del mapa, que el navegador pide directamente al proveedor configurado
+(OpenStreetMap por defecto; `TILE_URL_TEMPLATE`, decisiones 112 y 261). No son una fuente de
+anuncios, no pasan por nuestro servidor y la CSP solo admite ese host de teselas en `img-src` (además
+de `'self'`, `blob:` y `data:`).
 
 **La cuota de la API de Idealista es limitada y mensual.** Cualquier código que pagine
 debe tener corte explícito. Un bucle mal cerrado agota la cuota del mes. Nunca llamar a
@@ -22,15 +23,17 @@ la API real desde tests: usar fixtures grabados.
 
 **Credenciales de fuentes solo en `apps/ingestion`; `apps/web` tiene dos credenciales de base de
 datos, ambas de alcance mínimo.** (docs/DECISIONS.md, decisión 056, enmienda la 015; decisiones
-064/069 del paso 1.13; 076/082 del paso 1.15; 102 del paso 2.5). `apps/web` nunca usa la credencial de
+064/069 del paso 1.13; 076/082 del paso 1.15; 102 del paso 2.5; 255 del paso 3.4). `apps/web` nunca usa la credencial de
 propietario de `apps/ingestion`:
 
 - **Lectura:** rol de PostgreSQL de **solo lectura** — `DATABASE_URL` en `apps/web/.env.local`
   (local) o inyectada por Compose desde `WEB_DATABASE_URL` (contenedor).
-- **Escritura restringida (`web_coverage`, pasos 1.13, 1.15 y 2.5):** rol acotado a `INSERT` en
+- **Escritura restringida (`web_coverage`, pasos 1.13, 1.15, 2.5 y 3.4):** rol acotado a `INSERT` en
   `coverage_jobs` (1.13), a `SELECT`/`INSERT`/`UPDATE`/`DELETE` en `coverage_client_quota` (cuota
   diaria por cliente, 1.15) y a `INSERT` en `zone_query_signals` (señal de demanda por zona, 2.5,
-  sin `SELECT`/`UPDATE`/`DELETE`) — `WEB_COVERAGE_DATABASE_URL` en `apps/web/.env.local` (local) o
+  sin `SELECT`/`UPDATE`/`DELETE`) y a `SELECT`/`INSERT`/`UPDATE`/`DELETE` en `proxy_rate_limit`
+  (contadores del limitador de peticiones compartido, 3.4, decisión 255; `web_readonly` no tiene
+  ningún privilegio sobre ella) — `WEB_COVERAGE_DATABASE_URL` en `apps/web/.env.local` (local) o
   inyectada por Compose (contenedor). Ningún otro `GRANT` sobre ninguna otra tabla.
 
 Ninguna credencial de las fuentes (Idealista u otra) llega nunca a `apps/web`, y ninguna

@@ -11,10 +11,12 @@
 // (código fuente de `next`, `dist/client/components/not-found.js`), sin
 // depender de ningún contexto de petición real. No es un hallazgo de
 // infactibilidad — se documenta igual porque la spec pedía intentarlo.
+import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getPropertyDetailHeaderMock = vi.fn();
 const getPropertySourcesMock = vi.fn();
+const getPropertyPriceHistoryMock = vi.fn();
 
 vi.mock('@/server/db', () => ({
   getDb: vi.fn(() => ({})),
@@ -26,6 +28,7 @@ vi.mock('@buscahogar/db', async (importOriginal) => {
     ...actual,
     getPropertyDetailHeader: getPropertyDetailHeaderMock,
     getPropertySources: getPropertySourcesMock,
+    getPropertyPriceHistory: getPropertyPriceHistoryMock,
   };
 });
 
@@ -42,6 +45,8 @@ describe('PropertyDetailPage — notFound() en los cuatro casos (D2/D3, AR-2)', 
   beforeEach(() => {
     getPropertyDetailHeaderMock.mockReset();
     getPropertySourcesMock.mockReset();
+    getPropertyPriceHistoryMock.mockReset();
+    getPropertyPriceHistoryMock.mockResolvedValue([]);
   });
 
   it('uuid malformado: notFound() se lanza SIN consultar la base de datos', async () => {
@@ -60,6 +65,7 @@ describe('PropertyDetailPage — notFound() en los cuatro casos (D2/D3, AR-2)', 
     ).rejects.toThrow(/NEXT_HTTP_ERROR_FALLBACK;404/);
 
     expect(getPropertySourcesMock).not.toHaveBeenCalled();
+    expect(getPropertyPriceHistoryMock).not.toHaveBeenCalled();
   });
 
   it('cabecera encontrada: renderiza sin lanzar notFound()', async () => {
@@ -77,6 +83,9 @@ describe('PropertyDetailPage — notFound() en los cuatro casos (D2/D3, AR-2)', 
       title: 'Piso',
       description: null,
       address: null,
+      lat: null,
+      lon: null,
+      municipality: null,
     });
     getPropertySourcesMock.mockResolvedValueOnce([]);
 
@@ -84,5 +93,295 @@ describe('PropertyDetailPage — notFound() en los cuatro casos (D2/D3, AR-2)', 
 
     expect(element).toBeTruthy();
     expect(getPropertySourcesMock).toHaveBeenCalledWith(expect.anything(), 'property-1');
+    expect(getPropertyPriceHistoryMock).toHaveBeenCalledWith(expect.anything(), 'property-1');
+  });
+});
+
+// D.9 (decisión 171) — enlace de vuelta a los resultados, revalidado en la ficha.
+describe('PropertyDetailPage — enlace de vuelta (D.9)', () => {
+  const HEADER = {
+    id: 'property-1',
+    minPriceCents: 100000,
+    listingCount: 1,
+    thumbnailUrl: null,
+    propertyType: 'flat',
+    operation: 'sale',
+    surfaceM2: 90,
+    rooms: 3,
+    bathrooms: 2,
+    floor: '3',
+    title: 'Piso',
+    description: null,
+    address: null,
+    lat: null,
+    lon: null,
+    municipality: null,
+  };
+
+  async function renderWith(searchParams?: Record<string, string | string[]>): Promise<string> {
+    getPropertyDetailHeaderMock.mockReset();
+    getPropertySourcesMock.mockReset();
+    getPropertyPriceHistoryMock.mockReset();
+    getPropertyPriceHistoryMock.mockResolvedValue([]);
+    getPropertyDetailHeaderMock.mockResolvedValueOnce(HEADER);
+    getPropertySourcesMock.mockResolvedValueOnce([]);
+    const element = await PropertyDetailPage({
+      params: Promise.resolve({ listingId: VALID_LISTING_ID }),
+      ...(searchParams !== undefined ? { searchParams: Promise.resolve(searchParams) } : {}),
+    });
+    return renderToStaticMarkup(element);
+  }
+
+  it('búsqueda válida: «Volver a los resultados» apunta a /? con esas claves', async () => {
+    const html = await renderWith({ operation: 'sale', minPrice: '100000', sort: 'price', dir: 'asc', view: 'map' });
+
+    expect(html).toContain(
+      '<p class="property-detail__back"><a href="/?operation=sale&amp;minPrice=100000&amp;sort=price&amp;dir=asc&amp;view=map">Volver a los resultados</a></p>'
+    );
+  });
+
+  it('sin parámetros: «Volver a la búsqueda» apunta a /', async () => {
+    const html = await renderWith();
+
+    expect(html).toContain('<p class="property-detail__back"><a href="/">Volver a la búsqueda</a></p>');
+  });
+
+  it('un valor inválido cae a / sin rescatar el válido', async () => {
+    const html = await renderWith({ sort: '<script>', minPrice: '100000' });
+
+    expect(html).toContain('<a href="/">Volver a la búsqueda</a>');
+    expect(html).not.toContain('minPrice=100000');
+  });
+});
+
+// D.9 (decisión 173) — el orden del DOM es el visual en cualquier ancho.
+describe('PropertyDetailPage — composición y orden del DOM (D.9)', () => {
+  const HEADER = {
+    id: 'property-1',
+    minPriceCents: 15000000,
+    listingCount: 1,
+    thumbnailUrl: null,
+    propertyType: 'flat',
+    operation: 'sale',
+    surfaceM2: 90,
+    rooms: 3,
+    bathrooms: 2,
+    floor: '3',
+    title: 'Piso luminoso',
+    description: 'Un párrafo.',
+    address: 'Calle Mayor 1',
+
+    lat: null,
+    lon: null,
+    municipality: null,
+  };
+  const SOURCE = {
+    listingId: 'l1',
+    sourceKey: 'idealista',
+    url: 'https://www.idealista.com/inmueble/1',
+    priceCents: 15000000,
+    thumbnailUrl: 'https://img4.idealista.com/1.jpg',
+    numPhotos: 10,
+    status: 'active',
+    lastSeenAt: new Date('2026-09-10T00:00:00Z'),
+    propertyType: 'flat',
+    surfaceM2: 90,
+    rooms: 3,
+    bathrooms: 2,
+    floor: '3',
+    address: 'Calle Mayor 1',
+  };
+
+  async function renderFicha(
+    header: Record<string, unknown>,
+    sources: readonly Record<string, unknown>[] = [SOURCE]
+  ): Promise<string> {
+    getPropertyDetailHeaderMock.mockReset();
+    getPropertySourcesMock.mockReset();
+    getPropertyPriceHistoryMock.mockReset();
+    getPropertyPriceHistoryMock.mockResolvedValue([]);
+    getPropertyDetailHeaderMock.mockResolvedValueOnce(header);
+    getPropertySourcesMock.mockResolvedValueOnce(sources);
+    const element = await PropertyDetailPage({ params: Promise.resolve({ listingId: VALID_LISTING_ID }) });
+    return renderToStaticMarkup(element);
+  }
+
+  it('orden: enlace de vuelta, título, precio de cabecera, galería, panel y descripción', async () => {
+    const html = await renderFicha(HEADER);
+    const positions = [
+      html.indexOf('property-detail__back'),
+      html.indexOf('<h1'),
+      html.indexOf('property-summary--lead'),
+      html.indexOf('aria-roledescription="carrusel"'),
+      html.indexOf('property-detail__panel'),
+      html.indexOf('property-summary--panel'),
+      html.indexOf('class="source-list"'),
+      html.indexOf('class="property-description"'),
+    ];
+
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+  });
+
+  it('hay un único <h1> con el título y las dos copias del resumen por su gancho', async () => {
+    const html = await renderFicha(HEADER);
+
+    expect(html.match(/<h1/g)).toHaveLength(1);
+    expect(html).toContain('>Piso luminoso</h1>');
+    expect(html).toContain('property-summary property-summary--lead');
+    expect(html).toContain('property-summary property-summary--panel');
+  });
+
+  it('título nulo: el <h1> dice «Ficha de la vivienda»', async () => {
+    const html = await renderFicha({ ...HEADER, title: null });
+
+    expect(html).toContain('>Ficha de la vivienda</h1>');
+  });
+
+  it('el panel envuelve la cabecera y las fuentes, y la descripción queda fuera', async () => {
+    const html = await renderFicha(HEADER);
+    const panelStart = html.indexOf('property-detail__panel');
+    const description = html.indexOf('class="property-description"');
+
+    expect(html.indexOf('class="source-list"')).toBeGreaterThan(panelStart);
+    expect(html.indexOf('class="source-list"')).toBeLessThan(description);
+    expect(html).toContain('class="property-detail"');
+  });
+
+  // D.9 (decisión 176): las dos copias del resumen cuentan las fuentes distintas con
+  // algún anuncio activo, no `listingCount`.
+  it('un anuncio activo y otro retirado: «Disponible en 1 fuente» en las dos copias', async () => {
+    const html = await renderFicha({ ...HEADER, listingCount: 2 }, [
+      SOURCE,
+      { ...SOURCE, listingId: 'l2', sourceKey: 'kyero', status: 'removed' },
+    ]);
+
+    expect(html.match(/Disponible en 1 fuente</g)).toHaveLength(2);
+    expect(html).not.toContain('2 fuentes');
+  });
+
+  it('solo anuncios inactivos: «No disponible en ninguna fuente» en las dos copias', async () => {
+    const html = await renderFicha({ ...HEADER, listingCount: 2 }, [
+      { ...SOURCE, status: 'inactive' },
+      { ...SOURCE, listingId: 'l2', sourceKey: 'kyero', status: 'inactive' },
+    ]);
+
+    expect(html.match(/No disponible en ninguna fuente/g)).toHaveLength(2);
+    expect(html).not.toContain('Disponible en 2');
+  });
+});
+
+// D.10 (decisión 178) — histórico de precios: fuera del panel fijo, tras él y antes de la descripción.
+describe('PropertyDetailPage — histórico de precios (D.10)', () => {
+  const HEADER = {
+    id: 'property-1',
+    minPriceCents: 85000,
+    listingCount: 1,
+    thumbnailUrl: null,
+    propertyType: 'flat',
+    operation: 'sale',
+    surfaceM2: 90,
+    rooms: 3,
+    bathrooms: 2,
+    floor: '3',
+    title: 'Piso',
+    description: 'Un párrafo.',
+    address: null,
+
+    lat: null,
+    lon: null,
+    municipality: null,
+  };
+  const HISTORY = [
+    { sourceKey: 'idealista', listingId: 'l1', status: 'active', priceCents: 90000, capturedAt: new Date('2026-07-01T10:00:00Z') },
+    { sourceKey: 'idealista', listingId: 'l1', status: 'active', priceCents: 80000, capturedAt: new Date('2026-09-01T10:00:00Z') },
+  ];
+
+  async function renderWithHistory(history: readonly unknown[]): Promise<string> {
+    getPropertyDetailHeaderMock.mockReset();
+    getPropertySourcesMock.mockReset();
+    getPropertyPriceHistoryMock.mockReset();
+    getPropertyDetailHeaderMock.mockResolvedValueOnce(HEADER);
+    getPropertySourcesMock.mockResolvedValueOnce([]);
+    getPropertyPriceHistoryMock.mockResolvedValueOnce(history);
+    const element = await PropertyDetailPage({ params: Promise.resolve({ listingId: VALID_LISTING_ID }) });
+    return renderToStaticMarkup(element);
+  }
+
+  it('con histórico: la sección va tras el panel y antes de la descripción', async () => {
+    const html = await renderWithHistory(HISTORY);
+    const panel = html.indexOf('property-detail__panel');
+    const history = html.indexOf('class="price-history"');
+    const description = html.indexOf('class="property-description"');
+
+    expect(history).toBeGreaterThan(html.indexOf('class="source-list"'));
+    expect(history).toBeGreaterThan(panel);
+    expect(history).toBeLessThan(description);
+  });
+
+  it('sin histórico: no hay sección', async () => {
+    const html = await renderWithHistory([]);
+
+    expect(html).not.toContain('price-history');
+  });
+
+  it('el precio de cabecera sigue siendo el mínimo de la vivienda aunque el histórico tenga otros', async () => {
+    const html = await renderWithHistory(HISTORY);
+
+    expect(html).toContain(`>${(85000 / 100).toLocaleString('es-ES')} €<`);
+  });
+});
+
+// D.11 (decisión 179) — la sección «Ubicación» entre el histórico y la descripción.
+describe('PropertyDetailPage — ubicación aproximada (D.11)', () => {
+  const HEADER = {
+    id: 'property-1',
+    minPriceCents: 100000,
+    listingCount: 1,
+    thumbnailUrl: null,
+    propertyType: 'flat',
+    operation: 'sale',
+    surfaceM2: 90,
+    rooms: 3,
+    bathrooms: 2,
+    floor: '3',
+    title: 'Piso',
+    description: 'Texto de la descripción',
+    address: null,
+    lat: 40.3063,
+    lon: -3.7324,
+    municipality: 'Getafe',
+  };
+
+  async function renderHeader(header: typeof HEADER | (Omit<typeof HEADER, 'lat' | 'lon'> & { lat: null; lon: null })): Promise<string> {
+    getPropertyDetailHeaderMock.mockReset();
+    getPropertySourcesMock.mockReset();
+    getPropertyPriceHistoryMock.mockReset();
+    getPropertyPriceHistoryMock.mockResolvedValue([
+      { sourceKey: 'idealista', listingId: 'l1', status: 'active', priceCents: 100000, capturedAt: new Date('2026-01-01T00:00:00Z') },
+    ]);
+    getPropertyDetailHeaderMock.mockResolvedValueOnce(header);
+    getPropertySourcesMock.mockResolvedValueOnce([]);
+    const element = await PropertyDetailPage({ params: Promise.resolve({ listingId: VALID_LISTING_ID }) });
+    return renderToStaticMarkup(element);
+  }
+
+  it('con coordenadas la sección va después del histórico y antes de la descripción', async () => {
+    const html = await renderHeader(HEADER);
+
+    const history = html.indexOf('class="price-history"');
+    const location = html.indexOf('class="property-location"');
+    const description = html.indexOf('class="property-description"');
+    expect(history).toBeGreaterThan(-1);
+    expect(location).toBeGreaterThan(history);
+    expect(description).toBeGreaterThan(location);
+    expect(html.match(/<img\b/g)).toHaveLength(4);
+  });
+
+  it('sin coordenadas no hay teselas, pero se conserva el municipio', async () => {
+    const html = await renderHeader({ ...HEADER, lat: null, lon: null });
+
+    expect(html).not.toContain('<img');
+    expect(html).toContain('Getafe');
   });
 });

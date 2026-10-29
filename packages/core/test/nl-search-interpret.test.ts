@@ -100,7 +100,7 @@ describe('interpretSearchText — escenarios de la especificación', () => {
     expect(result.params).toEqual({ minPrice: '900', maxPrice: '600' });
     const parsed = searchQuerySchema.safeParse(result.params);
     expect(parsed.success).toBe(false);
-    expect(parsed.error?.issues[0]?.message).toBe('minPrice no puede ser mayor que maxPrice.');
+    expect(parsed.error?.issues[0]?.message).toBe('no puede ser mayor que el precio máximo.');
   });
 
   it('venta y alquiler en la misma frase: conflicto y ninguna operación elegida', () => {

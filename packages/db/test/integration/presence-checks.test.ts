@@ -60,7 +60,10 @@ describeWithDb('presence-checks — nominación, candidatos vencidos y veredicto
     seed = await seedZoneWithJob();
   });
 
-  async function seedZoneWithJob(cycleStartedAt: Date | null = new Date(Date.now() - 2 * HOUR_MS)): Promise<Seed> {
+  async function seedZoneWithJob(
+    cycleStartedAt: Date | null = new Date(Date.now() - 2 * HOUR_MS),
+    operation: 'sale' | 'rent' = 'sale'
+  ): Promise<Seed> {
     const sourceId = await insertSource(db);
     const locationId = await insertLocation(db);
     await pool.query(
@@ -72,8 +75,8 @@ describeWithDb('presence-checks — nominación, candidatos vencidos y veredicto
       throw new Error('No se pudo insertar la zona');
     }
     const { rows } = await pool.query<{ id: string }>(
-      `insert into coverage_jobs (zone_id, source_id, status, cycle_started_at) values ($1, $2, 'done', $3) returning id`,
-      [zone.id, sourceId, cycleStartedAt]
+      `insert into coverage_jobs (zone_id, source_id, operation, status, cycle_started_at) values ($1, $2, $3, 'done', $4) returning id`,
+      [zone.id, sourceId, operation, cycleStartedAt]
     );
     const jobId = rows[0]?.id;
     if (!jobId) {
@@ -139,7 +142,7 @@ describeWithDb('presence-checks — nominación, candidatos vencidos y veredicto
     it('S-LR-1: nomina el anuncio activo de la zona, de la fuente y la operación, visto antes del inicio del ciclo; sigue activo', async () => {
       const { listingId } = await makeListing();
 
-      const nominated = await markAbsenceCandidates(db, { jobId: seed.jobId, operation: 'sale' });
+      const nominated = await markAbsenceCandidates(db, { jobId: seed.jobId });
 
       expect(nominated).toBe(1);
       expect(await queueRows()).toEqual([{ listing_id: listingId, check_attempts: 0, zone_id: seed.zoneId }]);
@@ -156,17 +159,41 @@ describeWithDb('presence-checks — nominación, candidatos vencidos y veredicto
       await makeListing({ location: null });
       await makeListing({ lastSeenAgoHours: 1 });
 
-      const nominated = await markAbsenceCandidates(db, { jobId: seed.jobId, operation: 'sale' });
+      const nominated = await markAbsenceCandidates(db, { jobId: seed.jobId });
 
       expect(nominated).toBe(1);
       expect((await queueRows()).map((row) => row.listing_id)).toEqual([nominee.listingId]);
+    });
+
+    // ROADMAP 3.3 (decisión 250): la operación que se juzga es la del JOB, no la de
+    // un proceso worker (ya no hay una operación fija por proceso).
+    it('un job de rent nomina solo anuncios de rent, y el de sale de la misma zona solo los de sale', async () => {
+      const saleListing = await makeListing({ operation: 'sale' });
+      const rentListing = await makeListing({ operation: 'rent' });
+      const { rows } = await pool.query<{ id: string }>(
+        `insert into coverage_jobs (zone_id, source_id, operation, status, cycle_started_at)
+         values ($1, $2, 'rent', 'done', $3) returning id`,
+        [seed.zoneId, seed.sourceId, seed.cycleStartedAt]
+      );
+      const rentJobId = rows[0]?.id;
+      if (!rentJobId) {
+        throw new Error('No se pudo insertar el job de rent');
+      }
+
+      expect(await markAbsenceCandidates(db, { jobId: rentJobId })).toBe(1);
+      expect((await queueRows()).map((row) => row.listing_id)).toEqual([rentListing.listingId]);
+
+      expect(await markAbsenceCandidates(db, { jobId: seed.jobId })).toBe(1);
+      expect((await queueRows()).map((row) => row.listing_id).sort()).toEqual(
+        [saleListing.listingId, rentListing.listingId].sort()
+      );
     });
 
     it('no nomina anuncios que ya no están activos', async () => {
       await makeListing({ status: 'inactive' });
       const active = await makeListing();
 
-      await markAbsenceCandidates(db, { jobId: seed.jobId, operation: 'sale' });
+      await markAbsenceCandidates(db, { jobId: seed.jobId });
 
       expect((await queueRows()).map((row) => row.listing_id)).toEqual([active.listingId]);
     });
@@ -175,7 +202,7 @@ describeWithDb('presence-checks — nominación, candidatos vencidos y veredicto
       const legacy = await seedZoneWithJob(null);
       await makeListing({ sourceId: legacy.sourceId, location: INSIDE });
 
-      expect(await markAbsenceCandidates(db, { jobId: legacy.jobId, operation: 'sale' })).toBe(0);
+      expect(await markAbsenceCandidates(db, { jobId: legacy.jobId })).toBe(0);
       expect(await queueRows()).toEqual([]);
     });
 
@@ -183,7 +210,7 @@ describeWithDb('presence-checks — nominación, candidatos vencidos y veredicto
       const { listingId } = await makeListing();
       await enqueue(listingId, { attempts: 2 });
 
-      const nominated = await markAbsenceCandidates(db, { jobId: seed.jobId, operation: 'sale' });
+      const nominated = await markAbsenceCandidates(db, { jobId: seed.jobId });
 
       expect(nominated).toBe(0);
       expect(await queueRows()).toEqual([{ listing_id: listingId, check_attempts: 2, zone_id: seed.zoneId }]);
@@ -195,7 +222,7 @@ describeWithDb('presence-checks — nominación, candidatos vencidos y veredicto
       const { listingId, externalId } = await makeListing({ rawPropertyType: 'premise' });
       await enqueue(listingId);
 
-      const due = await listDuePresenceCandidates(db, { sourceId: seed.sourceId, operation: 'sale', limit: 10, retryBackoffDays: BACKOFF_DAYS });
+      const due = await listDuePresenceCandidates(db, { sourceId: seed.sourceId, limit: 10, retryBackoffDays: BACKOFF_DAYS });
 
       expect(due).toHaveLength(1);
       expect(due[0]).toMatchObject({
@@ -216,12 +243,12 @@ describeWithDb('presence-checks — nominación, candidatos vencidos y veredicto
       await enqueue(fresh.listingId, { attempts: 1, checkedAgoDays: 6 });
       await enqueue(stale.listingId, { attempts: 1, checkedAgoDays: 7.01 });
 
-      const due = await listDuePresenceCandidates(db, { sourceId: seed.sourceId, operation: 'sale', limit: 10, retryBackoffDays: BACKOFF_DAYS });
+      const due = await listDuePresenceCandidates(db, { sourceId: seed.sourceId, limit: 10, retryBackoffDays: BACKOFF_DAYS });
 
       expect(due.map((candidate) => candidate.listingId)).toEqual([stale.listingId]);
     });
 
-    it('respeta el límite, filtra por operación y por fuente, y omite anuncios ya inactivos', async () => {
+    it('respeta el límite, devuelve ambas operaciones, filtra por fuente y omite anuncios ya inactivos', async () => {
       const otherSourceId = await insertSource(db);
       const first = await makeListing();
       const second = await makeListing();
@@ -230,18 +257,23 @@ describeWithDb('presence-checks — nominación, candidatos vencidos y veredicto
       const inactive = await makeListing({ status: 'inactive' });
       await Promise.all([first, second, rent, foreign, inactive].map((item) => enqueue(item.listingId)));
 
-      const limited = await listDuePresenceCandidates(db, { sourceId: seed.sourceId, operation: 'sale', limit: 1, retryBackoffDays: BACKOFF_DAYS });
-      const all = await listDuePresenceCandidates(db, { sourceId: seed.sourceId, operation: 'sale', limit: 10, retryBackoffDays: BACKOFF_DAYS });
+      const limited = await listDuePresenceCandidates(db, { sourceId: seed.sourceId, limit: 1, retryBackoffDays: BACKOFF_DAYS });
+      const all = await listDuePresenceCandidates(db, { sourceId: seed.sourceId, limit: 10, retryBackoffDays: BACKOFF_DAYS });
 
       expect(limited).toHaveLength(1);
-      expect(all.map((candidate) => candidate.listingId).sort()).toEqual([first.listingId, second.listingId].sort());
+      // Sin filtro de operación (decisión 250): el worker único verifica las dos.
+      expect(all.map((candidate) => candidate.listingId).sort()).toEqual(
+        [first.listingId, second.listingId, rent.listingId].sort()
+      );
+      expect(all.find((candidate) => candidate.listingId === rent.listingId)?.operation).toBe('rent');
+      expect(all.find((candidate) => candidate.listingId === first.listingId)?.operation).toBe('sale');
     });
 
     it('un anuncio sin payload crudo devuelve rawPropertyType null', async () => {
       const { listingId } = await makeListing({ rawPropertyType: null });
       await enqueue(listingId);
 
-      const due = await listDuePresenceCandidates(db, { sourceId: seed.sourceId, operation: 'sale', limit: 10, retryBackoffDays: BACKOFF_DAYS });
+      const due = await listDuePresenceCandidates(db, { sourceId: seed.sourceId, limit: 10, retryBackoffDays: BACKOFF_DAYS });
 
       expect(due[0]?.rawPropertyType).toBeNull();
     });
@@ -366,7 +398,7 @@ describeWithDb('presence-checks — nominación, candidatos vencidos y veredicto
       expect(await queueRows()).toEqual([{ listing_id: listingId, check_attempts: 1, zone_id: seed.zoneId }]);
       const [row] = await db.select({ status: listings.status }).from(listings).where(eq(listings.id, listingId));
       expect(row?.status).toBe('active');
-      expect(await listDuePresenceCandidates(db, { sourceId: seed.sourceId, operation: 'sale', limit: 10, retryBackoffDays: BACKOFF_DAYS })).toEqual([]);
+      expect(await listDuePresenceCandidates(db, { sourceId: seed.sourceId, limit: 10, retryBackoffDays: BACKOFF_DAYS })).toEqual([]);
     });
 
     it('S-LR-12: tras el 3.er intento ambiguo la fila se descarta y el estado no cambia', async () => {

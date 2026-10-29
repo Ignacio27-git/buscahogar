@@ -42,10 +42,9 @@ function zoneGeometry(overrides: Partial<ZoneGeometry> = {}): ZoneGeometry {
   };
 }
 
-const JOB: PollJob = { jobId: 'job-1', zoneId: 'zone-1', sourceId: 'source-1' };
+const JOB: PollJob = { jobId: 'job-1', zoneId: 'zone-1', sourceId: 'source-1', operation: 'sale' };
 
 const BASE_OPTIONS: CoverageWorkerOptions = {
-  operation: 'sale',
   pollIntervalMs: 10,
   maxSearchRequestsPerSweep: 10,
   dailySearchCap: 500,
@@ -139,6 +138,41 @@ describe('runCoverageWorker — A-8: sin argumento --zone de CLI, un trabajo pen
     expect(area.operation).toBe('sale');
   });
 
+  // ROADMAP 3.3 (decisión 252; S12.1): un único worker sirve las dos operaciones y la
+  // operación de cada búsqueda es la de SU job, no la de un ajuste por proceso.
+  it('S12.1: un job de sale y otro de rent los procesa el mismo worker, cada uno con su operación', async () => {
+    const saleJob: PollJob = { jobId: 'job-sale', zoneId: 'zone-1', sourceId: 'source-1', operation: 'sale' };
+    const rentJob: PollJob = { jobId: 'job-rent', zoneId: 'zone-1', sourceId: 'source-1', operation: 'rent' };
+    const queue = [saleJob, rentJob];
+    const ports = createFakePorts({
+      selectNextJob: (): Promise<PollJob | null> => Promise.resolve(queue.shift() ?? null),
+    });
+
+    await runCoverageWorker(ports, { ...BASE_OPTIONS, maxTicks: 2 });
+
+    const swept = ports.claimAndSweepCalls as [PollJob, { operation: string }, string][];
+    expect(swept.map(([job, area]) => [job.jobId, area.operation])).toEqual([
+      ['job-sale', 'sale'],
+      ['job-rent', 'rent'],
+    ]);
+  });
+
+  it('la huella de área distingue venta de alquiler: el mismo centro y radio producen huellas distintas', async () => {
+    const queue: PollJob[] = [
+      { jobId: 'job-sale', zoneId: 'zone-1', sourceId: 'source-1', operation: 'sale' },
+      { jobId: 'job-rent', zoneId: 'zone-1', sourceId: 'source-1', operation: 'rent' },
+    ];
+    const ports = createFakePorts({
+      selectNextJob: (): Promise<PollJob | null> => Promise.resolve(queue.shift() ?? null),
+    });
+
+    await runCoverageWorker(ports, { ...BASE_OPTIONS, maxTicks: 2 });
+
+    const fingerprints = (ports.claimAndSweepCalls as [PollJob, unknown, string][]).map(([, , fingerprint]) => fingerprint);
+    expect(fingerprints).toHaveLength(2);
+    expect(fingerprints[0]).not.toBe(fingerprints[1]);
+  });
+
   it('DD-18 paso 5 antes del paso 7 (A-8.2): reserveBudget se invoca SIEMPRE antes de claimAndSweep', async () => {
     const ports = createFakePorts();
 
@@ -155,7 +189,7 @@ describe('runCoverageWorker — A-8.1: JobAlreadyClaimedError es una señal no f
   it('la reserva se reembolsa por completo y el tick continúa sin lanzar', async () => {
     const ports = createFakePorts({
       claimAndSweep: (): Promise<SweepTickResult> => {
-        throw new JobAlreadyClaimedError('zone-1', 'source-1');
+        throw new JobAlreadyClaimedError('zone-1', 'source-1', 'sale');
       },
     });
 

@@ -23,10 +23,13 @@ import type {
   PartitionedPresence,
   PresenceBatch,
   PresenceVerdict,
+  RefreshTarget,
   ZoneLifecycleSnapshot,
 } from '@buscahogar/core';
 import type { BudgetReservation, BudgetSnapshotLike, LedgerState, ZoneGeometry } from '@buscahogar/db';
 
+import { createOutboundBudget, DEFAULT_MAX_OUTBOUND_CALLS_PER_TICK } from '../ops/outbound-budget.js';
+import type { OutboundBudget } from '../ops/outbound-budget.js';
 import { areaFingerprint, buildArea } from './area.js';
 import { JobAlreadyClaimedError } from './coverage-store.js';
 import type { JobLane, PollJob } from './job-selection.js';
@@ -61,8 +64,9 @@ export interface ZoneMaintenancePorts {
   // borra job y señales y las devuelve a `uncovered`. Sin llamadas a la fuente
   // ni gasto de cuota. Devuelve cuántas zonas se reiniciaron.
   purgeZones(zoneIds: readonly string[]): Promise<number>;
-  // Re-encola los jobs de las zonas dadas en el carril de refresco (ZRS-8).
-  scheduleRefresh(zoneIds: readonly string[]): Promise<number>;
+  // Re-encola los jobs de las (zona, operación) dadas en el carril de refresco
+  // (ZRS-8): cada operación vence según su propio último barrido (decisión 250).
+  scheduleRefresh(targets: readonly RefreshTarget[]): Promise<number>;
   // ROADMAP 2.5 (S4; decisión 107) — redacta los anuncios inactivos desde hace
   // ≥ 180 días (lote acotado). Devuelve cuántos: si es > 0 el tick queda sucio
   // y el reproceso de dedup reconstruye las cachés de las viviendas (RP-9).
@@ -107,13 +111,34 @@ export interface PresenceVerificationPorts {
   applyPresence(result: PartitionedPresence): Promise<void>;
 }
 
+// ROADMAP 3.4 (decisión 258, parte 2; D14b) — evento de una pasada de recuperación que reclamó jobs `running`
+// abandonados. `alertKey` es la clave de deduplicación de la alerta del día (`stale-reclaim:<día UTC>`, D17).
+export interface StaleReclaimEvent {
+  readonly jobIds: readonly string[];
+  readonly alertKey: string;
+}
+
+export function staleReclaimAlertKey(now: Date): string {
+  return `stale-reclaim:${now.toISOString().slice(0, 10)}`;
+}
+
 export interface CoverageWorkerPorts {
+  // ROADMAP 3.4 (decisión 258, parte 2; D14b) — OPCIONAL: pasa a `failed` los jobs `running` cuyo arrendamiento
+  // caducó (worker matado sin cierre ordenado) y devuelve sus ids. Se invoca al arrancar y en cada tick, ANTES de
+  // elegir trabajo, aislada (`runIsolatedStep`). Ausente = sin recuperación (composiciones anteriores).
+  reclaimStaleJobs?(): Promise<readonly string[]>;
+  // Gancho OPCIONAL para la alerta del día (S6): se invoca solo si se reclamó algún job. Aislado: si lanza, se
+  // registra y el tick sigue.
+  onStaleJobsReclaimed?(event: StaleReclaimEvent): Promise<void>;
   selectNextJob(): Promise<PollJob | null>;
   resolveZoneGeometry(zoneId: string): Promise<ZoneGeometry>;
   failJob(jobId: string, reason: string): Promise<void>;
   // ROADMAP 2.5: la reserva se hace POR CARRIL. 'refresh' se compara contra el
   // techo `floor(cap × fracción)` sobre el gasto TOTAL del día; 'on-demand'
-  // no lleva techo (ZRS-11).
+  // no lleva techo (ZRS-11). ROADMAP 3.3 (decisión 248): además, TODA reserva
+  // pasa por el registro mensual de cuota (techo por carril; sin cuota
+  // utilizable se deniega, también a demanda). La verificación de presencia
+  // reserva en el carril 'refresh' (mismo fondo que el batch).
   reserveBudget(reservation: BudgetReservation, lane: JobLane): Promise<LedgerState | null>;
   reconcileBudget(reserved: BudgetReservation, actual: BudgetSnapshotLike): Promise<void>;
   claimAndSweep(job: PollJob, area: AreaQuery, fingerprint: string): Promise<SweepTickResult>;
@@ -130,20 +155,22 @@ export interface CoverageWorkerPorts {
   readonly maintenance?: ZoneMaintenancePorts;
   // Opcional (ver `PresenceVerificationPorts`): ausente = sin verificación.
   readonly verification?: PresenceVerificationPorts;
+  // ROADMAP 3.4 (decisión 258, D16) — gancho OPCIONAL tras un tick que ha terminado sin lanzar (latido). Recibe
+  // el presupuesto de llamadas salientes de ESE tick. Aislado: si lanza, se registra y el worker sigue. Un tick
+  // que lanza nunca llega aquí.
+  onTickSuccess?(budget: OutboundBudget): Promise<void>;
+  // ROADMAP 3.4 (decisión 259, D17) — paso OPCIONAL de avisos operativos (Telegram). Corre al final de cada tick
+  // que NO lanzó, ANTES del latido, y comparte con él el presupuesto de salida del tick. Aislado: si lanza, se
+  // registra y ni el tick ni el latido se ven afectados. Ausente = sin avisos.
+  onAlertStep?(budget: OutboundBudget): Promise<void>;
   sleep(ms: number): Promise<void>;
   log(line: string): void;
 }
 
+// ROADMAP 3.3 (decisión 252) — el worker es ÚNICO y sirve las dos operaciones: la
+// operación de cada barrido es la de su job (`PollJob.operation`). Ya no hay una
+// operación fija por proceso (la antigua variable `OPERATION`, retirada).
 export interface CoverageWorkerOptions {
-  // Desviación deliberada y documentada sobre el listado literal del diseño
-  // (§5 interfaces): ni `coverage_jobs` ni ningún puerto llevan
-  // 'sale'/'rent' — buildArea/AreaQuery lo EXIGEN (area-query.schema.ts) y
-  // ningún artefacto (spec, diseño, tasks) dice de dónde sale para un
-  // trabajo encolado. Un proceso worker cubre UNA operación fija, igual que
-  // `sweep-zone.ts --operation` la exige por invocación — sin este campo el
-  // tick no podría construir ningún AreaQuery. Documentado como hallazgo,
-  // no como invención silenciosa.
-  readonly operation: 'sale' | 'rent';
   readonly pollIntervalMs: number;
   readonly maxSearchRequestsPerSweep: number;
   readonly dailySearchCap: number;
@@ -174,6 +201,16 @@ export interface CoverageWorkerOptions {
   // verificación por tick (un lote = una petición facturable). Cada verificación
   // reserva en el carril de refresco, así que también la acota el techo diario.
   readonly maxVerificationRequestsPerTick?: number;
+  // ROADMAP 3.4 (decisión 258, D16): tope de llamadas salientes por tick que reciben los ganchos (latido). Por
+  // defecto 4 (`MAX_OUTBOUND_CALLS_PER_TICK`).
+  readonly maxOutboundCallsPerTick?: number;
+  // ROADMAP 3.4 (decisión 258, D14): parada pedida, consultada DENTRO del tick (antes de elegir trabajo y de
+  // verificar presencia) y pasada al barrido para cerrarlo en el límite de página. Distinta de `shouldContinue`,
+  // que solo se mira entre ticks. Ausente = nunca.
+  readonly shouldStop?: () => boolean;
+  // ROADMAP 3.4 (decisión 258, parte 2): reloj para la clave de alerta de la recuperación (el driver no lee el
+  // reloj por su cuenta). Ausente = el reloj del proceso.
+  readonly now?: () => Date;
 }
 
 const DEFAULT_MAINTENANCE_EVERY_TICKS = 1;
@@ -183,7 +220,9 @@ const DEFAULT_MAX_VERIFICATION_REQUESTS_PER_TICK = 2;
 // El token se reserva una vez por barrido, igual que budget.ts::TOKEN_CAP
 // (1.6) — no un valor nuevo, el mismo principio repetido en el nivel diario
 // (DD-13: los dos niveles componen porque la reserva ES el tope por
-// barrido).
+// barrido). Con el token reutilizado por el proceso (decisión 272) el gasto
+// real suele ser 0 y la reconciliación devuelve la reserva; reservar 0 no sería
+// seguro, porque la reconciliación mensual solo reembolsa.
 const TOKEN_RESERVE = 1;
 
 type IsolatedResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false };
@@ -238,14 +277,38 @@ async function runMaintenance(
   // techo nulo nunca dejaría gastar solo dejaría jobs esperando sin fin.
   const refreshEnabled = (options.refreshBudgetFraction ?? 0) > 0;
   if (planned.ok && refreshEnabled && planned.value.refresh.length > 0) {
-    const zoneIds = planned.value.refresh;
-    await runIsolatedStep(ports, 're-encolado-de-refresco', () => maintenance.scheduleRefresh(zoneIds));
+    const targets = planned.value.refresh;
+    await runIsolatedStep(ports, 're-encolado-de-refresco', () => maintenance.scheduleRefresh(targets));
   }
 
   const tombstone = await runIsolatedStep(ports, 'tombstone-de-anuncios', () =>
     maintenance.tombstoneExpiredListings()
   );
   return { tombstoned: tombstone.ok ? tombstone.value : 0 };
+}
+
+// Recuperación de jobs abandonados (D14b): aislada. El evento va al registro como UNA línea con `clave=valor`
+// (greppable, sin secretos: solo ids de job) y, si la composición lo pide, al gancho de la alerta del día (S6).
+async function runStaleReclaim(ports: CoverageWorkerPorts, options: CoverageWorkerOptions): Promise<void> {
+  const reclaim = ports.reclaimStaleJobs?.bind(ports);
+  if (!reclaim) {
+    return;
+  }
+  const reclaimed = await runIsolatedStep(ports, 'recuperacion-de-jobs-atascados', reclaim);
+  if (!reclaimed.ok || reclaimed.value.length === 0) {
+    return;
+  }
+  const event: StaleReclaimEvent = {
+    jobIds: reclaimed.value,
+    alertKey: staleReclaimAlertKey(options.now?.() ?? new Date()),
+  };
+  ports.log(
+    `coverage-worker: stale-running-reclaimed count=${String(event.jobIds.length)} job_ids=${event.jobIds.join(',')} alert_key=${event.alertKey}`
+  );
+  const hook = ports.onStaleJobsReclaimed?.bind(ports);
+  if (hook) {
+    await runIsolatedStep(ports, 'alerta-de-jobs-atascados', () => hook(event));
+  }
 }
 
 interface SweepStepResult {
@@ -268,6 +331,11 @@ async function runTick(
   // cada punto de retorno.
   await ports.purgeClientQuota();
 
+  // ROADMAP 3.4 (decisión 258, parte 2; D14b): recuperar los jobs `running` abandonados ANTES de elegir trabajo,
+  // para que un job de un worker matado vuelva a ser candidato (con su cursor) en este mismo tick. El primer
+  // tick es el arranque del worker. No toca la cuota ni la fuente.
+  await runStaleReclaim(ports, options);
+
   // ROADMAP 2.5: mantenimiento en el primer tick y luego cada N ticks, ANTES
   // de elegir trabajo — así un refresco re-encolado ya es candidato en este
   // mismo tick.
@@ -283,7 +351,7 @@ async function runTick(
   // barrido, solo si no hubo trabajo a demanda y hay techo de gasto de refresco
   // (fracción > 0). Aislada: una avería nunca aborta el tick.
   const verification = ports.verification;
-  if (verification && !sweep.onDemandSelected && (options.refreshBudgetFraction ?? 0) > 0) {
+  if (verification && !sweep.onDemandSelected && (options.refreshBudgetFraction ?? 0) > 0 && !stopRequested(options)) {
     await runIsolatedStep(ports, 'verificacion-de-presencia', () =>
       runPresenceVerification(ports, verification, options)
     );
@@ -296,7 +364,16 @@ async function runTick(
   return { dirty: sweep.dirty || tombstoned > 0 };
 }
 
+// ROADMAP 3.4 (decisión 258, D14): con una parada pedida no se arranca trabajo facturable nuevo en lo que
+// queda del tick (el barrido en curso se cierra en el límite de página, sweep-runner.ts).
+function stopRequested(options: CoverageWorkerOptions): boolean {
+  return options.shouldStop?.() === true;
+}
+
 async function runSweepStep(ports: CoverageWorkerPorts, options: CoverageWorkerOptions): Promise<SweepStepResult> {
+  if (stopRequested(options)) {
+    return { dirty: false, onDemandSelected: false, idle: false };
+  }
   const job = await ports.selectNextJob();
   if (!job) {
     return { dirty: false, onDemandSelected: false, idle: true };
@@ -322,7 +399,7 @@ async function runSweepStep(ports: CoverageWorkerPorts, options: CoverageWorkerO
     zone: geometry.ineCode,
     center: geometry.centroid,
     radiusMeters: geometry.sweepRadiusM,
-    operation: options.operation,
+    operation: job.operation,
     maxSearchRequestsPerSweep: options.maxSearchRequestsPerSweep,
   };
   const area = buildArea(areaOptions);
@@ -341,7 +418,7 @@ async function runSweepStep(ports: CoverageWorkerPorts, options: CoverageWorkerO
   const reserved = await ports.reserveBudget(reservation, job.lane ?? 'on-demand');
   if (reserved === null) {
     ports.log(
-      `coverage-worker: presupuesto diario agotado, el trabajo job_id="${job.jobId}" permanece pendiente, cero peticiones emitidas.`
+      `coverage-worker: presupuesto agotado (diario o mensual), el trabajo job_id="${job.jobId}" permanece pendiente, cero peticiones emitidas.`
     );
     return { dirty: false, onDemandSelected, idle: true };
   }
@@ -441,6 +518,20 @@ export async function runCoverageWorker(ports: CoverageWorkerPorts, options: Cov
     // ticks, nunca dentro de la transacción del barrido.
     if (dirty) {
       await ports.runDedup();
+    }
+
+    // D16/D17: el tick terminó sin lanzar. UN presupuesto de salida NUEVO por tick, compartido por los avisos y el
+    // latido (cada paso aislado: la avería de uno no impide el otro).
+    const onAlertStep = ports.onAlertStep?.bind(ports);
+    const onTickSuccess = ports.onTickSuccess?.bind(ports);
+    if (onAlertStep || onTickSuccess) {
+      const budget = createOutboundBudget(options.maxOutboundCallsPerTick ?? DEFAULT_MAX_OUTBOUND_CALLS_PER_TICK);
+      if (onAlertStep) {
+        await runIsolatedStep(ports, 'avisos-operativos', () => onAlertStep(budget));
+      }
+      if (onTickSuccess) {
+        await runIsolatedStep(ports, 'latido', () => onTickSuccess(budget));
+      }
     }
   }
 }

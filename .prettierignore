@@ -1,6 +1,7 @@
 # Artefactos y dependencias
 node_modules/
 dist/
+dist-runtime/
 .next/
 out/
 build/

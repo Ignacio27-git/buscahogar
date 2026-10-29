@@ -29,11 +29,22 @@ const GEOMETRY: ZoneGeometry = {
   sweepRadiusM: 4500,
 };
 
-const ON_DEMAND_JOB: PollJob = { jobId: 'job-1', zoneId: 'zone-1', sourceId: 'source-1', lane: 'on-demand' };
-const REFRESH_JOB: PollJob = { jobId: 'job-2', zoneId: 'zone-2', sourceId: 'source-1', lane: 'refresh' };
+const ON_DEMAND_JOB: PollJob = {
+  jobId: 'job-1',
+  zoneId: 'zone-1',
+  sourceId: 'source-1',
+  operation: 'sale',
+  lane: 'on-demand',
+};
+const REFRESH_JOB: PollJob = {
+  jobId: 'job-2',
+  zoneId: 'zone-2',
+  sourceId: 'source-1',
+  operation: 'sale',
+  lane: 'refresh',
+};
 
 const BASE_OPTIONS: CoverageWorkerOptions = {
-  operation: 'sale',
   pollIntervalMs: 10,
   maxSearchRequestsPerSweep: 10,
   dailySearchCap: 500,
@@ -312,7 +323,6 @@ describe('runCoverageWorker — paso de verificación (S-LR-15, S-CWT-9)', () =>
   it('usa un tope por defecto explícito cuando las opciones no lo fijan', async () => {
     const ports = createFake({ job: null, plan: planOf([batch('a')]) });
     const withoutCap: CoverageWorkerOptions = {
-      operation: 'sale',
       pollIntervalMs: 10,
       maxSearchRequestsPerSweep: 10,
       dailySearchCap: 500,

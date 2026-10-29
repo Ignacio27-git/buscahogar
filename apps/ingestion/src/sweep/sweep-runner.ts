@@ -40,6 +40,10 @@ export interface SweepRunnerOptions {
   // envelope de coverage_jobs.cursor con la misma huella verificada al
   // reclamar (diseño D6).
   readonly fingerprint: string;
+  // ROADMAP 3.4 (decisión 258, D14): parada ordenada. Se consulta tras persistir CADA página (nunca a mitad de
+  // una); si es verdadera y el barrido no ha terminado, se cierra con el desenlace `budget-exhausted` que ya
+  // existe (job a `pending` con el cursor confirmado). Ausente = nunca se detiene antes del final.
+  readonly shouldStop?: () => boolean;
 }
 
 export type SweepOutcomeKind = 'completed' | 'budget-exhausted' | 'failed';
@@ -91,7 +95,7 @@ function normalizePage(
 }
 
 export async function runSweep(options: SweepRunnerOptions): Promise<SweepRunResult> {
-  const { source, normalizer, store, area, job, sourceUuid, fingerprint } = options;
+  const { source, normalizer, store, area, job, sourceUuid, fingerprint, shouldStop } = options;
 
   let cursor = job.cursor;
   let inserted = 0;
@@ -176,6 +180,20 @@ export async function runSweep(options: SweepRunnerOptions): Promise<SweepRunRes
     if (isSweepComplete(page)) {
       await store.finishJob(job.id, { kind: 'completed' });
       return { outcome: 'completed', inserted, versioned, unchanged, rejectedCount };
+    }
+
+    // Parada ordenada en el límite de página: la página ya está persistida (cursor incluido). `nextCursor`
+    // está definido aquí porque el barrido no ha terminado.
+    if (shouldStop?.() === true && page.nextCursor !== undefined) {
+      await store.finishJob(job.id, { kind: 'budget-exhausted', resumeCursor: page.nextCursor });
+      return {
+        outcome: 'budget-exhausted',
+        inserted,
+        versioned,
+        unchanged,
+        rejectedCount,
+        resumeCursor: page.nextCursor,
+      };
     }
 
     cursor = page.nextCursor;

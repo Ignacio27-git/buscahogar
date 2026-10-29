@@ -18,6 +18,7 @@ import type { Database } from '../src/db.js';
 import {
   countZonesOpenedToday,
   getCoverageJobState,
+  listCoverageJobStates,
   registerCoverageJob,
   resolveSourceUuidByKey,
 } from '../src/coverage.js';
@@ -85,9 +86,9 @@ describeWithDb('registerCoverageJob (DD-16 lado web) — idempotente por el índ
     const sourceId = await insertSourceWithKey(db, 'idealista');
     const zoneId = await insertZone(db);
 
-    await registerCoverageJob(db, zoneId, sourceId);
+    await registerCoverageJob(db, zoneId, sourceId, 'rent');
 
-    const job = await getCoverageJobState(db, zoneId, sourceId);
+    const job = await getCoverageJobState(db, zoneId, sourceId, 'rent');
     expect(job?.status).toBe('pending');
   });
 
@@ -95,20 +96,48 @@ describeWithDb('registerCoverageJob (DD-16 lado web) — idempotente por el índ
     const sourceId = await insertSourceWithKey(db, 'idealista');
     const zoneId = await insertZone(db);
 
-    await registerCoverageJob(db, zoneId, sourceId);
-    await expect(registerCoverageJob(db, zoneId, sourceId)).resolves.toBeUndefined();
+    await registerCoverageJob(db, zoneId, sourceId, 'rent');
+    await expect(registerCoverageJob(db, zoneId, sourceId, 'rent')).resolves.toBeUndefined();
   });
 
   it('dos registros concurrentes para la misma zona producen EXACTAMENTE una fila pending', async () => {
     const sourceId = await insertSourceWithKey(db, 'idealista');
     const zoneId = await insertZone(db);
 
-    await Promise.all([registerCoverageJob(db, zoneId, sourceId), registerCoverageJob(db, zoneId, sourceId)]);
+    await Promise.all([registerCoverageJob(db, zoneId, sourceId, 'rent'), registerCoverageJob(db, zoneId, sourceId, 'rent')]);
 
     const rows = await db.select().from(zones); // sanity: la zona sigue siendo una sola fila
     expect(rows).toHaveLength(1);
-    const job = await getCoverageJobState(db, zoneId, sourceId);
+    const job = await getCoverageJobState(db, zoneId, sourceId, 'rent');
     expect(job?.status).toBe('pending');
+  });
+
+  // ROADMAP 3.3 (decisión 250; S9.1, S9.2): la operación forma parte de la clave.
+  it('un job de sale y otro de rent para la misma zona se registran a la vez y se leen cada uno por su operación', async () => {
+    const sourceId = await insertSourceWithKey(db, 'idealista');
+    const zoneId = await insertZone(db);
+
+    await Promise.all([
+      registerCoverageJob(db, zoneId, sourceId, 'sale'),
+      registerCoverageJob(db, zoneId, sourceId, 'rent'),
+      registerCoverageJob(db, zoneId, sourceId, 'sale'),
+    ]);
+
+    const { rows } = await pool.query<{ operation: string }>(
+      'select operation from coverage_jobs where zone_id = $1 order by operation',
+      [zoneId]
+    );
+    expect(rows).toEqual([{ operation: 'rent' }, { operation: 'sale' }]);
+    expect((await getCoverageJobState(db, zoneId, sourceId, 'sale'))?.status).toBe('pending');
+    expect((await getCoverageJobState(db, zoneId, sourceId, 'rent'))?.status).toBe('pending');
+  });
+
+  it('getCoverageJobState no devuelve el job de la otra operación', async () => {
+    const sourceId = await insertSourceWithKey(db, 'idealista');
+    const zoneId = await insertZone(db);
+    await registerCoverageJob(db, zoneId, sourceId, 'rent');
+
+    expect(await getCoverageJobState(db, zoneId, sourceId, 'sale')).toBeNull();
   });
 });
 
@@ -136,7 +165,7 @@ describeWithDb('countZonesOpenedToday (DD-14) — deriva de coverage_jobs.reques
     expect(await countZonesOpenedToday(db)).toBe(0);
 
     const zoneId = await insertZone(db);
-    await registerCoverageJob(db, zoneId, sourceId);
+    await registerCoverageJob(db, zoneId, sourceId, 'rent');
 
     expect(await countZonesOpenedToday(db)).toBe(1);
   });
@@ -146,10 +175,90 @@ describeWithDb('countZonesOpenedToday (DD-14) — deriva de coverage_jobs.reques
     const zoneA = await insertZone(db);
     const zoneB = await insertZone(db);
 
-    await registerCoverageJob(db, zoneA, sourceId);
-    await registerCoverageJob(db, zoneB, sourceId);
+    await registerCoverageJob(db, zoneA, sourceId, 'rent');
+    await registerCoverageJob(db, zoneB, sourceId, 'rent');
 
     expect(await countZonesOpenedToday(db)).toBe(2);
+  });
+
+  // ROADMAP 3.3 (decisión 251, PD9): una búsqueda sin operación registra un job
+  // por operación faltante; el tope global cuenta ZONAS, no filas.
+  it('los jobs de sale y rent de una misma zona cuentan como UNA zona; otra zona distinta suma una más', async () => {
+    const sourceId = await insertSourceWithKey(db, 'idealista');
+    const zoneA = await insertZone(db);
+    const zoneB = await insertZone(db);
+
+    await registerCoverageJob(db, zoneA, sourceId, 'sale');
+    await registerCoverageJob(db, zoneA, sourceId, 'rent');
+    expect(await countZonesOpenedToday(db)).toBe(1);
+
+    await registerCoverageJob(db, zoneB, sourceId, 'rent');
+    expect(await countZonesOpenedToday(db)).toBe(2);
+  });
+});
+
+describeWithDb('listCoverageJobStates (decisión 251) — estado por operación de una zona', () => {
+  let db: Database;
+  let pool: Pool;
+
+  beforeAll(() => {
+    ({ db, pool } = connectTestDb());
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  beforeEach(async () => {
+    await truncateAll(pool);
+  });
+
+  it('devuelve un elemento por operación con su estado y su last_completed_at, y nada de otras zonas', async () => {
+    const sourceId = await insertSourceWithKey(db, 'idealista');
+    const zoneId = await insertZone(db);
+    const otherZone = await insertZone(db);
+    await registerCoverageJob(db, zoneId, sourceId, 'sale');
+    await registerCoverageJob(db, zoneId, sourceId, 'rent');
+    await registerCoverageJob(db, otherZone, sourceId, 'rent');
+    await pool.query(
+      "update coverage_jobs set status = 'done', last_completed_at = now() where zone_id = $1 and operation = 'rent'",
+      [zoneId]
+    );
+
+    const states = await listCoverageJobStates(db, zoneId, sourceId);
+
+    expect(states.map((state) => state.operation).sort()).toEqual(['rent', 'sale']);
+    const rent = states.find((state) => state.operation === 'rent');
+    const sale = states.find((state) => state.operation === 'sale');
+    expect(rent?.status).toBe('done');
+    expect(rent?.lastCompletedAt).toBeInstanceOf(Date);
+    expect(sale?.status).toBe('pending');
+    expect(sale?.lastCompletedAt).toBeNull();
+    expect(sale?.requestedAt).toBeInstanceOf(Date);
+  });
+
+  it('marca requestedToday con el día UTC de Postgres: un job de ayer no cuenta como abierto hoy', async () => {
+    const sourceId = await insertSourceWithKey(db, 'idealista');
+    const zoneId = await insertZone(db);
+    await registerCoverageJob(db, zoneId, sourceId, 'sale');
+    await registerCoverageJob(db, zoneId, sourceId, 'rent');
+    await pool.query(
+      "update coverage_jobs set requested_at = now() - interval '2 days' where zone_id = $1 and operation = 'rent'",
+      [zoneId]
+    );
+
+    const states = await listCoverageJobStates(db, zoneId, sourceId);
+
+    expect(states.find((state) => state.operation === 'sale')?.requestedToday).toBe(true);
+    expect(states.find((state) => state.operation === 'rent')?.requestedToday).toBe(false);
+  });
+
+  it('una zona sin jobs devuelve una lista vacía (no hay cobertura de ninguna operación)', async () => {
+    const sourceId = await insertSourceWithKey(db, 'idealista');
+    const zoneId = await insertZone(db);
+    await registerCoverageJob(db, await insertZone(db), sourceId, 'sale');
+
+    expect(await listCoverageJobStates(db, zoneId, sourceId)).toEqual([]);
   });
 });
 
@@ -172,9 +281,9 @@ describeWithDb('getCoverageJobState (§5 interfaces) — estado legible del rol 
   it('devuelve status/attempts/requestedAt/startedAt/error para un job conocido', async () => {
     const sourceId = await insertSourceWithKey(db, 'idealista');
     const zoneId = await insertZone(db);
-    await registerCoverageJob(db, zoneId, sourceId);
+    await registerCoverageJob(db, zoneId, sourceId, 'rent');
 
-    const job = await getCoverageJobState(db, zoneId, sourceId);
+    const job = await getCoverageJobState(db, zoneId, sourceId, 'rent');
     expect(job).toMatchObject({ status: 'pending', attempts: 0, startedAt: null, error: null });
     expect(job?.requestedAt).toBeInstanceOf(Date);
   });
@@ -183,7 +292,7 @@ describeWithDb('getCoverageJobState (§5 interfaces) — estado legible del rol 
     const sourceId = await insertSourceWithKey(db, 'idealista');
     const zoneId = await insertZone(db);
 
-    expect(await getCoverageJobState(db, zoneId, sourceId)).toBeNull();
+    expect(await getCoverageJobState(db, zoneId, sourceId, 'rent')).toBeNull();
   });
 });
 

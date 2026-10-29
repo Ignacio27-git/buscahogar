@@ -131,6 +131,41 @@ describeWithDb('searchProperties contra Postgres real', () => {
     expect(page.results[0]?.distinctSourceCount).toBe(2);
   });
 
+  // D.9 (decisión 177): el recuento de la búsqueda coincide con el de la ficha
+  // (decisión 176). Un anuncio retirado de otra fuente no suma: la vivienda P2
+  // de la siembra e2e (Idealista activo + Kyero retirado) mostraba «2 fuentes»
+  // en los resultados y «1 fuente» en su ficha.
+  it('no cuenta la fuente cuyo único anuncio está retirado o inactivo', async () => {
+    const idealista = await insertSource(db);
+    const kyero = await insertSource(db);
+    const fotocasa = await insertSource(db);
+    const active = await insertListing(db, idealista, { status: 'active' });
+    const removed = await insertListing(db, kyero, { status: 'removed' });
+    const inactive = await insertListing(db, fotocasa, { status: 'inactive' });
+    await insertPropertyWithListings(db, [active, removed, inactive]);
+
+    const page = await searchProperties(db, BASE_CRITERIA);
+
+    expect(page.results).toHaveLength(1);
+    expect(page.results[0]?.distinctSourceCount).toBe(1);
+  });
+
+  // D.9 (decisión 177): con el filtro de estado, dos anuncios ACTIVOS de la
+  // misma fuente siguen contando como una sola fuente.
+  it('cuenta una sola fuente cuando dos anuncios activos vienen de la misma', async () => {
+    const sourceId = await insertSource(db);
+    const first = await insertListing(db, sourceId, { status: 'active' });
+    const second = await insertListing(db, sourceId, { status: 'active' });
+    const otherSource = await insertSource(db);
+    const removed = await insertListing(db, otherSource, { status: 'removed' });
+    await insertPropertyWithListings(db, [first, second, removed]);
+
+    const page = await searchProperties(db, BASE_CRITERIA);
+
+    expect(page.results).toHaveLength(1);
+    expect(page.results[0]?.distinctSourceCount).toBe(1);
+  });
+
   // CHK-SEARCH-CORRELATION: dos viviendas con distinto número de fuentes en la
   // misma página. Una subconsulta mal correlacionada daría el mismo valor a
   // las dos filas, que es exactamente lo que un caso de una sola fila no ve.

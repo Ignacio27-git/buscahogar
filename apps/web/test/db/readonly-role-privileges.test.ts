@@ -18,7 +18,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 
-import { createDb } from '@buscahogar/db';
+import { createDb, getPropertyPriceHistory } from '@buscahogar/db';
 import type { Database } from '@buscahogar/db';
 import { coverageJobs, listings, locations, sources, zones } from '@buscahogar/db';
 
@@ -50,7 +50,7 @@ async function seedCoverageJob(db: Database): Promise<{ readonly jobId: string }
   }
   const [job] = await db
     .insert(coverageJobs)
-    .values({ zoneId: zone.id, sourceId: source.id, status: 'pending', cursor: null })
+    .values({ zoneId: zone.id, sourceId: source.id, operation: 'rent', status: 'pending', cursor: null })
     .returning({ id: coverageJobs.id });
   if (!job) {
     throw new Error('No se pudo sembrar coverage_jobs de prueba');
@@ -82,11 +82,12 @@ describeWithReadonlyDb(
     let ownerDb: Database;
     let ownerPool: import('../helpers/db-client.js').TestDbHandle['pool'];
     let readonlyPool: import('../helpers/db-client.js').TestDbHandle['pool'];
+    let readonlyDb: Database;
 
     beforeAll(() => {
       ({ db: ownerDb, pool: ownerPool } = connectTestDb());
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- describeWithReadonlyDb ya garantiza que la variable existe
-      ({ pool: readonlyPool } = createDb(process.env.WEB_DATABASE_URL!));
+      ({ db: readonlyDb, pool: readonlyPool } = createDb(process.env.WEB_DATABASE_URL!));
     });
 
     afterAll(async () => {
@@ -108,17 +109,27 @@ describeWithReadonlyDb(
       await expect(readonlyPool.query('select * from coverage_jobs limit 1')).resolves.toBeDefined();
     });
 
+    // D.10: el histórico de precios lee `listing_versions` sin filtrar por
+    // `is_current`; el rol de solo lectura ya tiene SELECT (sin cambio de
+    // permisos).
+    it('SELECT en listing_versions SÍ está permitido', async () => {
+      await expect(readonlyPool.query('select * from listing_versions limit 1')).resolves.toBeDefined();
+    });
+
+    it('getPropertyPriceHistory se ejecuta con el rol de solo lectura', async () => {
+      await expect(getPropertyPriceHistory(readonlyDb, randomUUID())).resolves.toEqual([]);
+    });
+
     it('INSERT en coverage_jobs está RECHAZADO', async () => {
       // IDs sin sembrar a propósito: el rechazo por privilegio ocurre en la
       // fase de comprobación de permisos de PostgreSQL, antes de evaluar
       // cualquier restricción de clave foránea o índice único, así que no
       // hace falta (ni conviene) que las filas referenciadas existan.
       await expect(
-        readonlyPool.query('insert into coverage_jobs (zone_id, source_id, status, cursor) values ($1, $2, $3, null)', [
-          randomUUID(),
-          randomUUID(),
-          'pending',
-        ])
+        readonlyPool.query(
+          'insert into coverage_jobs (zone_id, source_id, operation, status, cursor) values ($1, $2, $3, $4, null)',
+          [randomUUID(), randomUUID(), 'rent', 'pending']
+        )
       ).rejects.toMatchObject({ code: '42501' });
     });
 

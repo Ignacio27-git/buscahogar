@@ -30,6 +30,770 @@ la interfaz y un ejemplo previo frente a describir el comportamiento en prosa.
 
 <!-- Añadir entradas nuevas arriba, en orden cronológico inverso -->
 
+### 2026-10-20 — Movimiento sutil y cierre de la fase (paso D.21, decisiones 240-244)
+
+**Tipo de tarea:** interfaz (transiciones de color, realce de fila, aparición de avisos, pulido transversal de la fase), barrera de tokens de
+movimiento, regeneración de 86 capturas y documentación del sistema de diseño (`DESIGN.md` y `design.json`)
+**Forma de especificación:** SDD completo sin fase de investigación, en modo automático y con Engram (`sdd/design-motion-d21/*`); invocado
+con `/gentle-sdd-new` y retomado con `/gentle-sdd-continue design-motion-d21` tras agotar la cuota de uso. Revisión visual de las 120 capturas
+con seis revisores aislados, una segunda pasada con dos y una comprobación dirigida de 32 PNG. Un solo PR con `size:exception`
+**Resultado:** utilizable con retoques. El diseño falló dos veces la validación en contexto limpio (la barrera dejaba transiciones de color en
+cualquier selector y afectaba al tema oscuro con la banda; luego el borde de ordenación contradecía el spec) y el flujo automático se detuvo una
+vez, como exige. Una afirmación «verificada en código» del diseño (que `router.push` remonta la página) resultó falsa. La revisión visual dio
+ocho correcciones menores aceptadas por el responsable (P1-P8) y, en la segunda pasada, una regresión mayor introducida por P8 (chips pegados al
+panel de vacío) y tres menores (F1-F4).
+
+**Prompt:** el del paso D.21 de `docs/DESIGN-ROADMAP.md`, literal: «Paso D.21 de docs/DESIGN-ROADMAP.md. Usa `impeccable animate`, `impeccable
+polish` e `impeccable document`. Micro-interacciones sutiles: hover de filas e imágenes, transición de color en controles y enlaces, aparición
+suave de los avisos y del panel de cobertura. Todo pasa por los tokens de movimiento y queda a cero con `prefers-reduced-motion` (decisión 207).
+Enmienda la regla «sin movimiento decorativo» y la decisión 208 en lo que toque. Un solo lote de pulido de toda la fase a los tres anchos y en
+ambos temas. DESIGN.md y `.impeccable/design.json` derivados del código entregado. Regenera en Docker las capturas de referencia y revisa su
+diferencia una a una; axe a cero.»
+
+**Observación:** limitar las transiciones de color a una lista cerrada de selectores, comprobada en el test de tokens, hizo que el movimiento se
+pudiera auditar en el CSS entregado en lugar de revisarse a ojo. Las regresiones del pulido (P8) solo aparecieron mirando capturas, y un test que
+solo comprobaba anchos (F2) dejó pasar una separación distinta entre pares.
+
+### 2026-10-19 — Componentes con la dirección cálida (paso D.20, decisiones 235-239)
+
+**Tipo de tarea:** interfaz (motivo SVG, fila de resultado, superficies, icono), cobertura e2e con alturas fijadas, regeneración de 102 capturas
+y documentación del sistema de diseño
+**Forma de especificación:** SDD con fase de investigación (Engram `sdd/design-components-d20/*`) y cuestionarios al responsable para las
+decisiones de producto (SVG incrustado, motivo solo junto al `h1`, etiqueta de operación neutra, superficies sin tokens nuevos, icono `check`, pie
+recoloreado). Revisión visual de las 102 capturas con seis revisores aislados y una segunda pasada con dos. Un solo PR con `size:exception`
+**Resultado:** utilizable con retoques. El diseño falló una vez la validación en contexto limpio (la fila crecía unos 6px a 320 y faltaban
+escenarios) y se corrigió; tras la revisión visual el responsable decidió tres correcciones: el motivo (líneas onduladas paralelas que se leían
+como un matasellos) se redibujó como anillos de nivel y se equilibró entre temas, la etiqueta de operación bajó a peso 400 y la banda de la ficha
+se alineó con la rejilla de datos.
+
+**Prompt:** el del paso D.20 de `docs/DESIGN-ROADMAP.md`, literal: «Aplica la dirección de D.19 a los componentes sin cambiar comportamiento
+ni texto: cabecera de la búsqueda con un motivo sutil de curvas de nivel (SVG propio, servido desde el origen) como único momento decorativo;
+fila de resultado con miniatura «Sin foto» con carácter, precio con más presencia y operación; ficha con panel de precio y estados con el verde
+y una señal que no dependa del color; paneles de aviso, vacíos, pasos y pie con la nueva paleta. Sin cambios en el orden del DOM, los objetivos
+de 40 px ni la accesibilidad.»
+
+**Observación:** fijar las alturas de fila en el e2e antes de tocar CSS (U0) hizo medible la restricción «la fila no crece» y evitó discutirla
+a ojo. Lo que la lectura de los tests no detectó salió de mirar las capturas, y `--update-snapshots=changed` dejó pasar los cambios bajo el
+umbral (decisión 239).
+
+### 2026-10-15 — Dirección cálida: paleta, tipografía y aprobación (paso D.19, decisiones 230-234)
+
+**Tipo de tarea:** interfaz (tokens, color de estado y fuente propia), cobertura e2e y documentación del sistema de diseño
+**Forma de especificación:** SDD con fase de investigación y puerta de aprobación (Engram `sdd/design-warmth-d19/*`): el responsable aprobó
+las 12 capturas (inicio, inicio filtrado y ficha, a 320 y 1280, en claro y oscuro) antes de la documentación. Un solo PR con `size:exception`
+**Resultado:** utilizable con retoques. La propuesta atribuyó a la decisión 217 lo que enmienda la 132, y la especificación situaba la
+regeneración de líneas base después de la puerta, lo que contradice su mecánica; ambos se corrigieron al conciliar. Las capturas de la página
+429 hubo que regenerarlas aparte y el gráfico de precios necesitó un ajuste de 4px.
+
+**Prompt:** el del paso D.19 de `docs/DESIGN-ROADMAP.md`, literal: «Paso D.19 de docs/DESIGN-ROADMAP.md (añadido el 2026-10-15). Usa `impeccable
+colorize` e `impeccable typeset`. La web se ve demasiado seria y sobria. Refina el mundo de la hoja topográfica, no lo sustituyas […]
+Paleta cálida en globals.css […] Tipografía: una familia propia autoalojada con `next/font/local` […] Radios algo más amables […] Todo par
+texto/fondo cumple WCAG 2.2 AA en ambos temas. Parada de aprobación […] Registra las enmiendas en DECISIONS.md, PRODUCT.md y DESIGN.md».
+
+**Observación:** el paso enmendaba compromisos escritos (pila del sistema, un único azul). Separar «acento interactivo» de «estado favorable»
+resolvió la contradicción sin un segundo acento. Las cajas de ancho fijo y la fuente nueva solo se probaron de verdad con medidas en e2e, no con
+los tests unitarios.
+
+### 2026-10-15 — Planificación de la fase de calidez (bloque 7, pasos D.19-D.21)
+
+**Tipo de tarea:** planificación de diseño (sin código)
+**Forma de especificación:** prosa abierta más un cuestionario de decisiones (alcance, tipografía, movimiento y organización)
+**Resultado:** utilizable sin cambios
+
+**Prompt:** «una vez hemos acabado con la implementación de los roadmap la aplicación la veo bien, y funciona, pero siento que le
+falta vida al diseño, lo veo demasiado serio y sobrio, preferiría que sin ser nada extravagante tuviera más vida y fuera más bonito»,
+y a mitad de la tarea: «¿veo mejor realizar otro roadmap para hacer este proceso, o ves mejor otra forma?».
+
+**Observación:** el prompt pedía un cambio que chocaba con compromisos escritos (decisión 132, PRODUCT.md y las reglas de DESIGN.md
+de un único azul, sin marginalia y sin movimiento). Antes de tocar código, el agente sacó esas contradicciones en forma de decisiones
+explícitas en lugar de suavizarlas: refinar frente a un mundo nuevo, fuente propia frente a la del sistema y movimiento sí o no. Las
+capturas de referencia del e2e suplieron una base de datos local vacía para ver la búsqueda con resultados y la ficha.
+
+### 2026-10-14 — Seguimientos de diseño (paso D.18, decisiones 217-229)
+
+**Tipo de tarea:** interfaz (lote estructural), correcciones de semilla y fuentes, cobertura e2e y documentación del sistema de diseño
+**Forma de especificación:** SDD con fase de investigación (Engram `sdd/design-followups-d18/*`) y puertas del orquestador con revisión
+individual de cada captura (G-A 120, G-B 18, G-C 12 con una segunda revisión, G-D 106 más dos rondas de pulido de 54 y 24). Dos PR partidos por
+commits en la misma rama: A-C (fuentes, semilla, marca) y D-F (lote estructural, `DESIGN.md` y documentación), este último con `size:exception`
+**Resultado:** utilizable con retoques. La unidad C se rehízo dos veces (la línea de marca sobre el título contradecía la regla de impeccable
+contra la «ceja»; después la franja estrechó el bloque centrado) y tras la puerta G-D hubo dos rondas de pulido: hueco de la barra, margen del
+aviso de cobertura y una única acción en el vacío (decisión del responsable).
+
+**Prompt:** «continúa con los pendientes registrados»: los 16 seguimientos que D.17 dejó anotados, tratados como un nuevo paso D.18.
+
+**Observación:** un lote tan grande solo fue revisable porque se partió en unidades con una regeneración de capturas por unidad y una puerta
+cada una. La mayor parte de los retoques salió de mirar las capturas, no de los tests.
+
+### 2026-10-13 — Pulido final y DESIGN.md (paso D.17, decisiones 209-216)
+
+**Tipo de tarea:** interfaz (un lote de pulido tras una crítica), tokens, cobertura e2e de las páginas autónomas y documentación del
+sistema de diseño
+**Forma de especificación:** SDD (explorar, investigar, proponer, especificar, diseñar, tareas y aplicar en tres lotes; Engram
+`sdd/design-polish-d17/*`) con dos puertas del orquestador: la crítica de `impeccable` con dos agentes y `document` con el Norte creativo
+y los nombres de color confirmados por el responsable. Un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable con retoques. El lote redujo los objetivos de la cabecera a 32 px contra la decisión 200 y se revirtió en la
+puerta. La revisión captura a captura se dio dos veces por incompleta (56 de 108, y luego por límites de medios) y la rehicieron seis
+revisores aislados. Una corrección posterior alineó el marco del mapa vacío con la lista (`home-filtered`). El informe de la crítica y sus
+preguntas se entregaron primero en inglés.
+
+**Prompt:** el del paso D.17 de `docs/DESIGN-ROADMAP.md`, literal: «Paso D.17 de docs/DESIGN-ROADMAP.md. Usa `impeccable critique`,
+`impeccable polish` e `impeccable document`.
+
+- Crítica y pulido de todas las pantallas a los tres anchos y en ambos temas, con un solo lote de correcciones.
+- DESIGN.md en la raíz, derivado del código entregado (tokens reales de globals.css y componentes), no de intenciones.
+- Elimina estilos y tokens sin uso.
+- Regenera en Docker las capturas de referencia finales y revisa su diferencia una a una.
+- Actualiza la sección «Capa web» de docs/ARCHITECTURE.md si ha cambiado algo estructural.»
+
+**Observación:** la crítica puntuó 28/40 y casi todo el valor estuvo en tres cosas que un detector no ve: la zona sin datos que el chip
+presentaba como aplicada, el mismo estado de un anuncio con tres palabras y un marco de mapa desalineado. Dos lecciones de proceso: la
+revisión de capturas «una a una» no se puede delegar en un solo agente con muchas imágenes (se pierde cobertura sin avisar) y un criterio
+ya decidido (40 px, decisión 200) tiene que viajar con la tarea o un lote lo contradice.
+
+### 2026-10-13 — Movimiento (paso D.16, decisiones 205-208)
+
+**Tipo de tarea:** interfaz (tokens y transiciones CSS), mapa (opciones de Leaflet y parche del teclado), pruebas estáticas, unitarias y e2e
+**Forma de especificación:** SDD (explorar, investigar, proponer, especificar, diseñar, tareas y aplicar en dos lotes; Engram
+`sdd/motion-d16/*`), un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable con retoques. El diseño daba por existente el campo `module` del `package.json` de Leaflet para el test de
+contrato (no lo declara; se corrigió al conciliar las tareas y el test lee el fichero de `require.resolve`). Un script con `heredoc`
+volvió a convertir `\b` de unas expresiones regulares en retrocesos y se detectó con la guarda en rojo. El espec e2e comparaba `100ms`
+y el build minimiza a `.1s`. La previsión de ~770 líneas se quedó en 1.089 de código y tests más la documentación.
+
+**Prompt:** el del paso D.16 de `docs/DESIGN-ROADMAP.md`, literal: «Paso D.16 de docs/DESIGN-ROADMAP.md. Usa las skills emil-design-eng y
+animate (o `impeccable animate`). Movimiento sobrio: es una herramienta de uso frecuente.
+
+- Solo CSS, sin bibliotecas de animación. Tokens de duración en globals.css: unos 100 ms para respuesta, 200-300 ms para paneles y la
+  bandeja, nunca más de 400 ms. ease-out al entrar y ease-in al salir. Solo transform y opacity.
+- @starting-style para la bandeja y los <details>.
+- prefers-reduced-motion quita todo movimiento no esencial.
+- Nada se anima en respuesta a acciones de teclado repetidas.
+- Transiciones de vista: evalúalas solo si no exigen un componente de cliente ni un flag experimental en Next 16.3.4 (compruébalo en
+  node_modules/next/dist/docs). Las transiciones entre documentos no funcionan en Firefox.»
+
+**Observación:** el brief pedía `@starting-style` y la investigación empírica mostró que solo sirve para fundir al cargar una bandeja
+renderizada abierta, así que se omitió (desviación registrada). Lo difícil no era el CSS sino el teclado del mapa: el pan por flechas es
+JavaScript de Leaflet y solo se apaga envolviendo una función privada, lo que obligó a fijar la versión y a escribir un test de contrato.
+Una prueba e2e escrita después de la implementación se demuestra en rojo revirtiendo temporalmente la implementación, no suponiendo que
+falla.
+
+### 2026-10-09 — Accesibilidad WCAG 2.2 AA (paso D.15, decisiones 193-202)
+
+**Tipo de tarea:** auditoría y corrección de accesibilidad (interfaz, mapa, galería), configuración de lint y e2e
+**Forma de especificación:** SDD (explorar, proponer, especificar, diseñar, tareas y aplicar en tres lotes y diez unidades; Engram
+`sdd/a11y-wcag22-d15/*`), un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable con retoques. Hubo que mantener siete desactivaciones de `jsx-a11y` en `price-history.tsx` (el diseño
+preveía tres), corregir el conmutador «Ver mapa/Ver lista» (20 px de alto aunque axe pasaba; no estaba en el diseño), escribir un
+puente de prueba para renderizar `error.tsx` y `global-error.tsx` bajo el runtime JSX de Playwright y arreglar una expresión regular
+`\b` rota que se había confirmado en `5f8301b` (corregida en `c7c023e`). La lista manual la hizo el responsable con el Narrador de
+Windows en vez de NVDA (no se pudo instalar), contra la base de los e2e porque la de desarrollo está vacía. **Tras la pasada manual**
+fallaron dos puntos (error sin anuncio ni foco; campos numéricos sin aviso de «solo cifras») y se corrigieron en un lote de
+remediación (decisiones 203 y 204, commits `0bd0094` y `810fa58`), con la opción elegida por el responsable. En la segunda pasada,
+13 de 13 puntos aprobados; paso cerrado.
+
+**Prompt:** el del paso D.15 de `docs/DESIGN-ROADMAP.md`, literal: «Paso D.15 de docs/DESIGN-ROADMAP.md. Usa `impeccable audit`,
+`impeccable harden` e `impeccable adapt`.
+
+- axe con wcag22aa sin violaciones en todas las rutas, anchos y temas de la suite de D.1.
+- Lista de comprobación manual, anotada en las notas: recorrido completo con teclado; pasada breve con lector de pantalla; zoom al 200 %
+  y reflujo a 320 px; foco no tapado por la cabecera fija (2.4.11); objetivos de 24 px (2.5.8); dibujo sin arrastre (2.5.7); mensajes de
+  estado (4.1.3); mapa y galería.
+- Decide si se incorpora eslint-plugin-jsx-a11y, aplazado en la decisión 011.
+- Un solo lote de correcciones.»
+
+**Observación:** la línea base de axe ya estaba vacía, así que «cero violaciones» no era el trabajo real: lo eran los estados que axe
+nunca recorría (bandeja abierta, alertas, ventana emergente, páginas de error) y lo que axe no detecta (nombre y ayuda del mapa, foco de
+la galería, tema activo). La prueba de caja de 24 px encontró un fallo de 2.5.8 que axe daba por bueno. Medir antes de arreglar
+también eximió la mitad de F5 (etiquetas del mapa) sin cambiar código.
+
+### 2026-10-09 — Estados globales: 404, error, vacío, parámetros inválidos y 429 (paso D.14, decisiones 186-192)
+
+**Tipo de tarea:** interfaz (páginas de estado, estado vacío), copy (parámetros inválidos, mensajes de core), proxy (429) y e2e
+**Forma de especificación:** SDD (explorar, investigar, proponer, especificar, diseñar, tareas y aplicar en nueve unidades; Engram
+`sdd/global-states-d14/*`), un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable con retoques, tras varias rondas de puerta. La investigación pasó por alto que un `loading.tsx` raíz envuelve
+a los layouts anidados (se detectó en la propuesta); el diseño propuso `loading.tsx` sin contar con el streaming sin JavaScript y el
+spike de la fase 0 lo descartó (decisión 191, rechazada); en la aplicación se corrigieron el copy de `error.tsx` (suponía filtros y
+usaba «dirección») y el mecanismo de Zod descrito en la especificación.
+
+**Prompt:** el del paso D.14 de `docs/DESIGN-ROADMAP.md`, literal: «Usa `impeccable harden` e `impeccable onboard` para el estado
+vacío. loading.tsx en / y en la ficha, con esqueletos hechos con tokens […]; error.tsx en la raíz […]; not-found.tsx en la raíz y en la
+ficha, con salida hacia la búsqueda; global-error.tsx con su propio `<html>` y `<body>` […]; resultados vacíos con orientación sobre qué
+cambiar; 429: una página mínima en español que conserva el estado 429 y sus cabeceras» — invocado vía `/gentle-sdd-new`.
+
+**Observación:** el prompt pedía `loading.tsx`, pero sin JavaScript el contenido de Next queda oculto en un `<div hidden>` mientras
+la carga transmite: un spike descartable antes de construir ahorró retirar el esqueleto después. Cuando una pieza depende de un
+comportamiento del framework que no se ha medido, la primera tarea es medirlo.
+
+### 2026-10-08 — Correcciones de la auditoría del suelo de oficio (paso D.13b, decisiones 183-185)
+
+**Tipo de tarea:** interfaz (CSS base, iconos, ficha, cabecera de búsqueda), copy y dominio mínimo (tope de reintentos en core) + capturas
+**Forma de especificación:** SDD (explorar, investigar, proponer, especificar, diseñar, tareas y aplicar en siete unidades; Engram
+`sdd/craft-floor-fixes-d13b/*`), un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable con retoques. Las puertas de especificación y diseño corrigieron cosas antes de aplicar (la reserva de foco
+solo desde 64rem, el comportamiento del job agotado, el límite de chips largos a 320 px, el nombre del archivo de iconos del mapa).
+En la aplicación: el directorio `coverage/` estaba ignorado por git (renombrado), la tabla del histórico seguía desbordando 8 px en
+P7 sin `nowrap` (se aplicó la alternativa apilada) y el chip de solo lectura tenía un test fijado a la clase anterior.
+
+**Prompt:** el del paso D.13b de `docs/DESIGN-ROADMAP.md`, literal: «Carga impeccable y lee reference/craft-floor.md antes de editar UI,
+en el diseño y en la aplicación. Corrige los hallazgos de la auditoría de D.0-D.13 (notas de este paso), en este orden: capa base de
+controles; iconos dibujados; ficha; cabecera de la búsqueda; texto» — invocado vía `/gentle-sdd-new`.
+
+**Observación:** los hallazgos que el detector no ve (relleno, hover, iconos, ritmo) se cierran con tests de CSS leído como texto y
+con una pasada a ojo por las capturas; `impeccable detect` queda en cero hallazgos y sin ignores.
+
+### 2026-10-08 — Auditoría de D.0-D.13 contra el suelo de oficio de impeccable (origen del paso D.13b)
+
+**Tipo de tarea:** auditoría de diseño (solo lectura)
+**Forma de especificación:** prosa breve; el criterio es `reference/craft-floor.md` de impeccable, con el contrato visual de la
+decisión 132 por encima
+**Resultado:** utilizable sin cambios. Se comprobaron a mano en el código los hallazgos 1, 3, 5, 7 y 13.
+
+**Prompt:**
+
+> si, vamos con la auditoría, desde D.0 hasta D.13
+
+(Respuesta a la pregunta de si auditar lo construido, tras descubrir que solo D.3 había cargado `craft-floor.md`.)
+
+**Observación:** `impeccable detect` y axe no encuentran nada, pero la revisión de las capturas y del CSS da 7 hallazgos importantes y
+7 menores, todos visuales o de estructura (controles sin relleno, recuadro anidado, iconos con caracteres, sin hover, panel fijo que
+corta la comparación, ritmo de la cabecera, escala de «Ubicación»). Uno lo introdujo la propia decisión 182: el aviso de D.12 queda
+como recuadro dentro del panel fijo de la ficha. El responsable decide corregirlos en un paso nuevo, D.13b, antes de D.14.
+
+### 2026-10-08 — Avisos sin regla lateral (seguimiento de D.12 y D.13, decisión 182)
+
+**Tipo de tarea:** corrección de diseño (CSS) + capturas
+**Forma de especificación:** prosa con la dirección fijada por el responsable (reutilizar el panel de aviso de D.7) y el hallazgo del detector como criterio de cierre; trabajo directo, sin SDD
+**Resultado:** utilizable sin cambios.
+
+**Prompt:**
+
+> hay que hacer caso siempre lo que indique impeccable, para eso usamos esta skill
+
+(Tras el hallazgo `side-tab` del hook de impeccable sobre `.source-list__warning` (D.12) y `.coverage-notice` (D.13).)
+
+**Observación:** la corrección es una regla compartida con `.nl-review__alert` y `.nl-issues`; `impeccable detect` queda sin
+hallazgos y solo cambian las 42 capturas previstas (36 `coverage-*` y 6 `detail-gallery`). El fallo de origen está en `AI-NOTES.md`.
+
+### 2026-10-08 — Avisos de cobertura (paso D.13, decisión 181)
+
+**Tipo de tarea:** interfaz (componente de servidor, CSS y módulo de hora) + cableado de la página + siembra e2e + rutas y capturas
+**Forma de especificación:** SDD (explorar, investigar, proponer, especificar, diseñar, tareas y aplicar en siete unidades; Engram `sdd/coverage-notices-d13/*`), un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable con retoques: las puertas de especificación y diseño corrigieron cuatro cosas antes de aplicar (la cita de la decisión 135, el recuento de 10 variantes, la palabra de día en el reinicio del tope y el título de «solicitud registrada»); la aplicación no necesitó retoques de diseño.
+
+**Prompt:**
+
+> Paso D.13 de docs/DESIGN-ROADMAP.md. Usa `impeccable clarify`.
+>
+> - Un componente de aviso con variantes para los cuatro mensajes de cobertura (zona no barrible, tope agotado, tope del cliente agotado, solicitud registrada) y el estado del trabajo. role=status para el progreso; role=alert solo para lo que exige atención.
+> - Fechas en hora local con Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid' }) en lugar de ISO; «00:00 UTC» pasa a hora local.
+> - Estado de progreso mientras llegan resultados, y se conserva el enlace de recarga sin JS.
+> - CoverageStatus (coverage-status.tsx) sigue siendo el único cliente de este flujo.
+
+**Observación:** la propuesta decía «11 variantes» y eran 10; el traspaso citaba la decisión 122 donde era la 135 (ver `AI-NOTES.md`). El
+RED de cada unidad se vio fallar antes del GREEN. La fecha de siembra inyectada (decisión 181, enmienda la 135) nació de que el tope
+global exige un job «de hoy» y el e2e no puede escribir.
+
+
+### 2026-10-07 — Ficha: comparación de anuncios de origen (paso D.12, decisión 180)
+
+**Tipo de tarea:** dominio puro (`packages/core`) + interfaz (componente y CSS) + test de consistencia con PostgreSQL + e2e y capturas
+**Forma de especificación:** SDD (explorar, proponer, especificar, diseñar, tareas y aplicar en seis unidades; Engram `sdd/source-comparison-d12/*`), un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable sin cambios.
+
+**Prompt:**
+
+> Paso D.12 de docs/DESIGN-ROADMAP.md. Función nueva (decisión 131): convierte la lista de anuncios de origen en una comparación.
+>
+> - Para cada anuncio: fuente, precio, última vez visto, número de fotos y estado.
+> - Destaca el más económico de los anuncios activos (decisión 109), calculado en packages/core, con empates resueltos de forma explícita. Si no hay ninguno activo, muestra el mínimo de todos con un aviso.
+> - El texto distingue «anuncio» de «vivienda» y no presenta la agrupación como una certeza: la prioridad del proyecto es evitar falsos positivos.
+
+**Observación:** el RED de cada unidad se vio fallar antes del GREEN, también en el e2e (`falta la ruta detail-single`). Al decidir
+el modo de entrada vacía, el diseño y la especificación discrepaban y se resolvió a favor del diseño. Las capturas revelaron que a
+1280 px el panel lateral de P7 se desplaza por dentro y recorta la segunda fila.
+
+
+
+### 2026-10-07 — Ficha: guardas del mapa estático (paso D.11, seguimiento, decisión 179)
+
+**Tipo de tarea:** test (guardas estáticas en `apps/web/test/map-guards.test.ts`)
+**Forma de especificación:** aviso de la verificación de D.11 (el diseño preveía fijar el import, la atribución y la lista sin `fetch`);
+unidad acotada de SDD, test primero con el rojo demostrado mutando el fuente
+**Resultado:** utilizable sin cambios.
+
+**Prompt:**
+
+> Fija en `map-guards` el import de `lib/osm-tiles`, la atribución y la lista sin fetch/innerHTML del mapa estático
+> `property-location.tsx`, sin meterlo en `MAP_FILES` (SMV-22 intacta).
+
+**Observación:** las guardas pasan en verde sobre el código existente, así que el rojo se probó rompiendo a propósito el fuente y
+restaurándolo. Un heredoc de shell volvió a convertir `\b` en retroceso dentro de una regex y hubo que corregirlo.
+
+### 2026-10-07 — Ficha: mapa de ubicación aproximada (paso D.11, decisión 179)
+
+**Tipo de tarea:** geometría pura (`packages/core`) + consulta SQL + interfaz (mapa estático del servidor, SVG y CSS) + guardas + test + capturas e2e
+**Forma de especificación:** SDD (explorar, proponer, especificar, diseñar con puerta de diseño, tareas y aplicar en siete unidades; Engram `sdd/location-map-d11/*`), un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable con retoques — la puerta de diseño corrigió el valor esperado de P1, la función `latLonToTile` que faltaba, la normalización de la longitud 180, el caso de zoom 0 y un precedente de ESLint inexistente; ver `docs/AI-NOTES.md`. El prompt del paso (envoltorio de cliente) ya estaba superado por la 133.
+
+**Prompt:**
+
+> Paso D.11 de docs/DESIGN-ROADMAP.md. Función nueva (decisión 131): un mapa de ubicación en la ficha.
+>
+> - Las coordenadas pueden ser aproximadas: muestra un área, no un punto exacto, con el aviso «Ubicación aproximada».
+> - Prefiere reutilizar el envoltorio de cliente search-map.tsx con props antes que crear otro. Si hace falta un fichero de cliente nuevo, amplía el allowlist y registra la decisión (R4).
+> - Carga diferida (next/dynamic, ssr: false), atribución de OSM visible y alternativa noscript con el municipio.
+
+**Observación:** la 133.7 sustituyó el envoltorio de cliente por un mapa estático del servidor, sin JS; el responsable aceptó el radio de 500 m provisional aunque la 133 pedía fijarlo con datos reales (conflicto registrado en la 179). Geometría, consulta y módulo de teselas salieron con el test en rojo antes. Los casos e2e se escribieron después del componente, no antes. Las 18 capturas de ficha cambian y se revisaron a ojo.
+
+### 2026-10-07 — Ficha: histórico de precios (paso D.10, decisión 178)
+
+**Tipo de tarea:** consulta SQL + dominio (`packages/core`) + interfaz (tabla accesible y gráfico SVG del servidor) + test + capturas e2e
+**Forma de especificación:** SDD (explorar, proponer, especificar, diseñar, tareas, aplicar en dos lotes y verificar; Engram `sdd/price-history-d10/*`), un solo PR con `size:exception` aceptado por el responsable
+**Resultado:** utilizable con retoques — la puerta de diseño corrigió el orden de las filas de la tabla (el diseño las intercalaba por fecha, contra la especificación, que las agrupa por anuncio) y el nombre accesible del SVG (el diseño lo ocultaba con `aria-hidden`); ver `docs/AI-NOTES.md`.
+
+**Prompt:**
+
+> Paso D.10 de docs/DESIGN-ROADMAP.md. Función nueva (decisión 131): muestra en la ficha el histórico de precios de los anuncios de la vivienda.
+>
+> - Consulta nueva en packages/db/src/detail.ts sobre listing_versions de todos los anuncios de la vivienda, ordenada por fecha y con su fuente, con tests en packages/db/test/detail/detail.db.test.ts. Cubre un anuncio retirado y uno redactado: la decisión 107 conserva los precios, así que su histórico se sigue mostrando.
+> - Lo que se derive (cambios, variación) va en packages/core, sin Next ni ORM.
+> - Presentación: primero una tabla accesible (con caption y encabezados) que funciona sin JS; si aporta, un gráfico SVG sencillo renderizado en el servidor. Diseña el caso de una sola versión.
+> - Comprueba que el rol de solo lectura puede leer listing_versions.
+
+**Observación:** el «si aporta» del prompt quedó superado por la 133.6 (gráfico y tabla, los dos). La capa db, la derivación y los helpers de geometría salieron a la primera con test en rojo antes; lo que costó fue la presentación: ni `detail` (P2) ni `detail-gallery` (P7) tienen cambios de precio, así que sin una ruta e2e sobre P1 el gráfico no habría salido en ninguna captura ni en axe. A 320 px la tabla de P7 desbordaba por pocos píxeles y se añadió la región con foco que el diseño reservaba.
+
+### 2026-10-06 — Resultados: número de fuentes activas (paso D.9, seguimiento, decisión 177)
+
+**Tipo de tarea:** consulta SQL (subconsulta de `search.ts`) + test + capturas e2e
+**Forma de especificación:** elección del responsable en una pregunta cerrada sobre la consecuencia que dejó abierta la decisión
+176; implementación directa delegada (sin SDD), test primero
+**Resultado:** utilizable sin cambios.
+
+**Prompt:**
+
+> Sí, alinearlo
+
+(respuesta a si el recuento de fuentes de la búsqueda debía coincidir con el de la ficha: P2 decía «2 fuentes» en los
+resultados y «1 fuente» en su ficha).
+
+**Observación:** bastó un `AND src_l."status" = 'active'` en la subconsulta, con el mismo literal que `visibility.ts`. El mapa
+no proyecta ningún recuento. Cambiaron solo las capturas de `home` (seis) y las de `map` a 1280 (dos), donde se ve la fila de P2;
+`home-filtered` no la incluye y bajo 64rem `map` solo enseña el mapa.
+
+### 2026-10-06 — Ficha: número de fuentes activas (paso D.9, corrección, decisión 176)
+
+**Tipo de tarea:** interfaz (función pura en `apps/web/src/lib`, resumen de la ficha) + test + capturas e2e
+**Forma de especificación:** prosa breve sobre una observación ya registrada en las notas de D.9; el texto de la interfaz lo
+fijó el responsable; implementación directa delegada (sin SDD), test primero
+**Resultado:** utilizable sin cambios.
+
+**Prompt:**
+
+> corrígelo
+
+(referido a la observación de D.9: «Disponible en N fuentes» contaba todos los anuncios, también los no activos, y P7 decía
+«2 fuentes» con las dos «(no disponible)»).
+
+**Observación:** el número sale de las fuentes que la página ya carga (`countActiveSources`), sin tocar `packages/db`. Solo
+cambiaron las doce capturas de `detail` y `detail-gallery`. La búsqueda sigue contando fuentes distintas de todos los anuncios;
+queda anotado en la decisión 176.
+
+### 2026-10-06 — Ficha: avisos de la verificación de D.9 (galería en capturas, sin JS y foco no tapado)
+
+**Tipo de tarea:** test (siembra e2e, capturas, e2e sin JavaScript y de accesibilidad)
+**Forma de especificación:** prosa breve con los dos avisos de la verificación; implementación directa delegada (sin SDD)
+**Resultado:** utilizable con retoques — la ventana baja propuesta (1280×600) no obligaba al panel a desplazarse y se bajó a
+1280×480; ver `docs/AI-NOTES.md`. Ningún defecto de producto.
+
+**Prompt:**
+
+> soluciona estos puntos
+>
+> 1. Las capturas e2e no enseñan la galería, el «—» de los datos que faltan ni la nota única «No consolidado — ver anuncios de
+>    origen», porque la siembra e2e no tiene miniaturas y tiene todos los datos. Solo los cubren los tests unitarios.
+> 2. No hay ningún test automático de que el panel lateral sticky no tape el foco del teclado, ni de la navegación de la
+>    galería sin JavaScript.
+
+**Observación:** la clave fue elegir una vivienda solo con anuncios inactivos sin redactar (decisión 175): sale en su ficha pero
+no en la búsqueda, así que las capturas nuevas no movieron ninguna línea base existente.
+
+### 2026-10-06 — Ficha: presentación (paso D.9, decisiones 171-174)
+
+**Tipo de tarea:** implementación de un paso de diseño (interfaz de servidor, CSS, orden en una consulta SQL, e2e)
+**Forma de especificación:** paso de la hoja de ruta con viñetas (`docs/DESIGN-ROADMAP.md`, D.9) pegado en `/gentle-sdd-new`;
+cadena SDD completa y aplicación en tres lotes y siete unidades de trabajo, TDD estricto, un solo PR con `size:exception`
+**Resultado:** utilizable con retoques — la puerta de revisión del diseño devolvió correcciones (texto de la insignia,
+premisa falsa sobre los enlaces del mapa, repetición de «No consolidado», rótulo de planta); ver `docs/AI-NOTES.md`.
+
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.9 de docs/DESIGN-ROADMAP.md. Aplica la presentación de la ficha decidida en D.0 (está en las
+> notas de este paso). Usa `impeccable layout`, `impeccable typeset` y `impeccable clarify`. [viñetas: cabecera estructurada,
+> galería APG, lista de anuncios de origen con insignia, vuelta a los resultados]
+
+**Observación:** el diseño pasó por una ronda de correcciones antes de aplicar (revisión 2). En la aplicación los fallos fueron
+de herramienta (barras invertidas perdidas en el shell) y de proceso (un trailer `Co-Authored-By` indebido), no de producto.
+
+### 2026-10-06 — Mapa: dibujo de zona accesible (paso D.8b, decisiones 168-170)
+
+**Tipo de tarea:** diseño y accesibilidad (SDD): reductor, control de teclado, mira, hoja CSS, guardas y e2e
+**Forma de especificación:** SDD en modo automático (exploración, propuesta, especificación, diseño y tareas, en tres unidades
+de trabajo); el prompt del paso D.8b de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. TDD estricto, un solo PR con
+`size:exception` aceptado por el responsable. La planificación (de la exploración al diseño) se hizo en una sesión anterior y
+esta retomó desde la validación del diseño.
+**Resultado:** utilizable con retoques (el diseño suponía una API de estado de ventana emergente inexistente en el `Map` de
+Leaflet; el e2e destapó que las clases de las capas vectoriales no llegaban al SVG)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.8b de docs/DESIGN-ROADMAP.md. Usa `impeccable harden`.
+>
+> - Teselas en tema oscuro según el resultado de D.2: filtro solo en el panel de teselas, o su alternativa. Marcadores,
+>   controles y atribución sin filtrar.
+> - Dibujo de zona accesible: sin arrastrar (WCAG 2.5.7, un clic por vértice) y con una alternativa de teclado; por
+>   ejemplo, una mira en el centro que se mueve con las flechas y un botón «Añadir vértice». Botones de al menos 24 px y
+>   mensajes con role=status.
+> - La lógica nueva va al reductor draw-polygon-state.ts, con tests.
+
+**Observación:** el prompt pedía teselas oscuras, pero D.2 ya había resuelto lo contrario (decisión 140: teselas claras en un
+marco oscuro, sin filtro), así que el primer punto se cerró sin código. Lo difícil estaba en el segundo: la interacción con
+Leaflet (Escape con una ventana abierta, orden de foco, anfitrión antepuesto a un marco del servidor) no se podía decidir
+en papel, y el e2e en Docker lo comprobó con una puerta de consola. Las decisiones 168-170 reparten los diez puntos del
+diseño (B1 a B10).
+
+### 2026-10-06 — Pendientes de D.8a: guarda de la CSP y arranque de D.8b
+
+**Tipo de tarea:** test (corrección de una guarda) y planificación SDD de D.8b
+**Forma de especificación:** prosa breve que remite a los pendientes del informe de cierre de D.8a
+**Resultado:** con retoques (la guarda quedó corregida en un commit aparte; D.8b se dejó planificado hasta la especificación y
+el diseño, sin implementar, por falta de cuota)
+**Prompt:**
+
+> soluciona los dos puntos que me indicas que están pendientes
+
+**Observación:** «los dos puntos» mezclaba un arreglo de una línea con un paso entero de la hoja de ruta (D.8b, tamaño L).
+Se resolvió el primero de inmediato y se preguntó cómo abordar el segundo. El responsable eligió SDD, como en D.8a. Al
+reemplazar el byte de retroceso desde la shell, dos intentos (perl y Python con secuencias de escape) no cambiaron nada sin
+dar error. Solo funcionó escribir los bytes por su valor numérico, y se confirmó con `git diff`.
+
+### 2026-10-06 — Mapa: disposición y marcadores (paso D.8a, decisiones 163-167)
+
+**Tipo de tarea:** implementación (vista dividida lista + mapa, marco adaptable, marcadores, popup y barra de dibujo con tokens)
+con tests unitarios, de guardas estáticas y e2e
+**Forma de especificación:** SDD en modo automático con las decisiones de producto confirmadas por el responsable antes de la
+propuesta; el prompt del paso D.8a de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. TDD estricto, dos unidades de trabajo
+(A: datos, disposición, marco y avisos; B: marcadores, popup, barra, guardas y e2e) en dos commits de un solo PR con
+`size:exception` aceptado por el responsable.
+**Resultado:** con retoques (la especificación y el diseño necesitaron correcciones del orquestador antes de las tareas: `alt`
+exigido a un `divIcon`, 25 resultados por página cuando son 24, un recuento por vista contrario a la matriz de avisos; y el
+artefacto de tareas bloqueó la aplicación por una expresión regular que el despachador leyó como ruta; ver `docs/AI-NOTES.md`)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.8a de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable adapt`.
+>
+> - Disposición según D.0. Por defecto: vista dividida lista + mapa en escritorio, sin
+>   superposiciones que tapen el mapa, y lista primero con conmutador hacia el mapa en
+>   móvil. El conmutador sigue siendo un enlace con el parámetro view. Si la vista
+>   dividida necesita las dos consultas en la misma petición, mide el coste frente a los
+>   objetivos del paso 2.4.
+> - Altura del mapa adaptable, en lugar del MAP_STYLE fijo de 520 px de
+>   search-map-canvas.tsx.
+> - Etiquetas de precio y grupos de map-cluster-layer.tsx con variables CSS en lugar de los
+>   colores hexadecimales en línea. Sigue creando nodos con textContent, nunca HTML en
+>   cadena (map-guards.test.ts).
+> - Marcadores con título descriptivo, popup diseñado y estado de carga de search-map.tsx.
+> - Barra de dibujo de map-draw-control.tsx (hoy TOOLBAR_STYLE en línea) con los tokens.
+> - Mantén literal el host de teselas y la atribución de OSM, y la alternativa noscript.
+
+**Observación:** el prompt no decía qué avisos van en cada panel cuando lista y mapa conviven, ni si el mapa se monta oculto bajo
+64rem; salió de las decisiones de producto y de la matriz de avisos de la especificación (SMV-17). Que la barra de dibujo
+tuviera que salir del contenedor de Leaflet para poder usar el token de capa, y que el reencuadre del mapa oculto necesitara un
+`ResizeObserver`, no estaban en el prompt ni en el diseño inicial. Tests y documentación superaron las 800 líneas (~885
+autoradas, sin contar las capturas).
+
+
+### 2026-10-06 — Búsqueda en lenguaje natural: interpretación y confirmación (paso D.7, decisiones 157-162)
+
+**Tipo de tarea:** implementación (indicador de pasos, panel de revisión, estados de la zona y CSS) con tests unitarios y e2e
+**Forma de especificación:** SDD en modo automático, con las decisiones de producto confirmadas por el responsable antes de
+la propuesta; el prompt del paso D.7 de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. TDD estricto, tres unidades de
+código y una de documentación, un solo PR con `size:exception` aceptado por el responsable.
+**Resultado:** con retoques (el pedido de «texto de ejemplo en el campo» pasó a ser texto de ayuda persistente; la validación
+de especificación y diseño corrigió una contradicción de «No he entendido:», un texto de «varios municipios» y la
+comprobación del inicio; una segunda ronda de capturas por el espaciado a 320 px)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.7 de docs/DESIGN-ROADMAP.md. Usa `impeccable clarify` y `impeccable layout`.
+>
+> Rediseña la rama ?q= del paso 3.1 sin cambiar su comportamiento: interpreta y pide confirmación, nunca busca (decisión 122).
+>
+> - Pasos visibles: describe, revisa y busca. Texto de ejemplo en el campo y un nombre claro para el botón, que hoy dice
+>   «Interpretar» (acordarlo conmigo).
+> - La interpretación se muestra como campos editables agrupados y como resumen con los mismos componentes de D.6a.
+> - Lo no reconocido y los conflictos, con jerarquía visual y role=status o role=alert según corresponda.
+> - Elección de lugar inequívoca cuando hay varias coincidencias.
+> - Sin JavaScript. No toques el intérprete de packages/core ni su corpus.
+>
+> Decisiones acordadas: botón «Convertir en filtros»; ejemplo como texto de ayuda persistente («Piso en alquiler en Getafe hasta
+> 900 € con 2 habitaciones»); pasos solo en el inicio y en `?q=`; estado único que menciona la zona pendiente; títulos de grupo
+> como preguntas; «Sin zona (cualquier municipio)».
+
+**Observación:** el prompt no decía dónde mostrar los pasos, qué hacer con un único candidato por prefijo ni cómo distinguir
+«sin lugar» de «lugar no encontrado»; salió del diseño y de las decisiones del responsable. Los tests triplicaron la
+previsión de líneas por la cantidad de escenarios de la especificación.
+
+
+### 2026-10-06 — Resultados: filas densas, paginación y bandeja de filtros (paso D.6b, decisiones 152-156)
+
+**Tipo de tarea:** implementación (fila de resultado, paginador, bandeja `<details>` y CSS) con tests unitarios y e2e
+**Forma de especificación:** SDD en modo automático (propuesta, especificación, diseño y tareas, en siete fases); el prompt
+del paso D.6b de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. TDD estricto, un commit por fase, un solo PR con
+`size:exception` aceptado por el responsable.
+**Resultado:** con retoques (la rejilla de una a tres columnas del prompt se sustituyó por filas densas, decisión 132; el
+recuento de la lista perdió su « · página N» porque ahora lo dice el paginador; un fichero de e2e salió truncado al
+escribirlo con un heredoc y lo detectó `next build`)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.6b de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable clarify`.
+>
+> - Tarjeta de resultado: precio destacado (format-price.ts), etiquetas en español para el tipo y la operación (hoy salen
+>   «flat» y «rent»), insignia «Disponible en N fuentes», imagen con next/image y sizes, y un estado sin imagen diseñado. Un
+>   único enlace por tarjeta, con foco y hover visibles. Decide la política de alt: decorativa solo si el texto de la
+>   tarjeta ya lo dice todo.
+> - Rejilla de una, dos o tres columnas según el ancho.
+> - Orden y paginación con anterior y siguiente claros e indicador de página.
+> - Bandeja de filtros en móvil sin JavaScript: <details>/<summary> con la etiqueta «Filtros» y el número de filtros
+>   activos, que contiene el formulario de D.6a. La actualización en vivo exigiría un componente de cliente (R4) y queda
+>   fuera salvo decisión expresa.
+
+**Observación:** el prompt no fijaba qué cuenta como «filtro activo» (decisión 154), cuándo se oculta el paginador (156), ni
+qué hacer en un navegador sin `::details-content` (153); las tres respuestas salieron del diseño. Dos riesgos se comprobaron
+al aplicar y no solo en papel: que Lightning CSS conservara `@supports selector(::details-content)` (`next build`) y que la
+bandeja se comportara igual en Chromium y Firefox (e2e en Docker).
+
+### 2026-10-05 — Búsqueda: barra de filtros, filtros aplicados y recuento (paso D.6a, decisión 151)
+
+**Tipo de tarea:** implementación (extracción de componente, barra de filtros GET, filtros aplicados, recuento y CSS) con
+tests unitarios y e2e
+**Forma de especificación:** SDD en modo automático (propuesta, especificación, diseño y tareas, en cinco unidades de
+trabajo); el prompt del paso D.6a de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. TDD estricto. El responsable
+confirmó seis decisiones antes del diseño: `page` se descarta al quitar un filtro, el radio es un solo chip, «Quitar
+todos» conserva `view`, `sort` y `dir`, el texto del recuento, la barra también en la rama de parámetros inválidos y el
+`size:exception`.
+**Resultado:** con retoques (el prompt pedía conservar `page`, se descartó; la alerta de un `enum` inválido no nombraba el
+parámetro y se corrigió; el chip hacía desbordar el documento a 320 px por el texto `sr-only`, detectado solo por el e2e)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.6a de docs/DESIGN-ROADMAP.md. Usa `impeccable layout`, `impeccable clarify` y `impeccable
+> extract` cuando un campo se use por segunda vez.
+>
+> - Filtros estructurados en la página principal, que hoy solo los ofrece tras interpretar una frase. Un formulario GET
+>   con form=criteria (decisión 123) que produce exactamente los parámetros que valida searchQuerySchema
+>   (packages/core/src/schemas/search-query.schema.ts).
+> - En escritorio, barra horizontal sobre los resultados, con los filtros esenciales primero y etiquetas sin jerga
+>   (search-labels.ts).
+> - Resumen de filtros aplicados con sus valores reales. Cada uno es un enlace que quita solo ese parámetro y conserva los
+>   demás (view, polygon, page…), más «Quitar todos». En móvil, una fila con desplazamiento horizontal.
+> - Recuento de resultados visible. Solo el que la consulta ya devuelve: no se añade una consulta de total en un paso de
+>   diseño.
+> - Comparte campos con CriteriaForm (rama ?q=) en vez de duplicarlos. Sin JavaScript.
+
+**Observación:** el prompt no decía qué hacer con `page` ni con el filtro geográfico de tres claves, ni cómo pintar la
+barra con parámetros inválidos; las tres respuestas están en la decisión 151. El marcado compartido se comprobó con una
+prueba de aprobación (el panel de `?q=` queda idéntico byte a byte) y la captura `nl-query` no cambia.
+
+### 2026-10-05 — Estructura común: cabecera, pie, metadatos e iconos (paso D.5, decisiones 147-150)
+
+**Tipo de tarea:** implementación (layout, cabecera, metadatos, iconos y matcher del proxy) con tests unitarios y e2e
+**Forma de especificación:** SDD en modo automático (propuesta, especificación, diseño y tareas, en cinco unidades de
+trabajo); el prompt del paso D.5 de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. TDD estricto. El responsable
+eligió el icono de tejado dentro de un marco y la especificación se enmendó una vez (título de la ficha recortado, con
+respaldo «Ficha de la vivienda»).
+**Resultado:** con retoques (el `<main>` pasó del prompt «por página» al layout, las reglas axe de regiones se cubren
+con `landmarks.spec.ts` y no con `AXE_TAGS`, y el PR superó el presupuesto de líneas)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.5 de docs/DESIGN-ROADMAP.md. Usa `impeccable layout` y `impeccable clarify`.
+>
+> - Cabecera con la marca de D.0, acceso a la búsqueda y el selector de D.4.
+> - Enlace «Saltar al contenido» como primer elemento enfocable, hacia <main id="contenido">. Un solo <main> por
+>   página y regiones bien etiquetadas.
+> - El pie conserva literal la atribución CC-BY del IGN/CNIG (R7). La de OpenStreetMap sigue en el mapa.
+> - Metadatos: title.template en el layout y título propio en la ficha con generateMetadata, sin repetir la consulta
+>   (React cache). Iconos con las convenciones de app/ (icon.svg, apple-icon.png). El matcher de src/proxy.ts solo
+>   excluye favicon.ico: decide si los iconos nuevos quedan fuera del límite de peticiones.
+> - Quita de page.tsx la línea de desarrollo «Esqueleto del monorepo · v{WEB_VERSION}» y apps/web/src/version.ts si
+>   queda sin uso.
+> - Anchos de contenedor y márgenes con los tokens de D.3, a 320, 768 y 1280 px.
+
+**Observación:** el prompt dejaba abierta la decisión sobre el matcher y la forma de las URL de los iconos; la
+respuesta (exclusión anclada por nombre exacto) y la forma real observada con Turbopack están en la decisión 149. El
+único fallo del código generado fue una barra invertida simple en el matcher (ver `docs/AI-NOTES.md`).
+
+### 2026-10-05 — Selector de tema con cookie y Route Handler (paso D.4, decisiones 144-146)
+
+**Tipo de tarea:** implementación (script en línea, Route Handler, selector y CSS) con tests unitarios y e2e
+**Forma de especificación:** SDD (exploración, propuesta, especificación, diseño y tareas, en cuatro unidades de
+trabajo); el paso D.4 de `docs/DESIGN-ROADMAP.md` más restricciones explícitas (sin componentes de cliente nuevos,
+`no-redirect.test.ts`, ruta de vuelta del mismo origen) y la exigencia de comparar tres formas de leer la cookie. TDD
+estricto. El responsable fijó la opción (a), la ruta de vuelta, el estado solo visual y descartó `sdd-research`.
+**Resultado:** con retoques (dos defectos solo detectados por el e2e y un refactor de ubicación de un comentario)
+**Prompt:**
+
+> Paso D.4 de docs/DESIGN-ROADMAP.md. Añade un selector de tema (claro, oscuro, sistema) sin componentes de cliente
+> nuevos. Un script en línea en el `<head>` lee la cookie; el selector es un `<form method="post">` a
+> `apps/web/src/app/theme/route.ts`, que valida con Zod y responde 303 con una Response construida a mano. Decide y
+> registra cómo se lee la cookie, comparando (a) solo en el script, (b) en el layout con límites de carga por
+> segmento y (c) en cada página, e indica qué pasa sin JavaScript en cada caso.
+
+**Observación:** la comparación a/b/c pedida en el prompt llevó a una decisión argumentada (144). Los fallos del
+código generado (importación con extensión `.js`, comparación del `Referer` con el origen equivocado, comentario
+separado de su función) están en `docs/AI-NOTES.md`; los dos primeros solo los expuso `next build` y el e2e.
+
+### 2026-10-05 — Tokens, tipografía y tema oscuro del sistema (paso D.3, decisiones 141-143)
+
+**Tipo de tarea:** configuración (tokens de diseño en CSS) con un test de verificación de contraste
+**Forma de especificación:** SDD en modo automático (propuesta, especificación, diseño y tareas antes de aplicar,
+con una ronda correctiva del diseño tras la puerta de fase); el prompt del paso D.3 de `docs/DESIGN-ROADMAP.md`
+pegado en `/gentle-sdd-new`. Aplicación con TDD estricto: el test (helpers de color y contraste, y comprobaciones
+del CSS) se escribió y se vio fallar antes de tocar `globals.css`.
+**Resultado:** con retoques (el prompt pedía una fuente autoalojada con `next/font` y `@theme inline`, ya superado por
+la decisión 132; los nombres de los tokens y la ubicación de la fuente cambiaron respecto al texto, ver decisión 141)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.3 de docs/DESIGN-ROADMAP.md. Carga impeccable (con su craft floor antes de editar
+> UI) y usa `impeccable typeset` y `impeccable colorize` según el contrato de D.0.
+>
+> - Tokens en apps/web/src/app/globals.css con el patrón validado en D.2: color (superficie,
+>   texto, texto secundario, borde, acento, peligro, éxito, foco), escala tipográfica,
+>   espaciado (base 0.25rem de Tailwind), radios, sombras y capas (el mapa necesita
+>   z-index propios). Los tokens de movimiento se dejan para D.16.
+> - Tema oscuro solo según el sistema (el selector llega en D.4), con color-scheme en
+>   :root.
+> - Fuente según D.0, autoalojada con next/font y expuesta con @theme inline. Ningún host
+>   de fuentes remoto; la CSP no cambia.
+> - Anillo :focus-visible global que el contenido fijo no tape.
+> - Estilos base mínimos. No rediseñes componentes: eso llega en los pasos siguientes.
+>
+> Documenta en las notas la tabla de contraste de cada par texto/fondo en ambos temas.
+
+**Observación:** el prompt se quedó atrás de la decisión 132 (sin fuente propia), de modo que el texto se reescribió
+en `docs/DESIGN-ROADMAP.md` y la fuente es una pila del sistema en `@theme static`. La puerta de fase cazó tres
+salidas intermedias del diseño: una tolerancia de gamut de 1e-4 que rechazaba el propio vector de sanidad, razones de
+contraste calculadas a mano que no coincidían con el validador (acento sobre blanco 6,05 frente a 6,44) y nombres de
+token que divergían en silencio de la especificación (ver `docs/AI-NOTES.md`). Con el diseño corregido, ningún par de
+contraste falló al aplicar y la línea base de axe solo perdió entradas. El volumen superó el presupuesto de 800
+líneas (documentación obligatoria y snapshot incluidos) y se aceptó `size:exception`.
+
+### 2026-10-05 — Experimentos de tema oscuro: tokens semánticos y teselas (paso D.2, decisiones 139-140)
+
+**Tipo de tarea:** experimento descartable (código revertido; solo quedan evidencia y decisiones)
+**Forma de especificación:** SDD en modo automático (propuesta, especificación, diseño y tareas antes de
+aplicar); el prompt del paso D.2 de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. Sin TDD: el código
+era desechable y el paso declara «Tests: ninguno».
+**Resultado:** utilizable sin cambios (tokens validados; teselas rechazadas por coste, un resultado negativo
+válido que activa la alternativa prevista)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.2 de docs/DESIGN-ROADMAP.md. Dos experimentos acotados cuyo código NO se queda:
+> se revierte antes de cerrar el paso. Sigue en la rama actual.
+>
+> 1. Tokens semánticos. En apps/web/src/app/globals.css, variables en :root y en .dark, expuestas con
+>    @theme inline y @custom-variant dark. Comprueba que una utilidad como bg-surface cambia en tiempo de
+>    ejecución al alternar la clase y al emular prefers-color-scheme, sin recompilar. Compáralo con light-dark().
+> 2. Teselas oscuras. Filtro CSS aplicado solo al panel de teselas de Leaflet, nunca a marcadores, controles
+>    ni atribución. Mide la legibilidad y el coste con la CPU ralentizada 4x.
+>
+> Evidencia: capturas a 320 y 1280 px en claro y oscuro. Registra en docs/DECISIONS.md el resultado de cada
+> experimento y su alternativa si falla.
+
+**Observación:** el diseño acertó casi todo y el spec funcionó a la primera en Docker. Dos puntos: la tercera
+muestra de la sonda del diseño (`bg-spike-ink dark:bg-spike-surface`) no distinguía la variante `dark:`
+(ambas ramas dan el mismo color) y se cambió a `bg-white dark:bg-black` antes de ejecutar (ver
+`docs/AI-NOTES.md`); la tesela de relleno no sirve para juzgar legibilidad, así que hizo falta descargar
+24 teselas reales y servirlas solo por el guard de red. El resultado de coste (razón 1,57) fue claramente negativo.
+
+### 2026-10-01 — Verificación visual y de accesibilidad: herramienta, siembra, specs y capturas (pasos D.1a y D.1b, decisiones 135-138)
+
+**Tipo de tarea:** configuración (herramienta de test, siembra de base de datos, Docker)
+**Forma de especificación:** SDD en modo automático, con especificación, diseño y tareas escritos antes de
+aplicar; el prompt del paso D.1 de `docs/DESIGN-ROADMAP.md` pegado en `/gentle-sdd-new`. La aplicación
+se hizo con TDD estricto y el paso se partió en D.1a/D.1b antes de aplicar.
+**Resultado:** pendiente de revisión (D.1a y D.1b aplicadas)
+**Prompt:**
+
+> `/gentle-sdd-new` Paso D.1 de docs/DESIGN-ROADMAP.md. Añade la verificación visual y de
+> accesibilidad de apps/web. No cambies estilos ni componentes.
+>
+> - Dependencias de desarrollo en apps/web con versión exacta: @playwright/test y
+>   @axe-core/playwright. [...] Scripts test:e2e y test:e2e:update.
+> - Matriz de proyectos: 320, 768 y 1280 px de ancho, cada uno en tema claro y oscuro.
+> - Rutas: /, /?view=map, /?q=<frase de ejemplo>, una ficha /properties/<id> y una 404.
+> - Base de datos dedicada (nombre terminado en _e2e) con un guardián que se niegue a sembrar
+>   cualquier otra, como el de las bases _bench (decisión 046). Siembra determinista. [...]
+> - La web arranca con el rol de solo lectura. Las teselas se sirven desde un PNG local y
+>   cualquier otra petición a un host externo aborta y hace fallar el test.
+> - toHaveScreenshot con animations: 'disabled'. Capturas de referencia solo en Docker. [...]
+>
+> Si la previsión supera 800 líneas, parte el paso en D.1a (herramienta y siembra) y D.1b
+> (specs y capturas de referencia).
+
+**Observación:** el diseño pedía revisar cuatro puntos al aplicar y los cuatro se resolvieron sin
+cambiar de rumbo: `docker compose run --build` existe, `test.fail()` cubre el fallo del cierre de una
+fixture automática, el mapa `exports` no rompe nada y la CSP `upgrade-insecure-requests` no se aplica
+sobre `http://127.0.0.1`. La estimación de ~790 líneas se quedó corta: el dataset se separó en un fichero
+puro con su test (no estaba en el diseño) y Prettier reparte las líneas largas; el responsable ya había
+aceptado `size:exception`. El agente no puede leer el `.env`: las variables `E2E_*` se derivaron con un
+script que no imprime los valores.
+D.1b (specs, capturas y línea base axe) se aplicó en un segundo commit, también con TDD estricto para la lógica
+pura de huellas (20 tests escritos antes). Las capturas y la línea base se generaron solo en Docker; dos
+ejecuciones consecutivas dieron resultados idénticos y no hizo falta ninguna máscara. Utilizable sin cambios.
+
+### 2026-10-01 — Contexto de producto y dirección visual (paso D.0, `PRODUCT.md`, decisiones 132-134)
+
+**Tipo de tarea:** diseño (contexto de producto y dirección visual)
+**Forma de especificación:** SDD en modo automático (exploración, propuesta, especificación, diseño,
+tareas y aplicación), con `impeccable init` e `impeccable shape` y varias tandas de preguntas al
+responsable.
+**Resultado:** pendiente de revisión
+**Prompt:**
+
+> `/gentle-sdd-new` con el bloque `text` del paso D.0 de `docs/DESIGN-ROADMAP.md`, literal.
+> Retomado después con `/gentle-sdd-continue design-direction-d0`. Texto del bloque:
+>
+> Paso D.0 de docs/DESIGN-ROADMAP.md. No toques código, estilos ni tests.
+>
+> Carga la skill impeccable. Ejecuta `impeccable init` para crear PRODUCT.md en la raíz
+> del repositorio y después `impeccable shape` para fijar conmigo la dirección visual.
+> Antes de decidir nada, pregúntame:
+>
+> 1. Nombre e identidad del producto (hoy «Agregador inmobiliario»), tono y productos
+>    de referencia.
+> 2. Tipografía: pila del sistema o fuente propia autoalojada (la CSP solo admite
+>    font-src 'self').
+> 3. Presentación de la ficha de la vivienda: jerarquía del precio, galería, anuncios de
+>    origen, histórico de precios y ubicación aproximada. La investigación no encontró
+>    evidencia primaria (hueco a), así que es una decisión de producto.
+> 4. Disposición de la búsqueda: vista dividida lista + mapa en escritorio y lista primero
+>    con conmutador en móvil, o la alternativa que prefiera.
+> 5. Registro del texto (hoy tuteo) y etiquetas en español para los valores de enumerado
+>    que hoy salen en crudo («flat», «rent»).
+>
+> Lee antes CLAUDE.md, docs/ARCHITECTURE.md, las reglas transversales R1-R12 de
+> docs/DESIGN-ROADMAP.md y la web actual: apps/web/src/app/page.tsx,
+> apps/web/src/app/properties/[listingId]/page.tsx y apps/web/src/components. Es una
+> herramienta de búsqueda de uso frecuente con una ficha de lectura: la dirección debe ser
+> sobria.
+>
+> Registra el contrato de dirección en docs/DECISIONS.md y anota en las notas de D.9 lo que
+> afecte a la ficha.
+
+**Observación:** el sorteo de impeccable (semilla `95c485be`, modo *operate*) asignó la tercera
+dirección de la lista propia, «Hoja del Mapa Topográfico», y el responsable la eligió. Sin generación
+de imágenes, la ruta es *code-led*. Se incorporan cinco mejoras de los aspirantes descartados. La
+opción del mapa estático no avisaba del choque con R2 y R8, y hubo que volver a preguntar (ver
+`AI-NOTES.md`). El responsable pidió parar tras la propuesta, y el cambio se retomó en otra orden.
+
 ### 2026-10-01 — Hoja de ruta del diseño UX/UI de la web (`docs/DESIGN-ROADMAP.md`)
 
 **Tipo de tarea:** planificación (hoja de ruta de diseño)
@@ -1373,3 +2137,274 @@ intentos sí necesitó un reinicio autorizado por contar de más el snapshot gen
 migración); PR2 (~1137-1148 líneas) y PR3 (~1047, casi todo documentación obligatoria) se aceptaron con
 `size:exception` explícito. Detalle completo,
 con las cifras exactas por PR, en `docs/ROADMAP.md`, paso 1.15.
+
+---
+
+### 2026-10-20 — Búsqueda vacía en una zona cubierta y suites que vacían la base de desarrollo (3.2)
+
+**Tipo de tarea:** corrección de un fallo (búsqueda vacía) + aislamiento de las bases de datos de test + aviso de interfaz
+**Forma de especificación:** ciclo SDD completo (`fix-search-empty-results`) — explore → research → propose → spec y diseño → tasks → apply en
+tres commits, con operativa de datos hecha por el orquestador
+**Resultado:** utilizable con retoques — el texto del aviso se refinó en `impeccable clarify` (nexo causal, sin repetir «Los filtros aplicados»)
+y el aprovisionamiento de las bases de test se rediseñó (de `initdb.d` y `\gexec` a un `globalSetup` autoaprovisionado; spec revisión 2).
+
+**Prompt:** la búsqueda `?operation=rent&propertyType=flat&maxPrice=600&minRooms=3&zone=18009` devuelve una lista vacía; el mensaje original
+del responsable pedía averiguar por qué y arreglarlo.
+
+**Observación.** El código de búsqueda era correcto. La zona 18009 solo existía como fila de prueba de
+`apps/web/test/db/coverage-registration.test.ts` porque las suites habían vaciado la base de desarrollo (decisión 046). Se cerró la causa
+(decisión 245), se añadió el aviso de zona cubierta (decisión 246) y se recargaron datos reales de Granada. Los filtros exactos del
+responsable siguen vacíos con datos reales (0 pisos ≤600 € con ≥3 habitaciones). Detalle en `docs/ROADMAP.md`, paso 3.2.
+
+---
+
+### 2026-10-20 — Seguimiento de los pendientes de 3.2
+
+**Tipo de tarea:** operativa y documentación
+**Forma de especificación:** instrucción directa, sin SDD
+**Resultado:** utilizable sin cambios para lo que estaba al alcance de los agentes; `.env` y `.env.example` siguen fuera de su alcance
+
+**Prompt:** «ya hice el cambio en el env, los demás cambios que haga falta hacer hazlos tú y continúa si no hay ningún problema, pero no
+empieces el 3.3»
+
+**Observación.** Con `BENCH_DATABASE_URL` repuntada, `test:db` de ingestion pasa entero. Se borró la base vacía `buscahogar_test`. Al
+comprobar OPS-0 apareció que en `.env` faltan `OPERATION`, `DAILY_SEARCH_CAP` y `BLOCKING_*`, así que el worker de cobertura no arranca.
+Se documentó en el README y en el ROADMAP 3.2. El responsable las añadió después («ya hice el cambio en el env,
+continúa»): se validaron por presencia y formato sin imprimir valores, y `readEnv` del worker acepta la configuración. No se arrancó el bucle
+real, para no gastar cuota en refrescos o verificaciones.
+
+---
+
+### 2026-10-20 — Desbordamiento de parámetros al consolidar tras el barrido de Granada
+
+**Tipo de tarea:** corrección de un fallo
+**Forma de especificación:** instrucción directa, sin SDD, con TDD estricto (test que reproduce el 08P01 antes del arreglo)
+**Resultado:** utilizable con retoques — el test de atomicidad esperaba el nombre de la restricción en el mensaje y Drizzle lo envuelve en `cause`
+
+**Prompt:** el responsable eligió «Sí, ahora» a la pregunta de corregir el desbordamiento de la consolidación antes de cerrar el 3.2.
+
+**Observación.** El worker completó Granada (36 peticiones, 1 751 anuncios, zona cubierta) y cayó en `writeConsolidation`: un INSERT de
+~99 880 parámetros frente al tope de 65 535 del protocolo. Se corrigió con lotes dentro de la misma transacción (decisión 247), extendidos a
+`property_listings` y a los `inArray` del corpus completo en la hidratación. El reprocesado sobre la base de desarrollo queda para el
+responsable.
+
+---
+
+### 2026-10-20 — Pre-barrido de las ciudades más pobladas (3.3)
+
+**Tipo de tarea:** feature de backend e ingesta (catálogo, `coverage_jobs`, registro mensual de cuota, CLI de pre-barrido) + web (cobertura
+por operación)
+**Forma de especificación:** ciclo SDD completo (`prescan-top-cities`, `/gentle-sdd-new`, ritmo automático) — exploración → propuesta →
+spec → diseño con una re-ejecución correctiva → tareas → apply en cinco lotes (PR1-PR4b) → verify
+**Resultado:** utilizable con retoques — hicieron falta tres rondas de decisiones de producto del responsable (PD1-PD12), una re-ejecución
+correctiva del diseño tras el validador de contexto limpio, y `.env.example` queda como paso manual.
+
+**Prompt:** «Pre-barre las ciudades más pobladas (venta y alquiler) con un tope explícito de peticiones fijado por el responsable a partir de
+la cuota mensual restante, y deja reserva para la cobertura bajo demanda de los municipios pequeños (coverage_jobs con prioridad de
+zone_query_signals).»
+
+**Observación.** El prompt daba por hechas tres piezas que no existían: la población en el catálogo, la operación en `coverage_jobs` y un
+registro de cuota mensual con reserva. El cambio las construyó antes del propio pre-barrido (decisiones 248-253). Verificación PASS WITH
+WARNINGS, 0 críticos, 49/49 escenarios. No se gastó cuota real: el pre-barrido lo lanza el responsable con topes explícitos. Detalle en
+`docs/ROADMAP.md`, paso 3.3.
+
+---
+
+### 2026-10-20 — Puesta en marcha del pre-barrido (3.3, operación)
+
+**Tipo de tarea:** operación sobre la base de desarrollo (migraciones, seed, registro de cuota, simulación)
+**Forma de especificación:** instrucción directa, sin SDD («continúa con lo demás si no hay ningún problema»), con decisiones del
+responsable por cuestionario
+**Resultado:** utilizable sin cambios
+
+**Prompt:** «ya quité operation del env, continúa con lo demás si no hay ningún problema».
+
+**Observación.** El responsable pidió fijar la cuota «según la documentación de Idealista menos lo gastado», pero ninguno de los dos PDF de
+`docs/api_idealista` documenta una cuota mensual. Se registró 62/31 (100 no oficiales − 38 gastadas, reserva del 50 %) y se simuló el plan
+sin gastar. El barrido real queda preparado y sin lanzar, por decisión del responsable.
+
+---
+
+### 2026-10-21 — Pre-barrido real de Madrid y reprocesado (3.3, operación)
+
+**Tipo de tarea:** operación sobre la base de desarrollo (barrido real con cuota facturable y reprocesado de la deduplicación)
+**Forma de especificación:** instrucción directa, sin SDD («continúa por donde ibas»), con los topes que el responsable eligió la sesión
+anterior
+**Resultado:** utilizable sin cambios
+
+**Prompt:** «continúa por donde ibas».
+
+**Observación.** El barrido de Madrid gastó exactamente 30 búsquedas, 15 por operación, frente al techo de 31, y el registro mensual lo
+contabilizó bien. La CLI de reproceso exige los tres umbrales sin valor por defecto; se reutilizaron los que eligió el responsable para
+Granada. No se agrupó ningún anuncio de venta con uno de alquiler.
+
+---
+
+### 2026-10-21 — Cierre de los pendientes del responsable (3.3)
+
+**Tipo de tarea:** registro documental
+**Forma de especificación:** instrucción directa («te confirmo todo lo que me has dejado pendiente, ya está hecho o te lo confirmo»)
+**Resultado:** utilizable sin cambios
+
+**Prompt:** «te confirmo todo lo que me has dejado pendiente, ya está hecho o te lo confirmo».
+
+**Observación.** Los dos pendientes que tocan `.env*` (`DAILY_SEARCH_CAP` y `OPERATION` en `.env.example`) se registran como confirmación
+del responsable, no como verificación, porque los permisos de la herramienta impiden leer esos ficheros. La confirmación de que la cuota se
+reinicia por mes natural UTC valida la suposición de la decisión 248.
+
+---
+
+### 2026-10-21 — Puesta en producción: código listo para desplegar (3.4)
+
+**Tipo de tarea:** configuración y operación (despliegue, imagen del worker, copias de seguridad, CI), dominio (limitador, avisos), seguridad
+(roles y privilegios), interfaz (páginas legales y pie) y documentación de operación
+**Forma de especificación:** SDD completo (exploración, investigación, propuesta, especificación, diseño, tareas y aplicación en ocho rebanadas)
+en ritmo automático y con Engram (`sdd/production-deployment/*`), con Strict TDD. Invocado con `/gentle-sdd-new production-deployment` sobre el
+prompt del paso 3.4 de `docs/ROADMAP.md`. Las once decisiones de producto (PD1-PD11) las confirmó el responsable antes de la especificación y el diseño. Una sola PR con
+`size:exception`
+**Resultado:** utilizable con retoques. La especificación y el diseño necesitaron una re-ejecución correctiva (v2) y la aplicación, una
+corrección posterior (la regresión del e2e tras S1, decisión 265). El resto se aceptó tal cual, con la salvedad de las pruebas que no vieron
+su ROJO (ver `AI-NOTES.md`)
+
+**Prompt:**
+
+> `/gentle-sdd-new production-deployment`, sobre el prompt del paso 3.4: «Deja la aplicación desplegable y operable en producción: imágenes
+> de web y del worker de cobertura (siempre activo, con reinicio automático), destino de despliegue con HTTPS y dominio, secretos fuera del
+> repositorio, migraciones y bootstrap de roles como parte del despliegue, avisos ante caída del worker, trabajos fallidos o cuota agotada,
+> copias de seguridad de PostgreSQL y gestión de la cuota de cada mes sin intervención manual».
+
+(La transcripción literal de la primera invocación no se conservó; lo que queda es el nombre del cambio y el prompt del paso en la hoja de ruta.)
+
+**Observación.** El prompt original pedía desplegar; el responsable aclaró tras la investigación que el despliegue real no ocurriría hasta aprobar
+el TFM, y el paso cambió de objetivo a «código listo para desplegar y comprobado en local» (decisión 254, paso 3.5 nuevo). Fue la decisión que
+más cambió el trabajo y la que menos aparece en el prompt. El volumen real fue más de tres veces la previsión (~21 000 líneas frente a ~5 600): el
+mismo patrón de subestimación que en los pasos 1.6, 1.7 y 3.3, con el grueso en tests. Lo que mejor funcionó fue la exigencia de ejecutar el
+artefacto real (imagen, contenedor, MinIO, `pnpm e2e`) además de las pruebas de unidad: encontró el temporizador de parada que sobrevivía en el
+worker, el montaje `noexec` que dejaba falsos verdes y la regresión del e2e. Lo que peor funcionó fue la interrupción por cuota de uso con una
+rebanada (S6) a medias: el trabajo en curso quedó sin commit y sin los ROJOS observados.
+
+---
+
+### 2026-10-23 — Reanudación y cierre del paso 3.4 (S6-S8)
+
+**Tipo de tarea:** continuación de un ciclo SDD (apply de S6, S7 y S8), documentación de operación y registro de cierre
+**Forma de especificación:** instrucción directa de reanudación sobre el estado persistido en Engram; S8 (CI, entorno, runbook, README y
+documentación de cierre) se delegó a un agente de aplicación con la lista de tareas 8.1-8.7 y las reglas del proyecto
+**Resultado:** utilizable con retoques (el agente de S8 corrigió en vuelo los fallos que se anotan en `AI-NOTES.md`: lint de los tests, una
+ejecución duplicada de la réplica del job `db` y la forma de las aserciones negativas del test de la CI)
+
+**Prompt:**
+
+> `/gentle-sdd-continue production-deployment`
+
+**Observación.** La reanudación funcionó porque el estado (qué rebanadas estaban confirmadas, qué había sin commit y la regla «ejecutar
+`pnpm e2e` tras tocar la web») estaba en Engram y no en la conversación. Aun así, el trabajo en curso de S6 no traía evidencia de su ROJO, y
+hubo que declararlo en la tabla de evidencia en lugar de reconstruirlo. S8 cerró el paso con `docs/DEPLOYMENT.md` vigilado por tests de
+deriva, la CI comprobada de forma estática y reproducida en local, y la lista de traspaso del paso 3.5. Los pendientes que ninguna herramienta
+puede hacer (`.env.example`) quedan escritos como tareas del responsable, no como hechos.
+
+---
+
+### 2026-10-26 — Identidad y alegría: logotipo, portada y estados (D.22)
+
+**Tipo de tarea:** diseño (identidad visual, portada, estados y movimiento), con diagnóstico de un fallo local y explicación de la cobertura
+**Forma de especificación:** SDD completo (investigación, propuesta, especificación, diseño y tareas) en modo automático, almacén Engram, un
+único PR con `size:exception` y presupuesto de 800 líneas; doce decisiones de producto del responsable y logotipo elegido tras dos rondas
+renderizadas (variante 2c)
+**Resultado:** utilizable con retoques: el logotipo necesitó dos rondas (la primera se rechazó; 2 → iterar → 2c) y en la puerta de capturas el
+responsable pidió ajustar los 320 px («Aprobar ajustando 320 px»)
+
+**Prompt:**
+
+> (Resumen fiel; no se conservó la transcripción literal.) El responsable pidió un logotipo simple y directo, más zonas cubiertas y un diseño
+> menos serio y más acogedor. Aportó una búsqueda en Barcelona que devolvía un error 500.
+
+**Observación.** El 500 no era de código. En un primer momento se atribuyó solo a la falta de `NEW_ZONES_DAILY_CAP` y
+`WEB_COVERAGE_DATABASE_URL` en `apps/web/.env.local`, pero además faltaban las migraciones 0020-0022 en la base local (véase la entrada
+siguiente). Se le explicó la cobertura (barrido previo, bajo demanda y manual). El resto se resolvió por SDD con doce decisiones de
+producto suyas (marca, portada con búsquedas de ejemplo, estados ilustrados, entrada escalonada de la lista, tuteo cálido solo fuera de las
+pantallas con precios) y la marca se eligió viendo dos rondas renderizadas. Lo que más cambió el diseño fue verificar las propuestas contra el
+código: los enlaces `?q=` y `zone=` de los ejemplos se descartaron por aterrizar en la revisión o por poder gastar cuota. Quedó fuera lo que
+solo puede juzgar el responsable: cómo se ven las capturas. En la puerta GATE-1 las aprobó con un ajuste: a 320 px la portada apilaba seis
+chips y empujaba el primer resultado a y≈1380; se limitó a tres bajo 30rem, se reordenaron y los pasos dejaron de partirse (commit `901a4cc`).
+El favicon de 16 px se aceptó tal cual (la puerta se lee como una muesca).
+
+---
+
+### 2026-10-26 — Reparación del 500 con zona y preparación de la cobertura de noviembre (paso 3.3, operación)
+
+**Tipo de tarea:** operación y diagnóstico (base local, variables de entorno, cuota mensual)
+**Forma de especificación:** instrucciones breves en la conversación; una decisión del responsable sobre el reparto de la cuota
+**Resultado:** utilizable con retoques: el primer diagnóstico del 500 fue incompleto y el comando de comprobación indicado no cargaba
+`.env.local` (véase AI-NOTES)
+
+**Prompt:**
+
+> «si ya no hacen falta bórralos, y ya he hecho los cambios en el .env.local que me has indicado ejecuta lo que queda, si hay algún
+> problema infórmame» · «ejecuta el comando adecuado y con respecto a las ciudades cubiertas ahora vemos como solucionamos esto»
+
+**Observación.** Reproducir la búsqueda de Barcelona tras corregir las variables sacó a la luz la causa real: faltaban tres migraciones. El
+aviso de `<script>` desapareció con el 500. Para las ciudades, el límite es la cuota de Idealista (unas 100 peticiones al mes, de 50 anuncios
+cada una) y no el código: el pre-barrido del paso 3.3 ya existía. El responsable descartó pedir más cuota porque se reinicia el 1 de
+noviembre y eligió anchura: 12 ciudades con 2 páginas por ciudad y operación. La cuota de noviembre quedó registrada y la simulación,
+validada. El responsable preguntó entonces «¿pero ahora no lanzamos un barrido?»: con la cuota de octubre a punto de caducar, se liberó su
+reserva y se barrieron ya las 12 ciudades con 1 página por operación (24 búsquedas, de 3 251 a 4 413 anuncios). Al revisar el registro
+apareció que el pre-barrido pide un token por unidad. Lo propuesto al principio, esperar a noviembre, desperdiciaba cuota que se perdía
+igualmente.
+
+---
+
+### 2026-10-26 — Reutilización del token de Idealista en el pre-barrido y el worker (paso 3.3, corrección)
+
+**Tipo de tarea:** fix
+**Forma de especificación:** respuesta breve a una propuesta del asistente; encargo delegado con causa, objetivo y reglas (TDD estricto,
+sin red)
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «si» (respuesta del responsable a «¿Corrijo ahora la reutilización del token en el pre-barrido?»)
+
+**Observación.** El token se cachea en un decorador sobre `IdealistaTokenPort` mientras no caduca (`expires_in` menos 5 min), y un 401
+lo invalida. El registro anota solo las llamadas reales (decisión 272). La revisión previa encontró el mismo patrón en el worker, que es
+de larga duración, y se corrigió con el mismo mecanismo. `sweep-zone` no estaba afectado. La reserva de token se mantuvo en 1: reservar
+0 con un token vigente habría podido dejar sin anotar un token pedido, porque la reconciliación mensual solo reembolsa. Tests en rojo
+primero: 4 de base de datos y el unitario del decorador.
+
+---
+
+### 2026-10-29 — Guía de despliegue de demostración para la defensa (paso 3.4b, nuevo)
+
+**Tipo de tarea:** documentación y operación (medición y comprobación de build; sin cambios de código)
+**Forma de especificación:** pregunta abierta del responsable y confirmaciones breves a propuestas del asistente
+**Resultado:** utilizable sin cambios (pendiente de que el responsable lo ejecute)
+
+**Prompt:**
+
+> «la aplicación podemos desplegarla sin pagar? únicamente para pasar una url a la que acceder para la presentación del tfm» · «si» ·
+> «porque el paso 3.5 es en producción serio no? y nosotros queremos algo reducido para la entrega del tfm» · «si»
+
+**Observación.** Antes de escribir la guía se midió la base (129 MB, cabe en Neon Free) y se probó el build. La prueba sacó a la luz que en
+Vercel `next build` por sí solo fallaría, porque `packages/core` y `packages/db` exportan un `dist/` que no está versionado. El Build
+Command de la guía compila primero las dependencias. Al revisar la base también se vio que solo Granada está cubierta y que las 12 ciudades
+del pre-barrido tienen jobs pendientes. Sin worker, esos jobs no avanzan, y por eso la guía recomienda hacer la foto después del
+pre-barrido de noviembre.
+
+---
+
+### 2026-10-29 — Ejecución de la demo en Neon: volcado, roles y `deploy` (paso 3.4b)
+
+**Tipo de tarea:** operación
+**Forma de especificación:** respuestas breves y una elección en un cuestionario (crear los roles a mano)
+**Resultado:** utilizable con retoques: la guía preveía mal el modo de fallo del verificador SCRAM (véase AI-NOTES)
+
+**Prompt:**
+
+> «la he creado pero no tenía ningún apartado que pusiera connect y me ha dado un prompt que dice que te lo pase para que te conectes, lo
+> hacemos ya? o nos esperamos a noviembre» · (prompt de arranque de Neon pegado) · «ya está creado y con la url de neon»
+
+**Observación.** El prompt de arranque de Neon (`neon init` y `neon deploy`) no se ejecutó: habría escrito la URL del propietario en el
+`.env` raíz, que comparten Compose y la ingesta, y habría cambiado el driver de la web, lo que choca con la regla de las dos credenciales
+de la web. En su lugar, el responsable guardó la URL directa en un fichero fuera del repositorio, y los comandos la usaron sin imprimirla.
+Volcado y recuentos correctos. `deploy` destapó que Neon rechaza el verificador SCRAM: se crearon los roles a mano y `deploy` cerró con
+salida 0 dos veces. La web en local contra el pooler funcionó, y el limitador falló abierto por la latencia de conexión desde casa.

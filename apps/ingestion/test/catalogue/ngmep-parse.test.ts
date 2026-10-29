@@ -69,8 +69,8 @@ describe('parseNgmepCsv (DD-3, R7 resuelto) — cabecera real de MUNICIPIOS.csv 
 
   it('una coordenada o superficie corrupta (más de un separador decimal) falla ruidoso vía parseCommaDecimal, nunca produce NaN en silencio', () => {
     const corruptCsv =
-      'COD_INE;COD_PROV;NOMBRE_ACTUAL;SUPERFICIE;LONGITUD_ETRS89_REGCAN95;LATITUD_ETRS89_REGCAN95\r\n' +
-      '18087000000;18;Granada;8806,81;-3,5,9;37,17428891\r\n';
+      'COD_INE;COD_PROV;NOMBRE_ACTUAL;POBLACION_MUNI;SUPERFICIE;LONGITUD_ETRS89_REGCAN95;LATITUD_ETRS89_REGCAN95\r\n' +
+      '18087000000;18;Granada;232462;8806,81;-3,5,9;37,17428891\r\n';
 
     expect(() => parseNgmepCsv(corruptCsv, ';', NGMEP_FIELD_MAP)).toThrow(MalformedDecimalError);
   });
@@ -93,8 +93,8 @@ describe('parseNgmepCsv (DD-3, R7 resuelto) — cabecera real de MUNICIPIOS.csv 
 describe('parseNgmepCsv (paso 3, PR3) — fila con forma inválida aborta TODA la importación, nombrando la fila', () => {
   it('una fila con NOMBRE_ACTUAL vacío aborta, nombrando el COD_INE de la fila — nunca se descarta en silencio', () => {
     const csvWithEmptyName =
-      'COD_INE;COD_PROV;NOMBRE_ACTUAL;SUPERFICIE;LONGITUD_ETRS89_REGCAN95;LATITUD_ETRS89_REGCAN95\r\n' +
-      '18087000000;18;;8806,81;-3,598691013;37,17428891\r\n';
+      'COD_INE;COD_PROV;NOMBRE_ACTUAL;POBLACION_MUNI;SUPERFICIE;LONGITUD_ETRS89_REGCAN95;LATITUD_ETRS89_REGCAN95\r\n' +
+      '18087000000;18;;232462;8806,81;-3,598691013;37,17428891\r\n';
 
     expect(() => parseNgmepCsv(csvWithEmptyName, ';', NGMEP_FIELD_MAP)).toThrow(MalformedNgmepRowError);
     try {
@@ -108,8 +108,8 @@ describe('parseNgmepCsv (paso 3, PR3) — fila con forma inválida aborta TODA l
 
   it('una fila con COD_INE vacío aborta, nombrando el número de fila', () => {
     const csvWithEmptyCode =
-      'COD_INE;COD_PROV;NOMBRE_ACTUAL;SUPERFICIE;LONGITUD_ETRS89_REGCAN95;LATITUD_ETRS89_REGCAN95\r\n' +
-      ';18;Granada;8806,81;-3,598691013;37,17428891\r\n';
+      'COD_INE;COD_PROV;NOMBRE_ACTUAL;POBLACION_MUNI;SUPERFICIE;LONGITUD_ETRS89_REGCAN95;LATITUD_ETRS89_REGCAN95\r\n' +
+      ';18;Granada;232462;8806,81;-3,598691013;37,17428891\r\n';
 
     expect(() => parseNgmepCsv(csvWithEmptyCode, ';', NGMEP_FIELD_MAP)).toThrow(MalformedNgmepRowError);
     expect(() => parseNgmepCsv(csvWithEmptyCode, ';', NGMEP_FIELD_MAP)).toThrow(/n.\s*2\b/);
@@ -117,8 +117,8 @@ describe('parseNgmepCsv (paso 3, PR3) — fila con forma inválida aborta TODA l
 
   it('un decimal corrupto sigue lanzando MalformedDecimalError sin envolver (comportamiento preexistente intacto)', () => {
     const corruptCsv =
-      'COD_INE;COD_PROV;NOMBRE_ACTUAL;SUPERFICIE;LONGITUD_ETRS89_REGCAN95;LATITUD_ETRS89_REGCAN95\r\n' +
-      '18087000000;18;Granada;8806,81;-3,5,9;37,17428891\r\n';
+      'COD_INE;COD_PROV;NOMBRE_ACTUAL;POBLACION_MUNI;SUPERFICIE;LONGITUD_ETRS89_REGCAN95;LATITUD_ETRS89_REGCAN95\r\n' +
+      '18087000000;18;Granada;232462;8806,81;-3,5,9;37,17428891\r\n';
 
     expect(() => parseNgmepCsv(corruptCsv, ';', NGMEP_FIELD_MAP)).toThrow(MalformedDecimalError);
   });
@@ -127,5 +127,62 @@ describe('parseNgmepCsv (paso 3, PR3) — fila con forma inválida aborta TODA l
     const rows = parseNgmepCsv(FIXTURE_CSV, ';', NGMEP_FIELD_MAP);
     const granada = rows.find((row) => row.entityCode === '18087000000');
     expect(granada?.superficieHectares).toBeCloseTo(8806.81, 2);
+  });
+});
+
+// ROADMAP 3.3 (decisión 249, diseño D14) — población municipal. Una celda
+// con formato inesperado es "desconocida" (null), nunca 0 ni un fallo: la
+// población solo ordena el top-N de la prebúsqueda, y un dato dudoso no debe
+// tumbar las 8132 filas. Los únicos fallos ruidosos son la cabecera ausente
+// y la guarda de deriva del importador.
+const POPULATION_HEADER =
+  'COD_INE;COD_PROV;NOMBRE_ACTUAL;POBLACION_MUNI;SUPERFICIE;LONGITUD_ETRS89_REGCAN95;LATITUD_ETRS89_REGCAN95\r\n';
+
+function csvWithPopulation(...populationCells: readonly string[]): string {
+  const rows = populationCells.map(
+    (cell, index) => `1808${String(index)}000000;18;Municipio ${String(index)};${cell};8806,81;-3,598691013;37,17428891\r\n`
+  );
+  return POPULATION_HEADER + rows.join('');
+}
+
+describe('parseNgmepCsv (3.3, decisión 249) — POBLACION_MUNI', () => {
+  it('S1.1: parsea 232462 como entero 232462 (fixture real de Granada)', () => {
+    const rows = parseNgmepCsv(FIXTURE_CSV, ';', NGMEP_FIELD_MAP);
+
+    expect(rows.find((row) => row.entityCode === '18087000000')?.population).toBe(232462);
+    expect(rows.find((row) => row.entityCode === '01001000000')?.population).toBe(2961);
+  });
+
+  it.each([
+    ['vacía', ''],
+    ['solo espacios', '   '],
+    ['cero (dato ausente, nunca población real)', '0'],
+    ['decimal con punto', '1.234'],
+    ['signo positivo', '+5'],
+    ['signo negativo', '-5'],
+    ['separador de miles con coma', '1,234'],
+    ['texto', 'n/d'],
+    ['por encima de 2^31-1', '2147483648'],
+  ])('S1.2: una celda %s es población desconocida (null) y el parseo no falla', (_label, cell) => {
+    const rows = parseNgmepCsv(csvWithPopulation(cell), ';', NGMEP_FIELD_MAP);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.population).toBeNull();
+  });
+
+  it('S1.2: la frontera 2^31-1 se acepta; una celda inválida no afecta a las demás filas', () => {
+    const rows = parseNgmepCsv(csvWithPopulation('2147483647', 'n/d', '232462'), ';', NGMEP_FIELD_MAP);
+
+    expect(rows.map((row) => row.population)).toEqual([2147483647, null, 232462]);
+    expect(rows.map((row) => row.name)).toEqual(['Municipio 0', 'Municipio 1', 'Municipio 2']);
+  });
+
+  it('una cabecera sin POBLACION_MUNI falla ruidoso con MissingNgmepColumnError nombrando la columna', () => {
+    const withoutPopulation =
+      'COD_INE;COD_PROV;NOMBRE_ACTUAL;SUPERFICIE;LONGITUD_ETRS89_REGCAN95;LATITUD_ETRS89_REGCAN95\r\n' +
+      '18087000000;18;Granada;8806,81;-3,598691013;37,17428891\r\n';
+
+    expect(() => parseNgmepCsv(withoutPopulation, ';', NGMEP_FIELD_MAP)).toThrow(MissingNgmepColumnError);
+    expect(() => parseNgmepCsv(withoutPopulation, ';', NGMEP_FIELD_MAP)).toThrow(/POBLACION_MUNI/);
   });
 });

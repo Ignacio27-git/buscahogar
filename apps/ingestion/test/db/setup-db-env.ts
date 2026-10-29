@@ -11,6 +11,8 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { redirectToTestDatabase } from '@buscahogar/db/test-database';
+
 import { assertDatabaseUrlOrThrow } from '../../src/sweep/db-env-guard.js';
 
 const rootEnvPath = fileURLToPath(new URL('../../../../.env', import.meta.url));
@@ -25,3 +27,8 @@ delete process.env.IDEALISTA_API_KEY;
 delete process.env.IDEALISTA_API_SECRET;
 
 assertDatabaseUrlOrThrow(process.env);
+
+// Decisión 245: ninguna suite alcanza la base de desarrollo. `DATABASE_URL` se reescribe
+// en este proceso hacia `<dev>_ingestion_test` (la que `global-setup.ts` ya creó y
+// migró); los helpers siguen leyendo `DATABASE_URL`.
+redirectToTestDatabase(process.env, 'ingestion', ['DATABASE_URL']);

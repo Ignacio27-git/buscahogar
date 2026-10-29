@@ -4,10 +4,13 @@
 import type { PolygonRing } from '@buscahogar/core';
 
 import type { RawSearchParams } from '@/lib/search-href';
+import type { MapTiles } from '@/lib/tile-config';
 
 // Un punto ya listo para pintar: la etiqueta de precio y el enlace de detalle
 // se calculan en el servidor (`formatPriceCents`, `buildPropertyDetailHref`).
-// `href` es null si la vivienda no tiene anuncio ancla: el popup no enlaza.
+// `href` es null si la vivienda no tiene anuncio ancla: el popup no enlaza. Es la ruta
+// plana `/properties/{id}`: el sufijo de vuelta a la búsqueda lo añade el cliente en el
+// popup (decisión 171), para no repetirlo en cada punto del payload.
 export interface MapPointView {
   readonly id: string;
   readonly lat: number;
@@ -22,4 +25,10 @@ export interface SearchMapProps {
   readonly polygon: PolygonRing | null;
   // Parámetros crudos de la URL: base de los href de dibujar y quitar zona.
   readonly baseParams: RawSearchParams;
+  // D.15 (F2, decisión 194): id del párrafo de ayuda de teclado que renderiza el servidor junto al
+  // mapa. El lienzo lo enlaza con `aria-describedby` en el contenedor de Leaflet.
+  readonly keyboardHelpId: string;
+  // ROADMAP 3.4 (decisión 261): plantilla de teselas y atribución ya resueltas por el servidor. El
+  // navegador pide las teselas directamente al host de la plantilla (el mismo que admite la CSP).
+  readonly tiles: MapTiles;
 }

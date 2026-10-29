@@ -1,0 +1,279 @@
+/* Hoja propia del mapa (D.8a, decisión 165). Sin `@layer`: un estilo sin capa gana siempre a
+   uno con capa, y las hojas de Leaflet y MarkerCluster tampoco la tienen, así que aquí se
+   compite por especificidad y por orden. Cada selector cuelga de `.leaflet-container` más una
+   clase propia (mínimo (0,2,0), por encima de los (0,1,0) a (0,2,1) de los vendors), y esta
+   hoja se importa DESPUÉS de las tres de terceros. Sin prioridades forzadas y sin literales de color:
+   todo sale de los tokens, así que claro y oscuro (los tres bloques) funcionan solos. */
+
+.leaflet-container.search-map__canvas {
+  background-color: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-small);
+  line-height: var(--text-small--line-height);
+}
+
+/* Mientras se dibuja el cursor es una cruz; la clase la alterna `map-draw-control`. */
+.leaflet-container.map-canvas--drawing {
+  cursor: crosshair;
+}
+
+/* Etiqueta de precio. El contenedor lo crea Leaflet con el tamaño del icono (96×24). */
+.leaflet-container .map-marker {
+  background: none;
+  border: none;
+}
+
+.leaflet-container .map-marker:focus-visible,
+.leaflet-container .map-cluster:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.leaflet-container .map-price {
+  box-sizing: border-box;
+  inline-size: 100%;
+  block-size: 100%;
+  padding-inline: 0.375rem;
+  background-color: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--rule-control);
+  border-radius: var(--radius-control);
+  font-size: var(--text-small);
+  line-height: 1.375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Clúster propio (`map-cluster`, no `marker-cluster`): así `MarkerCluster.Default.css` ya no
+   lo pinta de verde y amarillo. Círculo de 40px con un anillo de la hoja. */
+.leaflet-container .map-cluster {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  background-color: var(--accent);
+  color: var(--ink-on-accent);
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  font-size: var(--text-dense);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ventana emergente: precio y enlace «Ver vivienda». */
+.leaflet-container .map-popup .leaflet-popup-content-wrapper,
+.leaflet-container .map-popup .leaflet-popup-tip {
+  background-color: var(--surface-raised);
+  color: var(--ink);
+  box-shadow: var(--shadow-overlay);
+}
+
+.leaflet-container .map-popup .leaflet-popup-content-wrapper {
+  border-radius: var(--radius-panel);
+}
+
+.leaflet-container .map-popup .leaflet-popup-content {
+  margin: 0.75rem 1.5rem 0.75rem 1rem;
+  font-size: var(--text-dense);
+  line-height: var(--text-dense--line-height);
+}
+
+.leaflet-container .map-popup a.leaflet-popup-close-button {
+  display: grid;
+  place-items: center;
+  color: var(--ink-muted);
+  font: inherit;
+  text-indent: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .leaflet-container .map-popup a.leaflet-popup-close-button:hover {
+    color: var(--ink);
+  }
+}
+
+.leaflet-container .map-popup a.leaflet-popup-close-button:focus-visible,
+.leaflet-container .map-popup__link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.leaflet-container .map-popup__price {
+  margin: 0;
+  font-size: var(--text-heading-3);
+  line-height: var(--text-heading-3--line-height);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.leaflet-container a.map-popup__link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.5rem;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* Zoom y atribución con los tokens de la hoja (la atribución sigue siendo legible y visible). */
+.leaflet-container .leaflet-bar {
+  border: 1px solid var(--rule-control);
+  border-radius: var(--radius-control);
+  box-shadow: none;
+}
+
+.leaflet-container .leaflet-bar a {
+  display: grid;
+  place-items: center;
+  font: inherit;
+  text-indent: 0;
+  background-color: var(--surface-raised);
+  color: var(--ink);
+  border-bottom: 1px solid var(--rule-control);
+}
+
+.leaflet-container .leaflet-bar a:focus,
+.leaflet-container .leaflet-bar a:active {
+  background-color: var(--surface);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .leaflet-container .leaflet-bar a:hover {
+    background-color: var(--surface);
+  }
+}
+
+/* Los iconos de zoom y de cierre miden 1rem y sustituyen a los glifos monoespaciados de Leaflet. */
+.leaflet-container .leaflet-bar a .icon,
+.leaflet-container a.leaflet-popup-close-button .icon {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+.leaflet-container .leaflet-bar a.leaflet-disabled {
+  background-color: var(--surface-raised);
+  color: var(--ink-muted);
+}
+
+.leaflet-container .leaflet-control-attribution {
+  background-color: var(--surface-raised);
+  color: var(--ink-muted);
+}
+
+.leaflet-container .leaflet-control-attribution a {
+  color: var(--accent);
+}
+
+/* Zona y dibujo. Los atributos SVG de Leaflet (`stroke`, `fill`) pierden contra estas
+   reglas, que se enganchan por la prop `className` de la capa (no por `pathOptions`, ver map-guards). */
+.leaflet-container path.map-area {
+  stroke: var(--accent);
+  stroke-width: 2px;
+  fill: var(--accent);
+  fill-opacity: 0.12;
+}
+
+.leaflet-container path.map-draw-path {
+  stroke: var(--accent);
+  stroke-width: 2px;
+  stroke-dasharray: 6 4;
+  fill: none;
+}
+
+.leaflet-container path.map-draw-vertex {
+  stroke: var(--surface);
+  stroke-width: 2px;
+  fill: var(--accent);
+  fill-opacity: 1;
+}
+
+/* Anfitrión de la barra y la mira (D.8b): se antepone al marco; no genera caja propia, así
+   que la barra y la mira se posicionan respecto al marco. */
+.map-draw-host {
+  display: contents;
+}
+
+/* Barra de dibujo: HERMANA del contenedor de Leaflet dentro del marco (se monta con un
+   portal). `.leaflet-container` aísla su contexto de apilamiento, así que la barra, fuera de
+   él, usa la capa de controles del mapa por token y queda por encima de todos sus paneles.
+   En fila con salto de línea: una columna llegaba al centro del marco a 320 px y chocaba
+   con la mira (SMV-26). */
+.map-draw-toolbar {
+  position: absolute;
+  inset-block-start: 0.5rem;
+  inset-inline-end: 0.5rem;
+  z-index: var(--z-map-controls);
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  max-inline-size: min(22rem, calc(100% - 4rem));
+  padding: 0.375rem;
+  background-color: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--rule-control);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-raised);
+  font-size: var(--text-dense);
+  line-height: var(--text-dense--line-height);
+}
+
+/* Objetivo táctil mínimo explícito (WCAG 2.5.8). Excepción compacta documentada al relleno
+   único de los botones (decisión 185): la barra flota sobre el mapa. */
+.map-draw-toolbar button {
+  min-block-size: 1.5rem;
+  min-inline-size: 1.5rem;
+  padding: 0.25rem 0.5rem;
+  font-size: inherit;
+}
+
+/* Región de estado: siempre montada. Vacía se recorta de forma visual sin `display: none`
+   (que la sacaría del árbol de accesibilidad y no anunciaría el siguiente mensaje). */
+.map-draw-toolbar p {
+  margin: 0;
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+
+.map-draw-toolbar p:empty {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Mira central (D.8b, SMV-26): anillo `accent` con contorno `ink-on-accent` y punto, de dos
+   tonos para leerse sobre teselas claras en ambos temas. No recibe eventos: un clic en su
+   centro llega al mapa y añade un vértice. */
+.map-draw-crosshair {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  translate: -50% -50%;
+  z-index: var(--z-map-controls);
+  box-sizing: border-box;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  outline: 2px solid var(--ink-on-accent);
+  pointer-events: none;
+}
+
+.map-draw-crosshair::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  translate: -50% -50%;
+  inline-size: 0.25rem;
+  block-size: 0.25rem;
+  border-radius: 50%;
+  background-color: var(--accent);
+  outline: 1px solid var(--ink-on-accent);
+}

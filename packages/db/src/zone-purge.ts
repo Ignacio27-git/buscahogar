@@ -3,13 +3,17 @@
 // `packages/core` (`planZoneMaintenance`: zona con ≥ 180 días sin consultas);
 // este módulo solo la aplica, con el reloj de Postgres (DD-11).
 //
-// Por cada job (zona Z, fuente S), en UNA transacción:
+// Por cada zona Z con jobs de la fuente S (uno por operación, decisión 250), en
+// UNA transacción. La purga es de la ZONA: se bloquean los jobs de las dos
+// operaciones y se purga solo si NINGUNO está en curso y la demanda más
+// reciente de la zona (señales, o el `requested_at` más reciente de sus jobs)
+// supera el umbral:
 //   (a) los anuncios ACTIVOS de S dentro del círculo de Z (`locations.centroid`
 //       + `sweep_radius_m`) y fuera del círculo de cualquier otra zona con job
 //       de S pasan a `inactive` con motivo `zone_purged` (luego siguen el plano
 //       de 180 días del tombstone); su fila de la cola de presencia se borra;
 //   (b) se refresca la visibilidad de sus viviendas;
-//   (c) se borra el job;
+//   (c) se borran los jobs (sale y rent);
 //   (d) y, si ya no queda ningún job de la zona, sus señales;
 //   (e) y la zona vuelve a `uncovered` con `last_swept_at` NULL.
 // La fila de `zones` NUNCA se borra: es el catálogo INE sembrado que consultan
@@ -58,20 +62,24 @@ interface JobRow extends Record<string, unknown> {
 
 async function purgeOneZone(db: Database, request: ZonePurgeRequest, zoneId: string): Promise<boolean> {
   return db.transaction(async (tx): Promise<boolean> => {
-    // Se bloquea el job: nadie lo reclama ni lo re-encola mientras dura la purga.
+    // Se bloquean los jobs de la zona (uno por operación): nadie los reclama ni
+    // los re-encola mientras dura la purga.
     const today = sql`(${utcDayStart()})::date`;
     const jobs = await tx.execute<JobRow>(sql`
       select j.id, j.status,
              (${today} - coalesce(
                (select max(s.day) from zone_query_signals s where s.zone_id = j.zone_id),
-               (j.requested_at at time zone 'utc')::date
-             ))::integer as days_since_last_demand
+               (select max(j2.requested_at) from coverage_jobs j2
+                 where j2.zone_id = j.zone_id and j2.source_id = j.source_id) at time zone 'utc'
+             )::date)::integer as days_since_last_demand
         from coverage_jobs j
        where j.zone_id = ${zoneId}::uuid and j.source_id = ${request.sourceId}::uuid
          for update
     `);
-    const job = jobs.rows[0];
-    if (!job || job.status === 'running' || job.days_since_last_demand < request.purgeAfterDays) {
+    if (
+      jobs.rows.length === 0 ||
+      jobs.rows.some((job) => job.status === 'running' || job.days_since_last_demand < request.purgeAfterDays)
+    ) {
       return false;
     }
 
@@ -118,8 +126,10 @@ async function purgeOneZone(db: Database, request: ZonePurgeRequest, zoneId: str
     // (b) Visibilidad de las viviendas afectadas.
     await refreshPropertyVisibility(tx, { listingIds: retiredIds });
 
-    // (c) El job.
-    await tx.execute(sql`delete from coverage_jobs where id = ${job.id}::uuid`);
+    // (c) Los jobs de la zona y la fuente (venta y alquiler).
+    await tx.execute(sql`
+      delete from coverage_jobs where zone_id = ${zoneId}::uuid and source_id = ${request.sourceId}::uuid
+    `);
 
     // (d, e) Señales y estado de la zona, solo si ninguna otra fuente la sigue
     // cubriendo: la demanda y el estado son de la zona, no de una fuente.

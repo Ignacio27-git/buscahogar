@@ -19,7 +19,11 @@ import { useRouter } from 'next/navigation';
 
 import type { CoverageJobState } from '@buscahogar/db';
 
-import { REFRESH_INTERVAL_MS, shouldKeepRefreshing } from './coverage-status-policy';
+import {
+  REFRESH_INTERVAL_MS,
+  describeRefresh,
+  shouldKeepRefreshing,
+} from './coverage-status-policy';
 
 export interface CoverageStatusProps {
   readonly job: CoverageJobState;
@@ -42,12 +46,9 @@ export function CoverageStatus({ job }: CoverageStatusProps): ReactElement | nul
     };
   }, [job.status, refreshCount, router]);
 
-  // Mejora silenciosa: si el estado ya es terminal o el techo de refrescos
-  // se alcanzó, este componente no añade nada — page.tsx ya renderizó el
-  // estado final en su rama server-rendered.
-  if (!shouldKeepRefreshing(job.status, refreshCount)) {
-    return null;
-  }
-
-  return <p aria-live="polite">Comprobando de nuevo automáticamente…</p>;
+  // D.13: el estado lo anuncia la región viva del servidor (`CoverageNotice`);
+  // este componente solo explica el refresco, sin `aria-live` propio, para no
+  // duplicar anuncios. En estado terminal no añade nada.
+  const text = describeRefresh(job.status, refreshCount);
+  return text === null ? null : <p>{text}</p>;
 }

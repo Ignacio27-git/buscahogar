@@ -11,7 +11,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vite
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import type { Database } from '@buscahogar/db';
-import { consumeClientQuota, geographyPointWkt, locations, sources, zones } from '@buscahogar/db';
+import { consumeClientQuota, coverageJobs, geographyPointWkt, locations, properties, sources, zones } from '@buscahogar/db';
 import { registerCoverageJob } from '@buscahogar/db';
 
 import { connectTestDb, truncateAll } from '../helpers/db-client.js';
@@ -33,6 +33,13 @@ vi.mock('@/components/coverage-status', () => ({
   CoverageStatus: (): null => null,
 }));
 
+// D.8a: toda búsqueda válida renderiza también la sección del mapa. El wrapper de cliente
+// (`next/dynamic`, ssr:false) no se puede renderizar sin navegador, así que se sustituye por
+// un doble inerte; la consulta de puntos sí corre contra la base de datos real.
+vi.mock('@/components/search-map', () => ({
+  SearchMap: (): null => null,
+}));
+
 // ROADMAP 1.15 (security-hardening, validador notes obs #263) — "page test
 // asserts the next/headers mock is NOT called when CLIENT_IP_HEADER is
 // unset". `CLIENT_IP_HEADER` se borra en el `beforeEach` de abajo, así que
@@ -42,7 +49,7 @@ vi.mock('@/components/coverage-status', () => ({
 const headersMock = vi.fn();
 vi.mock('next/headers', () => ({ headers: headersMock }));
 
-const { default: HomePage } = await import('../../src/app/page.js');
+const { default: HomePage } = await import('../../src/app/(search)/page.js');
 
 async function insertMunicipality(
   db: Database,
@@ -76,6 +83,23 @@ async function insertMunicipality(
     .returning({ id: zones.id });
   if (!zone) {
     throw new Error('No se pudo insertar la zona de prueba');
+  }
+  // Decisión 251 (PD9): una zona «cubierta» lo es porque sus operaciones tienen `last_completed_at`;
+  // `zones.state` por sí solo ya no la da por cubierta. Se siembran venta y alquiler completados.
+  if (overrides.state === 'covered') {
+    const [source] = await db.select({ id: sources.id }).from(sources);
+    if (!source) {
+      throw new Error('Sin fuente de prueba');
+    }
+    await db.insert(coverageJobs).values(
+      (['sale', 'rent'] as const).map((operation) => ({
+        zoneId: zone.id,
+        sourceId: source.id,
+        operation,
+        status: 'done' as const,
+        lastCompletedAt: new Date(),
+      }))
+    );
   }
   return { locationId: location.id, zoneId: zone.id };
 }
@@ -132,7 +156,7 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     await insertMunicipality(db, { ineCode, municipality: 'Zona Cubierta', searchName: 'zona cubierta', state: 'covered', centroid: { latitude: 37.1, longitude: -3.6 } });
 
     const html = await renderHome({ zone: ineCode });
-    expect(html).not.toMatch(/no hay cobertura|límite diario|no se ha encontrado ningún municipio/i);
+    expect(html).not.toContain('coverage-notice');
   });
 
   it('zona uncovered con job YA registrado: markup server-rendered muestra el estado Y un enlace de recarga plano con href real', async () => {
@@ -145,11 +169,14 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     });
     const [sourceRow] = await db.select({ id: sources.id }).from(sources);
     if (!sourceRow) throw new Error('sin source');
-    await registerCoverageJob(db, zoneId, sourceRow.id);
+    await registerCoverageJob(db, zoneId, sourceRow.id, 'rent');
 
     const html = await renderHome({ zone: ineCode });
-    expect(html).toMatch(/pendiente/i);
-    expect(html).toMatch(/href="\/\?zone=/);
+    expect(html).toContain('La actualización de Zona Pendiente está en cola.');
+    // D.13: una sola región viva, sin aria-live, y el enlace de recarga plano con href real.
+    expect(html.match(/role="(status|alert)"/g)).toEqual(['role="status"']);
+    expect(html).not.toContain('aria-live');
+    expect(html).toMatch(/<a href="\/\?zone=[^"]*">Comprobar de nuevo<\/a>/);
   });
 
   it('DD-14: tope de zonas nuevas agotado: notificación NOMBRADA, cero filas nuevas en coverage_jobs', async () => {
@@ -163,13 +190,16 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     });
     const [sourceRow] = await db.select({ id: sources.id }).from(sources);
     if (!sourceRow) throw new Error('sin source');
-    await registerCoverageJob(db, already.zoneId, sourceRow.id);
+    await registerCoverageJob(db, already.zoneId, sourceRow.id, 'rent');
 
     const ineCode = randomIneCode();
     await insertMunicipality(db, { ineCode, municipality: 'Sin Plaza', searchName: 'sin plaza', centroid: { latitude: 37.2, longitude: -3.7 } });
 
     const html = await renderHome({ zone: ineCode });
     expect(html).toMatch(/límite diario/i);
+    // D.13: sin enlace de recarga (recargar no cambia el estado) y sin «UTC».
+    expect(html).not.toContain('>Comprobar de nuevo</a>');
+    expect(html).not.toMatch(/UTC|mañana/);
     // validador notes obs #263: con CLIENT_IP_HEADER sin definir,
     // resolveCoverageClientLimit() nunca invoca next/headers.
     expect(headersMock).not.toHaveBeenCalled();
@@ -219,12 +249,89 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     await insertMunicipality(db, { ineCode, municipality: 'Sin Centroide', searchName: 'sin centroide' });
 
     const html = await renderHome({ zone: ineCode });
-    expect(html).toMatch(/no hay cobertura disponible/i);
+    expect(html).toContain('Todavía no hay viviendas de Sin Centroide.');
+    expect(html).not.toContain('>Comprobar de nuevo</a>');
   });
 
   it('código INE bien formado pero desconocido: notificación distinta de la anterior', async () => {
     const html = await renderHome({ zone: '00000' });
-    expect(html).toMatch(/no se ha encontrado ningún municipio/i);
+    expect(html).toContain('El enlace lleva un municipio que no existe.');
+    expect(html).not.toContain('>Comprobar de nuevo</a>');
+  });
+
+  // D.18 (decisión 224) — una zona con centroide y radio SIEMPRE aplica su filtro geográfico, esté o no
+  // cubierta; una zona inlocalizable no consulta nada. Dos viviendas: una dentro del radio de barrido
+  // (4500 m) de la zona y otra a más de 100 km.
+  async function seedNearAndFar(centre: { latitude: number; longitude: number }): Promise<void> {
+    await db.insert(properties).values([
+      { activeListingCount: 1, location: { x: centre.longitude, y: centre.latitude + 0.005 } },
+      { activeListingCount: 1, location: { x: centre.longitude, y: centre.latitude + 1.5 } },
+    ]);
+  }
+
+  it('D.18: zona SIN cubrir con centroide y radio: solo salen las viviendas de su radio, en lista y mapa', async () => {
+    const ineCode = randomIneCode();
+    const centre = { latitude: 37.1, longitude: -3.6 };
+    const { zoneId } = await insertMunicipality(db, {
+      ineCode,
+      municipality: 'Zona Sin Cubrir',
+      searchName: 'zona sin cubrir',
+      centroid: centre,
+    });
+    const [sourceRow] = await db.select({ id: sources.id }).from(sources);
+    if (!sourceRow) throw new Error('sin source');
+    // Con el job ya registrado la página no escribe nada: solo lee el estado.
+    await registerCoverageJob(db, zoneId, sourceRow.id, 'rent');
+    await seedNearAndFar(centre);
+
+    const html = await renderHome({ zone: ineCode });
+    expect(html).toContain('1 resultado');
+    expect(html).not.toContain('2 resultados');
+    expect(html).toContain('1 vivienda con ubicación coincide');
+    expect(html).toContain('Zona: Zona Sin Cubrir');
+    expect(html).not.toContain('sin datos todavía');
+    expect(html).not.toContain('Mientras tanto');
+    // El aviso de cobertura sigue explicando el estado de la zona.
+    expect(html).toContain('La actualización de Zona Sin Cubrir está en cola.');
+  });
+
+  it('D.18: zona cubierta con centroide y radio: el mismo filtro geográfico', async () => {
+    const ineCode = randomIneCode();
+    const centre = { latitude: 37.1, longitude: -3.6 };
+    await insertMunicipality(db, {
+      ineCode,
+      municipality: 'Zona Cubierta Geo',
+      searchName: 'zona cubierta geo',
+      state: 'covered',
+      centroid: centre,
+    });
+    await seedNearAndFar(centre);
+
+    const html = await renderHome({ zone: ineCode });
+    expect(html).toContain('1 resultado');
+    expect(html).not.toContain('2 resultados');
+    expect(html).not.toContain('coverage-notice');
+  });
+
+  it('D.18: zona SIN centroide (inlocalizable): no consulta, lista vacía y su aviso, aunque haya viviendas', async () => {
+    const ineCode = randomIneCode();
+    await insertMunicipality(db, { ineCode, municipality: 'Sin Centroide Geo', searchName: 'sin centroide geo' });
+    await seedNearAndFar({ latitude: 37.1, longitude: -3.6 });
+
+    const html = await renderHome({ zone: ineCode });
+    expect(html).toContain('0 resultados');
+    expect(html).toContain('0 viviendas con ubicación coinciden');
+    expect(html).toContain('Todavía no hay viviendas de Sin Centroide Geo.');
+    expect(html).not.toContain('result-list');
+  });
+
+  it('D.18: zona desconocida: lista vacía y su aviso, nunca una búsqueda sin zona', async () => {
+    await seedNearAndFar({ latitude: 37.1, longitude: -3.6 });
+
+    const html = await renderHome({ zone: '00000' });
+    expect(html).toContain('El enlace lleva un municipio que no existe.');
+    expect(html).toContain('0 resultados');
+    expect(html).not.toContain('2 resultados');
   });
 
   it('CR-10/DD-19: ?zoneQuery= renderiza sugerencias JUNTO a los resultados existentes, en la MISMA respuesta', async () => {
@@ -319,7 +426,7 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     try {
       const html = await renderHome({ zone: ineCode });
 
-      expect(html).toMatch(/resultados? en esta página/);
+      expect(html).toMatch(/\d+ resultados?/);
       expect(errorSpy).toHaveBeenCalledTimes(1);
       expect(String(errorSpy.mock.calls[0]?.[0])).toMatch(/señal de demanda.*WEB_COVERAGE_DATABASE_URL/);
     } finally {
@@ -345,7 +452,7 @@ describeWithDb('HomePage — los tres casos honestos de degradación (D6, DD-14,
     try {
       const html = await renderHome({ zone: ineCode });
 
-      expect(html).toMatch(/resultados? en esta página/);
+      expect(html).toMatch(/\d+ resultados?/);
       expect(fetchSpy).not.toHaveBeenCalled();
     } finally {
       fetchSpy.mockRestore();

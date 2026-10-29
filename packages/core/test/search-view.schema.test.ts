@@ -13,9 +13,9 @@ describe('searchViewSchema', () => {
     expect(searchViewSchema.parse(value)).toBe(value);
   });
 
-  it.each(['satellite', '', 'MAP', ' map', ['map', 'list']])('rechaza %j con mensaje que nombra view', (value) => {
+  it.each(['satellite', '', 'MAP', ' map', ['map', 'list']])('rechaza %j con el mensaje «elige lista o mapa.»', (value) => {
     const result = searchViewSchema.safeParse(value);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.error.issues[0]?.message).toContain('view');
+    if (!result.success) expect(result.error.issues[0]?.message).toBe('elige lista o mapa.');
   });
 });

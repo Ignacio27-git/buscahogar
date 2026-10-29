@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" fill="none">
+  <style>.i{stroke:#1e1c19}.h{fill:#1f5fa8}@media (prefers-color-scheme:dark){.i{stroke:oklch(92% 0.012 85)}.h{fill:oklch(72% 0.12 252)}}</style>
+  <circle class="i" cx="13.5" cy="13.5" r="10" stroke-width="3"/>
+  <path class="i" d="M21 21l7.5 7.5" stroke-width="4" stroke-linecap="round"/>
+  <path class="h" fill-rule="evenodd" d="M13.5 7.5 18.5 12v6.5h-10V12Zm-1 6.5h2v4.5h-2Z"/>
+</svg>
