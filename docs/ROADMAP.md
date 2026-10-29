@@ -2296,7 +2296,13 @@ decisión 273: Vercel Hobby, Neon Free en Frankfurt y ningún worker. Los datos 
 - Vercel también detecta `apps/ingestion` como «Container project» por su `Dockerfile`. **No se despliega**: es el worker, que lleva
   credenciales de la fuente y gasta cuota (decisión 273).
 
-**Pendiente del responsable:** cambiar la región a `fra1`, subir y desplegar el commit del marcador, y comprobar de nuevo la latencia.
+- Hecho el 2026-10-29 por el responsable: región cambiada a `fra1` y marcador desplegado desde `master`. Comprobado: `X-Vercel-Id:
+  cdg1::fra1` en tres peticiones; la portada tarda unos 0,42 s y una búsqueda de alquiler unos 0,41 s (antes, unos 0,9 s). **Las fotos
+  siguen dando 404**: `/_next/image` responde desde el punto de entrada (`X-Vercel-Id: cdg1::…`, sin región de función), así que cambiar
+  la región no afecta al optimizador. En un navegador real, las 24 filas de alquiler terminan en «Sin foto» y ninguna muestra el icono de
+  imagen rota.
+
+**Pendiente del responsable:** actualizar los datos tras el barrido de noviembre (sección «Actualizar los datos» de la guía).
 
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.

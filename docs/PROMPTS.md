@@ -2428,3 +2428,20 @@ de Vercel recibía un 404 del CDN de Idealista, así que se pintaba el icono de 
 `onError` (decisión 274). Los tests de la vista se escribieron en rojo primero y el comportamiento se comprobó en un navegador real
 forzando el 404. El hook de impeccable marcó un literal `<img` dentro de una aserción. Era un falso positivo, pero se corrigió
 comprobando `data-nimg` en lugar de suprimir el aviso.
+
+---
+
+### 2026-10-29 — Comprobación de la región `fra1` y de las fotos en Vercel (paso 3.4b)
+
+**Tipo de tarea:** verificación
+**Forma de especificación:** aviso de que el cambio estaba hecho, tras una captura de Neon que discutía el hallazgo de la región
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «imposible, la bbdd de neon están en frankfurt como puedes ver en la imagen adjunta. además porque no funcionan las imágenes en la web
+> desplegada en vercel?» · «ya he hecho el cambio»
+
+**Observación.** La captura era correcta, pero se refería a otra pieza: Neon sí estaba en Frankfurt, y lo que estaba en Washington eran las
+funciones de Vercel. Tras el cambio, `X-Vercel-Id` pasa a `cdg1::fra1` y la página baja de unos 0,9 s a unos 0,4 s. Las fotos siguen
+dando 404, porque el optimizador no se ejecuta en la región de funciones, y el marcador desplegado las sustituye bien.

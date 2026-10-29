@@ -181,7 +181,8 @@ registra `store-unavailable` y deja pasar todas las peticiones: falla abierto. N
 `web_coverage` funciona. Desde Vercel en `fra1` la conexión debería caber en el plazo, y la comprobación 5 lo confirma.
 
 **Fotos.** En Vercel, las fotos de Idealista no cargan: el CDN de la fuente devuelve 404 al optimizador de imágenes (decisión 274). La
-web muestra «Sin foto» en las filas y «Foto no disponible» en el detalle. Si el tribunal pregunta, es un límite de la fuente, no de la
+web muestra «Sin foto» en las filas y «Foto no disponible» en el detalle. Cambiar la región de funciones no lo arregla: el optimizador
+responde desde el punto de entrada de Vercel, no desde `fra1` (comprobado el 2026-10-29). Si el tribunal pregunta, es un límite de la fuente, no de la
 aplicación; en local sí se ven. Vercel también propone desplegar `apps/ingestion` como «Container project»: **no lo hagas**, porque es el
 worker.
 
