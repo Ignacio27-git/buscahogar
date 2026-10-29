@@ -7575,6 +7575,30 @@ al paso 3.5.
 
 ---
 
+## 274 — Las fotos remotas que no cargan caen a un marcador; el allowlist de `'use client'` crece en una entrada (enmienda la 186)
+
+**Contexto.** En la demo desplegada en Vercel (paso 3.4b), el optimizador de imágenes recibe un 404 al pedir las fotos al CDN de
+Idealista (`X-Vercel-Error: NOT_FOUND`), mientras que desde un equipo doméstico la misma URL da 200. Lo más probable es que el CDN
+rechace las peticiones desde centros de datos, aunque no se ha podido comprobar desde una IP de servidor. El navegador pintaba el icono
+de imagen rota en cada fila y en la galería del detalle. Las fotos del CDN también caducan, así que en producción pasará lo mismo con el
+tiempo.
+
+**Decisión.** Un componente de cliente, `components/fallback-image.tsx`, envuelve `next/image` y, ante `onError`, pinta el marcador que
+le pasa el llamador: el mismo «Sin foto» de una fila sin miniatura y «Foto no disponible» dentro de la caja 4:3 de la galería. Un error
+anterior a la hidratación no se pierde, porque `next/image` reasigna `src` al montar cuando hay `onError` (comprobado en
+`next/dist/client/image-component.js`). El allowlist de `no-client-directive.test.ts` pasa de 4 a 5 entradas.
+
+**Alternativas descartadas.** (1) Pedir las fotos directamente al CDN desde el navegador (`unoptimized`): obligaría a abrir la CSP a
+`img4.idealista.com`, y la regla del proyecto solo admite ahí el host de las teselas (decisiones 080 y 112). (2) Un proxy de imágenes
+propio: saldría desde la misma red de Vercel y es casi seguro que recibiría el mismo rechazo. (3) Una solución solo con CSS: no hay forma
+de detectar en CSS que una imagen ha fallado, y Chrome pinta el icono roto aunque el `alt` esté vacío. (4) Dejarlo como estaba: el icono
+roto en todas las filas daba una mala impresión en la defensa.
+
+**Motivo.** Es el cambio mínimo que convierte un fallo visible en un estado normal y ya diseñado. Recuperar las fotos en producción
+(acuerdo con la fuente, otra ruta de descarga o guardar copias propias) queda para el paso 3.5.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

@@ -2408,3 +2408,23 @@ pre-barrido de noviembre.
 de la web. En su lugar, el responsable guardó la URL directa en un fichero fuera del repositorio, y los comandos la usaron sin imprimirla.
 Volcado y recuentos correctos. `deploy` destapó que Neon rechaza el verificador SCRAM: se crearon los roles a mano y `deploy` cerró con
 salida 0 dos veces. La web en local contra el pooler funcionó, y el limitador falló abierto por la latencia de conexión desde casa.
+
+---
+
+### 2026-10-29 — Revisión de la demo en Vercel y marcador para las fotos que no cargan (paso 3.4b)
+
+**Tipo de tarea:** revisión y corrección (fix con TDD)
+**Forma de especificación:** URL desplegada con petición de revisión, captura de pantalla y una elección en un cuestionario
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «ya está desplegado y funciona bien: https://buscahogar.vercel.app/ para que revises la web y valores. además te he adjuntado una
+> captura porque me dice que detecta otro posible despliegue, a que se refiere?»
+
+**Observación.** El «otro despliegue» era `apps/ingestion`, que Vercel detecta por su `Dockerfile`. No se despliega, porque es el worker.
+La revisión con curl y Playwright encontró dos fallos que no se veían a simple vista: la región era `iad1` y no `fra1`, y el optimizador
+de Vercel recibía un 404 del CDN de Idealista, así que se pintaba el icono de imagen rota. El responsable eligió un marcador ante
+`onError` (decisión 274). Los tests de la vista se escribieron en rojo primero y el comportamiento se comprobó en un navegador real
+forzando el 404. El hook de impeccable marcó un literal `<img` dentro de una aserción. Era un falso positivo, pero se corrigió
+comprobando `data-nimg` en lugar de suprimir el aviso.

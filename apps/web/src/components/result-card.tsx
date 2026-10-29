@@ -17,7 +17,8 @@
 // de proporción fija (`.result-row__media`), de modo que no hay salto de
 // maquetación. Tipo y operación salen de los rótulos de decisión 134; la
 // política de `alt` vive en `resolveThumbnailAlt`.
-import Image from 'next/image';
+//
+// Paso 3.4b (decisión 274): una miniatura que no carga cae al mismo «Sin foto» que una fila sin miniatura.
 import type { ReactElement } from 'react';
 
 import type { PropertySearchResult } from '@buscahogar/db';
@@ -27,6 +28,7 @@ import { buildPropertyDetailHref } from '@/lib/property-href';
 import { operationLabel, propertyTypeLabel } from '@/lib/search-labels';
 import type { SearchReturnParams } from '@/lib/search-return-params';
 
+import { FallbackImage } from './fallback-image';
 import { resolveThumbnailAlt, resolveThumbnailSource } from './thumbnail-source';
 
 export interface ResultCardProps {
@@ -52,19 +54,22 @@ export function ResultCard({ result, returnParams = [] }: ResultCardProps): Reac
   const operationText = operationLabel(result.operation);
   const kind = `${typeText} · ${operationText ?? 'Operación no disponible'}`;
 
+  const noPhoto = <span aria-hidden="true">Sin foto</span>;
+
   const content = (
     <>
       <div className="result-row__media">
         {thumbnail.kind === 'thumbnail' ? (
-          <Image
+          <FallbackImage
             src={thumbnail.url}
             alt={resolveThumbnailAlt(result)}
             fill
             sizes={THUMBNAIL_SIZES}
             className="result-row__img"
+            fallback={noPhoto}
           />
         ) : (
-          <span aria-hidden="true">Sin foto</span>
+          noPhoto
         )}
       </div>
       <h2 className={priceMissing ? 'result-row__price result-row__price--missing' : 'result-row__price tabular-nums'}>

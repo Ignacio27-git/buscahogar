@@ -2284,8 +2284,19 @@ decisión 273: Vercel Hobby, Neon Free en Frankfurt y ningún worker. Los datos 
   y los permisos están bien. Queda por confirmar desde Vercel `fra1`.
 - Las URL del pooler para Vercel y los secretos están en ficheros fuera del repositorio, en el perfil del responsable.
 
-**Pendiente del responsable:** crear el proyecto en Vercel (pasos 4 y 5 de la guía) y anotar aquí la URL y si el limitador escribe en
-`proxy_rate_limit` desde `fra1`.
+- Hecho el 2026-10-29 por el responsable: proyecto de Vercel creado y desplegado en **https://buscahogar.vercel.app/**. Revisado desde la
+  herramienta: `/api/health` responde ok, la búsqueda en Granada devuelve 24 resultados, el detalle carga, la CSP y HSTS están presentes,
+  `robots.txt` bloquea el rastreo y `/sitemap.xml` está vacío. **El limitador escribe** en `proxy_rate_limit` (1 fila y 8 peticiones).
+- **Hallazgo: la región quedó en `iad1` (Washington)** (`X-Vercel-Id: cdg1::iad1`), no en `fra1`. Cada consulta a Neon cruza el
+  Atlántico y la página tarda unos 0,9 s. Hay que cambiarla en Settings → Functions y volver a desplegar.
+- **Hallazgo: las fotos no cargan en Vercel.** El optimizador recibe un 404 del CDN de Idealista (`X-Vercel-Error: NOT_FOUND` tras validar
+  la petición), mientras que desde un equipo doméstico la misma URL da 200. Lo más probable es que el CDN bloquee las peticiones desde
+  centros de datos. Se veía el icono de imagen rota. Corregido con un marcador ante `onError` (decisión 274, commit `4a5dc7e`, TDD). Se
+  comprobó en un navegador real forzando el 404: las 24 filas muestran «Sin foto» y la galería muestra «Foto no disponible».
+- Vercel también detecta `apps/ingestion` como «Container project» por su `Dockerfile`. **No se despliega**: es el worker, que lleva
+  credenciales de la fuente y gasta cuota (decisión 273).
+
+**Pendiente del responsable:** cambiar la región a `fra1`, subir y desplegar el commit del marcador, y comprobar de nuevo la latencia.
 
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
@@ -2319,6 +2330,8 @@ copias). Antes de abrir la web al público, revisa los textos legales y las cond
 - [ ] Decidir si hace falta agregar las direcciones IPv6 por `/64` en la clave del limitador.
 - [ ] Primera copia real, simulacro de restauración completo y programación diaria de la copia.
 - [ ] Proveedor de teselas con acuerdo (clave publicable restringida por dominio) y su atribución.
+- [ ] Fotos de Idealista desde Vercel: el CDN rechaza al optimizador (hallazgo del 3.4b, decisión 274). Decidir la vía: un acuerdo con la
+      fuente, otra ruta de descarga o guardar copias propias en la ingesta.
 - [ ] Condiciones de Idealista revisadas **antes** de activar `SITE_INDEXING=true`.
 - [ ] Rellenar `LEGAL_OWNER_*`, revisar los textos legales y nombrar a los encargados del tratamiento en la política de privacidad.
 - [ ] Comprobar que `.env.example` recoge las variables nuevas y decidir qué hacer con el servicio `web` de `docker-compose.yml`.

@@ -141,7 +141,7 @@ Resultado obtenido el 2026-10-29:
 | Install Command | por defecto (`pnpm install`) |
 | Node.js Version | 22.x |
 | Production Branch (Settings → Git) | la rama que quieras enseñar |
-| Function Region (Settings → Functions) | Frankfurt (`fra1`), junto a Neon |
+| Function Region (Settings → Functions) | Frankfurt (`fra1`), junto a Neon. **Compruébalo después del primer despliegue**: en la demo quedó en `iad1` (Washington). La cabecera `X-Vercel-Id` dice qué región responde (`…::fra1::…`) |
 
 Hace falta cambiar el Build Command porque `packages/core` y `packages/db` publican `dist/`, que no está en git. Con `...`, pnpm compila
 primero las dependencias del espacio de trabajo y después la web. Se comprobó en local el 2026-10-29.
@@ -179,6 +179,11 @@ web, **nunca** a `neondb_owner`.
 Frankfurt, conectar tarda unos 300 ms (medido el 2026-10-29; la consulta, unos 50 ms). Por eso, una web arrancada **en local** contra Neon
 registra `store-unavailable` y deja pasar todas las peticiones: falla abierto. No es un problema de permisos, porque la inserción como
 `web_coverage` funciona. Desde Vercel en `fra1` la conexión debería caber en el plazo, y la comprobación 5 lo confirma.
+
+**Fotos.** En Vercel, las fotos de Idealista no cargan: el CDN de la fuente devuelve 404 al optimizador de imágenes (decisión 274). La
+web muestra «Sin foto» en las filas y «Foto no disponible» en el detalle. Si el tribunal pregunta, es un límite de la fuente, no de la
+aplicación; en local sí se ven. Vercel también propone desplegar `apps/ingestion` como «Container project»: **no lo hagas**, porque es el
+worker.
 
 ## El día de la presentación
 
