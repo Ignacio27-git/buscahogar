@@ -2370,3 +2370,22 @@ lo invalida. El registro anota solo las llamadas reales (decisión 272). La revi
 de larga duración, y se corrigió con el mismo mecanismo. `sweep-zone` no estaba afectado. La reserva de token se mantuvo en 1: reservar
 0 con un token vigente habría podido dejar sin anotar un token pedido, porque la reconciliación mensual solo reembolsa. Tests en rojo
 primero: 4 de base de datos y el unitario del decorador.
+
+---
+
+### 2026-10-29 — Guía de despliegue de demostración para la defensa (paso 3.4b, nuevo)
+
+**Tipo de tarea:** documentación y operación (medición y comprobación de build; sin cambios de código)
+**Forma de especificación:** pregunta abierta del responsable y confirmaciones breves a propuestas del asistente
+**Resultado:** utilizable sin cambios (pendiente de que el responsable lo ejecute)
+
+**Prompt:**
+
+> «la aplicación podemos desplegarla sin pagar? únicamente para pasar una url a la que acceder para la presentación del tfm» · «si» ·
+> «porque el paso 3.5 es en producción serio no? y nosotros queremos algo reducido para la entrega del tfm» · «si»
+
+**Observación.** Antes de escribir la guía se midió la base (129 MB, cabe en Neon Free) y se probó el build. La prueba sacó a la luz que en
+Vercel `next build` por sí solo fallaría, porque `packages/core` y `packages/db` exportan un `dist/` que no está versionado. El Build
+Command de la guía compila primero las dependencias. Al revisar la base también se vio que solo Granada está cubierta y que las 12 ciudades
+del pre-barrido tienen jobs pendientes. Sin worker, esos jobs no avanzan, y por eso la guía recomienda hacer la foto después del
+pre-barrido de noviembre.

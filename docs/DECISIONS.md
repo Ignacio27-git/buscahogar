@@ -7547,6 +7547,27 @@ de vigencia desconocida en un proceso de larga duración.
 
 ---
 
+## 273 — Demo de la defensa en planes gratuitos, sin worker y con datos de foto fija (paso 3.4b)
+
+**Contexto.** La defensa del TFM necesita una URL pública, y el paso 3.5 (producción real, Vercel Pro, worker siempre encendido, copias y
+avisos) no empieza hasta que el TFM esté aprobado.
+
+**Decisión.** Hacer un despliegue de demostración con la arquitectura de la decisión 254 reducida al mínimo: `apps/web` en Vercel Hobby, la
+base en Neon Free (Frankfurt) y ningún worker. Los datos se copian una vez desde la base de desarrollo, con
+`pg_restore --no-owner --no-privileges` seguido de `deploy`, la misma ruta que el simulacro de restauración. Se mantienen los dos roles de
+la web a través del pooler, los limitadores activados y `SITE_INDEXING=false`. Procedimiento en `docs/DEMO-DEPLOYMENT.md`.
+
+**Alternativas descartadas.** (1) Adelantar el paso 3.5: tiene coste y supone operación continua antes de que el responsable lo haya
+decidido. (2) Servir la web desde el portátil con un túnel (ngrok o similar): la URL depende de que el equipo esté encendido y conectado,
+y saca de casa la base de desarrollo. (3) Arrancar el worker en la demo: gasta cuota de Idealista sin necesidad y exige un host siempre
+encendido. (4) Usar un `pg_dump` con roles y privilegios: los roles son globales, y sus secretos y privilegios tienen que salir de `deploy`,
+no del volcado.
+
+**Motivo.** Es gratis, no gasta cuota y no se aparta de las reglas de credenciales. Además, adelanta las dos comprobaciones sobre Neon
+(verificador SCRAM y `jit`) que el paso 3.5 necesita saber.
+
+---
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

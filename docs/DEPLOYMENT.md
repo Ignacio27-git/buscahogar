@@ -5,6 +5,9 @@ hacer cuando algo se atasca y qué queda por hacer en el paso 3.5. El código y 
 MinIO y simulacros); **nada de esto crea cuentas ni gasta dinero**: aprovisionar Vercel, Neon, el host del worker, el almacenamiento y
 Telegram, el dominio y el primer despliegue real son el paso 3.5 (ver «Paso 3.5: lista de traspaso»).
 
+Para una URL de demostración gratuita, como la de la defensa del TFM, y sin worker, ver `docs/DEMO-DEPLOYMENT.md` (paso 3.4b,
+decisión 273).
+
 Decisiones y motivos: `docs/DECISIONS.md` (254 y 255–265). Arquitectura: `docs/ARCHITECTURE.md`, «Infraestructura».
 
 ## Ruta rápida

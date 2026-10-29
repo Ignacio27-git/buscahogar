@@ -2251,6 +2251,33 @@ aceptar verificadores SCRAM ya calculados ni `ALTER ROLE … SET jit`: ambos cas
 
 ---
 
+## [ ] 3.4b · Despliegue de demostración para la defensa del TFM
+
+Petición del responsable (2026-10-27): una URL pública y gratuita para la presentación del TFM, sin adelantar el paso 3.5.
+
+```text
+¿La aplicación podemos desplegarla sin pagar? Únicamente para pasar una URL a la que acceder para la presentación del TFM.
+```
+
+**Notas:**
+
+**Estado: guía escrita (2026-10-29); el aprovisionamiento queda en manos del responsable.** Procedimiento en `docs/DEMO-DEPLOYMENT.md`,
+decisión 273: Vercel Hobby, Neon Free en Frankfurt y ningún worker. Los datos son una foto fija de la base de desarrollo restaurada con
+`pg_restore --no-owner --no-privileges` y aprovisionada con `deploy`, la misma ruta que el simulacro de restauración.
+
+- Medido el 2026-10-29: la base de desarrollo ocupa 129 MB (`dedup_pair_evidence` 57 MB, `properties` 22 MB, `listing_versions` 19 MB),
+  con 4 413 anuncios y 4 328 viviendas. Cabe en el límite de 0,5 GB de Neon Free sin recortar nada.
+- Hallazgo: `packages/core` y `packages/db` exportan `dist/`, que no está versionado. En Vercel, `next build` por sí solo fallaría. El
+  Build Command es `pnpm --filter "@buscahogar/web..." build`, que compila primero las dependencias del espacio de trabajo. Se comprobó
+  en local con salida correcta.
+- Recomendación: volcar la foto después del pre-barrido de noviembre y de su `reprocess` (paso 3.3).
+- La demo adelanta dos comprobaciones del paso 3.5 sobre Neon: si acepta el verificador SCRAM ya calculado y si `jit` queda apagado por
+  rol. Hay que registrar aquí el resultado.
+
+**Pendiente del responsable:** las cuentas de Neon y Vercel, los pasos 1-5 de la guía y anotar aquí la URL y el resultado de `deploy`.
+
+---
+
 ## [ ] 3.5 · Aprovisionamiento y puesta en marcha
 
 Decisión de producto del responsable (2026-10-21): la puesta en marcha real no ocurre hasta que el TFM esté aprobado. Este paso agrupa todo lo
@@ -2386,3 +2413,4 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-23 | 3.4 | Los tramos de retención de las copias son disjuntos, así que el escenario de la especificación «20 copias diarias → 7 + 4 + 3» no es alcanzable literalmente: 20 días conservan 9 y 120 días, 14 (S7) | Con tramos que se solaparan, la cuenta sería ambigua. Con tramos disjuntos se llega a 7 + 4 + 3 con unos cuatro meses de historia. Documentado en `docs/DEPLOYMENT.md` y en la decisión 260. |
 | 2026-10-23 | 3.4 | No hay imagen de `apps/web` (la tarea pedía «imágenes de web y del worker») y `.env.example` no se actualizó | La web va a Vercel (decisión 254), que construye la suya; el servicio `web` de Compose queda sin Dockerfile (pendiente del 3.5). `.env.example` no se puede leer ni editar con las herramientas: las variables nuevas están en `docs/DEPLOYMENT.md` y es tarea del responsable. |
 | 2026-10-23 | 3.4 | El e2e visual de Playwright no forma parte de la CI (S8) | Exige una imagen de Docker de varios GB por ejecución; se ejecuta a mano antes de fusionar cambios de interfaz (se ejecutó al cerrar S8: 1117 pasadas, 0 fallos, 1007 omitidas). |
+| 2026-10-29 | 3.4b | Paso nuevo, no previsto: despliegue de demostración gratuito (Vercel Hobby, Neon Free, sin worker y con datos de foto fija) antes del 3.5 | El responsable necesita una URL para la defensa del TFM y el 3.5 no empieza hasta que el TFM esté aprobado. La demo no sustituye al 3.5: usa otras cuentas y otros planes y no ingiere datos. Decisión 273. |
