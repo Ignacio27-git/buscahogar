@@ -2314,6 +2314,7 @@ respuesta de Idealista a la petición de acuerdo.
   imágenes. Quedan descartadas la copia en almacenamiento propio y la carga directa desde su CDN. El responsable decide contestar pidiendo
   un acuerdo o un permiso. Sin resolver: si la negativa alcanza también a los datos en un servicio público, y qué producto es el acceso
   actual, que sí devuelve `thumbnail`.
+  El responsable decide no cambiar el código hasta tener respuesta: **la web sigue pidiendo esas fotos**, también en local.
 
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
