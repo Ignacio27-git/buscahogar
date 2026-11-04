@@ -2463,3 +2463,19 @@ dando 404, porque el optimizador no se ejecuta en la región de funciones, y el 
 proyecto. La copia en un almacenamiento propio, hecha por la ingesta, cumple las reglas y sirve igual para la demo que para producción. Cabe
 en un plan gratuito: 126 MB medidos con una muestra de 30 fotos. Pero no se pudo confirmar que la licencia permita guardar copias, así que
 no se construye nada hasta tener respuesta de Idealista. Se redactó el correo de consulta.
+
+---
+
+### 2026-11-04 — Respuesta de Idealista sobre las imágenes y petición de acuerdo (paso 3.4b)
+
+**Tipo de tarea:** análisis y redacción
+**Forma de especificación:** respuesta de Idealista pegada y una respuesta libre a un cuestionario
+**Resultado:** pendiente de envío por el responsable
+
+**Prompt:**
+
+> «ya me han contestado, esto me han dicho:» (correo de idealista/data) · «me gustaría contestarle preguntando por si hay alguna posibilidad
+> de que lleguemos a un acuerdo o me puedan dar permiso de alguna manera»
+
+**Observación.** La respuesta descarta las dos vías para mostrar fotos. Se propuso retirarlas y el responsable prefirió pedir antes un acuerdo.
+Se redactó la respuesta y se corrigió la guía de la demo, que atribuía el problema a un límite del CDN.

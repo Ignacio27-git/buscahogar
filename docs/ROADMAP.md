@@ -2307,8 +2307,13 @@ decisión 273: Vercel Hobby, Neon Free en Frankfurt y ningún worker. Los datos 
   (muestra de 30 fotos: unos 28,7 KB de media, unos 126 MB para las 4.396 miniaturas). **Queda bloqueada por la licencia**: no hay
   condiciones legibles de la API sobre guardar imágenes (obs #189 del paso 1.12, sin cambios hoy). Se redacta una consulta a Idealista.
 
-**Pendiente del responsable:** actualizar los datos tras el barrido de noviembre (sección «Actualizar los datos» de la guía), y enviar
-la consulta a Idealista sobre si se pueden guardar copias de las miniaturas.
+**Pendiente del responsable:** actualizar los datos tras el barrido de noviembre (sección «Actualizar los datos» de la guía), y esperar la
+respuesta de Idealista a la petición de acuerdo.
+
+- 2026-11-04: **Idealista responde por escrito que el uso de imágenes no está autorizado** y que su API comercial de anuncios no devuelve
+  imágenes. Quedan descartadas la copia en almacenamiento propio y la carga directa desde su CDN. El responsable decide contestar pidiendo
+  un acuerdo o un permiso. Sin resolver: si la negativa alcanza también a los datos en un servicio público, y qué producto es el acceso
+  actual, que sí devuelve `thumbnail`.
 
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.

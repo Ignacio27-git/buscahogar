@@ -182,8 +182,8 @@ registra `store-unavailable` y deja pasar todas las peticiones: falla abierto. N
 
 **Fotos.** En Vercel, las fotos de Idealista no cargan: el CDN de la fuente devuelve 404 al optimizador de imágenes (decisión 274). La
 web muestra «Sin foto» en las filas y «Foto no disponible» en el detalle. Cambiar la región de funciones no lo arregla: el optimizador
-responde desde el punto de entrada de Vercel, no desde `fra1` (comprobado el 2026-10-29). Si el tribunal pregunta, es un límite de la fuente, no de la
-aplicación; en local sí se ven. Vercel también propone desplegar `apps/ingestion` como «Container project»: **no lo hagas**, porque es el
+responde desde el punto de entrada de Vercel, no desde `fra1` (comprobado el 2026-10-29). **Idealista ha respondido por escrito que el uso de sus imágenes no está
+autorizado** (2026-11-04). No enseñes fotos de Idealista en la defensa, tampoco desde local. Si el tribunal pregunta, es el motivo real. Vercel también propone desplegar `apps/ingestion` como «Container project»: **no lo hagas**, porque es el
 worker.
 
 ## El día de la presentación
