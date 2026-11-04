@@ -2347,8 +2347,8 @@ copias). Antes de abrir la web al público, revisa los textos legales y las cond
 - [ ] Decidir si hace falta agregar las direcciones IPv6 por `/64` en la clave del limitador.
 - [ ] Primera copia real, simulacro de restauración completo y programación diaria de la copia.
 - [ ] Proveedor de teselas con acuerdo (clave publicable restringida por dominio) y su atribución.
-- [ ] Fotos de Idealista desde Vercel: el CDN rechaza al optimizador (hallazgo del 3.4b, decisión 274). Decidir la vía: un acuerdo con la
-      fuente, otra ruta de descarga o guardar copias propias en la ingesta.
+- [ ] Fotos de Idealista: su uso **no está autorizado** (respuesta de idealista/data, 2026-11-04). Sin acuerdo escrito no hay fotos de esta
+      fuente, ni copiadas ni cargadas desde su CDN. Aclarar también si el acceso actual permite usar los datos en un servicio público.
 - [ ] Condiciones de Idealista revisadas **antes** de activar `SITE_INDEXING=true`.
 - [ ] Rellenar `LEGAL_OWNER_*`, revisar los textos legales y nombrar a los encargados del tratamiento en la política de privacidad.
 - [ ] Comprobar que `.env.example` recoge las variables nuevas y decidir qué hacer con el servicio `web` de `docker-compose.yml`.
