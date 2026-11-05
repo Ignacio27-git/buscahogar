@@ -2337,6 +2337,8 @@ respuesta de Idealista a la petición de acuerdo.
 - 2026-11-05: comprobación desde un clon limpio en Windows: `pnpm test` fallaba en `backup-ops.test.ts`, que partía el Dockerfile solo por `
 ` y Git lo convierte a CRLF. Corregido el test.
 
+- 2026-11-05: el responsable decide mantener en el repositorio público los fixtures con datos reales de Idealista (101 anuncios) y entregar la aplicación así, a sabiendas de que el permiso sigue sin confirmar.
+
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
 

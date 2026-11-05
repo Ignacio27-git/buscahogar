@@ -2597,3 +2597,17 @@ sirven de guion para el vídeo. La primera captura de la ficha mostró el mapa a
 > «lo que tú puedas hacer, hazlo»
 
 **Observación.** Se excluyó lo que exige credenciales, gasta cuota o es irreversible: volcado a Neon, barrido, push y envío del formulario. Comprobación desde un clon limpio, búsqueda de secretos en el repositorio y prueba del recorrido del guion.
+
+---
+
+### 2026-11-05 — Los fixtures de Idealista se mantienen (paso 3.4b)
+
+**Tipo de tarea:** decisión de alcance
+**Forma de especificación:** respuesta libre
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «no se quitan los datos, la app se va a entregar así»
+
+**Observación.** Sin cambios de código.
