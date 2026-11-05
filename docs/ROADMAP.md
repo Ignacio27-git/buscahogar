@@ -2322,6 +2322,10 @@ respuesta de Idealista a la petición de acuerdo.
   dirección, baños, planta, título, descripción ni fechas**, y exige tipología, operación, punto y rango de superficie. Sin contratar: faltan las
   condiciones por escrito y medir el efecto en la deduplicación. Siguen sin respuesta las dos aclaraciones sobre el acceso actual.
 
+- 2026-11-05: **README rehecho para la entrega** según los requisitos del TFM: descripción, funcionalidades, stack, estructura, enlaces y límites de la
+  demo. Las instrucciones de instalación se probaron contra una base desechable (despliegue, compilación y arranque: `/api/health` ok y portada 200,
+  con 0 anuncios), sin `pnpm install` desde un clon limpio. **Pendiente del responsable:** añadir al README las URL de la presentación y del vídeo.
+
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
 

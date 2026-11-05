@@ -2525,3 +2525,18 @@ no ha respondido a esa pregunta, y las fotos están expresamente no autorizadas.
 > (cuestionario) «¿Retiro ya las fotos de Idealista de la web para la demo?» → «Sí, retirarlas (Recomendado)»
 
 **Observación.** Tests en rojo primero. El test nuevo buscaba `next/image` y coincidía con `_next/image` del matcher del proxy: se acotó al `import`.
+
+---
+
+### 2026-11-05 — README para la entrega del TFM (paso 3.4b)
+
+**Tipo de tarea:** documentación
+**Forma de especificación:** PDF de requisitos del TFM y confirmación de una propuesta («si»)
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «aquí puedes ver todo lo necesario para el tfm, que nos falta y que tenemos?» → «¿Empiezo por completar el README?» → «si»
+
+**Observación.** El apartado de puesta en marcha anterior no bastaba: no creaba los roles que necesita `apps/web`. Se sustituyó por un recorrido con base
+desechable, que se ejecutó de verdad. Las URL de la presentación y del vídeo quedan como pendientes de publicar.

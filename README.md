@@ -1,39 +1,164 @@
-# Agregador inmobiliario
+# Buscahogar
 
-Plataforma que agrega ofertas inmobiliarias procedentes de varias fuentes, las normaliza a
-un modelo común, identifica anuncios que corresponden a la misma vivienda y ofrece una
-búsqueda unificada, redirigiendo al anuncio original.
+Buscador de vivienda en España que reúne en un solo sitio las ofertas de varias fuentes, detecta los anuncios
+que corresponden a la misma vivienda y enlaza siempre con el anuncio original. Trabajo Fin de Máster.
 
-Trabajo Fin de Máster.
+| Entregable    | Enlace                                                                             |
+| ------------- | ---------------------------------------------------------------------------------- |
+| Demo          | [buscahogar.vercel.app](https://buscahogar.vercel.app/)                            |
+| Código fuente | [github.com/Ignacio27-git/buscahogar](https://github.com/Ignacio27-git/buscahogar) |
+| Presentación  | Pendiente de publicar                                                              |
+| Vídeo         | Pendiente de publicar                                                              |
+
+**No hay usuario ni contraseña de prueba:** la aplicación no tiene cuentas ni inicio de sesión.
+
+## Descripción
+
+Quien busca vivienda encuentra la misma casa repetida en varios portales, con precios distintos y sin saber cuál
+es el anuncio más barato. Buscahogar descarga las ofertas de forma programada, las convierte a un modelo común y
+agrupa las que son la misma vivienda. La búsqueda consulta siempre la base de datos propia, nunca las fuentes en
+directo.
+
+El modelo distingue dos conceptos: `listings` (un anuncio de una fuente) y `properties` (la
+vivienda canónica que agrupa uno o varios anuncios). Por eso se puede repetir la deduplicación sin volver a gastar
+cuota de la API, y cada cambio de precio se conserva como una versión nueva.
+
+## Funcionalidades principales
+
+**Búsqueda**
+
+- Filtros por ubicación, operación, tipo, precio, superficie y habitaciones, con paginación y orden. Viven en la URL,
+  así que una búsqueda se puede guardar y compartir.
+- Búsqueda en lenguaje natural: interpreta una frase como «piso en alquiler en Getafe» y muestra el resultado en un
+  formulario editable antes de buscar. Es determinista, sin modelo de lenguaje.
+- Mapa con marcadores agrupados y dibujo de una zona a mano.
+- Cobertura bajo demanda: si un municipio no tiene datos, el usuario puede pedirlo y un proceso en segundo plano lo
+  descarga después, con cuota diaria por cliente y aviso del estado.
+
+**Ficha de la vivienda**
+
+- Datos consolidados y precio más económico entre los anuncios activos.
+- Comparativa de los anuncios de origen, con enlace a cada uno.
+- Histórico de precios en gráfico y en tabla accesible.
+- Ubicación aproximada: un círculo de 500 m en el mapa, sin punto exacto.
+
+**Procesamiento de datos**
+
+- Ingesta con límites explícitos de peticiones, para no agotar la cuota mensual de la API.
+- Deduplicación en dos fases: bloqueo de candidatos en SQL por proximidad, precio y superficie, y puntuación con
+  estrategias intercambiables (por reglas y probabilística de Fellegi-Sunter, con una señal opcional de imagen). Se
+  guarda el desglose por señal de cada decisión.
+- Prioridad a evitar falsos positivos: agrupar dos viviendas distintas es peor que no detectar un duplicado.
+
+**Interfaz**
+
+- Diseño adaptable, tema claro y oscuro y accesibilidad comprobada con axe.
+- Toda página funciona sin JavaScript, salvo el mapa de búsqueda y el refresco automático del aviso de cobertura.
+
+## Limitaciones de la demo
+
+- **Datos fijos:** es una copia de la base de desarrollo, con 4 413 anuncios y 4 328 viviendas el 2026-10-29. No se
+  actualiza sola.
+- **Sin proceso en segundo plano:** una zona sin datos se puede pedir, pero queda en cola y no llega a cubrirse.
+- **Sin fotos:** Idealista ha respondido por escrito que el uso de sus imágenes no está autorizado (decisión 276).
+- **Una sola fuente real:** los datos proceden de Idealista, así que casi todas las viviendas tienen un único anuncio.
+  Existe también un adaptador para feeds de Kyero. La deduplicación se ha evaluado con pares etiquetados.
+
+## Stack tecnológico
+
+| Área            | Tecnología                                                 |
+| --------------- | ---------------------------------------------------------- |
+| Lenguaje        | TypeScript en modo estricto, Node.js 20.11 o superior      |
+| Web             | Next.js 16 (App Router, Server Components), React 19       |
+| Mapas           | Leaflet, React Leaflet, teselas de OpenStreetMap           |
+| Base de datos   | PostgreSQL 17 con PostGIS 3.5, Drizzle ORM                 |
+| Validación      | Zod, en toda entrada externa                               |
+| Ingesta         | Worker en Node.js, `fast-xml-parser`, `sharp`              |
+| Pruebas         | Vitest, Playwright y axe                                   |
+| Monorepo        | pnpm workspaces                                            |
+| Infraestructura | Docker Compose, GitHub Actions, Vercel y Neon para la demo |
+
+## Estructura del proyecto
+
+```text
+apps/web          Next.js: interfaz y búsqueda
+apps/ingestion    worker: barridos, normalización y deduplicación
+packages/core     modelo de dominio, contratos y estrategias, sin Next ni ORM
+packages/db       esquema, migraciones y cliente de base de datos
+packages/config   configuración compartida de TypeScript y linting
+ops/backup        copias de seguridad cifradas, retención y simulacro de restauración
+docs              arquitectura, decisiones, hoja de ruta y registro del proceso
+```
+
+`apps/web` y `apps/ingestion` no se importan entre sí: se comunican solo por base de datos. El flujo completo es:
+
+```text
+API de la fuente → adaptador → normalizador → listings + listing_versions → deduplicación → properties → búsqueda
+```
+
+## Instalación y ejecución
+
+La forma más rápida de probar Buscahogar es la [demo](https://buscahogar.vercel.app/). Para ejecutarlo en local hacen
+falta Node.js 20.11 o superior, pnpm 11 y Docker. Estos pasos usan una base desechable y no necesitan ningún fichero
+`.env`:
+
+```bash
+# 1. Instalar dependencias
+pnpm install --frozen-lockfile
+
+# 2. Levantar PostgreSQL con PostGIS
+docker run -d --name buscahogar-local-db -p 55432:5432 \
+  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=local-owner-pw -e POSTGRES_DB=buscahogar \
+  postgis/postgis:17-3.5
+
+# 3. Crear tablas, roles y datos de referencia
+export DIRECT_DATABASE_URL=postgresql://postgres:local-owner-pw@localhost:55432/buscahogar
+export WEB_READONLY_PASSWORD=local-readonly-pw WEB_COVERAGE_PASSWORD=local-coverage-pw
+pnpm --filter @buscahogar/ingestion run build:runtime
+pnpm --filter @buscahogar/ingestion run deploy:runtime
+
+# 4. Compilar y arrancar la web en http://localhost:3000
+export DATABASE_URL=postgresql://web_readonly:local-readonly-pw@localhost:55432/buscahogar
+export WEB_COVERAGE_DATABASE_URL=postgresql://web_coverage:local-coverage-pw@localhost:55432/buscahogar
+export NEW_ZONES_DAILY_CAP=20
+pnpm --filter @buscahogar/web build
+pnpm --filter @buscahogar/web start
+```
+
+La web arranca **sin anuncios**: se crean al ejecutar la ingesta, que necesita credenciales propias de la API de
+Idealista y gasta cuota real. Para borrar la base: `docker rm -f buscahogar-local-db`.
+
+Pruebas sin red ni credenciales: `pnpm test`, `pnpm lint` y `pnpm typecheck`.
 
 ## Documentación
 
-| Documento              | Contenido                                                  |
-| ---------------------- | ---------------------------------------------------------- |
-| `CLAUDE.md`            | Contexto y reglas para el desarrollo asistido              |
-| `docs/ARCHITECTURE.md` | Arquitectura, modelo de datos y pipeline                   |
-| `docs/DEPLOYMENT.md`   | Despliegue y operación: variables, runbook, CI, paso 3.5   |
-| `ops/backup/README.md` | Copias de seguridad cifradas y simulacro de restauración   |
-| `docs/DECISIONS.md`    | Decisiones de arquitectura y su justificación              |
-| `docs/ROADMAP.md`      | Pasos de desarrollo, con el prompt de cada uno y su estado |
-| `docs/AI-NOTES.md`     | Registro de fallos de la asistencia                        |
-| `docs/PROMPTS.md`      | Registro de prompts                                        |
+| Documento                    | Contenido                                                  |
+| ---------------------------- | ---------------------------------------------------------- |
+| `docs/ARCHITECTURE.md`       | Arquitectura, modelo de datos y pipeline                   |
+| `docs/DECISIONS.md`          | Decisiones de arquitectura y su justificación              |
+| `docs/DEMO-DEPLOYMENT.md`    | Despliegue de la demo en Vercel y Neon                     |
+| `docs/DEPLOYMENT.md`         | Variables, runbook y CI; la producción real no se ejecutó  |
+| `docs/SEARCH-PERFORMANCE.md` | Mediciones de rendimiento de la búsqueda                   |
+| `ops/backup/README.md`       | Copias de seguridad cifradas y simulacro de restauración   |
+| `docs/ROADMAP.md`            | Pasos de desarrollo, con el prompt de cada uno y su estado |
+| `docs/AI-NOTES.md`           | Registro de fallos de la asistencia                        |
+| `docs/PROMPTS.md`            | Registro de prompts                                        |
+| `CLAUDE.md`                  | Contexto y reglas para el desarrollo asistido              |
 
-## Requisitos
+## Desarrollo con la base de datos de Compose
 
-- Node.js
-- Docker y Docker Compose
-- Credenciales de la API de la fuente (ver `.env.example`)
-
-## Puesta en marcha
+Para trabajar en el proyecto, con credenciales y datos propios:
 
 ```bash
 cp .env.example .env    # completar credenciales
 docker compose up -d    # postgres + postgis
 pnpm install
 pnpm db:migrate
+pnpm db:seed
 pnpm dev
 ```
+
+`apps/web` lee sus dos URL de base de datos de `apps/web/.env.local`, con los roles `web_readonly` y `web_coverage`.
 
 ## Base de datos
 
@@ -123,9 +248,9 @@ pnpm e2e:update    # regenera capturas y la línea base axe (revisar el diff ant
 
 ## Producción y operación
 
-El paso 3.4 deja el código **listo para desplegar** y comprobado en local; aprovisionar cuentas, dominio y el primer
-despliegue real es el paso 3.5. Todo el procedimiento está en [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): variables de
-entorno por servicio, códigos de salida, el runbook y la lista de traspaso del 3.5.
+El proyecto termina en la demo: la puesta en producción real se descartó (decisión 275). El código quedó preparado y
+comprobado en local, y el procedimiento se conserva sin ejecutar en [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): variables de
+entorno por servicio, códigos de salida y runbook.
 
 ```bash
 pnpm env:check --target production                # entorno de web y worker: solo nombres, nunca valores
@@ -142,16 +267,6 @@ bash ops/backup/test/e2e.sh                       # copias cifradas de extremo a
   veces y suites con base de datos) y `backup` (e2e con MinIO). Solo comprueba: no despliega ni usa credenciales de nube.
 - **Copias de seguridad y simulacro de restauración**: `ops/backup/README.md`. La clave privada de descifrado nunca está en el
   repositorio ni en el host de la copia.
-
-## Estructura
-
-```text
-apps/web          Next.js — interfaz y búsqueda
-apps/ingestion    worker — barridos, normalización, deduplicación
-packages/core     modelo de dominio y contratos
-packages/db       esquema y cliente de base de datos
-ops/backup        copias de seguridad cifradas, retención y simulacro de restauración
-```
 
 ## Aviso sobre la cuota
 
