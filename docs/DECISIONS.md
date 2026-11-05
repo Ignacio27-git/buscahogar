@@ -7613,6 +7613,21 @@ producción con otras fuentes (la base solo tiene anuncios de Idealista, habría
 **Consecuencia.** Queda sin confirmar que el acceso actual a la API permita mostrar sus datos en la demo pública: Idealista no ha respondido a
 esa pregunta. Las fotos sí tienen respuesta, y no están autorizadas.
 
+## 276 — La web retira las fotos de Idealista (sustituye a la 274; enmienda la 152, la 172 y la 241)
+
+**Contexto.** Idealista respondió por escrito que el uso de imágenes no está autorizado (2026-11-04). La web seguía pidiéndolas: en Vercel fallaban y
+en local se mostraban.
+
+**Decisión.** `apps/web` no muestra ni pide ninguna foto de anuncio. Salen la columna de foto de las filas, la galería de la ficha, `FallbackImage`,
+`resolveThumbnailSource` y la ampliación al pasar el puntero. `images.remotePatterns` queda vacío, y un test lo fija. El allowlist de `'use client'` vuelve a
+4 entradas. Se mantiene el recuento de fotos de cada anuncio (`numPhotos`), que es un dato y no una imagen.
+
+**Alternativas descartadas.** Mantener el marcador «Sin foto» (la web seguiría pidiendo las imágenes y sería ruido en todas las filas); dejar de
+pintarlas conservando el código (código muerto en un proyecto que no va a producción).
+
+**Consecuencia.** La ingesta y las URL guardadas en `listings.thumbnail_url` no se tocan: no se pintan, y `listings` no se reescribe sin motivo. El
+nombre de la ruta `detail-gallery` de los e2e se conserva para no renombrar sus capturas.
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

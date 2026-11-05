@@ -2511,3 +2511,17 @@ guardar datos e histórico.
 
 **Observación.** Se registró el descarte (decisión 275). La premisa de los permisos no se pudo confirmar: no hay condiciones legibles e Idealista
 no ha respondido a esa pregunta, y las fotos están expresamente no autorizadas.
+
+---
+
+### 2026-11-05 — Retirada de las fotos de Idealista de la web (paso 3.4b)
+
+**Tipo de tarea:** implementación con TDD
+**Forma de especificación:** respuesta a un cuestionario («Sí, retirarlas»)
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> (cuestionario) «¿Retiro ya las fotos de Idealista de la web para la demo?» → «Sí, retirarlas (Recomendado)»
+
+**Observación.** Tests en rojo primero. El test nuevo buscaba `next/image` y coincidía con `_next/image` del matcher del proxy: se acotó al `import`.
