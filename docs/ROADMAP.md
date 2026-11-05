@@ -2326,6 +2326,8 @@ respuesta de Idealista a la petición de acuerdo.
   demo. Las instrucciones de instalación se probaron contra una base desechable (despliegue, compilación y arranque: `/api/health` ok y portada 200,
   con 0 anuncios), sin `pnpm install` desde un clon limpio. **Pendiente del responsable:** añadir al README las URL de la presentación y del vídeo.
 
+- 2026-11-05: **Presentación del TFM creada** (12 diapositivas con notas del orador y capturas de la demo): https://claude.ai/artifact/R4Vvt7wcGyVr636BqaPvHC. Es privada hasta que el responsable la comparta. **Pendiente del responsable:** compartirla, añadir su URL al README y grabar el vídeo.
+
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
 

@@ -2540,3 +2540,18 @@ no ha respondido a esa pregunta, y las fotos están expresamente no autorizadas.
 
 **Observación.** El apartado de puesta en marcha anterior no bastaba: no creaba los roles que necesita `apps/web`. Se sustituyó por un recorrido con base
 desechable, que se ejecutó de verdad. Las URL de la presentación y del vídeo quedan como pendientes de publicar.
+
+---
+
+### 2026-11-05 — Presentación del TFM (paso 3.4b)
+
+**Tipo de tarea:** documentación
+**Forma de especificación:** confirmación de una propuesta («si»), con el PDF de requisitos como referencia
+**Resultado:** pendiente de revisión del responsable
+
+**Prompt:**
+
+> «¿Sigo con las slides?» → «si»
+
+**Observación.** Las cifras salen de `docs/ROADMAP.md`, `docs/SEARCH-PERFORMANCE.md` y `docs/DECISIONS.md`. Las capturas son de la demo desplegada. Las notas del orador
+sirven de guion para el vídeo. La primera captura de la ficha mostró el mapa a medio cargar: era la carga de las teselas, y se repitió la captura.
