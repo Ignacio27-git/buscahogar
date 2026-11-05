@@ -2428,3 +2428,100 @@ de Vercel recibía un 404 del CDN de Idealista, así que se pintaba el icono de 
 `onError` (decisión 274). Los tests de la vista se escribieron en rojo primero y el comportamiento se comprobó en un navegador real
 forzando el 404. El hook de impeccable marcó un literal `<img` dentro de una aserción. Era un falso positivo, pero se corrigió
 comprobando `data-nimg` en lugar de suprimir el aviso.
+
+---
+
+### 2026-10-29 — Comprobación de la región `fra1` y de las fotos en Vercel (paso 3.4b)
+
+**Tipo de tarea:** verificación
+**Forma de especificación:** aviso de que el cambio estaba hecho, tras una captura de Neon que discutía el hallazgo de la región
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «imposible, la bbdd de neon están en frankfurt como puedes ver en la imagen adjunta. además porque no funcionan las imágenes en la web
+> desplegada en vercel?» · «ya he hecho el cambio»
+
+**Observación.** La captura era correcta, pero se refería a otra pieza: Neon sí estaba en Frankfurt, y lo que estaba en Washington eran las
+funciones de Vercel. Tras el cambio, `X-Vercel-Id` pasa a `cdg1::fra1` y la página baja de unos 0,9 s a unos 0,4 s. Las fotos siguen
+dando 404, porque el optimizador no se ejecuta en la región de funciones, y el marcador desplegado las sustituye bien.
+
+---
+
+### 2026-10-29 — Solución definitiva para las fotos y consulta a Idealista (paso 3.4b)
+
+**Tipo de tarea:** investigación y redacción
+**Forma de especificación:** preguntas abiertas y dos respuestas a cuestionarios
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «y porque no arreglamos el tema de la fotos para la presentación?» · «pero yo quiero tener una solución que sea la definitiva no?» ·
+> «redáctame un correo para mandárselo a Idealista»
+
+**Observación.** De las tres vías, cargar las fotos desde Idealista en el navegador y montar un proxy propio chocan con reglas del
+proyecto. La copia en un almacenamiento propio, hecha por la ingesta, cumple las reglas y sirve igual para la demo que para producción. Cabe
+en un plan gratuito: 126 MB medidos con una muestra de 30 fotos. Pero no se pudo confirmar que la licencia permita guardar copias, así que
+no se construye nada hasta tener respuesta de Idealista. Se redactó el correo de consulta.
+
+---
+
+### 2026-11-04 — Respuesta de Idealista sobre las imágenes y petición de acuerdo (paso 3.4b)
+
+**Tipo de tarea:** análisis y redacción
+**Forma de especificación:** respuesta de Idealista pegada y una respuesta libre a un cuestionario
+**Resultado:** pendiente de envío por el responsable
+
+**Prompt:**
+
+> «ya me han contestado, esto me han dicho:» (correo de idealista/data) · «me gustaría contestarle preguntando por si hay alguna posibilidad
+> de que lleguemos a un acuerdo o me puedan dar permiso de alguna manera»
+
+**Observación.** La respuesta descarta las dos vías para mostrar fotos. Se propuso retirarlas y el responsable prefirió pedir antes un acuerdo.
+Se redactó la respuesta y se corrigió la guía de la demo, que atribuía el problema a un límite del CDN.
+
+---
+
+### 2026-11-05 — Análisis de la oferta API Testigos Lite de Idealista (paso 3.4b)
+
+**Tipo de tarea:** análisis
+**Forma de especificación:** correo de idealista/data pegado, con tarifas y enlaces a dos OpenAPI
+**Resultado:** pendiente de decisión del responsable
+
+**Prompt:**
+
+> «esto me han contestado:» (oferta de la API Testigos Lite)
+
+**Observación.** Se contrastaron los dos OpenAPI con el modelo actual. La API cubre lo básico para mostrar anuncios, pero elimina campos que
+hoy se guardan y usa la deduplicación. La oferta no responde a las dos aclaraciones sobre el acceso actual. El correo no fija si se pueden
+guardar datos e histórico.
+
+---
+
+### 2026-11-05 — Descarte de la versión profesional (pasos 3.4b y 3.5)
+
+**Tipo de tarea:** decisión de alcance
+**Forma de especificación:** respuesta libre a un cuestionario
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «creo que vamos a tirar por descartar la versión profesional y quedarnos solo con un despliegue simple para presentar el tfm y ya está,
+> hasta ahí si tenemos permisos para usar la api que ya tenemos»
+
+**Observación.** Se registró el descarte (decisión 275). La premisa de los permisos no se pudo confirmar: no hay condiciones legibles e Idealista
+no ha respondido a esa pregunta, y las fotos están expresamente no autorizadas.
+
+---
+
+### 2026-11-05 — Retirada de las fotos de Idealista de la web (paso 3.4b)
+
+**Tipo de tarea:** implementación con TDD
+**Forma de especificación:** respuesta a un cuestionario («Sí, retirarlas»)
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> (cuestionario) «¿Retiro ya las fotos de Idealista de la web para la demo?» → «Sí, retirarlas (Recomendado)»
+
+**Observación.** Tests en rojo primero. El test nuevo buscaba `next/image` y coincidía con `_next/image` del matcher del proxy: se acotó al `import`.

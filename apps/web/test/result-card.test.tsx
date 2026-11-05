@@ -145,33 +145,14 @@ describe('ResultCard D.6b — contenido y rótulos (S1-S5)', () => {
   });
 });
 
-describe('ResultCard D.6b — imagen y alt (S6-S8)', () => {
-  it('con miniatura usa next/image con `sizes`, sin width/height fijos ni unoptimized', () => {
-    const html = render({ thumbnailUrl: THUMB });
-    expect(html).toContain('<img');
-    expect(html).toContain('sizes="(min-width: 48rem) 10rem, 6rem"');
-    expect(html).not.toContain('width="480"');
-    expect(html).not.toContain('fetchPriority');
+// Decisión 276: Idealista no autoriza el uso de sus imágenes. La fila no reserva hueco para una foto.
+describe('ResultCard — sin fotos remotas (decisión 276)', () => {
+  it.each([THUMB, null])('con thumbnailUrl %s no hay imagen, caja de miniatura ni marcador', (thumbnailUrl) => {
+    const html = render({ thumbnailUrl });
+    expect(html).not.toContain('result-row__media');
+    expect(html).not.toContain('data-nimg');
+    expect(html).not.toContain('img4.idealista.com');
     expect(html).not.toContain('Sin foto');
-  });
-
-  it('S6: tipo, operación y dirección presentes dan alt vacío', () => {
-    expect(render({ thumbnailUrl: THUMB })).toContain('alt=""');
-  });
-
-  it('S7: sin dirección el alt es «Foto de la vivienda»', () => {
-    const html = render({ thumbnailUrl: THUMB, address: null });
-    expect(html).toContain('alt="Foto de la vivienda"');
-  });
-
-  it('S7: sin tipo el alt es «Foto de la vivienda»', () => {
-    expect(render({ thumbnailUrl: THUMB, propertyType: null })).toContain('alt="Foto de la vivienda"');
-  });
-
-  it('S8: sin miniatura no hay imagen y «Sin foto» va oculto a lectores', () => {
-    const html = render({ thumbnailUrl: null });
-    expect(html).not.toContain('<img');
-    expect(html).toMatch(/<[a-z]+ [^>]*aria-hidden="true"[^>]*>Sin foto</);
   });
 });
 

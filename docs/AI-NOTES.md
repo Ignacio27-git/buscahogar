@@ -4405,3 +4405,17 @@ falla antes, en el paso `roles`, con salida **1** y el mensaje del proveedor. La
 
 **Observación:** el resultado fue el previsto (no se aceptaba), pero el **cómo** era otro. Cuando un supuesto sobre un proveedor no se puede
 comprobar sin cuenta, la documentación debe describir el síntoma como posible, no como seguro. Corregidos `docs/DEPLOYMENT.md` y la guía.
+
+---
+
+### 2026-11-04 — Permiso de uso de las miniaturas deducido de que la API las devuelve (paso 3.4b)
+
+**Categoría:** suposición sin verificar.
+
+**Qué se generó mal:** al estudiar las fotos se afirmó que, como la API da la URL de la miniatura, eso «sugiere» que se puede mostrar desde su
+CDN, y solo guardar una copia necesitaría permiso. También se propuso explicar en la defensa que las fotos fallan por un límite del CDN.
+
+**Cómo se detectó:** Idealista respondió por escrito que el uso de imágenes no está autorizado.
+
+**Observación:** que una API devuelva un dato no dice qué licencia tiene. El correo se escribió precisamente porque no había condiciones
+legibles, y aun así la pregunta 2 partía de ese supuesto. Corregida la guía de la demo.

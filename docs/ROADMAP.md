@@ -2296,14 +2296,41 @@ decisión 273: Vercel Hobby, Neon Free en Frankfurt y ningún worker. Los datos 
 - Vercel también detecta `apps/ingestion` como «Container project» por su `Dockerfile`. **No se despliega**: es el worker, que lleva
   credenciales de la fuente y gasta cuota (decisión 273).
 
-**Pendiente del responsable:** cambiar la región a `fra1`, subir y desplegar el commit del marcador, y comprobar de nuevo la latencia.
+- Hecho el 2026-10-29 por el responsable: región cambiada a `fra1` y marcador desplegado desde `master`. Comprobado: `X-Vercel-Id:
+  cdg1::fra1` en tres peticiones; la portada tarda unos 0,42 s y una búsqueda de alquiler unos 0,41 s (antes, unos 0,9 s). **Las fotos
+  siguen dando 404**: `/_next/image` responde desde el punto de entrada (`X-Vercel-Id: cdg1::…`, sin región de función), así que cambiar
+  la región no afecta al optimizador. En un navegador real, las 24 filas de alquiler terminan en «Sin foto» y ninguna muestra el icono de
+  imagen rota.
+
+- 2026-10-29: se estudia una solución definitiva para las fotos: la ingesta copia cada miniatura a un almacenamiento propio, se
+  registra en una tabla aparte sin tocar `listings`, y la demo ejecuta esa copia una vez desde casa. Técnicamente cabe en un plan gratuito
+  (muestra de 30 fotos: unos 28,7 KB de media, unos 126 MB para las 4.396 miniaturas). **Queda bloqueada por la licencia**: no hay
+  condiciones legibles de la API sobre guardar imágenes (obs #189 del paso 1.12, sin cambios hoy). Se redacta una consulta a Idealista.
+
+**Pendiente del responsable:** actualizar los datos tras el barrido de noviembre (sección «Actualizar los datos» de la guía), y esperar la
+respuesta de Idealista a la petición de acuerdo.
+
+- 2026-11-04: **Idealista responde por escrito que el uso de imágenes no está autorizado** y que su API comercial de anuncios no devuelve
+  imágenes. Quedan descartadas la copia en almacenamiento propio y la carga directa desde su CDN. El responsable decide contestar pidiendo
+  un acuerdo o un permiso. Sin resolver: si la negativa alcanza también a los datos en un servicio público, y qué producto es el acceso
+  actual, que sí devuelve `thumbnail`.
+  El responsable decide no cambiar el código hasta tener respuesta: **la web sigue pidiendo esas fotos**, también en local.
+- 2026-11-05: **fotos retiradas de la web** (decisión 276), también en local. Sigue sin confirmarse el permiso para mostrar los datos en la demo
+  pública (decisión 275). **Pendiente del responsable:** subir y desplegar este cambio.
+- 2026-11-05: Idealista ofrece la **API Testigos Lite** para mostrar datos en una plataforma: 350 €/mes hasta 600 peticiones, hasta 8.000 por
+  2.000 €/mes, 50 anuncios por petición. Devuelve identificador, estado, precio, coordenadas, superficie, habitaciones y URL. **No devuelve fotos,
+  dirección, baños, planta, título, descripción ni fechas**, y exige tipología, operación, punto y rango de superficie. Sin contratar: faltan las
+  condiciones por escrito y medir el efecto en la deduplicación. Siguen sin respuesta las dos aclaraciones sobre el acceso actual.
 
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
 
 ---
 
-## [ ] 3.5 · Aprovisionamiento y puesta en marcha
+## [-] 3.5 · Aprovisionamiento y puesta en marcha
+
+**Descartado el 2026-11-05 (decisión 275):** el responsable renuncia a la versión profesional y el proyecto termina en la demostración del 3.4b.
+La lista de abajo se conserva como registro de lo que habría hecho falta.
 
 Decisión de producto del responsable (2026-10-21): la puesta en marcha real no ocurre hasta que el TFM esté aprobado. Este paso agrupa todo lo
 que el 3.4 dejó fuera por requerir cuentas, dinero o decisiones del propietario. El procedimiento y los comandos están en
@@ -2330,8 +2357,8 @@ copias). Antes de abrir la web al público, revisa los textos legales y las cond
 - [ ] Decidir si hace falta agregar las direcciones IPv6 por `/64` en la clave del limitador.
 - [ ] Primera copia real, simulacro de restauración completo y programación diaria de la copia.
 - [ ] Proveedor de teselas con acuerdo (clave publicable restringida por dominio) y su atribución.
-- [ ] Fotos de Idealista desde Vercel: el CDN rechaza al optimizador (hallazgo del 3.4b, decisión 274). Decidir la vía: un acuerdo con la
-      fuente, otra ruta de descarga o guardar copias propias en la ingesta.
+- [ ] Fotos de Idealista: su uso **no está autorizado** (respuesta de idealista/data, 2026-11-04). Sin acuerdo escrito no hay fotos de esta
+      fuente, ni copiadas ni cargadas desde su CDN. Aclarar también si el acceso actual permite usar los datos en un servicio público.
 - [ ] Condiciones de Idealista revisadas **antes** de activar `SITE_INDEXING=true`.
 - [ ] Rellenar `LEGAL_OWNER_*`, revisar los textos legales y nombrar a los encargados del tratamiento en la política de privacidad.
 - [ ] Comprobar que `.env.example` recoge las variables nuevas y decidir qué hacer con el servicio `web` de `docker-compose.yml`.
@@ -2442,3 +2469,4 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-23 | 3.4 | No hay imagen de `apps/web` (la tarea pedía «imágenes de web y del worker») y `.env.example` no se actualizó | La web va a Vercel (decisión 254), que construye la suya; el servicio `web` de Compose queda sin Dockerfile (pendiente del 3.5). `.env.example` no se puede leer ni editar con las herramientas: las variables nuevas están en `docs/DEPLOYMENT.md` y es tarea del responsable. |
 | 2026-10-23 | 3.4 | El e2e visual de Playwright no forma parte de la CI (S8) | Exige una imagen de Docker de varios GB por ejecución; se ejecuta a mano antes de fusionar cambios de interfaz (se ejecutó al cerrar S8: 1117 pasadas, 0 fallos, 1007 omitidas). |
 | 2026-10-29 | 3.4b | Paso nuevo, no previsto: despliegue de demostración gratuito (Vercel Hobby, Neon Free, sin worker y con datos de foto fija) antes del 3.5 | El responsable necesita una URL para la defensa del TFM y el 3.5 no empieza hasta que el TFM esté aprobado. La demo no sustituye al 3.5: usa otras cuentas y otros planes y no ingiere datos. Decisión 273. |
+| 2026-11-05 | 3.5 | Paso descartado: no habrá puesta en producción (decisión 275) | Idealista no autoriza el uso de imágenes y su API para plataformas cuesta desde 350 €/mes, sin fotos ni dirección. El responsable se queda con la demostración para el TFM. |

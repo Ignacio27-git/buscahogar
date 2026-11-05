@@ -24,7 +24,6 @@ import { PropertyDescription } from '@/components/property-description';
 import { PropertyLocation } from '@/components/property-location';
 import { PriceHistory } from '@/components/price-history';
 import { PropertyHeader, PropertySummary, resolvePropertyTitle } from '@/components/property-header';
-import { SourceGallery } from '@/components/source-gallery';
 import { SourceList } from '@/components/source-list';
 import { countActiveSources } from '@/lib/count-active-sources';
 import type { RawSearchParams } from '@/lib/search-href';
@@ -116,7 +115,6 @@ export default async function PropertyDetailPage(props: PropertyDetailPageProps)
       </p>
       <h1 className="property-detail__title">{resolvePropertyTitle(header.title)}</h1>
       <PropertySummary property={header} activeSourceCount={activeSourceCount} placement="lead" />
-      <SourceGallery sources={sources} />
       <div className="property-detail__panel">
         <PropertyHeader property={header} activeSourceCount={activeSourceCount} />
         <SourceList sources={sources} />

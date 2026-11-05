@@ -1,11 +1,9 @@
 // ROADMAP 2.6 (decisión 112, enmienda la 080): `img-src` admite UN host, el de
 // las teselas de OpenStreetMap; el resto de directivas no cambia.
 // ROADMAP 1.15 (security-hardening, spec #261 "runtime-config-validation" /
-// diseño decisión 080, hueco de investigación #258) — ninguna imagen pasa
-// por fuera de `next/image`: nada de etiqueta nativa de imagen, nada de `unoptimized`
-// (que desactivaría la optimización y serviría la imagen remota
-// directamente), y la propia CSP nunca declara un host remoto en
-// `img-src`. Mismo patrón de recorrido manual que `no-client-directive.
+// diseño decisión 080, hueco de investigación #258) — la CSP nunca declara un host remoto de
+// anuncios en `img-src`. Decisión 276: tampoco hay imágenes remotas de anuncios por `next/image`.
+// Mismo patrón de recorrido manual que `no-client-directive.
 // test.ts`.
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -89,11 +87,12 @@ describe('Política de imágenes (spec #261 csp-image-policy, diseño decisión 
     expect(readFileSync(hits[0] ?? '', 'utf8').match(/@next\/next\/no-img-element/g)).toHaveLength(1);
   });
 
-  it('ningún uso de next/image desactiva la optimización con `unoptimized`', () => {
-    const files = collectSourceFiles(SRC_DIR);
-    for (const file of files) {
-      const source = readFileSync(file, 'utf8');
-      expect(source).not.toMatch(/\bunoptimized\b/);
+  // Decisión 276: Idealista no autoriza el uso de sus imágenes, así que el optimizador no admite ningún
+  // host remoto y `next/image` no se usa en ninguna parte.
+  it('el optimizador no admite hosts remotos y ningún fichero importa next/image', () => {
+    expect(nextConfig.images?.remotePatterns ?? []).toEqual([]);
+    for (const file of collectSourceFiles(SRC_DIR)) {
+      expect(readFileSync(file, 'utf8'), file).not.toMatch(/from 'next\/image'/);
     }
   });
 

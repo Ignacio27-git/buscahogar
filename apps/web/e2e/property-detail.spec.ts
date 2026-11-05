@@ -1,9 +1,9 @@
-// Paso D.9 (decisiones 172, 173 y 175) — la ficha más allá de la captura: la galería se
-// recorre sin JavaScript con las anclas de fragmento, y ningún elemento enfocable queda
-// tapado por el resumen sticky ni por nada más (WCAG 2.4.11, F110), en los dos sentidos. Se
-// usa la ficha de P7 (`detail-gallery`): la única con dos fotos.
+// Paso D.9 (decisiones 172, 173 y 175) — la ficha más allá de la captura: ningún elemento
+// enfocable queda tapado por el resumen sticky ni por nada más (WCAG 2.4.11, F110), en los dos
+// sentidos. Se usa la ficha de P7 (`detail-gallery`), que conserva el nombre de la ruta y de sus
+// capturas aunque la galería ya no exista (decisión 276).
 import { E2E_NO_LOCATION_LISTING_ID } from '@buscahogar/db/e2e';
-import type { Locator, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 import { expect, test } from './fixtures';
 import { openRoute, ROUTES } from './routes';
@@ -22,66 +22,8 @@ const GALLERY_ROUTE = route('detail-gallery');
 const HISTORY_ROUTE = route('detail-history');
 const SINGLE_ROUTE = route('detail-single');
 
-// La diapositiva ocupa la caja visible de la tira (con medio píxel de tolerancia por redondeo).
-async function fillsStrip(strip: Locator, slide: Locator): Promise<boolean> {
-  const stripBox = await strip.boundingBox();
-  const slideBox = await slide.boundingBox();
-  if (stripBox === null || slideBox === null) return false;
-  return (
-    Math.abs(slideBox.x - stripBox.x) <= 0.5 &&
-    Math.abs(slideBox.x + slideBox.width - (stripBox.x + stripBox.width)) <= 0.5
-  );
-}
-
-test.describe('galería de la ficha sin JavaScript', () => {
+test.describe('ficha sin JavaScript', () => {
   test.use({ javaScriptEnabled: false });
-
-  test('«Foto siguiente» y «Foto anterior» cambian el fragmento y desplazan la tira; nada avanza solo', async ({
-    page,
-  }) => {
-    test.skip(test.info().project.name !== 'w320-light', 'solo el ancho móvil');
-    await page.goto(GALLERY_ROUTE.path);
-
-    const gallery = page.getByRole('region', { name: 'Fotos de la vivienda' });
-    await expect(gallery).toHaveAttribute('aria-roledescription', 'carrusel');
-    // APG: un carrusel que no rota solo no anuncia cambios ni lleva control de pausa.
-    await expect(gallery).not.toHaveAttribute('aria-live', /.*/);
-    const slides = gallery.getByRole('group');
-    await expect(slides).toHaveCount(2);
-    await expect(slides.nth(0)).toHaveAccessibleName('Foto 1 de 2 · Idealista');
-    await expect(slides.nth(1)).toHaveAccessibleName('Foto 2 de 2 · Kyero');
-    const strip = gallery.locator('.snap-x');
-    const firstId = await slides.nth(0).getAttribute('id');
-    const secondId = await slides.nth(1).getAttribute('id');
-    expect(firstId).not.toBeNull();
-    expect(secondId).not.toBeNull();
-
-    expect(await fillsStrip(strip, slides.nth(0))).toBe(true);
-    expect(await fillsStrip(strip, slides.nth(1))).toBe(false);
-
-    await slides.nth(0).getByRole('link', { name: 'Foto siguiente' }).click();
-    await page.waitForURL((url) => url.hash === `#${secondId ?? ''}`);
-    await expect.poll(() => fillsStrip(strip, slides.nth(1))).toBe(true);
-    expect(await fillsStrip(strip, slides.nth(0))).toBe(false);
-
-    // Nada avanza solo: sin JavaScript no hay temporizadores, y la tira no tiene
-    // animaciones CSS. Dos capturas fuerzan fotogramas nuevos (sin esperas por tiempo)
-    // y, tras ellas, la posición y el fragmento siguen donde los dejó el enlace.
-    expect(await strip.evaluate((element) => element.getAnimations({ subtree: true }).length)).toBe(
-      0
-    );
-    const scrollLeft = await strip.evaluate((element) => element.scrollLeft);
-    expect(scrollLeft).toBeGreaterThan(0);
-    await strip.screenshot();
-    await strip.screenshot();
-    expect(await strip.evaluate((element) => element.scrollLeft)).toBe(scrollLeft);
-    expect(new URL(page.url()).hash).toBe(`#${secondId ?? ''}`);
-    expect(await fillsStrip(strip, slides.nth(1))).toBe(true);
-
-    await slides.nth(1).getByRole('link', { name: 'Foto anterior' }).click();
-    await page.waitForURL((url) => url.hash === `#${firstId ?? ''}`);
-    await expect.poll(() => fillsStrip(strip, slides.nth(0))).toBe(true);
-  });
 
   test('el enlace de vuelta es un href normal que funciona sin JavaScript', async ({ page }) => {
     test.skip(test.info().project.name !== 'w320-light', 'solo el ancho móvil');
@@ -101,39 +43,6 @@ test.describe('galería de la ficha sin JavaScript', () => {
 
 // D.12 (decisión 180): la lista de anuncios de origen es una comparación. P4 tiene un único
 // anuncio activo, P7 solo inactivos. La nota de agrupación se ve siempre; el aviso solo sin activos.
-// D.15 (F1 y F8, decisión 200) — foco y tamaño de los enlaces de la galería. Con JavaScript, para
-// leer `document.activeElement`; el comportamiento del fragmento es el mismo sin él.
-test.describe('galería de la ficha: foco y tamaño de objetivo (D.15)', () => {
-  test('el enlace de la galería mide al menos 24 px de alto en todos los anchos', async ({
-    page,
-  }) => {
-    await page.goto(GALLERY_ROUTE.path);
-    const links = page
-      .getByRole('region', { name: 'Fotos de la vivienda' })
-      .getByRole('link', { name: /^Foto (anterior|siguiente)$/ });
-    expect(await links.count()).toBeGreaterThan(0);
-    for (let index = 0; index < (await links.count()); index += 1) {
-      const box = await links.nth(index).boundingBox();
-      expect(box).not.toBeNull();
-      expect(box?.height ?? 0).toBeGreaterThanOrEqual(24);
-    }
-  });
-
-  test('Intro en «Foto siguiente» mueve el foco a la diapositiva 2', async ({ page }) => {
-    await page.goto(GALLERY_ROUTE.path);
-    const gallery = page.getByRole('region', { name: 'Fotos de la vivienda' });
-    const secondId = await gallery.getByRole('group').nth(1).getAttribute('id');
-    expect(secondId).not.toBeNull();
-
-    const next = gallery.getByRole('link', { name: 'Foto siguiente' });
-    await next.focus();
-    await page.keyboard.press('Enter');
-    await expect
-      .poll(() => page.evaluate(() => document.activeElement?.id ?? ''))
-      .toBe(secondId ?? '');
-  });
-});
-
 // D.18 (decisión 220) — Chromium con es-ES omite el punto en números de cuatro cifras; el precio
 // lo agrupa siempre («1.180 €», P2) y la superficie no.
 test.describe('formato del precio en la ficha (D.18)', () => {
@@ -356,8 +265,6 @@ const FOCUS_CASES = [
 const EXPECTED_LABELS = [
   'Saltar al contenido',
   'Volver a la búsqueda',
-  'Foto siguiente',
-  'Foto anterior',
   'Ver en Idealista (web externa)',
   'Ver en Kyero (web externa)',
 ];
