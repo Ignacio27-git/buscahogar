@@ -188,7 +188,7 @@ describe('superficies neutras (S5.1-S5.3, decisión 237)', () => {
   });
 });
 
-describe('fila de resultado: insignias y «Sin foto» (S2.3, A5, A6)', () => {
+describe('fila de resultado: insignias (S2.3, A5, A6)', () => {
   it('«1 fuente» se enmarca con outline --rule hacia dentro, sin borde ni sombra (alto cero)', () => {
     const badge = rule('.result-row__badge');
     expect(badge.get('outline')).toBe('1px solid var(--rule)');
@@ -204,20 +204,5 @@ describe('fila de resultado: insignias y «Sin foto» (S2.3, A5, A6)', () => {
     expect(multi.get('outline')).toBe('0');
     expect(multi.get('border')).toBe('1px solid var(--vegetation)');
     expect(multi.get('background-color')).toBe('var(--vegetation-wash)');
-  });
-
-  it('«Sin foto» es una pauta cuadrada interior que no altera la caja 4:3', () => {
-    const label = rule('.result-row__media > span');
-    expect(label.get('position')).toBe('absolute');
-    expect(label.get('inset')).toBe('0.375rem');
-    expect(label.get('border')).toBe('1px solid var(--rule)');
-    expect(label.get('font-weight')).toBe('600');
-    expect(label.has('background-color')).toBe(false);
-  });
-
-  it('la caja de la miniatura conserva el fondo de tinta de D.17 (desviación declarada de R2.3)', () => {
-    const media = rule('.result-row__media');
-    expect(media.get('background-color')).toBe('color-mix(in oklab, var(--surface), var(--ink) 5%)');
-    expect(media.get('aspect-ratio')).toBe('4 / 3');
   });
 });

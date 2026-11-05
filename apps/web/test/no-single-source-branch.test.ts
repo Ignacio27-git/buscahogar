@@ -11,7 +11,6 @@ import { describe, expect, it } from 'vitest';
 const FILES = [
   '../src/app/properties/[listingId]/page.tsx',
   '../src/components/property-header.tsx',
-  '../src/components/source-gallery.tsx',
   '../src/components/source-list.tsx',
 ];
 

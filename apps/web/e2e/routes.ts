@@ -99,11 +99,6 @@ export async function openRoute(page: Page, route: E2eRoute): Promise<void> {
   await page.goto(route.path);
   await page.evaluate(() => document.fonts.ready);
   await settleAnimations(page);
-  // Solo la primera: las demás quedan fuera de la tira y su carga diferida no se ve.
-  await page.waitForFunction(() => {
-    const image = document.querySelector<HTMLImageElement>('.property-gallery img');
-    return image === null || (image.complete && image.naturalWidth > 0);
-  });
   // D.11 (decisión 179): el mapa estático de la ficha, si existe. Las teselas son `loading=lazy`,
   // así que hay que acercarse para que se pidan; se espera a que todas decodifiquen y se vuelve
   // arriba. Va ANTES del `return` de `none`: las rutas de ficha no tienen mapa interactivo.

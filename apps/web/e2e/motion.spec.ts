@@ -25,7 +25,6 @@ const SCALE_PRESSED = 'matrix(0.97, 0, 0, 0.97, 0, 0)';
 // D.21: la lista de duraciones de los botones empareja la pulsación (100 ms) con el color (150 ms).
 const PRESS_AND_COLOUR = '0.1s, 0.15s, 0.15s';
 const HOVER_TIME = '0.15s';
-const SCALE_HOVER = 'matrix(1.03, 0, 0, 1.03, 0, 0)';
 const LINK_HOVER_RECIPE = 'color-mix(in oklab, var(--accent), var(--ink) 12%)';
 // Sin resultados en la página 2: la lista muestra «Ir a la primera página» y el paginador, «anterior».
 const PAGINATION_PATH = '/?page=2';
@@ -87,25 +86,6 @@ async function boxOf(locator: Locator): Promise<{ x: number; y: number; width: n
   const box = await locator.boundingBox();
   if (box === null) throw new Error('el elemento no tiene caja');
   return box;
-}
-
-// La siembra no tiene filas con foto (las cinco son «Sin foto»), y la regla de la imagen solo mira la
-// clase. Se añade a la primera fila una imagen sin `src` (no pide nada a la red) con las mismas clases y
-// la misma geometría que `next/image` con `fill`, escrita por CSSOM porque la CSP veta el atributo style.
-async function addThumbnail(page: Page): Promise<{ row: Locator; image: Locator; media: Locator }> {
-  const row = page.locator('.result-row__link').first();
-  const media = row.locator('.result-row__media');
-  await media.evaluate((box) => {
-    const image = document.createElement('img');
-    image.className = 'result-row__img';
-    image.alt = '';
-    image.style.position = 'absolute';
-    image.style.inset = '0';
-    image.style.inlineSize = '100%';
-    image.style.blockSize = '100%';
-    box.append(image);
-  });
-  return { row, image: media.locator('.result-row__img'), media };
 }
 
 // Los dos esquemas del ancho de escritorio: el hover se comprueba en claro y en oscuro.
@@ -305,20 +285,17 @@ test.describe('movimiento con reducción de movimiento', () => {
     expect(await computed(drawButton(page), 'transitionDuration')).toBe('0s, 0s, 0s');
   });
 
-  // D.21 (UI-3, C1; S-UI-7): con movimiento reducido la imagen NO se amplía (no es «se amplía en 0 s»:
-  // la regla no existe). El tinte del fondo, en cambio, sí se aplica, y al instante.
-  test('con movimiento reducido la imagen de la fila no se amplía y el fondo cambia al instante (S-UI-7)', async ({
+  // D.21 (UI-3, C1; S-UI-7): el tinte del fondo se aplica al instante con movimiento reducido.
+  test('con movimiento reducido el fondo de la fila cambia al instante (S-UI-7)', async ({
     page,
   }) => {
     onlyProject('w1280-light');
     await page.goto('/');
-    const { row, image } = await addThumbnail(page);
+    const row = page.locator('.result-row__link').first();
     const rest = await style(row, 'background-color');
 
     await row.hover();
     await expect.poll(() => style(row, 'background-color')).not.toBe(rest);
-    expect(await computed(image, 'transform')).toBe('none');
-    expect(await computed(image, 'transitionDuration')).toBe('0s');
     expect(await rootTokenMs(page, '--duration-hover')).toBe(0);
   });
 });
@@ -419,33 +396,26 @@ test.describe('hover y color con preferencia normal (D.21)', () => {
 test.describe('realce de la fila con preferencia normal (D.21)', () => {
   test.use({ reducedMotion: 'no-preference' });
 
-  test('el fondo de la fila se tiñe y la imagen se amplía 1,03 sin mover ninguna caja (S-UI-6)', async ({
+  test('el fondo de la fila se tiñe sin mover ninguna caja (S-UI-6)', async ({
     page,
   }) => {
     onlyDesktop();
     await page.goto('/');
-    const { row, image, media } = await addThumbnail(page);
-    expect(await computed(image, 'transitionProperty')).toBe('transform');
-    expect(await computed(image, 'transitionDuration')).toBe(HOVER_TIME);
+    const row = page.locator('.result-row__link').first();
 
     // D.22: con la franja de la portada la primera fila queda bajo el pliegue y `hover()` desplazaría la
     // página; las cajas se miden ya a la vista para comparar la misma posición antes y después.
     await row.scrollIntoViewIfNeeded();
     const restBackground = await style(row, 'background-color');
     const rowBox = await boxOf(row);
-    const mediaBox = await boxOf(media);
     const tint = await resolveColour(page, 'var(--surface-sunken)');
-    expect(await computed(image, 'transform')).toBe('none');
 
     await row.hover();
-    await expect.poll(() => computed(image, 'transform')).toBe(SCALE_HOVER);
     await expect.poll(() => style(row, 'background-color')).toBe(tint);
     expect(tint).not.toBe(restBackground);
     expect(await boxOf(row)).toEqual(rowBox);
-    expect(await boxOf(media)).toEqual(mediaBox);
 
     await page.mouse.move(2, 2);
-    await expect.poll(() => computed(image, 'transform')).toBe('none');
     await expect.poll(() => style(row, 'background-color')).toBe(restBackground);
   });
 });
@@ -470,21 +440,14 @@ test.describe('hover sin puntero fino (D.21)', () => {
     expect(await style(other, 'border-block-end-color')).toBe(border);
   });
 
-  test('un puntero táctil no tiñe la fila ni amplía la imagen, ni al pulsarla (S-UI-8)', async ({ page }) => {
+  test('un puntero táctil no tiñe la fila (S-UI-8)', async ({ page }) => {
     onlyProject('w320-light');
     await page.goto('/');
-    const { row, image } = await addThumbnail(page);
+    const row = page.locator('.result-row__link').first();
     const rest = await style(row, 'background-color');
 
     await row.hover();
     expect(await style(row, 'background-color')).toBe(rest);
-    expect(await computed(image, 'transform')).toBe('none');
-
-    // Pulsada (:active) la imagen sigue sin ampliarse; se suelta fuera para no navegar.
-    await pressWithMouse(page, row);
-    await expect.poll(() => row.evaluate((element) => element.matches(':active'))).toBe(true);
-    expect(await computed(image, 'transform')).toBe('none');
-    await releaseOffTarget(page);
   });
 });
 

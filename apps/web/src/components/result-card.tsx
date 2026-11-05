@@ -11,14 +11,10 @@
 // `<a href>` normal, nunca `next/link` (D1: `typedRoutes` sigue sin activar
 // en `next.config.ts`).
 //
-// D.6b (decisiones 152 y 155) — fila densa en lugar de tarjeta: miniatura 4:3 a
-// la izquierda, precio y datos en el centro y, desde 48rem, precio en una
-// columna fija a la derecha. La imagen usa `fill` + `sizes` dentro de una caja
-// de proporción fija (`.result-row__media`), de modo que no hay salto de
-// maquetación. Tipo y operación salen de los rótulos de decisión 134; la
-// política de `alt` vive en `resolveThumbnailAlt`.
+// D.6b (decisiones 152 y 155) — fila densa en lugar de tarjeta: precio y datos y, desde 48rem, precio en
+// una columna fija a la derecha. Tipo y operación salen de los rótulos de decisión 134.
 //
-// Paso 3.4b (decisión 274): una miniatura que no carga cae al mismo «Sin foto» que una fila sin miniatura.
+// Decisión 276: sin fotos. Idealista no autoriza el uso de sus imágenes, y `thumbnailUrl` no se pinta.
 import type { ReactElement } from 'react';
 
 import type { PropertySearchResult } from '@buscahogar/db';
@@ -28,25 +24,17 @@ import { buildPropertyDetailHref } from '@/lib/property-href';
 import { operationLabel, propertyTypeLabel } from '@/lib/search-labels';
 import type { SearchReturnParams } from '@/lib/search-return-params';
 
-import { FallbackImage } from './fallback-image';
-import { resolveThumbnailAlt, resolveThumbnailSource } from './thumbnail-source';
-
 export interface ResultCardProps {
   readonly result: PropertySearchResult;
   // D.9: parámetros de la búsqueda que el enlace lleva a la ficha (vuelta a los resultados).
   readonly returnParams?: SearchReturnParams;
 }
 
-// Debe coincidir con el ancho de la columna de miniatura de `.result-row` en
-// globals.css: 10rem desde 48rem y 6rem por debajo.
-const THUMBNAIL_SIZES = '(min-width: 48rem) 10rem, 6rem';
-
 function formatBathrooms(count: number): string {
   return `${String(count)} ${count === 1 ? 'baño' : 'baños'}`;
 }
 
 export function ResultCard({ result, returnParams = [] }: ResultCardProps): ReactElement {
-  const thumbnail = resolveThumbnailSource(result.thumbnailUrl);
   const priceMissing = result.minPriceCents === null;
   const sourceCount = result.distinctSourceCount;
   // D.15 (F6, decisión 198): una sola cadena para la línea visible y para el encabezado.
@@ -54,24 +42,8 @@ export function ResultCard({ result, returnParams = [] }: ResultCardProps): Reac
   const operationText = operationLabel(result.operation);
   const kind = `${typeText} · ${operationText ?? 'Operación no disponible'}`;
 
-  const noPhoto = <span aria-hidden="true">Sin foto</span>;
-
   const content = (
     <>
-      <div className="result-row__media">
-        {thumbnail.kind === 'thumbnail' ? (
-          <FallbackImage
-            src={thumbnail.url}
-            alt={resolveThumbnailAlt(result)}
-            fill
-            sizes={THUMBNAIL_SIZES}
-            className="result-row__img"
-            fallback={noPhoto}
-          />
-        ) : (
-          noPhoto
-        )}
-      </div>
       <h2 className={priceMissing ? 'result-row__price result-row__price--missing' : 'result-row__price tabular-nums'}>
         {formatPriceCents(result.minPriceCents)}
         <span className="sr-only">{`, ${kind}`}</span>

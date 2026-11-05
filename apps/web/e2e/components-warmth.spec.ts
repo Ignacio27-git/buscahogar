@@ -1,8 +1,7 @@
 // Paso D.20 (spec result-row-presentation R2.1/S2.5; diseño «Row-height delta») — la fila de
 // resultado debe seguir siendo fina. Las alturas de abajo se midieron en Docker (Chromium + Liberation
-// Sans) sobre el código SIN cambiar de D.20, antes de tocar ningún CSS. La siembra no tiene filas con
-// foto: las cinco son «Sin foto»; la primera es la de varias fuentes (insignia `--multi`) y el resto
-// tiene una sola fuente. El margen de +4 px es el del spec (R2.1).
+// Sans) sobre el código SIN cambiar de D.20, antes de tocar ningún CSS. De las cinco filas de la siembra, la
+// primera es la de varias fuentes (insignia `--multi`) y el resto tiene una sola fuente. El margen de +4 px es el del spec (R2.1).
 import type { Page } from '@playwright/test';
 
 import { expect, test } from './fixtures';

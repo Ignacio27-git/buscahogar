@@ -206,13 +206,19 @@ describe('PropertyDetailPage — composición y orden del DOM (D.9)', () => {
     return renderToStaticMarkup(element);
   }
 
-  it('orden: enlace de vuelta, título, precio de cabecera, galería, panel y descripción', async () => {
+  it('decisión 276: la ficha no muestra galería ni pide la foto remota', async () => {
+    const html = await renderFicha(HEADER);
+    expect(html).not.toContain('carrusel');
+    expect(html).not.toContain('property-gallery');
+    expect(html).not.toContain('img4.idealista.com');
+  });
+
+  it('orden: enlace de vuelta, título, precio de cabecera, panel y descripción', async () => {
     const html = await renderFicha(HEADER);
     const positions = [
       html.indexOf('property-detail__back'),
       html.indexOf('<h1'),
       html.indexOf('property-summary--lead'),
-      html.indexOf('aria-roledescription="carrusel"'),
       html.indexOf('property-detail__panel'),
       html.indexOf('property-summary--panel'),
       html.indexOf('class="source-list"'),

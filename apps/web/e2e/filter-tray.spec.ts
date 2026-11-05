@@ -118,7 +118,7 @@ test.describe('filas de resultado y paginador', () => {
     });
   }
 
-  test('cada fila tiene un único enlace con la miniatura reservada (4:3)', async ({ page }) => {
+  test('cada fila tiene un único enlace', async ({ page }) => {
     await openRoute(page, route('home'));
     const rows = page.locator('ul.result-list > li');
     await expect(rows.first()).toBeVisible();
@@ -126,9 +126,6 @@ test.describe('filas de resultado y paginador', () => {
     for (let index = 0; index < count; index += 1) {
       await expect(rows.nth(index).getByRole('link')).toHaveCount(1);
     }
-    const box = await rows.first().locator('.result-row__media').boundingBox();
-    expect(box).not.toBeNull();
-    expect(Math.abs((box?.width ?? 0) / (box?.height ?? 1) - 4 / 3)).toBeLessThan(0.02);
   });
 
   // El seed tiene menos de una página: `?page=2` es la forma de ver el paginador

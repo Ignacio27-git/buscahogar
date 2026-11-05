@@ -15,10 +15,8 @@ function buildContentSecurityPolicy(isDev: boolean, tileOrigin: string): string 
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
-    // spec #261 "csp-image-policy" / diseño decisión 080: las imágenes de
-    // fuentes externas pasan siempre por el mismo origen vía `/_next/image`
-    // (`images.remotePatterns` de abajo, ROADMAP 1.11), nunca directamente
-    // desde el navegador. ROADMAP 2.6 (decisión 112, enmienda la 080) y ROADMAP 3.4 (decisión 261):
+    // spec #261 "csp-image-policy" / diseño decisión 080: ninguna imagen de una fuente
+    // de anuncios se pide desde el navegador (decisión 276: tampoco por el servidor). ROADMAP 2.6 (decisión 112, enmienda la 080) y ROADMAP 3.4 (decisión 261):
     // UNA única excepción, el host de las teselas raster, que el navegador pide directamente (el
     // servidor nunca las proxea). Es el de OpenStreetMap salvo que `TILE_URL_TEMPLATE` configure otro
     // proveedor; se deriva del MISMO parser que la plantilla (`lib/tile-config.ts`) y solo lleva el
@@ -43,17 +41,11 @@ const nextConfig: NextConfig = {
   // Header Set; No X-Powered-By": nunca revelar el framework servidor en
   // un header de respuesta.
   poweredByHeader: false,
-  // Imágenes remotas: los dominios de las fuentes se añadirán aquí (paso 1.11).
+  // Decisión 276: sin hosts remotos. Idealista no autoriza el uso de sus imágenes.
   // Las credenciales de las fuentes NUNCA llegan a este workspace: viven solo
   // en apps/ingestion y jamás en variables NEXT_PUBLIC_*.
   images: {
-    // ROADMAP 1.11 (diseño D8) — un único dominio, el observado en las 100
-    // fixtures reales de ingesta (paso 1.5/1.6). El hostname es la frontera
-    // de seguridad real (decide a qué servidor proxeamos); el `pathname`
-    // observado (`/blur/…`) no se fija, porque pinnar una forma de ruta no
-    // observada por contrato sería la misma clase de suposición que un
-    // hostname con comodín, en sentido contrario.
-    remotePatterns: [{ protocol: 'https', hostname: 'img4.idealista.com' }],
+    remotePatterns: [],
   },
   async headers() {
     const isDev = process.env.NODE_ENV === 'development';
