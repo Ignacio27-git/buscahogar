@@ -2555,3 +2555,17 @@ desechable, que se ejecutó de verdad. Las URL de la presentación y del vídeo 
 
 **Observación.** Las cifras salen de `docs/ROADMAP.md`, `docs/SEARCH-PERFORMANCE.md` y `docs/DECISIONS.md`. Las capturas son de la demo desplegada. Las notas del orador
 sirven de guion para el vídeo. La primera captura de la ficha mostró el mapa a medio cargar: era la carga de las teselas, y se repitió la captura.
+
+---
+
+### 2026-11-05 — Guion del vídeo del TFM (paso 3.4b)
+
+**Tipo de tarea:** documentación
+**Forma de especificación:** petición en una frase
+**Resultado:** pendiente de revisión del responsable
+
+**Prompt:**
+
+> «hazme un guión para el vídeo»
+
+**Observación.** Se comprobó en la demo el recorrido que propone el guion. Buscar una ficha con varios anuncios destapó grupos sospechosos de habitaciones (nota en `docs/ROADMAP.md`, 3.4b).
