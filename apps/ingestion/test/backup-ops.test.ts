@@ -104,7 +104,7 @@ describe('ops/backup/Dockerfile — versiones fijadas, sin root', () => {
   it('usuario no root en el destino por defecto y en el de simulacro; scripts de solo lectura', () => {
     expect(dockerfile).toMatch(/^USER dbbackup$/m);
     expect(dockerfile).toMatch(/^FROM base AS drill$/m);
-    expect(dockerfile.trimEnd().split('\n').filter((line) => line.startsWith('FROM ')).at(-1)).toBe('FROM base AS backup');
+    expect(dockerfile.trimEnd().split(/\r?\n/).filter((line) => line.startsWith('FROM ')).at(-1)).toBe('FROM base AS backup');
     expect(dockerfile).toMatch(/chmod 0555 \/opt\/backup\/\*\.sh/);
   });
 
