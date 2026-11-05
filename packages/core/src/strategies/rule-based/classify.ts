@@ -10,10 +10,10 @@ import { MIN_EFFECTIVE_WEIGHT, MIN_EVALUATED_SIGNALS, RULE_BASED_BAND_THRESHOLDS
 
 export type SimilarityBand = 'accept' | 'undecided' | 'reject';
 
-// Las dos claves de veto (BAND-3) — excluidas del piso de evidencia porque
+// Las claves de veto (BAND-3) — excluidas del piso de evidencia porque
 // viven siempre a peso 0 y nunca son "evidencia acumulada", solo una
 // puerta binaria.
-const GATE_KEYS = new Set(['propertyTypeMatch', 'operationMatch']);
+const GATE_KEYS = new Set(['propertyTypeMatch', 'operationMatch', 'floorMatch']);
 
 // Extraído en ROADMAP 2.2 (decisión 088) para que la estrategia
 // probabilística (strategies/probabilistic/) comparta el MISMO criterio de
@@ -22,7 +22,9 @@ const GATE_KEYS = new Set(['propertyTypeMatch', 'operationMatch']);
 export function isVetoed(signals: SignalBreakdown): boolean {
   const propertyTypeMatch = signals['propertyTypeMatch'];
   const operationMatch = signals['operationMatch'];
-  return propertyTypeMatch?.value === 0 || operationMatch?.value === 0;
+  // `floorMatch` solo lo emite rule-based desde su versión 1.1.0 (decisión 277).
+  const floorMatch = signals['floorMatch'];
+  return propertyTypeMatch?.value === 0 || operationMatch?.value === 0 || floorMatch?.value === 0;
 }
 
 // `thresholds` es un parámetro OPCIONAL usado solo por la evaluación offline
@@ -32,7 +34,7 @@ export function isVetoed(signals: SignalBreakdown): boolean {
 // producción sigue siendo un cambio de `version` (decisión 020/049), nunca
 // un parámetro en tiempo de ejecución de producción — ver weights.ts:1-9.
 export function classify(result: SimilarityResult, thresholds: BandThresholds = RULE_BASED_BAND_THRESHOLDS): SimilarityBand {
-  // 1. Veto primero (BAND-2): un desacuerdo en propertyType u operation
+  // 1. Veto primero (BAND-2): un desacuerdo en propertyType, operation o planta
   // fuerza reject sin importar el score acumulado, y nunca al revés.
   if (isVetoed(result.signals)) {
     return 'reject';

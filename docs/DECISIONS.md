@@ -7628,6 +7628,23 @@ pintarlas conservando el código (código muerto en un proyecto que no va a prod
 **Consecuencia.** La ingesta y las URL guardadas en `listings.thumbnail_url` no se tocan: no se pintan, y `listings` no se reescribe sin motivo. El
 nombre de la ruta `detail-gallery` de los e2e se conserva para no renombrar sus capturas.
 
+## 277 — Dos anuncios `other` o en plantas conocidas distintas no se agrupan (rule-based 1.1.0)
+
+**Contexto.** Al preparar el vídeo apareció una vivienda con 7 habitaciones de un mismo piso compartido, de 285 a 380 € y en plantas distintas, agrupadas con
+puntuación de 0,86 a 0,98. En la base local había 66 viviendas con varios anuncios: 21 incluían anuncios `other` y 13 mezclaban plantas. `other` agrupa lo que el mapeo no
+reconoce (habitaciones, oficinas, garajes, estudios), y dos `other` pasaban la puerta de tipo. La planta se guardaba, pero ninguna señal la comparaba.
+
+**Decisión.** La puerta `propertyTypeMatch` veta si los dos anuncios son `other`. Una puerta nueva, `floorMatch`, veta si las dos plantas se conocen y son distintas; si falta alguna, no
+veta. Las dos tienen peso 0 y no cambian la puntuación. `isVetoed` la lee, así que la evidencia queda en el desglose. La estrategia pasa a 1.1.0.
+
+**Alternativas descartadas.** Crear un tipo `room` y mapear las tipologías de Idealista (mejor a largo plazo, pero toca dominio, filtros y etiquetas de la web para una demo que termina aquí, y no
+resuelve garajes ni oficinas); dar peso a la planta (un desacuerdo solo restaría puntuación, y el error de agrupar es el peor según la decisión 006); vetar también con planta ausente
+(rompería anuncios válidos: una de las dos fichas suele no traerla).
+
+**Consecuencia.** Reproceso local sin gastar cuota: de 66 a 38 viviendas con varios anuncios y de 4 328 a 4 375 viviendas, ninguna con plantas distintas ni con `other`. Se pierde recall a sabiendas: dos anuncios
+de un mismo estudio ya no se agrupan. El corpus de 24 pares da las mismas métricas (no contiene estos casos): el arreglo se apoya en los tests nuevos y en datos reales, no en una mejora medida. La estrategia
+probabilística no cambia su señal de tipo ni emite la de planta, porque no se usa en producción. **La demo sigue con los grupos antiguos** hasta volcar la base de nuevo.
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se

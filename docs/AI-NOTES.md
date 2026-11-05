@@ -4419,3 +4419,15 @@ CDN, y solo guardar una copia necesitaría permiso. También se propuso explicar
 
 **Observación:** que una API devuelva un dato no dice qué licencia tiene. El correo se escribió precisamente porque no había condiciones
 legibles, y aun así la pregunta 2 partía de ese supuesto. Corregida la guía de la demo.
+
+---
+
+### 2026-11-05 — Estrategia de deduplicación que ignoraba la planta y daba por igual el tipo `other` (pasos 1.9 y 3.4b)
+
+**Categoría:** código que compilaba y pasaba los tests, pero no hacía lo correcto.
+
+**Qué se generó mal:** la estrategia por reglas compara el tipo con `===`, así que dos anuncios `other` contaban como el mismo tipo, y no usaba la planta aunque el dato estaba hidratado. Siete habitaciones de un piso se agruparon con hasta 0,98.
+
+**Cómo se detectó:** al buscar una ficha con varios anuncios para el guion del vídeo, no por ningún test. El corpus de 24 pares, construido a mano, no contenía esos casos.
+
+**Observación:** además, la presentación ya se había redactado sin mirar los grupos reales. Unas métricas buenas sobre un corpus pequeño no decían nada de este error.

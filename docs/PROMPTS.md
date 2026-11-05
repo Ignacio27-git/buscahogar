@@ -2569,3 +2569,17 @@ sirven de guion para el vídeo. La primera captura de la ficha mostró el mapa a
 > «hazme un guión para el vídeo»
 
 **Observación.** Se comprobó en la demo el recorrido que propone el guion. Buscar una ficha con varios anuncios destapó grupos sospechosos de habitaciones (nota en `docs/ROADMAP.md`, 3.4b).
+
+---
+
+### 2026-11-05 — Corrección de falsos positivos de deduplicación (paso 3.4b)
+
+**Tipo de tarea:** corrección con TDD
+**Forma de especificación:** confirmación de una propuesta («si») tras un hallazgo en datos reales
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «¿Investigo y corrijo esos grupos antes de que grabes?» → «si»
+
+**Observación.** Tests en rojo primero. El desglose guardado en `property_listings` permitió ver la causa sin rehidratar nada. Las métricas del corpus no cambian: no contiene estos casos.

@@ -7,8 +7,8 @@ import type { Listing } from '../src/schemas/listing.schema.js';
 import { makeListing } from './test-helpers.js';
 
 const ACCUMULATED_KEYS = ['distance', 'price', 'surface', 'addressExact', 'addressZone', 'rooms', 'bathrooms'] as const;
-const GATE_KEYS = ['propertyTypeMatch', 'operationMatch'] as const;
-const ALL_NINE_KEYS = [...ACCUMULATED_KEYS, ...GATE_KEYS];
+const GATE_KEYS = ['propertyTypeMatch', 'operationMatch', 'floorMatch'] as const;
+const ALL_TEN_KEYS = [...ACCUMULATED_KEYS, ...GATE_KEYS];
 
 // RDS-2, RDS-3, RDS-5, RDS-6, SIM-1: propiedades del `score()` de
 // `ruleBasedDedupStrategy` como conjunto, independientes de qué par
@@ -17,12 +17,12 @@ const ALL_NINE_KEYS = [...ACCUMULATED_KEYS, ...GATE_KEYS];
 describe('ruleBasedDedupStrategy — identidad', () => {
   it('name y version', () => {
     expect(ruleBasedDedupStrategy.name).toBe('rule-based-structured');
-    expect(ruleBasedDedupStrategy.version).toBe('1.0.0');
+    expect(ruleBasedDedupStrategy.version).toBe('1.1.0');
   });
 });
 
-describe('RDS-2: el desglose siempre trae las nueve claves', () => {
-  it('las nueve claves están presentes incluso cuando casi todo está ausente', () => {
+describe('RDS-2: el desglose siempre trae las diez claves', () => {
+  it('las diez claves están presentes incluso cuando casi todo está ausente', () => {
     const a = makeListing({
       coordinates: undefined,
       surfaceM2: undefined,
@@ -40,10 +40,10 @@ describe('RDS-2: el desglose siempre trae las nueve claves', () => {
 
     const result = ruleBasedDedupStrategy.score(a, b);
 
-    for (const key of ALL_NINE_KEYS) {
+    for (const key of ALL_TEN_KEYS) {
       expect(result.signals[key]).toBeDefined();
     }
-    expect(Object.keys(result.signals).sort()).toEqual([...ALL_NINE_KEYS].sort());
+    expect(Object.keys(result.signals).sort()).toEqual([...ALL_TEN_KEYS].sort());
   });
 
   it('RDS-2b: addressExact Y addressZone están las dos presentes, nunca solo una', () => {

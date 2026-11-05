@@ -2328,8 +2328,8 @@ respuesta de Idealista a la petición de acuerdo.
 
 - 2026-11-05: **Presentación del TFM creada** (12 diapositivas con notas del orador y capturas de la demo): https://claude.ai/artifact/R4Vvt7wcGyVr636BqaPvHC. Es privada hasta que el responsable la comparta. **Pendiente del responsable:** compartirla, añadir su URL al README y grabar el vídeo.
 
-- 2026-11-05: guion del vídeo redactado. **Hallazgo al preparar la demo:** hay grupos con indicios de falso positivo. La vivienda `8a55a4ec-6846-44b7-ae95-a56743f727ca` agrupa 7 habitaciones
-  de la misma dirección con precios de 285 a 380 € y plantas distintas. Sin corregir ni evaluar: el guion evita mostrar estas fichas.
+- 2026-11-05: guion del vídeo redactado. **Corregidos los grupos con falsos positivos** que destapó (decisión 277, `rule-based` 1.1.0): de 66 a 38 viviendas con varios anuncios en la base local.
+  **Pendiente del responsable:** volcar de nuevo la base a Neon (sección «Actualizar los datos» de la guía), porque la demo sigue mostrando los grupos antiguos. Después hay que actualizar las cifras del README y de la presentación.
 
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.

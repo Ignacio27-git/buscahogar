@@ -69,7 +69,8 @@ export const T_LOW = 0.45;
 export const MIN_EVALUATED_SIGNALS = 3;
 export const MIN_EFFECTIVE_WEIGHT = 55;
 
-export const STRATEGY_VERSION = '1.0.0';
+// 1.1.0 (decisión 277): puertas de planta y de tipo sin clasificar. Pesos y umbrales, sin cambios.
+export const STRATEGY_VERSION = '1.1.0';
 
 // Forma tipada de T_HIGH/T_LOW cruzando hacia `classify(result, thresholds)`
 // (ROADMAP 2.2, decisión 088) — el valor DEFAULT de producción, nunca
