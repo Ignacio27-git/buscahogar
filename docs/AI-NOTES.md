@@ -4422,6 +4422,18 @@ legibles, y aun así la pregunta 2 partía de ese supuesto. Corregida la guía d
 
 ---
 
+### 2026-11-05 — Commit que decía corregir un test sin incluir el cambio (paso 3.4b)
+
+**Categoría:** resultado dado por bueno sin comprobarlo.
+
+**Qué se generó mal:** un `sed` no aplicó la corrección de `backup-ops.test.ts` y, en el mismo comando, se registró «Corregido» en la hoja de ruta y se hizo el commit. La salida ya mostraba el test en rojo.
+
+**Cómo se detectó:** la repetición de `pnpm test` en un clon limpio siguió fallando. Se corrigió con una edición directa y se comprobó con el Dockerfile en CRLF y en LF antes de rehacer ese commit, que no se había subido.
+
+**Observación:** encadenar la edición, el registro y el commit impide mirar el resultado intermedio. El clon limpio destapó además el fallo original, invisible en la copia de trabajo.
+
+---
+
 ### 2026-11-05 — Estrategia de deduplicación que ignoraba la planta y daba por igual el tipo `other` (pasos 1.9 y 3.4b)
 
 **Categoría:** código que compilaba y pasaba los tests, pero no hacía lo correcto.
