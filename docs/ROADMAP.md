@@ -2331,6 +2331,9 @@ respuesta de Idealista a la petición de acuerdo.
 - 2026-11-05: guion del vídeo redactado. **Corregidos los grupos con falsos positivos** que destapó (decisión 277, `rule-based` 1.1.0): de 66 a 38 viviendas con varios anuncios en la base local.
   **Pendiente del responsable:** volcar de nuevo la base a Neon (sección «Actualizar los datos» de la guía), porque la demo sigue mostrando los grupos antiguos. Después hay que actualizar las cifras del README y de la presentación.
 
+- 2026-11-05: guion definitivo en `docs/VIDEO-SCRIPT.md`, con su recorrido probado en la demo (dibujo de zona: de 342 a 184 viviendas). `PRODUCT.md` y la guía de la demo actualizados tras las decisiones 275 y 276.
+  URL de la presentación añadida al README. **Pendiente del responsable:** compartirla, porque sigue privada.
+
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
 

@@ -3,12 +3,12 @@
 Buscador de vivienda en España que reúne en un solo sitio las ofertas de varias fuentes, detecta los anuncios
 que corresponden a la misma vivienda y enlaza siempre con el anuncio original. Trabajo Fin de Máster.
 
-| Entregable    | Enlace                                                                             |
-| ------------- | ---------------------------------------------------------------------------------- |
-| Demo          | [buscahogar.vercel.app](https://buscahogar.vercel.app/)                            |
-| Código fuente | [github.com/Ignacio27-git/buscahogar](https://github.com/Ignacio27-git/buscahogar) |
-| Presentación  | Pendiente de publicar                                                              |
-| Vídeo         | Pendiente de publicar                                                              |
+| Entregable    | Enlace                                                                                |
+| ------------- | ------------------------------------------------------------------------------------- |
+| Demo          | [buscahogar.vercel.app](https://buscahogar.vercel.app/)                               |
+| Código fuente | [github.com/Ignacio27-git/buscahogar](https://github.com/Ignacio27-git/buscahogar)    |
+| Presentación  | [Buscahogar: presentación del TFM](https://claude.ai/artifact/R4Vvt7wcGyVr636BqaPvHC) |
+| Vídeo         | Pendiente de publicar                                                                 |
 
 **No hay usuario ni contraseña de prueba:** la aplicación no tiene cuentas ni inicio de sesión.
 
@@ -140,6 +140,7 @@ Pruebas sin red ni credenciales: `pnpm test`, `pnpm lint` y `pnpm typecheck`.
 | `docs/DEPLOYMENT.md`         | Variables, runbook y CI; la producción real no se ejecutó  |
 | `docs/SEARCH-PERFORMANCE.md` | Mediciones de rendimiento de la búsqueda                   |
 | `ops/backup/README.md`       | Copias de seguridad cifradas y simulacro de restauración   |
+| `docs/VIDEO-SCRIPT.md`       | Guion del vídeo de presentación                            |
 | `docs/ROADMAP.md`            | Pasos de desarrollo, con el prompt de cada uno y su estado |
 | `docs/AI-NOTES.md`           | Registro de fallos de la asistencia                        |
 | `docs/PROMPTS.md`            | Registro de prompts                                        |

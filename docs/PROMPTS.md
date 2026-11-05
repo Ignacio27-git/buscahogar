@@ -2583,3 +2583,17 @@ sirven de guion para el vídeo. La primera captura de la ficha mostró el mapa a
 > «¿Investigo y corrijo esos grupos antes de que grabes?» → «si»
 
 **Observación.** Tests en rojo primero. El desglose guardado en `property_listings` permitió ver la causa sin rehidratar nada. Las métricas del corpus no cambian: no contiene estos casos.
+
+---
+
+### 2026-11-05 — Tareas de entrega que no dependen del responsable (paso 3.4b)
+
+**Tipo de tarea:** documentación y verificación
+**Forma de especificación:** petición abierta
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «lo que tú puedas hacer, hazlo»
+
+**Observación.** Se excluyó lo que exige credenciales, gasta cuota o es irreversible: volcado a Neon, barrido, push y envío del formulario. Comprobación desde un clon limpio, búsqueda de secretos en el repositorio y prueba del recorrido del guion.

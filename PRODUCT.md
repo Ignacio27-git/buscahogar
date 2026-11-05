@@ -54,8 +54,8 @@ Disponible hoy:
 - Vista de mapa con agrupación de marcadores y dibujo de una zona a mano.
 - Petición de cobertura de un municipio sin datos, con cuota diaria por cliente y aviso del
   estado del barrido.
-- Ficha de la vivienda con los datos consolidados, una galería de fotos y la lista de anuncios de
-  origen enlazados.
+- Ficha de la vivienda con los datos consolidados y la lista de anuncios de origen enlazados, sin
+  fotos (decisión 276).
 - Histórico de precios en la ficha: gráfico escalonado por anuncio y tabla accesible, con las
   fechas en que nuestro barrido observó cada precio.
 
@@ -69,9 +69,8 @@ Restricciones:
 - No hay cuentas de usuario ni inicio de sesión.
 - Algunas fuentes ofuscan las coordenadas: la ubicación de una vivienda es aproximada.
 - La política de seguridad de contenido solo admite fuentes tipográficas propias (`font-src 'self'`)
-  e imágenes del propio origen y de las teselas de OpenStreetMap (`img-src`). Las fotos de las
-  fuentes llegan al navegador a través del optimizador de imágenes propio, no directamente desde
-  su CDN. No se cargan fuentes, iconos ni scripts de terceros.
+  e imágenes del propio origen y de las teselas de OpenStreetMap (`img-src`). No se muestran fotos
+  de anuncios: Idealista no autoriza su uso (decisión 276). No se cargan fuentes, iconos ni scripts de terceros.
 - Una vivienda sin ningún anuncio activo no aparece en la búsqueda; su ficha muestra el mínimo de
   todos sus anuncios.
 
@@ -87,7 +86,7 @@ Restricciones:
 
 ## Evidence on Hand
 
-- Datos reales de anuncios de Idealista obtenidos por su API, con fotos servidas desde su CDN.
+- Datos reales de anuncios de Idealista obtenidos por su API, sin mostrar sus fotos.
 - Nomenclátor de municipios y entidades del IGN/CNIG (licencia CC-BY, atribución obligatoria en el
   pie).
 - Investigación de diseño, revisión 2 (`docs/DESIGN-ROADMAP.md`): evidencia C1–C4 sobre la vista
