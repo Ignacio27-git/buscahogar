@@ -2315,6 +2315,10 @@ respuesta de Idealista a la petición de acuerdo.
   un acuerdo o un permiso. Sin resolver: si la negativa alcanza también a los datos en un servicio público, y qué producto es el acceso
   actual, que sí devuelve `thumbnail`.
   El responsable decide no cambiar el código hasta tener respuesta: **la web sigue pidiendo esas fotos**, también en local.
+- 2026-11-05: Idealista ofrece la **API Testigos Lite** para mostrar datos en una plataforma: 350 €/mes hasta 600 peticiones, hasta 8.000 por
+  2.000 €/mes, 50 anuncios por petición. Devuelve identificador, estado, precio, coordenadas, superficie, habitaciones y URL. **No devuelve fotos,
+  dirección, baños, planta, título, descripción ni fechas**, y exige tipología, operación, punto y rango de superficie. Sin contratar: faltan las
+  condiciones por escrito y medir el efecto en la deduplicación. Siguen sin respuesta las dos aclaraciones sobre el acceso actual.
 
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.

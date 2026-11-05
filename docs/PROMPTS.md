@@ -2479,3 +2479,19 @@ no se construye nada hasta tener respuesta de Idealista. Se redactó el correo d
 
 **Observación.** La respuesta descarta las dos vías para mostrar fotos. Se propuso retirarlas y el responsable prefirió pedir antes un acuerdo.
 Se redactó la respuesta y se corrigió la guía de la demo, que atribuía el problema a un límite del CDN.
+
+---
+
+### 2026-11-05 — Análisis de la oferta API Testigos Lite de Idealista (paso 3.4b)
+
+**Tipo de tarea:** análisis
+**Forma de especificación:** correo de idealista/data pegado, con tarifas y enlaces a dos OpenAPI
+**Resultado:** pendiente de decisión del responsable
+
+**Prompt:**
+
+> «esto me han contestado:» (oferta de la API Testigos Lite)
+
+**Observación.** Se contrastaron los dos OpenAPI con el modelo actual. La API cubre lo básico para mostrar anuncios, pero elimina campos que
+hoy se guardan y usa la deduplicación. La oferta no responde a las dos aclaraciones sobre el acceso actual. El correo no fija si se pueden
+guardar datos e histórico.
