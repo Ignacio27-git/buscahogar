@@ -2325,7 +2325,10 @@ proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
 
 ---
 
-## [ ] 3.5 · Aprovisionamiento y puesta en marcha
+## [-] 3.5 · Aprovisionamiento y puesta en marcha
+
+**Descartado el 2026-11-05 (decisión 275):** el responsable renuncia a la versión profesional y el proyecto termina en la demostración del 3.4b.
+La lista de abajo se conserva como registro de lo que habría hecho falta.
 
 Decisión de producto del responsable (2026-10-21): la puesta en marcha real no ocurre hasta que el TFM esté aprobado. Este paso agrupa todo lo
 que el 3.4 dejó fuera por requerir cuentas, dinero o decisiones del propietario. El procedimiento y los comandos están en
@@ -2464,3 +2467,4 @@ Cambios sobre esta hoja de ruta y su motivo. Material directo para la memoria.
 | 2026-10-23 | 3.4 | No hay imagen de `apps/web` (la tarea pedía «imágenes de web y del worker») y `.env.example` no se actualizó | La web va a Vercel (decisión 254), que construye la suya; el servicio `web` de Compose queda sin Dockerfile (pendiente del 3.5). `.env.example` no se puede leer ni editar con las herramientas: las variables nuevas están en `docs/DEPLOYMENT.md` y es tarea del responsable. |
 | 2026-10-23 | 3.4 | El e2e visual de Playwright no forma parte de la CI (S8) | Exige una imagen de Docker de varios GB por ejecución; se ejecuta a mano antes de fusionar cambios de interfaz (se ejecutó al cerrar S8: 1117 pasadas, 0 fallos, 1007 omitidas). |
 | 2026-10-29 | 3.4b | Paso nuevo, no previsto: despliegue de demostración gratuito (Vercel Hobby, Neon Free, sin worker y con datos de foto fija) antes del 3.5 | El responsable necesita una URL para la defensa del TFM y el 3.5 no empieza hasta que el TFM esté aprobado. La demo no sustituye al 3.5: usa otras cuentas y otros planes y no ingiere datos. Decisión 273. |
+| 2026-11-05 | 3.5 | Paso descartado: no habrá puesta en producción (decisión 275) | Idealista no autoriza el uso de imágenes y su API para plataformas cuesta desde 350 €/mes, sin fotos ni dirección. El responsable se queda con la demostración para el TFM. |

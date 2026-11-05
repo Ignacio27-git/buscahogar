@@ -2495,3 +2495,19 @@ Se redactó la respuesta y se corrigió la guía de la demo, que atribuía el pr
 **Observación.** Se contrastaron los dos OpenAPI con el modelo actual. La API cubre lo básico para mostrar anuncios, pero elimina campos que
 hoy se guardan y usa la deduplicación. La oferta no responde a las dos aclaraciones sobre el acceso actual. El correo no fija si se pueden
 guardar datos e histórico.
+
+---
+
+### 2026-11-05 — Descarte de la versión profesional (pasos 3.4b y 3.5)
+
+**Tipo de tarea:** decisión de alcance
+**Forma de especificación:** respuesta libre a un cuestionario
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «creo que vamos a tirar por descartar la versión profesional y quedarnos solo con un despliegue simple para presentar el tfm y ya está,
+> hasta ahí si tenemos permisos para usar la api que ya tenemos»
+
+**Observación.** Se registró el descarte (decisión 275). La premisa de los permisos no se pudo confirmar: no hay condiciones legibles e Idealista
+no ha respondido a esa pregunta, y las fotos están expresamente no autorizadas.

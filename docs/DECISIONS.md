@@ -7599,6 +7599,20 @@ roto en todas las filas daba una mala impresión en la defensa.
 
 ---
 
+## 275 — Se descarta la versión profesional; el proyecto termina en la demostración para el TFM (descarta el paso 3.5)
+
+**Contexto.** Idealista respondió por escrito que el uso de imágenes no está autorizado (2026-11-04) y ofreció la API Testigos Lite para
+mostrar datos en una plataforma: desde 350 €/mes, sin fotos, dirección, baños, planta, título ni descripción (2026-11-05).
+
+**Decisión.** El responsable descarta la puesta en producción. El proyecto termina con el despliegue de demostración del paso 3.4b. El paso 3.5
+queda descartado y `docs/DEPLOYMENT.md` se conserva como procedimiento documentado, sin ejecutar.
+
+**Alternativas descartadas.** Contratar la API Testigos Lite (coste recurrente, y haría falta adaptar la ingesta, las fichas y la deduplicación);
+producción con otras fuentes (la base solo tiene anuncios de Idealista, habría que conseguir datos de otro origen).
+
+**Consecuencia.** Queda sin confirmar que el acceso actual a la API permita mostrar sus datos en la demo pública: Idealista no ha respondido a
+esa pregunta. Las fotos sí tienen respuesta, y no están autorizadas.
+
 ## Pendientes de decidir
 
 - **Umbrales concretos de bloqueo** (radio, banda de precio, margen de superficie): se
