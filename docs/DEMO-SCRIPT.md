@@ -11,7 +11,6 @@ Las frases entre comillas son orientativas: lo importante son los puntos en negr
 
 - [ ] Repasa las cifras que vas a leer en pantalla. Este guion se comprobó el 2026-11-09, después de volcar en Neon los datos con la
       corrección de la decisión 277.
-- [ ] Comparte la presentación, para poder enseñarla desde cualquier equipo.
 
 ### Diez minutos antes
 

@@ -3,12 +3,12 @@
 Buscador de vivienda en España que reúne en un solo sitio las ofertas de varias fuentes, detecta los anuncios
 que corresponden a la misma vivienda y enlaza siempre con el anuncio original. Trabajo Fin de Máster.
 
-| Entregable    | Enlace                                                                                |
-| ------------- | ------------------------------------------------------------------------------------- |
-| Demo          | [buscahogar.vercel.app](https://buscahogar.vercel.app/)                               |
-| Código fuente | [github.com/Ignacio27-git/buscahogar](https://github.com/Ignacio27-git/buscahogar)    |
-| Presentación  | [Buscahogar: presentación del TFM](https://claude.ai/artifact/R4Vvt7wcGyVr636BqaPvHC) |
-| Vídeo         | Pendiente de publicar                                                                 |
+| Entregable    | Enlace                                                                                                      |
+| ------------- | ----------------------------------------------------------------------------------------------------------- |
+| Demo          | [buscahogar.vercel.app](https://buscahogar.vercel.app/)                                                     |
+| Código fuente | [github.com/Ignacio27-git/buscahogar](https://github.com/Ignacio27-git/buscahogar)                          |
+| Presentación  | [Buscahogar: presentación del TFM](https://claude.ai/artifact/R4Vvt7wcGyVr636BqaPvHC)                       |
+| Vídeo         | [Vídeo de presentación](https://drive.google.com/file/d/1cB76mGCUgo51BFug996WeBIoxoCdBEJP/view?usp=sharing) |
 
 **No hay usuario ni contraseña de prueba:** la aplicación no tiene cuentas ni inicio de sesión.
 

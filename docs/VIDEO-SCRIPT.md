@@ -10,6 +10,15 @@ Duración prevista: unos 7 minutos. El PDF de requisitos exige capturar la panta
 - No pulses la petición de cobertura: en la demo se queda en cola y no se ve ningún resultado.
 - Comprueba los dos enlaces de «Ver en Idealista» de la ficha del apartado 4, y que sigue teniendo dos anuncios.
 
+## Cómo grabar
+
+- Alterna diapositivas y web, como indica cada apartado. La web es lo importante: demuestra que la aplicación funciona.
+- Graba la ventana del navegador o la pantalla completa, no una sola pestaña, para cambiar de pestaña sin cortes.
+- Abre la presentación en una pestaña del mismo navegador, sin modo de pantalla completa.
+- Salta las diapositivas 4 y 5: sus capturas de la búsqueda y de la ficha sobran, porque eso se enseña en directo.
+- Para dar más peso a la web, añade al apartado 3 algún paso de [`DEMO-SCRIPT.md`](DEMO-SCRIPT.md), como quitar un filtro o cambiar el orden.
+- Al terminar, sube el vídeo como público o accesible por enlace: el formulario y el README piden su URL.
+
 ## 1. Presentación (0:00, 20 s)
 
 **Pantalla:** diapositiva 1.
