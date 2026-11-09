@@ -2342,6 +2342,10 @@ respuesta de Idealista a la petición de acuerdo.
 - 2026-11-09: guion completo de la demo en directo en `docs/DEMO-SCRIPT.md`, comprobado contra la demo sin volcar. En la demo ningún anuncio tiene cambios de precio
   (54 fichas revisadas): el guion explica el histórico sin buscar un ejemplo.
 
+- 2026-11-09: **demo actualizada con la decisión 277.** Copia previa de Neon guardada fuera del repositorio; base `neondb` recreada, volcado local restaurado
+  sin errores y recuentos idénticos (4 413 anuncios, 4 375 viviendas, 38 grupos, estrategia 1.1.0). `deploy` dos veces con salida 0: `roles unchanged`, primero
+  `privileges changed` y después `unchanged`. La demo responde y la ficha de las 7 habitaciones ya no las agrupa.
+
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
 

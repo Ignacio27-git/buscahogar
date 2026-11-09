@@ -2625,3 +2625,17 @@ sirven de guion para el vídeo. La primera captura de la ficha mostró el mapa a
 > «para la demo, hazme un guión que seguir, completo e indicando sobre que hablar, para no dejarme nada fuera»
 
 **Observación.** Docker no estaba arrancado: los ejemplos se buscaron en la demo con peticiones espaciadas, por su limitador. Ninguna ficha revisada tenía cambios de precio.
+
+---
+
+### 2026-11-09 — Volcado de la base corregida a Neon (paso 3.4b)
+
+**Tipo de tarea:** operación
+**Forma de especificación:** petición breve y permiso explícito tras un bloqueo del sistema de permisos
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «pues haz lo de la base de datos, antes de hacer el vídeo demo» · «pero es que nunca hemos hecho una subida a neon?» · «te doy permiso»
+
+**Observación.** Los secretos se leyeron de los ficheros del perfil del responsable y nunca se imprimieron. El borrado de la base lo bloqueó el modo automático hasta el permiso explícito. Antes se hizo una copia de Neon.

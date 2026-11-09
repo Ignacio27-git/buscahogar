@@ -57,7 +57,7 @@ cuota de la API, y cada cambio de precio se conserva como una versión nueva.
 
 ## Limitaciones de la demo
 
-- **Datos fijos:** es una copia de la base de desarrollo, con 4 413 anuncios y 4 328 viviendas el 2026-10-29. No se
+- **Datos fijos:** es una copia de la base de desarrollo, con 4 413 anuncios y 4 375 viviendas el 2026-11-09. No se
   actualiza sola.
 - **Sin proceso en segundo plano:** una zona sin datos se puede pedir, pero queda en cola y no llega a cubrirse.
 - **Sin fotos:** Idealista ha respondido por escrito que el uso de sus imágenes no está autorizado (decisión 276).

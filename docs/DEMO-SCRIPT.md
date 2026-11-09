@@ -9,10 +9,8 @@ Las frases entre comillas son orientativas: lo importante son los puntos en negr
 
 ### El día antes
 
-- [ ] **Datos de la demo.** Si ya has vuelto a volcar la base en Neon («Actualizar los datos» en [`DEMO-DEPLOYMENT.md`](DEMO-DEPLOYMENT.md)), la
-      corrección de la decisión 277 está en la demo. Si no, **no abras** la ficha de la calle Pedro Antonio de Alarcón, 41: sigue mostrando
-      7 habitaciones agrupadas por error.
-- [ ] Repasa las cifras que vas a leer en pantalla. Este guion se comprobó el 2026-11-09 contra la demo sin volcar.
+- [ ] Repasa las cifras que vas a leer en pantalla. Este guion se comprobó el 2026-11-09, después de volcar en Neon los datos con la
+      corrección de la decisión 277.
 - [ ] Comparte la presentación, para poder enseñarla desde cualquier equipo.
 
 ### Diez minutos antes
@@ -86,7 +84,7 @@ Las frases entre comillas son orientativas: lo importante son los puntos en negr
 **Qué contar**
 
 - **Marcadores agrupados:** con cientos de viviendas, el mapa se lee por grupos.
-- **Recuento:** la búsqueda de Granada da 342 viviendas con ubicación. Puede diferir del total de la lista, porque las que no tienen
+- **Recuento:** la búsqueda de Granada da 343 viviendas con ubicación. Puede diferir del total de la lista, porque las que no tienen
   ubicación no salen en el mapa, y la página lo avisa.
 - **Las posiciones son aproximadas:** algunas fuentes ofuscan las coordenadas.
 
@@ -94,7 +92,7 @@ Las frases entre comillas son orientativas: lo importante son los puntos en negr
 
 **Qué contar**
 
-- **Zona a mano:** la lista y el mapa se quedan con lo que hay dentro. En la prueba del guion pasó de 342 a 184 viviendas.
+- **Zona a mano:** la lista y el mapa se quedan con lo que hay dentro. En la prueba del guion, con los datos anteriores, pasó de 342 a 184 viviendas.
 - **También con teclado:** el mapa se maneja con flechas y «Añadir vértice», y la ayuda de teclado está debajo del mapa.
 - **Teselas:** las pide el navegador directamente a OpenStreetMap. Es la única petición externa, no pasa por el servidor y no es una fuente de
   anuncios.
@@ -119,7 +117,7 @@ Las frases entre comillas son orientativas: lo importante son los puntos en negr
 
 ## 7. Otras ciudades y cobertura bajo demanda (1 min)
 
-**Qué hacer:** busca `Piso en alquiler en Madrid`. La prueba del guion dio 615 viviendas con ubicación.
+**Qué hacer:** busca `Piso en alquiler en Madrid`. La prueba del guion dio 618 viviendas con ubicación.
 
 **Qué contar**
 
