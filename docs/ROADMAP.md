@@ -2348,6 +2348,8 @@ respuesta de Idealista a la petición de acuerdo.
 
 - 2026-11-09: `docs/VIDEO-SCRIPT.md` revisado frente a los requisitos del PDF: los cumple. Dos retoques tras el volcado.
 
+- 2026-11-09: presentación al día: la diapositiva 8 recoge la decisión 277. La presentación ya está compartida por enlace.
+
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
 

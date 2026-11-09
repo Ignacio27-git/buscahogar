@@ -2653,3 +2653,17 @@ sirven de guion para el vídeo. La primera captura de la ficha mostró el mapa a
 > «para el vídeo demo que hay que subir el guión del archivo @docs/VIDEO-SCRIPT.md está correcto? cumple todos los requisitos?» → «si»
 
 **Observación.** Cumple los requisitos del PDF. Se retiró un aviso que el volcado del 2026-11-09 dejó obsoleto y se aclaró que en la demo cada anuncio tiene un solo precio observado.
+
+---
+
+### 2026-11-09 — Presentación al día con la decisión 277 (paso 3.4b)
+
+**Tipo de tarea:** documentación
+**Forma de especificación:** pregunta
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «habrá que actualizar también antes la presentación con lo último no?»
+
+**Observación.** Las diapositivas 8, 9 y 10 ya estaban al día. La 8 gana un bloque sobre la decisión 277, y sus notas coinciden con el guion del vídeo.
