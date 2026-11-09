@@ -2667,3 +2667,17 @@ sirven de guion para el vídeo. La primera captura de la ficha mostró el mapa a
 > «habrá que actualizar también antes la presentación con lo último no?»
 
 **Observación.** Las diapositivas 8, 9 y 10 ya estaban al día. La 8 gana un bloque sobre la decisión 277, y sus notas coinciden con el guion del vídeo.
+
+---
+
+### 2026-11-09 — Documentación al día tras fusionar el PR #6 (paso 3.4b)
+
+**Tipo de tarea:** documentación y verificación
+**Forma de especificación:** petición abierta
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «he hecho la subida del último pr al repo, actualiza toda la documentación y lo que sea necesario para el vídeo y me pongo grabarlo en cuanto acabemos esto último»
+
+**Observación.** Se comprobaron la CI, el despliegue y el recorrido del guion. La primera prueba de la frase del guion falló porque `curl` en Git Bash envió mal el símbolo €; con la codificación correcta, la demo la interpreta entera.

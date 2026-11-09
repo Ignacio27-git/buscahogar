@@ -2251,7 +2251,7 @@ aceptar verificadores SCRAM ya calculados ni `ALTER ROLE … SET jit`: ambos cas
 
 ---
 
-## [ ] 3.4b · Despliegue de demostración para la defensa del TFM
+## [~] 3.4b · Despliegue de demostración para la defensa del TFM
 
 Petición del responsable (2026-10-27): una URL pública y gratuita para la presentación del TFM, sin adelantar el paso 3.5.
 
@@ -2261,7 +2261,7 @@ Petición del responsable (2026-10-27): una URL pública y gratuita para la pres
 
 **Notas:**
 
-**Estado: guía escrita (2026-10-29); el aprovisionamiento queda en manos del responsable.** Procedimiento en `docs/DEMO-DEPLOYMENT.md`,
+**Estado: demo desplegada y al día (2026-11-09); quedan el vídeo y la entrega, en manos del responsable.** Procedimiento en `docs/DEMO-DEPLOYMENT.md`,
 decisión 273: Vercel Hobby, Neon Free en Frankfurt y ningún worker. Los datos son una foto fija de la base de desarrollo restaurada con
 `pg_restore --no-owner --no-privileges` y aprovisionada con `deploy`, la misma ruta que el simulacro de restauración.
 
@@ -2349,6 +2349,10 @@ respuesta de Idealista a la petición de acuerdo.
 - 2026-11-09: `docs/VIDEO-SCRIPT.md` revisado frente a los requisitos del PDF: los cumple. Dos retoques tras el volcado.
 
 - 2026-11-09: presentación al día: la diapositiva 8 recoge la decisión 277. La presentación ya está compartida por enlace.
+
+- 2026-11-09: **PR #6 fusionado en `master`** y desplegado en Vercel: la demo responde y el recorrido del guion funciona. Quedan resueltos los pendientes anteriores de este paso:
+  retirada de las fotos subida y desplegada, datos volcados de nuevo a Neon y presentación compartida por enlace. **Pendiente del responsable:** grabar el vídeo, añadir su URL al
+  README, subir ese último cambio y enviar el formulario de entrega. Sigue sin respuesta de Idealista la pregunta sobre mostrar sus datos.
 
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
