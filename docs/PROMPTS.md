@@ -2611,3 +2611,17 @@ sirven de guion para el vídeo. La primera captura de la ficha mostró el mapa a
 > «no se quitan los datos, la app se va a entregar así»
 
 **Observación.** Sin cambios de código.
+
+---
+
+### 2026-11-09 — Guion completo de la demo (paso 3.4b)
+
+**Tipo de tarea:** documentación
+**Forma de especificación:** petición en una frase
+**Resultado:** pendiente de revisión del responsable
+
+**Prompt:**
+
+> «para la demo, hazme un guión que seguir, completo e indicando sobre que hablar, para no dejarme nada fuera»
+
+**Observación.** Docker no estaba arrancado: los ejemplos se buscaron en la demo con peticiones espaciadas, por su limitador. Ninguna ficha revisada tenía cambios de precio.

@@ -141,6 +141,7 @@ Pruebas sin red ni credenciales: `pnpm test`, `pnpm lint` y `pnpm typecheck`.
 | `docs/SEARCH-PERFORMANCE.md` | Mediciones de rendimiento de la búsqueda                   |
 | `ops/backup/README.md`       | Copias de seguridad cifradas y simulacro de restauración   |
 | `docs/VIDEO-SCRIPT.md`       | Guion del vídeo de presentación                            |
+| `docs/DEMO-SCRIPT.md`        | Guion completo de la demo en directo                       |
 | `docs/ROADMAP.md`            | Pasos de desarrollo, con el prompt de cada uno y su estado |
 | `docs/AI-NOTES.md`           | Registro de fallos de la asistencia                        |
 | `docs/PROMPTS.md`            | Registro de prompts                                        |

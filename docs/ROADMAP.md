@@ -2339,6 +2339,9 @@ respuesta de Idealista a la petición de acuerdo.
 
 - 2026-11-05: el responsable decide mantener en el repositorio público los fixtures con datos reales de Idealista (101 anuncios) y entregar la aplicación así, a sabiendas de que el permiso sigue sin confirmar.
 
+- 2026-11-09: guion completo de la demo en directo en `docs/DEMO-SCRIPT.md`, comprobado contra la demo sin volcar. En la demo ningún anuncio tiene cambios de precio
+  (54 fichas revisadas): el guion explica el histórico sin buscar un ejemplo.
+
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
 
