@@ -2639,3 +2639,17 @@ sirven de guion para el vídeo. La primera captura de la ficha mostró el mapa a
 > «pues haz lo de la base de datos, antes de hacer el vídeo demo» · «pero es que nunca hemos hecho una subida a neon?» · «te doy permiso»
 
 **Observación.** Los secretos se leyeron de los ficheros del perfil del responsable y nunca se imprimieron. El borrado de la base lo bloqueó el modo automático hasta el permiso explícito. Antes se hizo una copia de Neon.
+
+---
+
+### 2026-11-09 — Revisión del guion del vídeo frente a los requisitos (paso 3.4b)
+
+**Tipo de tarea:** revisión y documentación
+**Forma de especificación:** pregunta y confirmación («si»)
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «para el vídeo demo que hay que subir el guión del archivo @docs/VIDEO-SCRIPT.md está correcto? cumple todos los requisitos?» → «si»
+
+**Observación.** Cumple los requisitos del PDF. Se retiró un aviso que el volcado del 2026-11-09 dejó obsoleto y se aclaró que en la demo cada anuncio tiene un solo precio observado.

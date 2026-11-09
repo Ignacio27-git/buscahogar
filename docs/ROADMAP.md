@@ -2346,6 +2346,8 @@ respuesta de Idealista a la petición de acuerdo.
   sin errores y recuentos idénticos (4 413 anuncios, 4 375 viviendas, 38 grupos, estrategia 1.1.0). `deploy` dos veces con salida 0: `roles unchanged`, primero
   `privileges changed` y después `unchanged`. La demo responde y la ficha de las 7 habitaciones ya no las agrupa.
 
+- 2026-11-09: `docs/VIDEO-SCRIPT.md` revisado frente a los requisitos del PDF: los cumple. Dos retoques tras el volcado.
+
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
 

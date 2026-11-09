@@ -9,7 +9,6 @@ Duración prevista: unos 7 minutos. El PDF de requisitos exige capturar la panta
 - Usa el tema claro y el zoom del navegador al 100 %, con la ventana maximizada: con más zoom, el mapa baja y queda fuera de la pantalla.
 - No pulses la petición de cobertura: en la demo se queda en cola y no se ve ningún resultado.
 - Comprueba los dos enlaces de «Ver en Idealista» de la ficha del apartado 4, y que sigue teniendo dos anuncios.
-- Si has vuelto a volcar los datos, comprueba las cifras que se leen en pantalla.
 
 ## 1. Presentación (0:00, 20 s)
 
@@ -51,7 +50,7 @@ Duración prevista: unos 7 minutos. El PDF de requisitos exige capturar la panta
 
 > Esta es la parte central del proyecto. Aquí hay dos anuncios con la misma dirección, planta y superficie, pero con precios distintos: 1 250 y 1 300 euros. Buscahogar los trata como una sola vivienda, muestra el precio más económico y enlaza con ambos anuncios para poder comprobarlo.
 >
-> También se ve el histórico de precios, con las fechas en que nuestro barrido observó cada precio, y la ubicación, que es un círculo de 500 metros porque algunas fuentes dan coordenadas aproximadas.
+> También está el histórico de precios: cada cambio de precio crea una versión nueva del anuncio, con la fecha en que nuestro barrido lo observó. En esta copia de la demo cada anuncio tiene un solo precio, porque es una foto de un único barrido. Y la ubicación es un círculo de 500 metros, porque algunas fuentes dan coordenadas aproximadas.
 
 ## 5. Arquitectura y modelo (3:35, 1 min)
 
