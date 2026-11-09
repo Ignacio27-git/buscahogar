@@ -26,7 +26,7 @@ describe('createImageEvaluators (ROADMAP 2.3, decisión 094)', () => {
     expect(ruleBasedWithImage.classify).toBe(classifyRuleBasedWithImage);
     expect(ruleBasedWithImage.defaultThresholds).toEqual(RULE_BASED_BAND_THRESHOLDS);
     expect(ruleBasedWithImage.strategy.name).toBe('rule-based-structured+image-phash');
-    expect(ruleBasedWithImage.strategy.version).toBe(`1.0.0+phash-t${String(IMAGE_HAMMING_THRESHOLD)}`);
+    expect(ruleBasedWithImage.strategy.version).toBe(`1.1.0+phash-t${String(IMAGE_HAMMING_THRESHOLD)}`);
   });
 
   it('probabilisticWithImage: classify=classifyProbabilistic, defaultThresholds=FS_BAND_THRESHOLDS', () => {

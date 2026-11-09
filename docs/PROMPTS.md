@@ -2525,3 +2525,145 @@ no ha respondido a esa pregunta, y las fotos están expresamente no autorizadas.
 > (cuestionario) «¿Retiro ya las fotos de Idealista de la web para la demo?» → «Sí, retirarlas (Recomendado)»
 
 **Observación.** Tests en rojo primero. El test nuevo buscaba `next/image` y coincidía con `_next/image` del matcher del proxy: se acotó al `import`.
+
+---
+
+### 2026-11-05 — README para la entrega del TFM (paso 3.4b)
+
+**Tipo de tarea:** documentación
+**Forma de especificación:** PDF de requisitos del TFM y confirmación de una propuesta («si»)
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «aquí puedes ver todo lo necesario para el tfm, que nos falta y que tenemos?» → «¿Empiezo por completar el README?» → «si»
+
+**Observación.** El apartado de puesta en marcha anterior no bastaba: no creaba los roles que necesita `apps/web`. Se sustituyó por un recorrido con base
+desechable, que se ejecutó de verdad. Las URL de la presentación y del vídeo quedan como pendientes de publicar.
+
+---
+
+### 2026-11-05 — Presentación del TFM (paso 3.4b)
+
+**Tipo de tarea:** documentación
+**Forma de especificación:** confirmación de una propuesta («si»), con el PDF de requisitos como referencia
+**Resultado:** pendiente de revisión del responsable
+
+**Prompt:**
+
+> «¿Sigo con las slides?» → «si»
+
+**Observación.** Las cifras salen de `docs/ROADMAP.md`, `docs/SEARCH-PERFORMANCE.md` y `docs/DECISIONS.md`. Las capturas son de la demo desplegada. Las notas del orador
+sirven de guion para el vídeo. La primera captura de la ficha mostró el mapa a medio cargar: era la carga de las teselas, y se repitió la captura.
+
+---
+
+### 2026-11-05 — Guion del vídeo del TFM (paso 3.4b)
+
+**Tipo de tarea:** documentación
+**Forma de especificación:** petición en una frase
+**Resultado:** pendiente de revisión del responsable
+
+**Prompt:**
+
+> «hazme un guión para el vídeo»
+
+**Observación.** Se comprobó en la demo el recorrido que propone el guion. Buscar una ficha con varios anuncios destapó grupos sospechosos de habitaciones (nota en `docs/ROADMAP.md`, 3.4b).
+
+---
+
+### 2026-11-05 — Corrección de falsos positivos de deduplicación (paso 3.4b)
+
+**Tipo de tarea:** corrección con TDD
+**Forma de especificación:** confirmación de una propuesta («si») tras un hallazgo en datos reales
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «¿Investigo y corrijo esos grupos antes de que grabes?» → «si»
+
+**Observación.** Tests en rojo primero. El desglose guardado en `property_listings` permitió ver la causa sin rehidratar nada. Las métricas del corpus no cambian: no contiene estos casos.
+
+---
+
+### 2026-11-05 — Tareas de entrega que no dependen del responsable (paso 3.4b)
+
+**Tipo de tarea:** documentación y verificación
+**Forma de especificación:** petición abierta
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «lo que tú puedas hacer, hazlo»
+
+**Observación.** Se excluyó lo que exige credenciales, gasta cuota o es irreversible: volcado a Neon, barrido, push y envío del formulario. Comprobación desde un clon limpio, búsqueda de secretos en el repositorio y prueba del recorrido del guion.
+
+---
+
+### 2026-11-05 — Los fixtures de Idealista se mantienen (paso 3.4b)
+
+**Tipo de tarea:** decisión de alcance
+**Forma de especificación:** respuesta libre
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «no se quitan los datos, la app se va a entregar así»
+
+**Observación.** Sin cambios de código.
+
+---
+
+### 2026-11-09 — Guion completo de la demo (paso 3.4b)
+
+**Tipo de tarea:** documentación
+**Forma de especificación:** petición en una frase
+**Resultado:** pendiente de revisión del responsable
+
+**Prompt:**
+
+> «para la demo, hazme un guión que seguir, completo e indicando sobre que hablar, para no dejarme nada fuera»
+
+**Observación.** Docker no estaba arrancado: los ejemplos se buscaron en la demo con peticiones espaciadas, por su limitador. Ninguna ficha revisada tenía cambios de precio.
+
+---
+
+### 2026-11-09 — Volcado de la base corregida a Neon (paso 3.4b)
+
+**Tipo de tarea:** operación
+**Forma de especificación:** petición breve y permiso explícito tras un bloqueo del sistema de permisos
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «pues haz lo de la base de datos, antes de hacer el vídeo demo» · «pero es que nunca hemos hecho una subida a neon?» · «te doy permiso»
+
+**Observación.** Los secretos se leyeron de los ficheros del perfil del responsable y nunca se imprimieron. El borrado de la base lo bloqueó el modo automático hasta el permiso explícito. Antes se hizo una copia de Neon.
+
+---
+
+### 2026-11-09 — Revisión del guion del vídeo frente a los requisitos (paso 3.4b)
+
+**Tipo de tarea:** revisión y documentación
+**Forma de especificación:** pregunta y confirmación («si»)
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «para el vídeo demo que hay que subir el guión del archivo @docs/VIDEO-SCRIPT.md está correcto? cumple todos los requisitos?» → «si»
+
+**Observación.** Cumple los requisitos del PDF. Se retiró un aviso que el volcado del 2026-11-09 dejó obsoleto y se aclaró que en la demo cada anuncio tiene un solo precio observado.
+
+---
+
+### 2026-11-09 — Presentación al día con la decisión 277 (paso 3.4b)
+
+**Tipo de tarea:** documentación
+**Forma de especificación:** pregunta
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «habrá que actualizar también antes la presentación con lo último no?»
+
+**Observación.** Las diapositivas 8, 9 y 10 ya estaban al día. La 8 gana un bloque sobre la decisión 277, y sus notas coinciden con el guion del vídeo.

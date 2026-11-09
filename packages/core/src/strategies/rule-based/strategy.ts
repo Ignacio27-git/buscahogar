@@ -1,5 +1,5 @@
-// La primera DedupStrategy (ROADMAP 1.9): acumula las nueve señales
-// (siete estructuradas + dos puertas de veto) y normaliza por peso
+// La primera DedupStrategy (ROADMAP 1.9): acumula las diez señales
+// (siete estructuradas + tres puertas de veto, la de planta desde la decisión 277) y normaliza por peso
 // EFECTIVO, no por peso total configurado (decisión 049) — dividir por el
 // total introduce un sesgo sistemático contra los pares `premises`, que
 // nunca tienen `rooms`/`bathrooms` (RDS-3a).
@@ -15,12 +15,33 @@ import { scoreAddress } from './address.js';
 import { scoreBathrooms, scoreDistance, scorePrice, scoreRooms, scoreSurface } from './signals.js';
 import { STRATEGY_VERSION } from './weights.js';
 
-// Las dos claves de veto (BAND-3): siempre presentes, siempre a peso 0 —
+// Las claves de veto (BAND-3): siempre presentes, siempre a peso 0 —
 // nunca entran en la acumulación ni en el piso de evidencia (RDS-3, RDS-4).
 // `classify` deriva el veto de su `value`, no de una entidad de marcador
 // separada.
 function scoreGate(matches: boolean, matchDetail: string, mismatchDetail: string): SignalScore {
   return { value: matches ? 1 : 0, weight: 0, detail: matches ? matchDetail : mismatchDetail };
+}
+
+// Decisión 277: `other` significa que el mapeo de la fuente no sabe qué es (habitación, garaje, oficina,
+// estudio), así que dos `other` no confirman el mismo tipo. Un piso compartido comparte dirección, superficie
+// y habitaciones entre todas sus habitaciones en alquiler: sin esta puerta se agrupan.
+function scorePropertyTypeGate(a: Listing, b: Listing): SignalScore {
+  if (a.propertyType === 'other' && b.propertyType === 'other') {
+    return { value: 0, weight: 0, detail: 'tipo de inmueble sin clasificar' };
+  }
+  return scoreGate(a.propertyType === b.propertyType, 'mismo tipo de inmueble', 'tipo de inmueble distinto');
+}
+
+// Decisión 277: dos plantas conocidas y distintas descartan la misma vivienda, por mucho que coincida lo
+// demás. La ausencia no es un desacuerdo: si falta en algún anuncio, la puerta no veta.
+function scoreFloorGate(a: string | undefined, b: string | undefined): SignalScore {
+  const floorA = a?.trim().toLowerCase();
+  const floorB = b?.trim().toLowerCase();
+  if (floorA === undefined || floorB === undefined || floorA === '' || floorB === '') {
+    return { value: 1, weight: 0, detail: 'planta no comparable' };
+  }
+  return scoreGate(floorA === floorB, 'misma planta', 'planta distinta');
 }
 
 function score(a: Listing, b: Listing): SimilarityResult {
@@ -34,11 +55,8 @@ function score(a: Listing, b: Listing): SimilarityResult {
     addressZone,
     rooms: scoreRooms(a.rooms, b.rooms),
     bathrooms: scoreBathrooms(a.bathrooms, b.bathrooms),
-    propertyTypeMatch: scoreGate(
-      a.propertyType === b.propertyType,
-      'mismo tipo de inmueble',
-      'tipo de inmueble distinto'
-    ),
+    propertyTypeMatch: scorePropertyTypeGate(a, b),
+    floorMatch: scoreFloorGate(a.floor, b.floor),
     operationMatch: scoreGate(a.operation === b.operation, 'misma operación', 'operación distinta'),
   };
 

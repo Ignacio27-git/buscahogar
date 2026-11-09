@@ -1,12 +1,12 @@
 # Despliegue de demostración para la defensa del TFM
 
-Guía del paso 3.4b. El objetivo es tener una URL pública con la que el tribunal pueda probar Buscahogar, **sin coste** y sin adelantar el
-paso 3.5, que es la puesta en producción real y empieza después de la aprobación del TFM. Decisión 273.
+Guía del paso 3.4b. El objetivo es tener una URL pública con la que el tribunal pueda probar Buscahogar, **sin coste**. Decisión 273. El proyecto termina
+aquí: la puesta en producción real (paso 3.5) se descartó en la decisión 275, y la columna de abajo queda solo como referencia.
 
 La demo usa la misma arquitectura que producción (decisión 254), pero reducida: `apps/web` en Vercel, PostgreSQL 17 con PostGIS en Neon
 y **ningún worker**. Los datos son una **foto fija** de la base de desarrollo, volcada una sola vez.
 
-## Qué cambia respecto al paso 3.5
+## Qué cambia respecto al paso 3.5, descartado
 
 | Pieza | Paso 3.5 (producción) | Demo |
 |---|---|---|
@@ -202,5 +202,4 @@ Para volcar una foto nueva (por ejemplo, después del pre-barrido de noviembre):
 
 ## Desmontaje
 
-Al terminar la defensa, borra el proyecto de Neon y el de Vercel, o déjalos en pausa. Nada de esto afecta al paso 3.5, que usa sus
-propias cuentas, sus propios planes y su propia base.
+Al terminar la defensa, borra el proyecto de Neon y el de Vercel, o déjalos en pausa.

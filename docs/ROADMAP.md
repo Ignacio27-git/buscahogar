@@ -2322,6 +2322,34 @@ respuesta de Idealista a la petición de acuerdo.
   dirección, baños, planta, título, descripción ni fechas**, y exige tipología, operación, punto y rango de superficie. Sin contratar: faltan las
   condiciones por escrito y medir el efecto en la deduplicación. Siguen sin respuesta las dos aclaraciones sobre el acceso actual.
 
+- 2026-11-05: **README rehecho para la entrega** según los requisitos del TFM: descripción, funcionalidades, stack, estructura, enlaces y límites de la
+  demo. Las instrucciones de instalación se probaron contra una base desechable (despliegue, compilación y arranque: `/api/health` ok y portada 200,
+  con 0 anuncios), sin `pnpm install` desde un clon limpio. **Pendiente del responsable:** añadir al README las URL de la presentación y del vídeo.
+
+- 2026-11-05: **Presentación del TFM creada** (12 diapositivas con notas del orador y capturas de la demo): https://claude.ai/artifact/R4Vvt7wcGyVr636BqaPvHC. Es privada hasta que el responsable la comparta. **Pendiente del responsable:** compartirla, añadir su URL al README y grabar el vídeo.
+
+- 2026-11-05: guion del vídeo redactado. **Corregidos los grupos con falsos positivos** que destapó (decisión 277, `rule-based` 1.1.0): de 66 a 38 viviendas con varios anuncios en la base local.
+  **Pendiente del responsable:** volcar de nuevo la base a Neon (sección «Actualizar los datos» de la guía), porque la demo sigue mostrando los grupos antiguos. Después hay que actualizar las cifras del README y de la presentación.
+
+- 2026-11-05: guion definitivo en `docs/VIDEO-SCRIPT.md`, con su recorrido probado en la demo (dibujo de zona: de 342 a 184 viviendas). `PRODUCT.md` y la guía de la demo actualizados tras las decisiones 275 y 276.
+  URL de la presentación añadida al README. **Pendiente del responsable:** compartirla, porque sigue privada.
+
+- 2026-11-05: comprobación desde un clon limpio en Windows: `pnpm test` fallaba en `backup-ops.test.ts`, que partía el Dockerfile solo por `
+` y Git lo convierte a CRLF. Corregido el test.
+
+- 2026-11-05: el responsable decide mantener en el repositorio público los fixtures con datos reales de Idealista (101 anuncios) y entregar la aplicación así, a sabiendas de que el permiso sigue sin confirmar.
+
+- 2026-11-09: guion completo de la demo en directo en `docs/DEMO-SCRIPT.md`, comprobado contra la demo sin volcar. En la demo ningún anuncio tiene cambios de precio
+  (54 fichas revisadas): el guion explica el histórico sin buscar un ejemplo.
+
+- 2026-11-09: **demo actualizada con la decisión 277.** Copia previa de Neon guardada fuera del repositorio; base `neondb` recreada, volcado local restaurado
+  sin errores y recuentos idénticos (4 413 anuncios, 4 375 viviendas, 38 grupos, estrategia 1.1.0). `deploy` dos veces con salida 0: `roles unchanged`, primero
+  `privileges changed` y después `unchanged`. La demo responde y la ficha de las 7 habitaciones ya no las agrupa.
+
+- 2026-11-09: `docs/VIDEO-SCRIPT.md` revisado frente a los requisitos del PDF: los cumple. Dos retoques tras el volcado.
+
+- 2026-11-09: presentación al día: la diapositiva 8 recoge la decisión 277. La presentación ya está compartida por enlace.
+
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
 
