@@ -2681,3 +2681,17 @@ sirven de guion para el vídeo. La primera captura de la ficha mostró el mapa a
 > «he hecho la subida del último pr al repo, actualiza toda la documentación y lo que sea necesario para el vídeo y me pongo grabarlo en cuanto acabemos esto último»
 
 **Observación.** Se comprobaron la CI, el despliegue y el recorrido del guion. La primera prueba de la frase del guion falló porque `curl` en Git Bash envió mal el símbolo €; con la codificación correcta, la demo la interpreta entera.
+
+---
+
+### 2026-11-09 — URL del vídeo en el README (paso 3.4b)
+
+**Tipo de tarea:** documentación
+**Forma de especificación:** enlaces pegados
+**Resultado:** utilizable sin cambios
+
+**Prompt:**
+
+> «este es el enlace del vídeo: …» · «este es enlace de las slides: …»
+
+**Observación.** El vídeo se abre sin iniciar sesión. El enlace de las slides llevaba un fragmento a una diapositiva concreta: el README conserva el enlace a la portada.

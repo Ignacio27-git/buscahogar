@@ -2354,6 +2354,8 @@ respuesta de Idealista a la petición de acuerdo.
   retirada de las fotos subida y desplegada, datos volcados de nuevo a Neon y presentación compartida por enlace. **Pendiente del responsable:** grabar el vídeo, añadir su URL al
   README, subir ese último cambio y enviar el formulario de entrega. Sigue sin respuesta de Idealista la pregunta sobre mostrar sus datos.
 
+- 2026-11-09: **vídeo grabado y publicado** en Google Drive, con acceso por enlace; URL añadida al README. **Pendiente del responsable:** subir este cambio y enviar el formulario de entrega.
+
 **Para el paso 3.5:** `deploy` necesita un modo de contraseña en texto plano para Neon. Hay que decidir cómo: un indicador explícito del
 proveedor, o recurrir al texto plano cuando el proveedor rechaza el verificador.
 
